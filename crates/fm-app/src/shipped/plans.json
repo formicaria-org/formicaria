@@ -1,4 +1,5 @@
 {
+  "weeks": [{"by": "Centers for Disease Control and Prevention", "title": "Adding Physical Activity as an Adult: examples of weekly physical activity schedules", "url": "https://www.cdc.gov/physical-activity-basics/adding-adults/index.html", "seen": "2026-10-12", "examples": [{"name": "Example 1", "about": "Moderate-intensity activity and muscle-strengthening activity", "days": ["30-minute brisk walk", "30-minute brisk walk", "30-minute brisk walk", "Weight training", "30-minute brisk walk", "30-minute brisk walk", "Weight training"], "total": "Total: 150 minutes moderate-intensity aerobic activity and 2 days muscle-strengthening activity"}, {"name": "Example 2", "about": "Vigorous-intensity activity and muscle-strengthening activity", "days": ["", "25-minute jog", "", "25-minute jog and weight training", "", "Weight training", "25-minute jog"], "total": "Total: 75 minutes vigorous-intensity aerobic activity and 2 days muscle-strengthening activity"}, {"name": "Example 3", "about": "Mix of aerobic and muscle-strengthening activity", "days": ["30-minute brisk walk", "15-minute jog", "Weight training", "30-minute brisk walk", "Weight training", "15-minute jog", "30-minute brisk walk"], "total": "Total: The equivalent of 150 minutes of moderate-intensity aerobic activity and 2 days of muscle-strengthening activity"}]}],
   "activities": [
     { "name": "Brisk walking", "kind": "aerobic", "by": "NHS" },
     { "name": "Cycling", "kind": "aerobic", "by": "NHS" },
@@ -10,7 +11,12 @@
     { "name": "Body-weight exercises", "kind": "strength", "by": "NHS" },
     { "name": "Tai chi", "kind": "balance", "by": "World Falls Guidelines 2022" },
     { "name": "Balance exercises", "kind": "balance", "by": "World Falls Guidelines 2022" },
-    { "name": "Stretching", "kind": "flexibility", "by": "Warneke et al. 2025" }
+    { "name": "Stretching", "kind": "flexibility", "by": "Warneke et al. 2025" },
+    { "name": "4×4 intervals", "kind": "aerobic", "by": "NTNU Cardiac Exercise Research Group" },
+    { "name": "Interval walking", "kind": "aerobic", "by": "Nemoto et al. 2007" },
+    { "name": "10-20-30 running", "kind": "aerobic", "by": "Gunnarsson and Bangsbo 2012" },
+    { "name": "Jogging", "kind": "aerobic", "by": "CDC" },
+    { "name": "Weight training", "kind": "strength", "by": "CDC" }
   ],
   "plans": [
     {
@@ -386,6 +392,163 @@
       "guides": [
         { "label": "Flexibility exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/", "seen": "2026-10-12" }
       ]
+    },
+    {
+      "id": "norwegian-4x4",
+      "group": "fitness",
+      "name": "Norwegian 4×4 intervals",
+      "rests_on": "review",
+      "summary": "Four 4-minute efforts hard enough that you cannot speak in sentences, with 3 easy minutes between, two or three times a week. From a research group in Trondheim.",
+      "sources": [
+        {
+          "by": "NTNU Cardiac Exercise Research Group (CERG)",
+          "title": "Advice on exercise: “We … recommend 4x4-minutes interval training to improve fitness”; 2–3 sessions a week to increase fitness, one to maintain it",
+          "url": "https://www.ntnu.edu/cerg/advice"
+        },
+        {
+          "by": "Helgerud et al.",
+          "title": "Aerobic high-intensity intervals improve VO2max more than moderate training. Med Sci Sports Exerc 2007 — 40 moderately trained men, 8 weeks",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/17414804/"
+        },
+        {
+          "by": "Stensvold et al.",
+          "title": "Generation 100, BMJ 2020 — 1,567 people aged 70–77 for 5 years: “All cause mortality did not differ between the control group and combined MICT and HIIT group”",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/33028588/"
+        }
+      ],
+      "needs": [],
+      "checks": [
+        {
+          "id": "sessions",
+          "label": "4×4 sessions this week",
+          "kind": "named_days",
+          "names": [
+            "4×4 intervals"
+          ],
+          "min": 2,
+          "basis": "CERG: “we recommend 2–3 sessions with interval training per week” to increase fitness; one a week maintains it"
+        }
+      ],
+      "describes": [
+        "Warm up for 10 minutes at an easy effort",
+        "4 minutes hard: 85–95% of your maximum heart rate — by feel, breathing so hard you cannot speak in sentences, yet able to do another interval afterwards",
+        "3 minutes of easy movement (about 70% of maximum heart rate), not standing still",
+        "Do that four times in all, then cool down for 5 minutes",
+        "New to it: start with one 4-minute effort and add one as the weeks go (CERG's 7-week programme)",
+        "No heart-rate monitor is needed (CERG). Log each session as the activity “4×4 intervals”"
+      ],
+      "unmeasured": [
+        "Whether each effort reached the intensity: formicaria counts the sessions you log, not your heart rate.",
+        "Its originator says “there are no studies that show that 4×4 interval training prolongs life more than any other type of exercise” (Wisløff, 2024). It is one well-studied way to raise fitness, not a better one than all others."
+      ],
+      "caution": "CERG: “We have positive experience with 4x4 interval training for people with coronary artery disease. However, every patient is different, and if you're unsure you should contact your doctor.”",
+      "guides": [
+        {
+          "label": "Advice on exercise, and the 4×4 as its originators describe it",
+          "by": "NTNU CERG",
+          "url": "https://www.ntnu.edu/cerg/advice",
+          "seen": "2026-10-12"
+        },
+        {
+          "label": "A 7-week programme that builds up from one interval",
+          "by": "NTNU CERG",
+          "url": "https://www.ntnu.edu/cerg/regimen",
+          "seen": "2026-10-12"
+        },
+        {
+          "label": "Video: 4x4 Interval Training (the one CERG's page shows; on a personal Vimeo account)",
+          "by": "Maria Henningsen, shown by NTNU CERG",
+          "url": "https://vimeo.com/75764170",
+          "seen": "2026-10-12"
+        }
+      ]
+    },
+    {
+      "id": "interval-walking",
+      "group": "fitness",
+      "name": "Interval walking",
+      "rests_on": "review",
+      "summary": "Three minutes of fast walking and three of slow, five times or more, on four or more days a week. Tested in Japan in people around 63.",
+      "sources": [
+        {
+          "by": "Nemoto, Nose et al.",
+          "title": "Effects of high-intensity interval walking training on physical fitness and blood pressure in middle-aged and older people. Mayo Clin Proc 2007 — 246 people, 5 months",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/17605959/"
+        }
+      ],
+      "needs": [],
+      "checks": [
+        {
+          "id": "sessions",
+          "label": "Interval-walking days this week",
+          "kind": "named_days",
+          "names": [
+            "Interval walking"
+          ],
+          "min": 4,
+          "basis": "Nemoto et al. 2007: “5 or more sets of 3-minute low-intensity walking … followed by a 3-minute high-intensity walking … 4 or more days per week”"
+        }
+      ],
+      "describes": [
+        "3 minutes of slow walking, then 3 minutes of fast walking",
+        "Five times or more: 30 minutes or longer",
+        "The trial set “fast” at above 70% of each person's peak walking capacity, measured with a device; by feel that is a pace you could not keep up for long",
+        "Log each as the activity “Interval walking”"
+      ],
+      "unmeasured": [
+        "How fast the fast minutes were.",
+        "The trial's people were about 63 years old; nothing here says what it does for a younger person."
+      ],
+      "guides": []
+    },
+    {
+      "id": "activity-for-weight-loss",
+      "group": "fitness",
+      "name": "Activity for losing weight",
+      "rests_on": "position",
+      "summary": "More than 250 minutes of moderate activity a week, with strengthening on 2 days to keep muscle. Written for people above a healthy weight, and it works with eating less, not instead of it.",
+      "sources": [
+        {
+          "by": "American College of Sports Medicine",
+          "title": "Donnelly et al. 2009, position stand: “Moderate-intensity PA between 150 and 250 min wk(-1) will provide only modest weight loss. Greater amounts of PA (>250 min wk(-1)) have been associated with clinically significant weight loss.”",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/19127177/"
+        },
+        {
+          "by": "U.S. Department of Health and Human Services",
+          "title": "Physical Activity Guidelines for Americans, 2nd edition (2018): “Muscle-strengthening activities can also help maintain lean body mass during weight loss.”",
+          "url": "https://health.gov/sites/default/files/2019-09/Physical_Activity_Guidelines_2nd_edition.pdf"
+        }
+      ],
+      "needs": [],
+      "checks": [
+        {
+          "id": "minutes",
+          "label": "Activity this week",
+          "kind": "minutes",
+          "min": 250,
+          "basis": "ACSM 2009: more than 250 min a week of moderate activity for clinically significant weight loss; 150–250 gives only modest loss. A vigorous minute counts as two."
+        },
+        {
+          "id": "strength",
+          "label": "Strengthening days this week",
+          "kind": "days",
+          "of": "strength",
+          "min": 2,
+          "basis": "WHO and the US guidelines: all major muscle groups on 2 or more days a week; it helps keep lean mass while weight is lost"
+        }
+      ],
+      "describes": [
+        "Diet and activity together: “Combining both caloric restriction and physical activity tend to be most beneficial for weight loss” (US guidelines)",
+        "Strength training adds little weight loss of its own; it is there to keep muscle (ACSM 2009)",
+        "Intervals and steady effort lose the same fat when the energy spent is the same; intervals take less time (reviews of trials)",
+        "No body defines “toning” or “definition”, and exercising one area does not take fat from that area: a review of 37 comparisons found “no spot reduction”"
+      ],
+      "unmeasured": [
+        "What you eat: follow a diet under Food for that.",
+        "A rate of loss. Every figure a public body gives (about 0.5 to 1 kg a week) is addressed to people above a healthy weight; none was found for someone already at one."
+      ],
+      "caution": "CDC: “if you have a chronic health condition, be sure to talk with your doctor about the types and amounts of physical activity that are right for you.” A healthy weight for adults is generally a body mass index between 18.5 and 24.9 (NHLBI); this is not for losing weight below it.",
+      "guides": []
     },
     {
       "id": "own-fitness",

@@ -232,6 +232,24 @@ it, what you did, and — on a day still to come — a button to plan a routine 
 shows the regime you follow and how the week stands against it. **Open** on a day shows that
 day's session; step to earlier or later weeks with the arrows.
 
+With no routines yet, the Week tab also shows three **example weeks** as the U.S. Centers for
+Disease Control and Prevention publishes them — for instance a 30-minute brisk walk on five days
+and weight training on two — to start from.
+
+**Fitness → Exercises** shows how each exercise is done, in the words of the body that published
+it. Choose what you have — **No equipment**, **A bar**, **Free weights**, **Machines** — and the
+part of the body, then open a card for its steps.
+
+- The no-equipment cards are mostly the NHS website's; the others are the U.S. Army's exercise
+  manual, which is public. The Army's are written for soldiers and shown exactly as written, so
+  they speak of counts, commands and "Soldiers". Nothing is reworded: rewording is how a
+  source's words stop being its own.
+- **To watch** links to a film of the exercise on YouTube: a known body's own channel where one
+  was found, and otherwise a trainer's, which the card says, with how many views it had.
+- **Add to today's session** starts the add sheet with that exercise.
+- How many sets and repetitions is for the regime you follow to say, not the card: a card's own
+  figure is its source's, for its own readers.
+
 **Fitness → Volume** is the trend view over what you lifted. *Volume load* is repetitions ×
 load, added up over the sets you ticked — the usual meaning of the term in the training
 literature. It is a rough measure of work done, not a score.
@@ -277,6 +295,9 @@ body that wrote it, or your own. Press one to see, before anything is saved:
 | In Food | In Fitness |
 |---|---|
 | WHO healthy diet | WHO weekly activity |
+| | Activity for losing weight |
+| | Norwegian 4×4 intervals |
+| | Interval walking |
 | European reference values (vitamins and minerals too) | WHO weekly activity, 65 and over |
 | Energy and protein for me | Falls prevention |
 | Two fasting days a week | Strength, twice a week |
@@ -285,6 +306,12 @@ body that wrote it, or your own. Press one to see, before anything is saved:
 | Nordic recommendations 2023 | Stretching for range of motion |
 | Planetary health diet | My own |
 | My own | |
+
+The interval options are followed by logging the session under its name, which the add sheet
+offers. Each says what stands behind it: the 4×4's own originators say no study shows it
+prolongs life more than other exercise, and the app repeats that. *Activity for losing weight* is
+written for people above a healthy weight; no health body defines "toning" or "definition", and
+exercising one area does not take fat from it.
 
 The fasting patterns are given as an international group of researchers defines them. No public
 health body was found recommending them, and the screen says that.

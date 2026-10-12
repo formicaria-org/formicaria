@@ -156,6 +156,25 @@ export function planLibrary(args: { group: string }): PlanLibrary {
             { name: 'Yoga', kind: 'strength', by: 'NHS' },
           ]
         : [],
+    weeks:
+      args.group === 'fitness'
+        ? [
+            {
+              by: 'Centers for Disease Control and Prevention',
+              title: 'Adding Physical Activity as an Adult',
+              url: 'https://www.cdc.gov/',
+              seen: '2026-10-12',
+              examples: [
+                {
+                  name: 'Example 1',
+                  about: 'Moderate-intensity activity and muscle-strengthening activity',
+                  days: ['30-minute brisk walk', '', '', 'Weight training', '', '', ''],
+                  total: 'Total: 150 minutes',
+                },
+              ],
+            },
+          ]
+        : [],
   };
 }
 

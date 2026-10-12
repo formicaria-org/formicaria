@@ -501,3 +501,43 @@ test('a week of training is a timetable: what is meant for each day, and a day o
   await fireEvent.click(screen.getByRole('button', { name: 'Back to today' }));
   expect(await screen.findByRole('heading', { name: 'Today’s session' })).toBeTruthy();
 });
+
+test('an exercise card shows how it is done in its source’s words, credited, and adds to the session', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  const bar = await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Exercises' }));
+  // No equipment first: the NHS's; the gym's are behind their own choice.
+  expect(await screen.findByRole('button', { name: /Wall press-up/ })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /^Deadlift/ })).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Free weights' }));
+  await fireEvent.click(await screen.findByRole('button', { name: /^Deadlift/ }));
+  const card = await screen.findByRole('article', { name: 'Deadlift' });
+  expect(
+    within(card).getByText('From the starting position, extend the hips and knees.'),
+  ).toBeTruthy();
+  expect(within(card).getByText(/Written for soldiers, and shown as written/)).toBeTruthy();
+  // A trainer's video is said to be a trainer's, with its views.
+  expect(
+    within(card).getByText(/a trainer’s channel — no known body’s video was found/),
+  ).toBeTruthy();
+  await fireEvent.click(within(card).getByRole('button', { name: 'Add to today’s session' }));
+  const sheet = await screen.findByRole('dialog', { name: 'add to the session' });
+  expect((within(sheet).getByLabelText('Exercise') as HTMLInputElement).value).toBe('Deadlift');
+});
+
+test('with no timetable yet, the week shows example weeks as a public body published them', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  const bar = await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Week' }));
+  const examples = await screen.findByRole('region', { name: 'example weeks' });
+  expect(within(examples).getByText(/Example 1: Moderate-intensity activity/)).toBeTruthy();
+  expect(
+    within(examples).getByText(/Centers for Disease Control and Prevention \(seen/),
+  ).toBeTruthy();
+});

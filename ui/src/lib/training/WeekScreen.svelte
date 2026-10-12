@@ -6,10 +6,10 @@
   // `weekdays`; what was done is the day's entries; planning a routine onto a day is the same
   // write the session screen makes. Pressing a day opens that day's session.
   import Icon from '../Icon.svelte';
-  import { logDays, logRoutines, planProgress } from '../ipc';
+  import { logDays, logRoutines, planLibrary, planProgress } from '../ipc';
   import { shownAsk, shownValue, verdict } from '../plan/measure';
   import { addDays, dayLabel, whole } from '../units';
-  import type { DayTotals, PlanProgress, Routine } from '../types';
+  import type { DayTotals, ExampleWeeks, PlanProgress, Routine } from '../types';
 
   interface Props {
     view: string;
@@ -33,6 +33,23 @@
   let routines = $state<Routine[]>([]);
   let progress = $state<PlanProgress | null>(null);
   let failed = $state('');
+  /// Weeks a public body lays out day by day — shown, word for word, to someone with no timetable
+  /// of their own yet. Sunday to Saturday, as their source lists them.
+  let examples = $state<ExampleWeeks[]>([]);
+  $effect(() => {
+    planLibrary('fitness')
+      .then((lib) => (examples = lib.weeks ?? []))
+      .catch(() => (examples = []));
+  });
+  const SUNDAY_FIRST = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
   let asked = 0;
   async function load() {
     const mine = ++asked;
@@ -170,6 +187,31 @@
       for the days you mean to do it.
     </p>
   {/if}
+
+  {#each examples as set (set.url)}
+    <section class="card" aria-label="example weeks">
+      <h3>Example weeks</h3>
+      <p class="says">
+        As published by the {set.by}, to start from. They meet the weekly activity guidelines; they
+        are examples, not a plan made for you.
+      </p>
+      {#each set.examples as ex (ex.name)}
+        <details>
+          <summary>{ex.name}: {ex.about}</summary>
+          <ul class="asks">
+            {#each ex.days as what, i (i)}
+              <li><span>{SUNDAY_FIRST[i]}</span><span class="val">{what || '—'}</span></li>
+            {/each}
+          </ul>
+          <p class="says">{ex.total}</p>
+        </details>
+      {/each}
+      <p class="says">
+        Source: <a href={set.url} target="_blank" rel="noreferrer noopener">{set.title}</a>, {set.by}
+        (seen {set.seen}).
+      </p>
+    </section>
+  {/each}
 </div>
 
 <style>
@@ -258,6 +300,15 @@
   .meant {
     font-size: var(--text-sm);
     color: var(--text-muted);
+  }
+  details {
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-2);
+  }
+  summary {
+    min-height: 2.25rem;
+    cursor: pointer;
+    font-size: var(--text-sm);
   }
   .plans {
     display: flex;

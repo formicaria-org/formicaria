@@ -33,6 +33,7 @@ import type {
   BackupRun,
   LogDays,
   RecentItem,
+  ExerciseLibrary,
   Nutrients,
   Product,
   ProductFound,
@@ -1222,6 +1223,7 @@ export const logNutrients = (view: string, day: string) =>
 export const productLookup = (code: string) =>
   invoke<ProductFound | null>('product_lookup', { code });
 export const recipeLibrary = () => invoke<RecipeLibrary>('recipe_library', {});
+export const exerciseLibrary = () => invoke<ExerciseLibrary>('exercise_library', {});
 export const logKitchen = () => invoke<{ id: string; title: string }[]>('log_kitchen', {});
 export const logProducts = () => invoke<Product[]>('log_products', {});
 export const logRoutines = (view: string) => invoke<Routine[]>('log_routines', { view });

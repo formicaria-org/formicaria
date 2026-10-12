@@ -77,6 +77,8 @@ pub struct Guide {
 /// - `days`: how many days of the week had activity `of` a kind.
 /// - `sets`: how many sets the week had in `regions`.
 /// - `region_days`: on how many days each of `regions` was trained — the least of them.
+/// - `named_days`: how many days of the week had an activity logged under one of `names` — a
+///   protocol known by its name (the Norwegian 4×4) is followed by doing it and saying so.
 /// - `kept`: how many days of the week the person said they kept to it.
 /// - `fast`: the minutes without eating that ended on a day — from the last entry with energy
 ///   the day before to the first that day, by the times the entries carry.
@@ -95,6 +97,9 @@ pub struct Check {
     pub of: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub regions: Vec<String>,
+    /// For `named_days`: the activities, by the name they are logged under.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub names: Vec<String>,
     /// The bounds the source gives, when they are the same for everybody.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min: Option<i64>,
@@ -152,8 +157,28 @@ pub struct Activity {
     pub by: String,
 }
 
+/// A week laid out day by day, as a public body publishes it — a place to start, word for word.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ExampleWeeks {
+    pub by: String,
+    pub title: String,
+    pub url: String,
+    pub seen: String,
+    pub examples: Vec<ExampleWeek>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ExampleWeek {
+    pub name: String,
+    pub about: String,
+    /// Sunday to Saturday, as the source lists them; an empty day is a day with nothing.
+    pub days: Vec<String>,
+    pub total: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct Library {
+    #[serde(default)]
+    weeks: Vec<ExampleWeeks>,
     activities: Vec<Activity>,
     plans: Vec<Plan>,
 }
@@ -177,6 +202,8 @@ pub struct LibraryAnswer {
     pub plans: Vec<Plan>,
     /// Activities a known body names, with what each counts as. Only for `fitness`.
     pub activities: Vec<Activity>,
+    /// Weeks laid out day by day by a public body. Only for `fitness`.
+    pub weeks: Vec<ExampleWeeks>,
 }
 
 /// What can be followed in a group, in the order it is offered.
@@ -186,6 +213,7 @@ pub fn plan_library(group: &str) -> Result<LibraryAnswer, StoreError> {
     Ok(LibraryAnswer {
         plans: lib.plans.iter().filter(|p| p.group == group).cloned().collect(),
         activities: if group == "fitness" { lib.activities.clone() } else { Vec::new() },
+        weeks: if group == "fitness" { lib.weeks.clone() } else { Vec::new() },
     })
 }
 
@@ -566,6 +594,19 @@ fn measure(check: &Check, bound: Bound, energy: Option<i64>, w: &Week) -> CheckP
                 })
                 .collect(),
         ),
+        "named_days" => (
+            "days".into(),
+            "week",
+            (0..7)
+                .map(|d| {
+                    let named = |o: &&Object| {
+                        let said = [text_of(o, "activity"), o.title.clone().unwrap_or_default()];
+                        check.names.iter().any(|n| said.iter().any(|s| s.eq_ignore_ascii_case(n)))
+                    };
+                    w.entries[d].iter().any(named).then_some(1)
+                })
+                .collect(),
+        ),
         "kept" => ("days".into(), "week", w.kept.iter().map(|k| k.then_some(1)).collect()),
         // The minutes from the last thing eaten the day before to the first thing eaten that
         // day. Only entries with a time, and with energy: "calorie containing (≥5 kcal)" is what
@@ -604,7 +645,9 @@ fn measure(check: &Check, bound: Bound, energy: Option<i64>, w: &Week) -> CheckP
             })
             .min()
     } else {
-        Some(days.iter().flatten().sum())
+        // Up to the day asked about, as the week's own doc says: a day after it is not yet part
+        // of "so far", whatever has been logged on it.
+        Some(days[..=w.upto].iter().flatten().sum())
     };
     let state = match value {
         None => "none",
@@ -810,7 +853,8 @@ mod tests {
                         "sets",
                         "region_days",
                         "kept",
-                        "fast"
+                        "fast",
+                        "named_days",
                     ]
                     .contains(&c.kind.as_str()),
                     "{}/{} is of a kind nothing measures: {}",

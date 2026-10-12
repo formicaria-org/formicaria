@@ -166,6 +166,9 @@ pub enum Span {
     /// regime followed still asks (`decisions.md#ui`, 2026-10-12, *a week of training is a
     /// timetable*). Like [`Span::Menu`], it writes nothing of its own kind.
     Week,
+    /// How each exercise is done, as its source wrote it: cards to read and to add to a session
+    /// (`decisions.md#ui`, 2026-10-12, *how an exercise is done is its source's own words*).
+    Cards,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -907,6 +910,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("food-plan", include_str!("shipped/food-plan.view")),
     ("training-session", include_str!("shipped/training-session.view")),
     ("training-week", include_str!("shipped/training-week.view")),
+    ("training-exercises", include_str!("shipped/training-exercises.view")),
     ("training-volume", include_str!("shipped/training-volume.view")),
     ("training-plan", include_str!("shipped/training-plan.view")),
 ];

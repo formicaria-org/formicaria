@@ -420,6 +420,8 @@ shots = { cmd = "sh ci/shots.sh" }
 pack-foods = "python3 ci/pack-foods.py"
 # The recipes carried in the app: the NHLBI's, word for word. Run by hand; the build reads the file.
 pack-recipes = "python3 ci/pack-recipes.py crates/fm-app/src/shipped/recipes-nhlbi.json"
+# How each exercise is done: the NHS website's and the U.S. Army's text, word for word. Needs `pdftotext`.
+pack-exercises = "python3 ci/pack-exercises.py crates/fm-app/src/shipped/exercises.json"
 # Renders the manual FOR THIS MACHINE'"'"'S OS — the setup chapter is assembled from
 # `user/setup-<os>.md` first, because each release archive should carry instructions for its own
 # platform and nobody else'"'"'s. Broken links still fail the build. `FM_DOCS_OS=windows pixi run docs`

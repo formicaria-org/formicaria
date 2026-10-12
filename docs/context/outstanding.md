@@ -1119,27 +1119,30 @@ grounded research for healthy people who want less weight, more muscle definitio
 health; cards for tool-free options and for people who go to a gym; and videos on YouTube "from
 well known sources and when not available from trainers that have high views".
 
-- **Built:** the *Week* view (`decisions.md#ui`, 2026-10-12), and a session for any day.
-- **Read so far:** the NHS's tool-free exercises — 39 with step-by-step text that may be carried
-  word for word under the Open Government Licence, with "Information from the NHS website", the
-  date copied and a link on each, and the licence stated in the app. Its pictures and videos may
-  not be carried. **Gaps:** no pulling exercise, no trunk strength, almost nothing for the back
-  of the legs, one wall press-up for pushing; gentle, about 5 repetitions each.
-- **Read, to be written into the register:** the evidence for the goal and for a week's layout
-  — no body defines "definition" or "toning"; no spot reduction; every rate of loss is written
-  for people above a healthy weight; strength kept on in a deficit keeps muscle; CDC publishes
-  three day-by-day example weeks, in the public domain.
-- **Being read:** a carriable source of gym and free-weight technique (US government manuals
-  first); and **protocols known by name**, the Norwegian 4×4 first.
+- **Built:** the *Week* view with the CDC's example weeks; the *Exercises* view — 117 cards, the
+  NHS's 35 and the U.S. Army's 82, word for word, by what they need and the part of the body;
+  three options to follow by name (*Norwegian 4×4 intervals*, *Interval walking*, *Activity for
+  losing weight*); a session for any day. Rulings: `decisions.md`, 2026-10-12, *a week of
+  training is a timetable* and *how an exercise is done is its source's own words*. Sources:
+  `sources-2026-10-11.md` §6d.
 - **A blind spot the owner caught:** *"are you including the Norwegian protocol? Why did you not
-  find it?"* It was in the register as one unnamed trial (Helgerud 2007) under "one trial each".
-  The searches were framed by issuing body, so a protocol that comes from a research group and is
-  known by its name was neither named nor followed up. **A search for what people can follow is
-  made both ways: by body, and by the names people use.**
-- **To do after that:** exercise cards (no equipment / gym) with their source's own steps; a
-  regime for the goal as far as sources carry it; video links, a public body's first and a
-  trainer's only where none exists and said to be so; a suggested layout of the week if a source
-  gives one.
+  find it?"* It was in the register as one unnamed trial. The searches were framed by issuing
+  body. **A search for what people can follow is made both ways: by body, and by the names
+  people use.** Ten names not yet looked up are listed in the register.
+- **Left:**
+  - **Never seen on a phone**: five tabs in Fitness (the bar scrolls), the cards, every link out.
+  - The Army's text is a drill manual: "Soldiers", counts, commands, figure numbers that point at
+    nothing, position names defined in a chapter not carried. It is shown as written, and says
+    so. A plain-words version would be the app's wording and could not be credited to anyone.
+  - A card's exercise is added to a session by its name; a routine cannot be built by picking
+    cards in one go; a session's exercise does not link back to its card.
+  - Sets and repetitions on a card are its source's (five for the NHS's, a soldier's for the
+    Army's); the regime followed is what says how many.
+  - No pictures. The NHS's alternative text describes each pose and is text; not carried yet.
+  - The NHS copy is dated; `pixi run pack-exercises` refreshes it and needs `pdftotext`.
+  - Not offered: 10-20-30 as a regime (no weekly figure read), Tabata, Zone 2, the 7-minute
+    workout, 5BX — each with its reason in the register.
+  - Protein for someone losing weight while training: two abstracts disagree on the unit; unread.
 
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 

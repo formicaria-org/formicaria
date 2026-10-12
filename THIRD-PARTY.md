@@ -526,6 +526,20 @@ The Institute states that information on its website is in the public domain unl
 otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's
 tips and notes are carried with it.
 
+## Exercise instructions carried in the binary
+
+Information from the NHS website (<https://www.nhs.uk/live-well/exercise/>), copied
+unchanged on the date each card states. Information from the NHS website is licensed
+under the Open Government Licence v3.0:
+<https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/>. Its
+pictures and videos are not carried. The NHS does not endorse this app.
+
+Source: U.S. Army, ATP 7-22.02, Holistic Health and Fitness Drills and Exercises
+(October 2020, including Change 1). Approved for public release; distribution
+unlimited. Text only; its photographs are not carried.
+
+Films of exercises are links to YouTube and are not carried.
+
 ## The barcode reader
 
 `zxing-wasm` (MIT, listed above) carries ZXing-C++ compiled to WebAssembly:

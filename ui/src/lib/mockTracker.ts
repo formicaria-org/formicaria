@@ -67,7 +67,7 @@ const BODY: TotalsDef = {
 const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Menu', 'Trends', 'Diet'] };
 const FITNESS_GROUP: ViewGroup = {
   name: 'Fitness',
-  views: ['Session', 'Week', 'Volume', 'Regime'],
+  views: ['Session', 'Week', 'Exercises', 'Volume', 'Regime'],
 };
 
 const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
@@ -89,6 +89,7 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Volume: { totals: { ...TRAINING, span: 'range' }, group: FITNESS_GROUP },
   Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },
   Week: { totals: { ...TRAINING, span: 'week' }, group: FITNESS_GROUP },
+  Exercises: { totals: { ...TRAINING, span: 'cards' }, group: FITNESS_GROUP },
 };
 
 export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) => ({

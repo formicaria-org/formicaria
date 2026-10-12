@@ -73,6 +73,14 @@
   const view = $derived(held?.view ?? '');
   /// The tab to mark: where the person asked to go, even before it has arrived.
   const wanted = $derived(pane.viewName ?? view);
+  /// A group with more tabs than a phone is wide scrolls its bar; the tab in front is kept in it.
+  let tabsEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    void wanted;
+    const on = tabsEl?.querySelector<HTMLElement>('button.on');
+    if (on && typeof on.scrollIntoView === 'function')
+      on.scrollIntoView({ inline: 'center', block: 'nearest' });
+  });
 
   const today = todayNow();
   /// **The chosen day outlives a step to another of the group's views.** The pane is built anew
@@ -141,7 +149,8 @@
   let asked = 0;
   async function load() {
     // The plan screen asks for its own week (`plan/PlanScreen.svelte`).
-    if (!def || !view || def.span === 'plan' || def.span === 'menu' || def.span === 'week') return;
+    // These screens ask for what they show themselves.
+    if (!def || !view || ['plan', 'menu', 'week', 'cards'].includes(def.span)) return;
     const mine = ++asked;
     try {
       if (def.span === 'range') {
@@ -322,7 +331,11 @@
   }
 
   // ── training: add an exercise, change a set, do last time's session again ───────────────────────
-  let workout = $state<{ set: ObjectMeta | null } | null>(null);
+  let workout = $state<{
+    set: ObjectMeta | null;
+    /** An exercise chosen from its card: its name, and the part of the body it trains. */
+    preset?: { name: string; region: string };
+  } | null>(null);
   $effect(() => {
     if (workout) nav.openLayer('workout-sheet', () => (workout = null));
     else nav.closeLayer('workout-sheet');
@@ -415,7 +428,7 @@
 
 <div class="tracker" class:tabbed={tabs}>
   {#if group && group.views.length > 1}
-    <div class="tabs" role="group" aria-label={group.name}>
+    <div class="tabs" role="group" aria-label={group.name} bind:this={tabsEl}>
       {#each group.views as v (v)}
         <button
           type="button"
@@ -453,6 +466,10 @@
           }}
           {onsaved}
         />
+      {/await}
+    {:else if def.span === 'cards'}
+      {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}
+        <ExercisesScreen onadd={(card) => (workout = { set: null, preset: card })} />
       {/await}
     {:else if def.span === 'week'}
       {#await import('./training/WeekScreen.svelte') then { default: WeekScreen }}
@@ -534,6 +551,7 @@
         {def}
         day={selected}
         set={workout.set}
+        preset={workout.preset}
         {last}
         have={day?.rows ?? []}
         onclose={() => (workout = null)}
@@ -613,12 +631,17 @@
   .tabs {
     display: flex;
     align-self: center;
+    max-width: calc(100% - 2 * var(--space-2));
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: none;
     margin-top: var(--space-2);
     padding: 2px;
     border-radius: var(--radius-pill);
     background: var(--surface-hover);
   }
   .tabs button {
+    flex: none;
     min-height: 2.25rem;
     padding: 0 var(--space-4);
     border: 0;

@@ -20,6 +20,8 @@
 
   interface Props {
     def: TotalsDef;
+    /** An exercise chosen from its card, to start the form from. */
+    preset?: { name: string; region: string };
     day: string;
     /** A set to change, instead of planning an exercise. */
     set?: ObjectMeta | null;
@@ -30,10 +32,10 @@
     onclose: () => void;
     onwrote: (what?: { removed?: string }) => void;
   }
-  let { def, day, set = null, last, have, onclose, onwrote }: Props = $props();
+  let { def, day, set = null, last, have, onclose, onwrote, preset }: Props = $props();
 
   const KG = 1000;
-  let name = $state(untrack(() => String(set?.props.exercise ?? set?.title ?? '')));
+  let name = $state(untrack(() => String(set?.props.exercise ?? set?.title ?? preset?.name ?? '')));
   // **Nothing here is pre-filled with a number of our own.** How many sets, how many reps and how
   // heavy is advice, and advice needs a source (`decisions.md#data`, 2026-10-11, *nothing is
   // invented*). The fields start from the set being changed, or from what this exercise was last
@@ -90,7 +92,7 @@
     ['lower-push', 'Lower body, push'],
     ['lower-pull', 'Lower body, pull'],
   ];
-  let region = $state(untrack(() => String(set?.props.region ?? '')));
+  let region = $state(untrack(() => String(set?.props.region ?? preset?.region ?? '')));
 
   /// What was done before that is an exercise: an activity is offered under activities.
   const exercises = $derived(last.filter((r) => r.props.activity === undefined));

@@ -570,6 +570,33 @@ pub fn recipe_library() -> Result<serde_json::Value, StoreError> {
         .map_err(|e| StoreError::Parse(format!("the carried recipes do not read: {e}")))
 }
 
+// ── how an exercise is done ──────────────────────────────────────────────────────────────────────
+
+/// How each exercise is done, as its source wrote it, and where a film of it can be watched.
+///
+/// **Carried word for word, and never written into a vault** (`decisions.md#data`, 2026-10-12, *how
+/// an exercise is done is its source's own words*): the NHS website's exercises that need no
+/// equipment, under the Open Government Licence, and the U.S. Army's drills (ATP 7-22.02,
+/// approved for public release), which also cover a bar, free weights and machines.
+/// `ci/pack-exercises.py` makes the file. The only fields that are the app's are where a card is
+/// filed: `equipment` and `area`.
+pub const EXERCISES: &str = include_str!("shipped/exercises.json");
+/// Links to films of the same exercises: a known body's own channel, or — where none was found,
+/// and said to be so — a trainer's. Links only; each was seen to exist on the day in `seen`.
+pub const EXERCISE_VIDEOS: &str = include_str!("shipped/exercise-videos.json");
+
+pub fn exercise_library() -> Result<serde_json::Value, StoreError> {
+    let read = |what: &str, text: &str| {
+        serde_json::from_str::<serde_json::Value>(text)
+            .map_err(|e| StoreError::Parse(format!("the carried {what} do not read: {e}")))
+    };
+    let mut lib = read("exercises", EXERCISES)?;
+    let films = read("exercise films", EXERCISE_VIDEOS)?;
+    lib["videos"] = films["videos"].clone();
+    lib["videos_seen"] = films["seen"].clone();
+    Ok(lib)
+}
+
 // ── what is in the kitchen ───────────────────────────────────────────────────────────────────────
 
 /// The note carrying this is something the person has at home.

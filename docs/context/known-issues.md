@@ -2307,3 +2307,19 @@ something wrote to the console as its worker was shut down, and Vitest counts th
 Three runs straight after were clean, and the whole gate passed on the next try. **Not
 diagnosed.** If it returns, look for work still running when a test ends (a timer or a request
 that logs on completion) before reaching for a retry.
+
+## Fitness: the week, the cards, the named options — traps (2026-10-12)
+
+- **A weekly count stops at the day asked about.** It used to add up the whole week, whatever the
+  docs said; a session logged for a later day counted "so far". Found by the test for the 4×4.
+- **A named protocol is followed by the name it is logged under** (`named_days`): the activity's
+  name, or the entry's title, case aside. "4x4" typed with a letter x is not "4×4 intervals" —
+  the sheet offers the name as a chip so it need not be typed.
+- **`exercises.json` has two fields that are the app's**, `equipment` and `area`, from two hand
+  tables in `ci/pack-exercises.py`. An exercise with no row in them is left out, not guessed.
+- **An Army card's `equipment_said` is often a sentence of its `about`**; the screen shows it only
+  when it is not already there.
+- **The NHS's terms**: unchanged text, "as at" its date, a link, set apart, the licence stated.
+  Rewording any of it means the NHS may no longer be named — so a typo in it stays.
+- **A pane is rebuilt when its tab changes.** State that must cross tabs is handed over by the
+  pane's id (`carried` in `TrackerPane.svelte`), as the chosen day is.

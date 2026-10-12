@@ -252,6 +252,20 @@ npm_licences() {
     echo "otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's"
     echo "tips and notes are carried with it."
     echo
+    echo "## Exercise instructions carried in the binary"
+    echo
+    echo "Information from the NHS website (<https://www.nhs.uk/live-well/exercise/>), copied"
+    echo "unchanged on the date each card states. Information from the NHS website is licensed"
+    echo "under the Open Government Licence v3.0:"
+    echo "<https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/>. Its"
+    echo "pictures and videos are not carried. The NHS does not endorse this app."
+    echo
+    echo "Source: U.S. Army, ATP 7-22.02, Holistic Health and Fitness Drills and Exercises"
+    echo "(October 2020, including Change 1). Approved for public release; distribution"
+    echo "unlimited. Text only; its photographs are not carried."
+    echo
+    echo "Films of exercises are links to YouTube and are not carried."
+    echo
     echo "## The barcode reader"
     echo
     echo "\`zxing-wasm\` (MIT, listed above) carries ZXing-C++ compiled to WebAssembly:"

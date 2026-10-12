@@ -284,8 +284,9 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let shipped = shipped_views();
-    // Day, Menu, Trends and Diet for food; Session, Week, Volume and Regime for training.
-    assert_eq!(shipped.len(), 8);
+    // Day, Menu, Trends and Diet for food; Session, Week, Exercises, Volume and Regime for
+    // training.
+    assert_eq!(shipped.len(), 9);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));
@@ -757,5 +758,53 @@ fn the_carried_recipes_read_and_are_whole() {
             assert!(k == "kcal" || k.ends_with("_mg") || k.ends_with("_ug"), "{id}: {k}");
             assert!(v.as_i64().is_some_and(|n| n >= 0), "{id}: {k}");
         }
+    }
+}
+
+/// The carried exercises read; each names its source and page, has steps, and is filed under an
+/// equipment and a part of the body the screen knows. Every film is a link to YouTube with a tier.
+#[test]
+fn the_carried_exercises_read_and_are_whole() {
+    let lib = fm_app::log::exercise_library().unwrap();
+    let sources: Vec<&str> =
+        lib["sources"].as_array().unwrap().iter().map(|s| s["id"].as_str().unwrap()).collect();
+    assert_eq!(sources, ["nhs", "army"]);
+    assert!(lib["sources"][0]["as_at"].as_str().is_some_and(|d| d.len() == 6));
+    let exercises = lib["exercises"].as_array().unwrap();
+    assert!(exercises.len() >= 80);
+    let mut ids = std::collections::BTreeSet::new();
+    for e in exercises {
+        let id = e["id"].as_str().unwrap();
+        assert!(ids.insert(id.to_string()), "{id} is listed twice");
+        assert!(sources.contains(&e["source"].as_str().unwrap()), "{id}");
+        assert!(e["url"].as_str().unwrap().starts_with("https://"), "{id}");
+        assert!(!e["name"].as_str().unwrap().is_empty(), "{id}");
+        assert!(!e["steps"].as_array().unwrap().is_empty(), "{id}");
+        assert!(
+            ["none", "chair or wall", "bar", "free weights", "machine", "other"]
+                .contains(&e["equipment"].as_str().unwrap()),
+            "{id}"
+        );
+        assert!(
+            [
+                "upper-push",
+                "upper-pull",
+                "lower-push",
+                "lower-pull",
+                "trunk",
+                "balance",
+                "flexibility",
+                "warm-up",
+                "whole-body"
+            ]
+            .contains(&e["area"].as_str().unwrap()),
+            "{id}"
+        );
+    }
+    for v in lib["videos"].as_array().unwrap() {
+        let url = v["url"].as_str().unwrap();
+        assert!(url.starts_with("https://www.youtube.com/watch?v="), "{url}");
+        assert!(["body", "trainer"].contains(&v["tier"].as_str().unwrap()), "{url}");
+        assert!(!v["channel"].as_str().unwrap().is_empty(), "{url}");
     }
 }

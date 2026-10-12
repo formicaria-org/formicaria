@@ -2212,6 +2212,70 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           },
         ],
       } as T;
+    case 'exercise_library':
+      // Two cards and a video in the shape of the carried files (`exercises.json`).
+      return {
+        seen: '2026-10-12',
+        sources: [
+          {
+            id: 'nhs',
+            by: 'NHS website',
+            credit: 'Information from the NHS website',
+            as_at: '121026',
+            licence:
+              'Information from the NHS website is licensed under the Open Government Licence v3.0',
+            licence_url:
+              'https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/',
+            home: 'https://www.nhs.uk/live-well/exercise/',
+          },
+          {
+            id: 'army',
+            by: 'U.S. Army',
+            credit: 'Source: U.S. Army, ATP 7-22.02',
+            licence: 'Approved for public release; distribution unlimited',
+            home: 'https://armypubs.army.mil/',
+          },
+        ],
+        exercises: [
+          {
+            id: 'nhs-wall-press-up',
+            source: 'nhs',
+            name: 'Wall press-up',
+            url: 'https://www.nhs.uk/live-well/exercise/strength-exercises/',
+            ref: 'Strength exercises · page last reviewed 28 February 2024',
+            group: 'Strength exercises',
+            equipment: 'chair or wall',
+            area: 'upper-push',
+            steps: ['Stand at arm’s length from the wall.', 'Slowly bend your arms.'],
+            dose: 'Attempt 3 sets of 5 to 10 repetitions.',
+          },
+          {
+            id: 'army-deadlift',
+            source: 'army',
+            name: 'Deadlift',
+            url: 'https://armypubs.army.mil/',
+            ref: 'paragraph 14-8 · Free Weight Training',
+            group: 'Free Weight Training',
+            equipment: 'free weights',
+            area: 'lower-pull',
+            about: 'The Deadlift is a Free Weight Core exercise.',
+            start: 'The starting position for the Deadlift is the Forward Leaning Stance position.',
+            steps: ['From the starting position, extend the hips and knees.'],
+            notes: ['Do not drop the weight.'],
+          },
+        ],
+        videos: [
+          {
+            exercise: 'Deadlift',
+            url: 'https://www.youtube.com/watch?v=aaaaaaaaaaa',
+            title: 'How to deadlift',
+            channel: 'A Trainer',
+            tier: 'trainer',
+            views: 1_200_000,
+          },
+        ],
+        videos_seen: '2026-10-12',
+      } as T;
     case 'log_kitchen':
       return notes
         .filter((x) => x.props.kitchen && !x.props.log)

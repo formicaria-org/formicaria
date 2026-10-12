@@ -350,3 +350,46 @@ fn what_is_planned_counts_only_when_the_outlook_is_asked_for() {
         (Some(26_000), "met")
     );
 }
+
+/// A protocol known by its name is followed by doing it and saying so: the days of the week that
+/// have an activity logged under that name. Another activity, however hard, is not it.
+#[test]
+fn a_named_protocol_counts_the_days_it_was_logged_under_its_name() {
+    let mut s = MemoryStore::new();
+    let act = |name: &str, day: &str| {
+        draft(
+            name,
+            day,
+            json!({ "log": "workout", "activity": name, "counts_as": "aerobic",
+                    "minutes": 38, "effort": 9 }),
+        )
+    };
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "4×4",
+                "2026-10-05",
+                json!({ "program": "training", "plan": "norwegian-4x4", "p_sessions_min": 2 }),
+            ),
+            act("4×4 intervals", "2026-10-12"),
+            act("4×4 intervals", "2026-10-12"),
+            act("Running", "2026-10-13"),
+            act("4×4 INTERVALS", "2026-10-15"),
+        ],
+    )
+    .unwrap();
+    let wed = plan_progress(&s, "fitness", "2026-10-14").unwrap();
+    let c = check(&wed.checks, "sessions");
+    // Two sessions on one day are one day; the run is not a 4×4.
+    assert_eq!((c.value, c.state.as_str()), (Some(1), "under"));
+    let fri = plan_progress(&s, "fitness", "2026-10-16").unwrap();
+    let c = check(&fri.checks, "sessions");
+    assert_eq!((c.value, c.state.as_str()), (Some(2), "met"));
+    // The week's example layouts come with the fitness library, Sunday to Saturday.
+    let lib = fm_app::plan::plan_library("fitness").unwrap();
+    assert_eq!(lib.weeks[0].examples.len(), 3);
+    assert!(lib.weeks[0].examples.iter().all(|e| e.days.len() == 7));
+    assert!(fm_app::plan::plan_library("food").unwrap().weeks.is_empty());
+}

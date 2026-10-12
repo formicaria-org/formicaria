@@ -1,0 +1,2355 @@
+{
+ "seen": "2026-10-12",
+ "sources": [
+  {
+   "id": "nhs",
+   "by": "NHS website",
+   "credit": "Information from the NHS website",
+   "as_at": "121026",
+   "licence": "Information from the NHS website is licensed under the Open Government Licence v3.0",
+   "licence_url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+   "home": "https://www.nhs.uk/live-well/exercise/",
+   "pages": [
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+     "title": "Strength exercises",
+     "reviewed": "Page last reviewed: 28 February 2024",
+     "notes": [
+      "Strength exercises like these can be done at home to improve your health and mobility.",
+      "Do not worry if you have not done much for a while, these strength exercises are gentle and easy to follow.",
+      "For the chair-based exercises, choose a solid, stable chair that does not have wheels and that will not slip on the surface it is on.",
+      "You should be able to sit with your feet flat on the floor and your knees bent at right angles. Avoid chairs with arms, as these will restrict your movement.",
+      "Wear loose, comfortable clothing and keep some water handy.",
+      "Build up slowly and aim to gradually increase the repetitions of each exercise over time."
+     ]
+    },
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+     "title": "Balance exercises",
+     "reviewed": "Page last reviewed: 7 November 2023",
+     "notes": [
+      "These simple balance exercises can be done at home to help improve your health and mobility.",
+      "Do not worry if you have not done much exercise for a while, these balance exercises are gentle and easy to follow.",
+      "Wear loose, comfortable clothing and keep some water handy. Build up slowly and aim to gradually increase the repetitions of each exercise over time.",
+      "Consider doing the exercises near a wall or a stable chair just in case you lose your balance."
+     ]
+    },
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+     "title": "Sitting exercises",
+     "reviewed": "Page last reviewed: 18 January 2024",
+     "notes": [
+      "These gentle sitting exercises can be done at home and will help improve your mobility.",
+      "If you have not done much exercise for a while, these seated exercises are gentle and easy to follow. If you're not sure if they’re suitable for you, check with a GP or a health professional involved with your care.",
+      "For these exercises, choose a solid, stable chair that does not have wheels.",
+      "You should be able to sit with your feet flat on the floor and knees bent at right angles. Avoid chairs with arms, as these will restrict your movement.",
+      "Wear loose, comfortable clothing and keep some water handy.",
+      "Build up slowly and aim to gradually increase the repetitions of each exercise over time."
+     ]
+    },
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+     "title": "Flexibility exercises",
+     "reviewed": "Page last reviewed: 20 November 2023",
+     "notes": [
+      "These flexibility exercises can be done at home to help improve your health and mobility.",
+      "Do not worry if you have not done much exercise for a while, the exercises are gentle and easy to follow.",
+      "Wear loose, comfortable clothing and keep some water handy. Build up slowly and aim to gradually increase the repetitions of each exercise over time."
+     ]
+    },
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-warm-up-before-exercising/",
+     "title": "How to warm up before exercising",
+     "reviewed": "Page last reviewed: 24 June 2026",
+     "notes": [
+      "Warm up properly before exercising to prevent injury and make your workouts more effective.",
+      "This warm-up routine should take at least 6 minutes. Warm up for longer if you feel the need."
+     ]
+    },
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "title": "How to stretch after exercising",
+     "reviewed": "Page last reviewed: 16 March 2026",
+     "notes": [
+      "Use this routine to cool down after a workout to gradually relax, improve flexibility and slow your heart rate.",
+      "These gentle stretches should take about 5 minutes. Spend more time on them if you feel the need.",
+      "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you."
+     ]
+    },
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "title": "Knee exercises for runners",
+     "reviewed": "Page last reviewed: 20 September 2024",
+     "notes": [
+      "These knee-strengthening exercises will help with your running, strengthen the muscles around the knee and prevent knee pain.",
+      "The exercises strengthen all the muscles supporting the knee and stretch out the iliotibial band, known as the ITB, which runs down the outside of the thigh.",
+      "They can be done as part of your warm-up before a run or as a cool-down routine after a run, outside or indoors, or whenever is most convenient.",
+      "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice. These exercises are not suitable for people with an existing knee injury. If you're not sure if they're suitable for you, check with a GP or other health professional first."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "army",
+   "by": "U.S. Army",
+   "credit": "Source: U.S. Army, ATP 7-22.02, Holistic Health and Fitness Drills and Exercises (October 2020, including Change 1)",
+   "licence": "DISTRIBUTION RESTRICTION: Approved for public release; distribution unlimited",
+   "home": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "change": "4. ATP 7-22.02, 16 September 2025, is changed as follows:"
+  }
+ ],
+ "exercises": [
+  {
+   "id": "army-8-count-step-up",
+   "source": "army",
+   "name": "8-Count Step-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-6 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the 8-Count Step-Up is the Straddle Stance position. Hold the kettlebells at the sides with a neutral grip.",
+   "area": "lower-push",
+   "about": "The 8-Count Step-Up is the fourth exercise in the Strength Training Circuit. Figure 13-4 shows the exercise as a Soldier conducts it for one minute at station 1 of the Strength Training Circuit:",
+   "start": "The starting position for the 8-Count Step-Up is the Straddle Stance position. Hold the kettlebells at the sides with a neutral grip.",
+   "steps": [
+    "On count 1, step up on to a 12- to 18-inch step with the left foot, keeping the kettlebells at the sides of the body.",
+    "On count 2, step up with the right foot.",
+    "On count 3, step down with the left foot.",
+    "On count 4, step down with the right foot.",
+    "On count 5, step up with the right foot, keeping the kettlebells at the sides of the body.",
+    "On count 6, step up with the left foot,",
+    "On count 7, step down with the right foot.",
+    "On count 8, step down with the left foot."
+   ],
+   "dose": "Complete one minute of repetitions, stopping to rest if necessary, or adjusting the weight and range of movement to match the required performance."
+  },
+  {
+   "id": "army-alternating-grip-pull-up",
+   "source": "army",
+   "name": "Alternating Grip Pull-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 6-7 · Climbing Drill 1",
+   "group": "Climbing Drill 1",
+   "equipment": "bar",
+   "equipment_said": "The starting position for the Alternating Grip Pull-Up is the Straight-Arm Hang using the closed alternating grip. This positions the Soldier perpendicular to the bar.",
+   "area": "upper-pull",
+   "about": "The Alternating Grip Pull-Up is the final exercise in Climbing Drills 1 and 2. This exercise develops the Soldier’s ability to pull up and hook the legs onto a ledge, rope, or rail. Figure 6-6 on page 6-6 breaks down the exercise as Soldiers conduct it with two spotters to assist:",
+   "start": "The starting position for the Alternating Grip Pull-Up is the Straight-Arm Hang using the closed alternating grip. This positions the Soldier perpendicular to the bar.",
+   "steps": [
+    "On count 1, flex the elbows, raising the body up so that the head moves to the side of the bar.",
+    "On count 2, return to the starting position."
+   ],
+   "dose": "Repeat the exercise 5–10 times.",
+   "notes": [
+    "If the Soldier states, “No spotter needed,” the two spotters are not required. Otherwise, the spotters assume the Straddle Stance position with staggered legs in the front and back of the exerciser.",
+    "The front spotter places palms toward the exerciser at chest height to support the exerciser if his or her grip fails.",
+    "The rear spotter holds the exerciser’s feet against his or her thighs or abdomen to support the movement up. Once the Soldier is up, the rear spotter stops assisting.",
+    "The spotters may assist in guiding the exerciser to the foot pegs after the command “DOWN” prior to the command “DISMOUNT.”"
+   ]
+  },
+  {
+   "id": "army-back-bridge",
+   "source": "army",
+   "name": "Back Bridge",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-17 · Four for the Core",
+   "group": "Four for the Core",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Back Bridge is the third exercise in Four for the Core. This exercise strengthens the muscles on the spine, buttocks, and hamstrings – the posterior chain. Figure 4-14 the exercise as performed in a formation at a slow cadence. Below is a breakdown of the movement which is performed for a count of 60 secs.",
+   "start": "The starting position for the Back Bridge is the Supine position with arms out to the side at 45 degrees and knees bent to 90 degrees. Feet are flat on the ground.",
+   "steps": [
+    "On the command of “ready, EXERCISE,” raise the buttocks off the ground while straightening the left knee until the trunk, pelvis and left leg forms a straight line when viewed from the side. Head remains on the ground.",
+    "Hold this position for 5 secs. On the command of “change position,” switch legs.",
+    "Repeat the switch every 5 secs for a total of 6 repetitions.",
+    "On the command of “starting position, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-back-squat",
+   "source": "army",
+   "name": "Back Squat",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraphs 14-6, 14-7 · Free Weight Core training",
+   "group": "Free Weight Core training",
+   "equipment": "free weights",
+   "equipment_said": "A Back Squat may be performed with the bar across the upper back.",
+   "area": "lower-push",
+   "about": "The Back Squat is a common variation of the Front Squat. A Back Squat may be performed with the bar across the upper back. When performing the Squat with dumbbells or kettlebells, start in the Straddle Stance position with one weight at each side using a neutral grip. Figure 14-2 demonstrates a Soldier performing the exercise with the following movements:",
+   "start": "The starting position for the Back Squat is the Straddle Stance position with the toes pointed slightly outward. From the starting position, bend the knees and slowly lower the body downward until there is a 90-degree angle between the upper and lower leg.",
+   "steps": [
+    "Return to the starting position.",
+    "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session.",
+    "Maintain a natural arch in the lower back with the head and neck staying in alignment to avoid extending the neck. Do not round out the upper back.",
+    "Keep the knees stay aligned over the feet and the heels on the ground.",
+    "Initially do not squat deeper than 90 degrees. Progress to deeper positions as strength improves. Always lift a weight that can be controlled."
+   ],
+   "notes": [
+    "The Back Squat requires a spotter. The spotter maintains the following:",
+    "The starting position for the spotter is the Straddle Stance behind the lifter with hands close to but not touching each side of the body between the waist and the upper arms.",
+    "Assist the lifter as needed in un-racking the weight and moving to the starting position.",
+    "During the squat movement, move with the lifter until the lifter has racked the weight after completing the last repetition.",
+    "Always remains prepared to assist if the lifter becomes unstable. Spot with the hands under the chest.",
+    "Stay especially cautious when the lifter is conducting a power or muscular strength set when the weight is likely to be heavy."
+   ]
+  },
+  {
+   "id": "army-bench-press",
+   "source": "army",
+   "name": "Bench Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraphs 14-10, 14-12 · Free Weight Core training",
+   "group": "Free Weight Core training",
+   "equipment": "free weights",
+   "equipment_said": "Position the barbell above the upper chest in the rack.",
+   "area": "upper-push",
+   "about": "The Bench Press is a free-weight exercise performed throughout a Soldier’s career to improve upper body muscular strength and endurance. When conducted with free weights, it requires stability of the trunk, lower back, hips, and upper leg muscles. It can be varied by changing the equipment or angle of the bench. Figures 14-6, 14-7, 14-8, and 14-9 (on page 14-8) show variations of the exercise as a Soldier conducts it:",
+   "start": "The starting position for the Bench Press is the Supine position laying on the bench with feet on the floor. Grasp the weights with hands using a closed pronated grip slightly wider than shoulder width. Shoulders, head, and lower back are firmly against the bench.",
+   "steps": [
+    "Position the barbell above the upper chest in the rack.",
+    "From the starting position, remove the bar from the supports, placing it over the chest with the elbows fully extended.",
+    "From this position, lower the bar by bending the elbows until the bar is just above the sternum.",
+    "After a brief pause, reverse the movement to return to the up position. The bar should move evenly into the up position—remaining parallel to the ground as it moves up."
+   ],
+   "notes": [
+    "BENCH PRESS CAUTIONS",
+    "Do not jerk the weight, shrug, arch the back, or allow the hips to rise off the bench during the exercise.",
+    "Keep feet firmly on the ground to build maximum strength over time.",
+    "As the weight increases, using proper breathing technique on the lift will become more important.",
+    "Inhale on the downward movement and exhale on the upward movement.",
+    "Practice this breathing technique on lighter weight to improve skill later.",
+    "The Bench Press and Incline Bench each require a spotting position. The spotter maintains the following:",
+    "The spotter stands at the head of the bench in the Straddle Stance position with feet slightly staggered.",
+    "Grasp the bar with a closed alternating grip in between the lifter’s hands. On a signal from the lifter, assist the lifter with moving the bar from the supports to guide it over the lifter’s chest.",
+    "Follow the path of the bar by slightly flexing the knees, hips, and trunk while maintaining a flat back. Keep an alternating grip position close to but not touching the bar as it is lowered to the chest.",
+    "Reverse this movement until the lifter signals for an assist with returning the bar to the supports.",
+    "If the lifter becomes unstable or begins to fail to control the weight, immediately assist with completing the lift."
+   ]
+  },
+  {
+   "id": "army-bend-and-reach",
+   "source": "army",
+   "name": "Bend and Reach",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-3 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "warm-up",
+   "about": "The Bend and Reach (see figure 3-1) is the first exercise in the Preparation Drill. By flexing the trunk, hips, and knees, and extending the shoulders, the Bend and Reach prepares the Soldier for more vigorous activity such as squatting, rolling, and climbing. Soldiers conduct the movement in formation at a slow cadence:",
+   "start": "The starting position for the Bend and Reach is the Straddle Stance position with the arms overhead, elbows fully extended, palms facing inward, fingers and thumbs extended and joined.",
+   "steps": [
+    "On count 1, move from the starting position into a partial squat with the heels remaining on the ground. Round the spine to allow the arms to reach as far as possible between the legs. The neck flexes to tuck the chin and head and to allow the Soldier to look to the rear.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-bent-arm-lateral-raise",
+   "source": "army",
+   "name": "Bent-Arm Lateral Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-20 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Figure 14-18 on page 14-16 shows the exercise as it would be conducted by an individual Soldier with dumbbells:",
+   "area": "upper-push",
+   "about": "The Bent-Arm Lateral Raise develops strength in the shoulder and neck muscles. Performing it in the Front Leaning Stance position requires stability of the trunk, lower back, and leg muscles. Figure 14-18 on page 14-16 shows the exercise as it would be conducted by an individual Soldier with dumbbells:",
+   "start": "The starting position for the Bent-Arm Lateral Raise is the Forward Leaning Stance position with the knees slightly flexed holding the dumbbells in front of the thighs using a neutral grip.",
+   "steps": [
+    "From the starting position, raise the weight to shoulder height while simultaneously bending the elbows to 90 degrees. The rest of the body does not move.",
+    "After a brief pause, reverse the movement to return to the down position—flex the elbows, hips, and knees to cushion the impact on the shoulders as the weight descends.",
+    "As the weight and repetitions increase, concentrate on preventing the upper back and shoulder from rounding forward.",
+    "End in starting position.",
+    "Always lift a weight that can be controlled throughout the range of motion."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-bent-leg-body-twist",
+   "source": "army",
+   "name": "Bent-Leg Body Twist",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-12 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Bent-Leg Body Twist is the ninth exercise in the Preparation Drill (see figure 3-12). This exercise strengthens the trunk and hip muscles while promoting control of trunk rotation. It is a safe way to prepare for loaded trunk movements in more vigorous training, testing and combat tasks. Soldiers conduct the movement at a slow cadence:",
+   "start": "The starting position for the Bent-Leg Body Twist is the Supine position with the hips and knees bent to 90 degrees, arms straight out to the side, palms on the ground. The knees and feet are together.",
+   "steps": [
+    "On count 1, rotate the legs to the left while keeping the upper back and arms in place on the ground. The legs drop together toward the ground.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1, this time rotating the legs to the right.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-bent-leg-lateral-raise",
+   "source": "army",
+   "name": "Bent-Leg Lateral Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-5 · Hip Stability Drill",
+   "group": "Hip Stability Drill",
+   "equipment": "none",
+   "area": "lower-pull",
+   "about": "The third exercise in the Hip Stability Drill is the Bent-Leg Lateral Raise. Figure 4-3 illustrates the exercise Soldiers perform it in a formation at a slow cadence:",
+   "start": "The starting position for the Bent-Leg Lateral Raise is the Sitting position. Soldiers move to a side-lying position, with legs together, knees bent to 90 degrees and, left leg on top of the right. The thighs and trunk form a straight line.",
+   "steps": [
+    "Support the trunk off the ground with the right elbow. Bend the elbow to 90 degrees, and place it directly below the shoulder. Fist the right hand and rest it on the ground, thumb up. Place the left hand across the stomach.",
+    "On count 1, raise the left knee a short distance above the right leg. Feet remain together. Control the movement to the end point where the left knee will be 6–8 inches above the right knee.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1",
+    "On count 4, return to the first starting position.",
+    "Repeat 5–10 times.",
+    "On the command, “CHANGE POSITION, MOVE,” swing the legs toward the front of the formation, swiveling on the buttocks into the second starting position with the trunk supported on the left elbow."
+   ]
+  },
+  {
+   "id": "army-bent-leg-raise",
+   "source": "army",
+   "name": "Bent-Leg Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-15 · Four for the Core",
+   "group": "Four for the Core",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Bent-Leg Raise is the first exercise in Four for the Core. This exercise improves awareness of spinal control while moving the legs. The hand position under the back and not the pelvis, places heavy emphasis on the strength of the core muscles of the abdomen, not the hip flexor muscles. Figure 4-12 shows the exercise as performed in a formation at a slow cadence. Below is a breakdown of the movement which is performed for a count of 60 secs.",
+   "start": "The starting position for the Bent-Leg Raise is the supine position with knees bent to 90 degrees, feet flat on the ground. Hands are placed under the SMALL OF THE BACK, not the pelvis, with palms on the ground. Head is 2-4 inches off the ground.",
+   "steps": [
+    "On the command of “ready, EXERCISE,” raise both feet from the ground until both knees and hips flex to 90 degrees. While concentrating on the amount of pressure placed on the hands from the spine, slowly straighten the legs. Maintain this pressure for up to 60 secs.",
+    "If the pressure on the hands reduces or the Soldier needs to rest, bring the knees back to the chest for 3-5 secs until resuming the effort.",
+    "On the command of “starting position, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-bent-over-row-free-weight-assistive-training",
+   "source": "army",
+   "name": "Bent-Over Row",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-16 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the Bent-Over Row is the Forward Leaning Stance position with arms fully extended down and in front of the body holding the bar with an overhand grip in front of the legs.",
+   "area": "upper-pull",
+   "about": "The Bent-Over Row is a free-weight exercise performed throughout a Soldier’s career to improve upper back strength and endurance. When conducted with free weights, it supports other core exercises like the Deadlift. It can be varied by changing the equipment or by isolating to just one arm. Figure 14-13 on page 14-12 breaks down the exercise as it would be conducted by an individual Soldier using a variety of approaches:",
+   "start": "The starting position for the Bent-Over Row is the Forward Leaning Stance position with arms fully extended down and in front of the body holding the bar with an overhand grip in front of the legs.",
+   "steps": [
+    "Position the arms slightly wider than shoulder width and keep the head in line with the spine.",
+    "From the starting position, pull the weight toward the chest until the upper arms are parallel to the ground. Elbows should be up and pointing to the rear. Head and spine position remain in the starting position.",
+    "After a brief pause, reverse the movement to return to the down position.",
+    "As the weight and repetitions increase, concentrate on preventing the upper back and shoulders from rounding forward.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use the same movement with neutral grips for the kettlebell and dumbbell versions."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-bent-over-row-strength-training-circuit",
+   "source": "army",
+   "name": "Bent-Over Row",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-10 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the Bent-Over Row is the Forward Leaning Stance position with arms hanging in front of the legs. Hold kettlebells of equal weight using a closed neutral grip—palms facing each other.",
+   "area": "upper-pull",
+   "about": "The Bent-Over Row is the seventh exercise in the Strength Training Circuit. This exercise strengthens the muscles of the upper back, the shoulder girdle, and the biceps. Heavier weight also challenges the muscles in the lower back, gluteal region, and hamstrings. Figure 13-8 breaks down the exercise as a Soldier conducts it for one minute at station 7 of the Strength Training Circuit:",
+   "start": "The starting position for the Bent-Over Row is the Forward Leaning Stance position with arms hanging in front of the legs. Hold kettlebells of equal weight using a closed neutral grip—palms facing each other.",
+   "steps": [
+    "On the command, “BEGIN,” bend the elbows to pull the kettlebells toward the chest. The legs, torso, and head remain in their starting positions."
+   ],
+   "dose": "Continue the exercise at own pace for one minute. Increase or decrease the kettlebell weight if necessary, continuing only if the exercise can be completed to standard."
+  },
+  {
+   "id": "army-biceps-curl",
+   "source": "army",
+   "name": "Biceps Curl",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-24 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Other equipment options include a cambered bar, kettlebells, and a climbing bar.",
+   "area": "upper-pull",
+   "about": "The Biceps Curl develops strength in the biceps muscles which support other free weight and physical training exercises that involve pulling, carrying, and lifting. Other equipment options include a cambered bar, kettlebells, and a climbing bar. To isolate the biceps on the climbing bar during the Pull-Up, switch to a closed, underhand supinated grip. Figure 14-23 on page 14-20 breaks down the exercise as it would be conducted by an individual Soldier with a pair of dumbbells:",
+   "start": "The starting position for the Biceps Curl is the Straddle Stance position with arms straight at the side and a dumbbell in each hand using a neutral grip.",
+   "steps": [
+    "From the starting position, raise the weights up toward the chest by flexing the elbows. The forearm will supinate or rotate into supination or turn out during the up movement.",
+    "After a brief pause, reverse the movement to lower the weight back to the starting position.",
+    "Always lift a weight that can be controlled throughout the range of motion."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-calf-stretch",
+   "source": "army",
+   "name": "Calf Stretch",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-9 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Calf Stretch is the seventh exercise in Recovery Drill. This stretch increases flexibility of the ankle. Figure 16-7 illustrates the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Calf Stretch is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On the command, “READY, STRETCH,” take a step backward with the left leg, placing the foot flat on the ground 1–2 feet behind its starting position. Keeping the left heel on the ground, bend both knees until a stretch is felt in the left Achilles tendon.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position.",
+    "On the command, “READY, STRETCH,” repeat the stretch with the right leg. Increase the stretch sensation in the right calf muscle by stepping further back with the right foot and locking the right knee. Keep the right foot pointing forward throughout the stretch. Hold either stretch position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-chest-press",
+   "source": "army",
+   "name": "Chest Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-26 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "From the starting position, stay seated with the feet firmly on the ground. Adjust the seat so a 90-degree angle is formed between the upper and lower arms with the shoulders directly below the handgrips.",
+   "area": "upper-push",
+   "about": "The Chest Press develops strength in the arms, shoulders, and chest muscles. Figure 15-16 on page 15-14 breaks down the exercise as a Soldier conducts it:",
+   "start": "The starting position for the Chest Press is the Sitting position with the knees bent at 90 degrees and feet flat on the floor.",
+   "steps": [
+    "From the starting position, stay seated with the feet firmly on the ground. Adjust the seat so a 90-degree angle is formed between the upper and lower arms with the shoulders directly below the handgrips.",
+    "Place the hips, low back, shoulders, and head firmly against the seat back with the eyes looking straight ahead.",
+    "Maintain a natural arch in the lower back.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "On count 1, push upward until the arms are fully extended but not locked.",
+    "On count 2, return to the starting position."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-deadlift",
+   "source": "army",
+   "name": "Deadlift",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-8 · Free Weight Core training",
+   "group": "Free Weight Core training",
+   "equipment": "free weights",
+   "equipment_said": "Figures 14-3 and 14-4 show the exercise as an individual Soldier conducts it using two of the three types of free weights—straight bar or barbell, kettlebells, and dumbbells:",
+   "area": "lower-pull",
+   "about": "The Deadlift is a Free Weight Core exercise performed throughout a Soldier’s career to improve lower body muscular strength and endurance. This lift requires trunk and shoulder stability and strength. It can be used to improve training and testing performance that supports a wide range of combat and occupational physical tasks. There are a wide range of modifications in position and equipment for the Deadlift. Figures 14-3 and 14-4 show the exercise as an individual Soldier conducts it using two of the three types of free weights—straight bar or barbell, kettlebells, and dumbbells:",
+   "start": "The starting position for the Deadlift is the Forward Leaning Stance position. Grasp the barbell below the knees and near the shins with the arms fully extended using a closed overhand or alternating grip.",
+   "steps": [
+    "When lifting with a hex bar, the bar requires a neutral grip.",
+    "When performing the Deadlift with dumbbells or kettlebells, start in the Forward Leaning Stance position with one weight at each side using a neutral grip.",
+    "From the starting position, extend the hips and knees while keeping the spine straight and arms extended.",
+    "As the barbell lifts from the ground, move the hips forward to meet it.",
+    "Pause in an upright posture before returning the weight to the starting position under control. Do not drop the weight. Throughout the lift, do not let the spine or shoulders round forward.",
+    "Keep knees in line over the feet."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-extend-and-flex",
+   "source": "army",
+   "name": "Extend and Flex",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-5 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Extend and Flex is the third exercise in the Recovery Drill. Figure 16-3 breaks down the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Extend and Flex is the Front Leaning Rest position.",
+   "steps": [
+    "On the command, “READY, STRETCH,” lower the body toward the ground, sagging in the middle while keeping the arms straight. Keep gaze straight ahead—do not look up. This creates a stretch sensation in the hip and abdominal muscles. The legs and low back should be relaxed with toes on the ground and pointing to the rear. Hold the position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position.",
+    "On the command, “CHANGE POSITION, READY, STRETCH,” put bodyweight back on the balls of the feet to support raising the hips up and off the ground. Straighten the legs and try to touch the ground with the heels. Move the head between the arms and look toward the feet. The back remains straight. Hold the position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-forward-lunge-preparation-drill",
+   "source": "army",
+   "name": "Forward Lunge",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-10 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "lower-push",
+   "about": "The Forward Lunge (see figure 3-10) is the seventh exercise in the Preparation Drill. This exercise develops balance and leg strength. It prepares Soldiers to use proper movement technique to perform lifts such as a litter carry. Soldiers conduct the movement at a slow cadence:",
+   "start": "The starting position for the Forward Lunge is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On count 1, take a step forward with the left leg until the left heel is 3–6 inches ahead of the right foot. At the same time, bend at the hips and knees to lunge forward, keeping the back straight. Do not look down and do not bring the feet closer together.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1, this time stepping forward with the right foot."
+   ]
+  },
+  {
+   "id": "army-forward-lunge-strength-training-circuit",
+   "source": "army",
+   "name": "Forward Lunge",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-5 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the Forward Lunge is the Straddle Stance position. Hold the kettlebells at the sides using a neutral grip.",
+   "area": "lower-push",
+   "about": "The Forward Lunge is the third exercise in the Strength Training Circuit. Figure 13-3 on page 13-4 breaks down the exercise a Soldier conducts it for one minute at station 3 of the Strength Training Circuit:",
+   "start": "The starting position for the Forward Lunge is the Straddle Stance position. Hold the kettlebells at the sides using a neutral grip.",
+   "steps": [
+    "On count 1, step forward with the left leg as in the Forward Lunge, allowing the left knee to bend until the left thigh is parallel to the ground. Lean slightly forward from the waist and bring the kettlebells to the left and right sides of the forward leg.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1, stepping forward with the right leg.",
+    "On count 4, return to the starting position.",
+    "Complete one minute of repetitions, stopping to rest if necessary, or adjusting the weight and range of movement to match the required performance."
+   ],
+   "dose": "Complete one minute of repetitions, stopping to rest if necessary, or adjusting the weight and range of movement to match the required performance."
+  },
+  {
+   "id": "army-front-squat",
+   "source": "army",
+   "name": "Front Squat",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraphs 14-4, 14-5 · Free Weight Core training",
+   "group": "Free Weight Core training",
+   "equipment": "free weights",
+   "equipment_said": "Figure 14-1 on page 14-2 breaks down the exercise as it would be conducted by an individual Soldier using three types of free weights—straight bar, kettlebells, and dumbbells:",
+   "area": "lower-push",
+   "about": "The Front Squat is a free-weight exercise performed throughout a Soldier’s career to improve lower body muscular strength and endurance. Soldiers use it to improve training and testing performance that supports a wide range of combat and occupational physical tasks. There are a wide range of modifications in position and equipment for the Squat. Figure 14-1 on page 14-2 breaks down the exercise as it would be conducted by an individual Soldier using three types of free weights—straight bar, kettlebells, and dumbbells:",
+   "start": "The starting position for the Front Squat is the Straddle Stance position with the toes pointed slightly outward. The bar is held across the top of the chest just below the collar bones using the crossed arms with pronated grip.",
+   "steps": [
+    "When performing the Squat with dumbbells or kettlebells, start in the Straddle Stance position with the weight in a similar position to the straight bar—the racked position for the kettlebells or resting on top of the shoulders for the dumbbells.",
+    "From the starting position, bend the knees and slowly lower the body downward until there is a 90-degree angle between the upper and lower leg.",
+    "Return to the starting position."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session.",
+   "notes": [
+    "FRONT SQUAT CAUTION",
+    "Do not round out the upper back.",
+    "The knees stay aligned over the feet and the heels stay on the ground.",
+    "Progress to deeper squat positions as strength improves.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "The Front Squat requires a spotter. The spotter maintains the following:",
+    "Starting position for the spotter is the Straddle Stance position behind the lifter.",
+    "Place hands between the upper arm and waist of the lifter—not touching.",
+    "Assist the lifter as needed in un-racking the weight and moving to the starting position. Once the lifter is ready, position hands close to each side of the lifter’s trunk.",
+    "During the squat movement, move with the lifter until the lifter has racked the weight after completing the last repetition.",
+    "Always remains prepared to assist if the lifter becomes unstable.",
+    "Stay especially cautious when the lifter is conducting a power or muscular strength routine when the weight is likely to be heavy."
+   ]
+  },
+  {
+   "id": "army-groin-stretch",
+   "source": "army",
+   "name": "Groin Stretch",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-8 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Groin Stretch is the sixth exercise in the Recovery Drill. This exercise increases flexibility in the hip joint. Figure 16-6 shows the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Groin Stretch is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On the command, “READY, STRETCH,” take an exaggerated step with the right leg to the right side bending the right knee into a lateral lunge. Trunk and head continue to face forward. Hold this position or continue into a deeper lunge to stretch the inside of the left thigh for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” assume the starting position.",
+    "On the command, “CHANGE POSITION, READY, STRETCH,” take an exaggerated step to the left with the left leg bending the left knee into a lateral lunge. Trunk and head continue to face forward. Hold the position or continue into a deeper lunge to stretch the inside of the right thigh for 20–30 seconds.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-hamstring-stretch",
+   "source": "army",
+   "name": "Hamstring Stretch",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-10 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Hamstring Stretch is the final exercise in Recovery Drill. This stretch increases flexibility of the knees and hips. Figure 16-8 breaks down the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Hamstring Stretch is the Sitting position with arms at the sides and palms on the floor.",
+   "steps": [
+    "On the command, “READY, STRETCH,” reach forward with both hands toward the feet, grasping the feet, ankle or lower legs. Keep the knees straight without locking them. Hold this stretch position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position.",
+    "On the command, “READY, STRETCH,” repeat the first stretch position reaching slightly further.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-heel-hook",
+   "source": "army",
+   "name": "Heel Hook",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 6-4 · Climbing Drill 1",
+   "group": "Climbing Drill 1",
+   "equipment": "bar",
+   "equipment_said": "On the command, “UP,” flex the elbows, knees, and hips to raise both feet above the bar, crossing one ankle over the other.",
+   "area": "upper-pull",
+   "about": "The Heel Hook is the second exercise in Climbing Drills 1 and 2. This exercise develops the Soldier’s ability to pull up and hook the legs onto a ledge, rope, or rail. Figure 6-2 breaks down the exercise as Soldiers conduct it with two spotters to assist:",
+   "start": "The starting position for the Heel Hook is the Straight-Arm Hang using the closed overhand grip.",
+   "steps": [
+    "On the command, “UP,” flex the elbows, knees, and hips to raise both feet above the bar, crossing one ankle over the other.",
+    "On the command, “DOWN,” return to the starting position."
+   ],
+   "notes": [
+    "If the Soldier states, “No spotter needed,” the two spotters are not required. Otherwise, the spotters assume the Straddle Stance position with staggered legs on either side of the exerciser.",
+    "Each spotter prepares to assist by positioning one hand behind and off the back of the knee and the low back. They will be prepared at all times to assist in the movement and catch the exerciser if his or her grip fails.",
+    "The spotters may assist in guiding the exerciser to the foot pegs after the command “DOWN” prior to the command “DISMOUNT.”"
+   ]
+  },
+  {
+   "id": "army-heel-raise",
+   "source": "army",
+   "name": "Heel Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-15 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Figure 14-12 illustrates a Soldier performing the exercise using straight bar, kettlebells, and dumbbells:",
+   "area": "lower-push",
+   "about": "The Heel Raise is a free-weight exercise performed throughout a Soldier’s career to improve lower leg muscular strength and endurance. When conducted with free weights, it requires stability of the trunk, lower back, hips, and upper leg muscles. Figure 14-12 illustrates a Soldier performing the exercise using straight bar, kettlebells, and dumbbells:",
+   "start": "The starting position for the Heel Raise using the straight bar is the Straddle Stance position.",
+   "steps": [
+    "The knees are straight or slightly flexed depending upon which muscle in the lower leg is being strengthened. Straight for the gastrocnemius and bent for the soleus muscle.",
+    "Hold the barbell across the upper back. The feet may be elevated, so that the heels can be slightly lower than the balls of the feet to achieve a full range of motion. When using dumbbells or kettlebells, hold one at each side using a neutral grip.",
+    "From the starting position, rise up on the balls of the feet.",
+    "After a brief pause, reverse the movement to return to the starting position. Drop the heels as far as possible. Slightly adjust knee flexion to increase the engagement of the targeted lower leg muscle.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use same movement with neutral grips for the kettlebell and dumbbell versions of this exercise."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-high-jumper",
+   "source": "army",
+   "name": "High Jumper",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-5 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "whole-body",
+   "about": "The High Jumper (see figure 3-4) is the third exercise in the Preparation Drill. This exercise promotes correct jumping, landing, balance, and coordination, and it prepares the Soldier to build explosive strength. Soldiers conduct the movement in formation at a moderate cadence:",
+   "start": "The starting position for the High Jumper is the Forward Leaning Stance, palms facing inwards, fingers and thumbs extended and joined.",
+   "steps": [
+    "On count 1, swing the arms forward until they are parallel to the ground. At the same time, jump a few inches vertically.",
+    "On count 2, land softly on the balls of the feet and return to the starting position. Maintain the same distance between the feet as during the Forward Leaning Stance.",
+    "On count 3, swing the arms vigorously forward and overhead to unweight the upper body. At the same time, jump forcefully straight up from the ground.",
+    "On count 4, land softly on the balls of the feet and return to the starting position."
+   ]
+  },
+  {
+   "id": "army-i-raise",
+   "source": "army",
+   "name": "I Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-9 · Shoulder Stability Drill",
+   "group": "Shoulder Stability Drill",
+   "equipment": "none",
+   "area": "upper-pull",
+   "about": "The first exercise for the Shoulder Stability Drill is the I Raise (see figure 4-6). Soldiers perform the exercise in a formation at a slow cadence:",
+   "start": "The starting position for the I Raise is the Prone position with arms laying parallel to each other on the ground above the head. This is the I position. The head is slightly elevated. Feet are together and toes are pointing rearward. Fingers and thumbs are extended and joined with palms facing each other.",
+   "steps": [
+    "On the count of 1, raise both arms from the ground 3–6 inches while continuing to keep the elbows straight. The head remains in its starting position.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-incline-bench",
+   "source": "army",
+   "name": "Incline Bench",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraphs 14-11, 14-12 · Free Weight Core training",
+   "group": "Free Weight Core training",
+   "equipment": "free weights",
+   "equipment_said": "Soldiers conduct it using three types of free weights—straight bar or barbell, kettlebells, and dumbbells.",
+   "area": "upper-push",
+   "about": "The Incline Bench is a free-weight exercise performed throughout a Soldier’s career to improve upper body muscular strength and endurance. This lift requires trunk and shoulder stability and strength. It can be used to improve training and testing performance that supports a wide range of combat and occupational physical tasks. There are a wide range of modifications in position and equipment for the Incline Bench. Soldiers conduct it using three types of free weights—straight bar or barbell, kettlebells, and dumbbells. Figure 14-10 illustrates the exercise as an individual Soldier conducts it using the straight bar:",
+   "start": "The starting position for the Incline Bench is the Supine position on an inclined bench with both feet on the ground and hips, shoulders, and head firmly against the bench. Grasp the barbell with a closed overhand, pronated grip slightly wider than shoulder width. Remove the bar from the supports placing it over the chest with the elbows fully extended.",
+   "steps": [
+    "From the starting position, bend both elbows to lower the weight to just above the chest.",
+    "Press the weight back to the starting position. Do not jerk or shrug the shoulders, arch the back, or allow the hips to rise off the bench during the movement."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session.",
+   "notes": [
+    "The Bench Press and Incline Bench each require a spotting position. The spotter maintains the following:",
+    "The spotter stands at the head of the bench in the Straddle Stance position with feet slightly staggered.",
+    "Grasp the bar with a closed alternating grip in between the lifter’s hands. On a signal from the lifter, assist the lifter with moving the bar from the supports to guide it over the lifter’s chest.",
+    "Follow the path of the bar by slightly flexing the knees, hips, and trunk while maintaining a flat back. Keep an alternating grip position close to but not touching the bar as it is lowered to the chest.",
+    "Reverse this movement until the lifter signals for an assist with returning the bar to the supports.",
+    "If the lifter becomes unstable or begins to fail to control the weight, immediately assist with completing the lift."
+   ]
+  },
+  {
+   "id": "army-l-raise",
+   "source": "army",
+   "name": "L Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-12 · Shoulder Stability Drill",
+   "group": "Shoulder Stability Drill",
+   "equipment": "none",
+   "area": "upper-pull",
+   "about": "The fourth exercise for the Shoulder Stability Drill is the L Raise. Figure 4-9 shows Soldiers perform the exercise in a formation at a slow cadence:",
+   "start": "The starting position for the L Raise is the Prone position with arms laying on the ground straight out to the side at 90 degrees to the trunk and elbows bent to 90 degrees. Hands are at head level with palms facing the head. This is the L position. The head is slightly elevated. Feet are together and toes are pointing rearward. Fingers and thumbs are extended and joined with palms facing each other.",
+   "steps": [
+    "On the count of 1, raise both arms from the ground 3–6 inches while continuing to keep the elbows bent. The head remains in its starting position. The elbows, forearms, and hands should leave the ground at the same time.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-lat-pull-down",
+   "source": "army",
+   "name": "Lat Pull-Down",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-14 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "From the starting position, select the appropriate weight and ensure the pin is secure in the weight stack.",
+   "area": "upper-pull",
+   "about": "The Lat Pull-Down is the fifth exercise in the strength training machine drill. This exercise develops strength in the arm and back muscles. Figure 15-9 on page 15-8 shows the exercise as a Soldier conducts it:",
+   "start": "The starting position for the Lat Pull-Down is the Sitting position with the knees bent at 90 degrees and feet flat on the floor.",
+   "steps": [
+    "From the starting position, select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "Sit erect and adjust the roller pad so it sits firmly against the upper thigh and hip.",
+    "Grasp the bar with a closed, pronated grip and assume a Sitting position with the hips against the roller pad and the feet flat on the ground.",
+    "Check the upper body is perpendicular to the floor.",
+    "On count 1, keeping the arms straight and elbows rotated out to the side and slightly flexed, simultaneously bend the elbows and pull the bar toward the shoulders until the upper arms are parallel to the ground.",
+    "On count 2, return to the starting position by slowly extending the elbows."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-lateral-leg-raise",
+   "source": "army",
+   "name": "Lateral Leg Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-3 · Hip Stability Drill",
+   "group": "Hip Stability Drill",
+   "equipment": "none",
+   "area": "lower-pull",
+   "about": "Figure 4-1 illustrates the Lateral Leg Raise. Soldiers conduct the movement in formation at a slow cadence:",
+   "start": "The starting position for the Lateral Leg Raise is the Sitting position. Soldiers move to a right side-lying position, with legs extended together, left leg on top of the right. Support trunk off the ground with the right elbow. Bend the elbow to 90 degrees and place it directly below the shoulder. Make a fist with the right hand and rest it on the ground, thumb up. Place the left hand across the stomach.",
+   "steps": [
+    "On the count of 1, raise the left leg a short distance above the right leg. Control the movement to the end point where the left foot will be 6–8 inches above the right foot.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the first starting position.",
+    "Repeat 5–10 times.",
+    "On the command, “CHANGE POSITION, MOVE,” swing the legs toward the front of the formation, swiveling on the buttocks into the second starting position—the left side-lying position—with the trunk supported on the left elbow.",
+    "Complete the same series of repetitions with the right leg and hip."
+   ]
+  },
+  {
+   "id": "army-lateral-raise",
+   "source": "army",
+   "name": "Lateral Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-9 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "Place the hips, lower back, shoulders, and head firmly against the seat back with the eyes looking straight ahead.",
+   "area": "upper-push",
+   "about": "The Lateral Raise develops strength in the shoulder and neck muscles. Figure 15-5 shows the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Lateral Raise is the Sitting position with the knees bent at 90 degrees and feet flat on the floor.",
+   "steps": [
+    "From the starting position, stay seated with the feet firmly on the ground. Adjust the seat so a 90-degree angle is formed between the upper and lower arms.",
+    "Place the hips, lower back, shoulders, and head firmly against the seat back with the eyes looking straight ahead.",
+    "Maintain a natural arch in the lower back.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "On count 1, raise both arms upward until they are parallel to the ground.",
+    "On count 2, return to the starting position."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-leg-curl",
+   "source": "army",
+   "name": "Leg Curl",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-6 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "The starting position for the Leg Curl is the Prone position, knees aligned with the center axis of the machine.",
+   "area": "lower-pull",
+   "about": "The Leg Curl is the second exercise in the Strength Training Machine drill. This exercise develops strength in the back of the upper leg muscles. Figure 15-3 shows the exercise as a Soldier conducts it:",
+   "start": "The starting position for the Leg Curl is the Prone position, knees aligned with the center axis of the machine.",
+   "steps": [
+    "Adjust the lower leg pad to contact the lower legs just above and behind the ankle, allowing the lower legs to be fully extended.",
+    "Relax the lower legs and feet. Position the thigh pad just above and in front of the knees.",
+    "Place the hips, stomach, and chest firmly against the bench with the eyes looking straight down.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "Relax hands and place them on the handgrips.",
+    "On count 1, slowly pull the lower legs to the rear toward the buttocks.",
+    "On count 2, return to the starting position by slowly lowering the lower legs."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-leg-press",
+   "source": "army",
+   "name": "Leg Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-3 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "The starting position for the Leg Press is the Sitting position with the knees bent at 90 degrees and feet flat on the foot platform.",
+   "area": "lower-push",
+   "about": "The Leg Press develops strength in the hip and thigh muscles. Figure 15-1 on page 15-2 breaks down the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Leg Press is the Sitting position with the knees bent at 90 degrees and feet flat on the foot platform.",
+   "steps": [
+    "Place the hips, low back, shoulders, and head firmly against the seat back with the eyes looking straight ahead.",
+    "Maintain a natural arch in the lower back.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "Keep hands relaxed and placed on the handgrips.",
+    "On count 1, straighten the legs slowly until they are fully extended but not locked.",
+    "On count 2, return to the starting position in a slow, controlled motion."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-leg-tuck-and-twist",
+   "source": "army",
+   "name": "Leg-Tuck and Twist",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 5-6 · Conditioning Drill 1",
+   "group": "Conditioning Drill 1",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Leg-Tuck and Twist is the fourth exercise in Conditioning Drill 1. This exercise strengthens the trunk and hip muscle coordination while promoting control of trunk rotation. It is an advanced body weight exercise that prepares for more vigorous training, testing, and combat tasks. Figure 5-4 breaks down the movement Soldiers conduct at a moderate cadence:",
+   "start": "The starting position for the Leg-Tuck and Twist is the supported reclining Sitting position. Hands are on the ground to the rear of the shoulders, palms down. Legs are straight and kept together with the feet 8–12 inches above the ground.",
+   "steps": [
+    "On count 1, raise the legs while rotating onto the left buttock and drawing the knees toward the left shoulder. Maintain control of the leg movement and trunk position.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1, this time rotating the legs to the right.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-leg-tuck-climbing-drill-1",
+   "source": "army",
+   "name": "Leg Tuck",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 6-6 · Climbing Drill 1",
+   "group": "Climbing Drill 1",
+   "equipment": "bar",
+   "area": "trunk",
+   "about": "The Leg Tuck is the fourth exercise in Climbing Drills 1 and 2. This exercise combines upper body and abdominal strength to develop the Soldier’s ability to hang while moving the legs into different support positions for climbing. Figure 6-4 breaks down the exercise as Soldiers conduct it with two spotters to assist:",
+   "start": "The starting position for the Leg Tuck is the Straight-Arm Hang using the closed alternating overhand grip.",
+   "steps": [
+    "On the command, “UP,” flex the elbows and hips raising the legs until the thighs touch the elbows.",
+    "On the command, “DOWN,” return to the starting position."
+   ],
+   "dose": "Repeat the exercise 5–10 times.",
+   "notes": [
+    "If the Soldier states, “No spotter needed,” the two spotters are not required. Otherwise, the spotters assume Straddle Stance positions on either side of the exerciser.",
+    "Each spotter prepares to assist by positioning one hand behind and off the back of the knee and the low back. He or she will be prepared at all times to assist in the movement and catch the exerciser if his or her grip fails.",
+    "The spotters may assist in guiding the exerciser to the foot pegs after the command “DOWN” prior to the command “DISMOUNT.”"
+   ]
+  },
+  {
+   "id": "army-leg-tuck-strength-training-circuit",
+   "source": "army",
+   "name": "Leg Tuck",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-13 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "bar",
+   "area": "trunk",
+   "about": "The Leg Tuck is the tenth exercise in the Strength Training Circuit. This exercise combines upper body an abdominal strength to develop the Soldier’s ability to hang while moving the legs into different support positions for climbing. Figure 13-11 breaks down the exercise as a Soldier conducts it for one minute at station 10 of the Strength Training Circuit:",
+   "start": "The starting position for the Leg Tuck is the Straight-Arm Hang using the closed overhand grip.",
+   "steps": [
+    "On the command, “BEGIN,” flex the elbows and hips, raising the legs until the thighs touch the elbows.",
+    "Return to the starting position.",
+    "Continue the exercise at own pace for one minute. Stop for 3–5 seconds rest if needed, continuing only if the exercise can be completed to standard.",
+    "On the command, “ROTATE,” return to the first station in the Strength Training Circuit."
+   ]
+  },
+  {
+   "id": "army-medial-leg-raise",
+   "source": "army",
+   "name": "Medial Leg Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-4 · Hip Stability Drill",
+   "group": "Hip Stability Drill",
+   "equipment": "none",
+   "area": "lower-pull",
+   "about": "The second exercise in the Hip Stability Drill is the Medial Leg Raise. Figure 4-2 shows Soldiers performing the exercise in a formation at a slow cadence:",
+   "start": "The starting position for the Medial Leg Raise is the Sitting position. Soldiers move to the left side lying position, with the left leg extended and the right leg bent at the knees and rotated so that the right foot rests on the ground behind the left knee, foot pointing away from the body.",
+   "steps": [
+    "Support the trunk off the ground with the left elbow. Bend the elbow to 90 degrees, placing it directly below the shoulder. Make the left hand in a fist and rest it on the ground, thumb up. Place the right hand across the stomach.",
+    "On count 1, raise the left leg a short distance from the ground. Control the movement to the end point where the left foot will be 6 to 8 inches above the ground.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the first starting position.",
+    "Repeat 5 to 10 times.",
+    "On the command, “CHANGE POSITION, MOVE,” swing the legs toward the front of the formation, swiveling on the buttocks into the second starting position with the trunk supported on the right elbow.",
+    "Complete the same series of repetitions for the right leg and hip."
+   ]
+  },
+  {
+   "id": "army-mountain-climber",
+   "source": "army",
+   "name": "Mountain Climber",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 5-5 · Conditioning Drill 1",
+   "group": "Conditioning Drill 1",
+   "equipment": "none",
+   "area": "whole-body",
+   "about": "The Mountain Climber is the third exercise in Conditioning Drill 1. This exercise develops the ability to quickly power out of the Front Leaning Rest position into a Run or a Crouch Run. Figure 5-3 breaks down the movement Soldiers conduct at a moderate cadence:",
+   "start": "The starting position for the Mountain Climber is the Front Leaning Rest with the left foot below the chest and the left knee between the arms.",
+   "steps": [
+    "On count 1, shift body weight to the hands while changing the position of the feet. Keep the back straight and keep the hips from moving up and down throughout the exercise.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-overhead-arm-pull",
+   "source": "army",
+   "name": "Overhead Arm Pull",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-3 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Overhead Arm Pull is the first exercise in the Recovery Drill. This exercise develops the flexibility of joints in the arms, shoulders, and trunk. Figure 16-1 illustrates the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Overhead Arm Pull is the Straddle Stance position with hands on hips. When commanded, “READY, STRETCH,” raise the left arm overhead. Grasp above the left elbow with the right hand and pull to the right, leaning the body to the right. A stretch sensation should be felt in the left triceps muscle and flank. Hold this position for 20–30 seconds.",
+   "steps": [
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position.",
+    "On the command, “CHANGE POSITION, READY, STRETCH,” repeat the movement on the right side.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-overhead-press",
+   "source": "army",
+   "name": "Overhead Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-11 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "Adjust the seat to achieve a 90-degree angle between the Soldier’s upper and lower arms with the shoulders directly below the handgrips.",
+   "area": "upper-push",
+   "about": "The Overhead Press develops strength in the arm and shoulder muscles. Figure 15-7 breaks down the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Overhead Press is the Sitting position with the knees bent at 90 degrees and feet flat on the floor.",
+   "steps": [
+    "From the starting position, stay seated with the feet firmly on the ground.",
+    "Adjust the seat to achieve a 90-degree angle between the Soldier’s upper and lower arms with the shoulders directly below the handgrips.",
+    "Place the hips, low back, and shoulders firmly against the seat back.",
+    "Look straight ahead.",
+    "On count 1, push upward until both arms are fully extended but not locked.",
+    "On count 2, return to the starting position."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-overhead-push-press-free-weight-assistive-training",
+   "source": "army",
+   "name": "Overhead Push-Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-19 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "The Overhead Push-Press is also performed in the Strength Training Circuit with kettlebells.",
+   "area": "upper-push",
+   "about": "The Overhead Push-Press is also performed in the Strength Training Circuit with kettlebells. In this version it is performed with a straight bar, requiring more skill and coordination. Figure 14-17 demonstrates the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Overhead Push-Press is the Straddle Stance position with the knees slightly flexed or a Straddle Stance position with staggered legs holding the bar near the top of the chest just below the collar bones. Use a closed overhand grip.",
+   "steps": [
+    "From the starting position, perform a drop and drive by flexing the knees and hips before forcefully extending them. Simultaneously, extend the elbows and shoulders to raise the bar overhead.",
+    "The neck can slightly extend to allow the bar to pass in front of the face as it moves overhead.",
+    "If the Straddle Stance position with staggered legs is used for the starting position, adjust the feet during the drive phase to the Straddle Stance position. Hold the weight above the head with elbows straight.",
+    "After a brief pause, reverse the movement to return to the down position—flex the elbows, hips, and knees to cushion the impact on the shoulders as the weight descends.",
+    "As the weight and repetitions increase, concentrate on preventing the upper back and shoulders from rounding forward.",
+    "Always lift a weight that can be controlled throughout the range of motion."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-overhead-push-press-strength-training-circuit",
+   "source": "army",
+   "name": "Overhead Push-Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-11 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the Overhead Push-Press is the Straddle Stance position. Hold the kettlebells at the collar bones in the rack position, using a closed neutral grip (palms will be facing each other).",
+   "area": "upper-push",
+   "about": "The Overhead Push-Press is the eighth exercise in the Strength Training Circuit. This exercise strengthens the Soldier’s triceps and shoulder muscle endurance. This improves the Soldier’s skill in moving heavier weight overhead to build muscular power and strength. Figure 13-9 shows the exercise as a Soldier conducts it for one minute at station 8 of the Strength Training Circuit:",
+   "start": "The starting position for the Overhead Push-Press is the Straddle Stance position. Hold the kettlebells at the collar bones in the rack position, using a closed neutral grip (palms will be facing each other).",
+   "steps": [
+    "On the command, “BEGIN,” slightly flex the hips and knees into a mini-squat before quickly and forcefully extending the elbows to push the weights overhead. At the top of the movement, the kettlebells will be above the shoulders.",
+    "Continue to look straight ahead throughout the movement.",
+    "Slightly flex the hips and knees into a mini-squat before returning the weight to the starting position. This squat helps to absorb the impact of the weight’s descent."
+   ],
+   "dose": "Continue the exercise at own pace for one minute. Increase or decrease the kettlebell weight if necessary, continuing only if the exercise can be completed to standard."
+  },
+  {
+   "id": "army-overhead-triceps-extension",
+   "source": "army",
+   "name": "Overhead Triceps Extension",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-23 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "It is performed using a single kettlebell or dumbbell.",
+   "area": "upper-push",
+   "about": "The Overhead Triceps Extension develops strength in the triceps muscles that support Free Weight Core exercises like the Bench Press. It is performed using a single kettlebell or dumbbell. Figure 14-22 shows the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Overhead Triceps Extension is the Straddle Stance position with the arms extended overhead holding a single dumbbell or kettlebell.",
+   "steps": [
+    "Grip the kettlebell with one hand on either side of the handle with the bell toward the ground.",
+    "Hold the dumbbell by cupping one end of the dumbbell in both hands with the other end toward the floor.",
+    "From the starting position, lower the weight behind the head and between the shoulder blades. Inhale through the movement.",
+    "After a brief pause, reverse the movement to return to the starting position, exhaling through the movement.",
+    "Do not arch the back during the lift and keep the head aligned with the spine.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use a lighter weight to improve control if necessary."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-power-jump",
+   "source": "army",
+   "name": "Power Jump",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 5-3 · Conditioning Drill 1",
+   "group": "Conditioning Drill 1",
+   "equipment": "none",
+   "area": "whole-body",
+   "about": "The Power Jump is the first exercise in Conditioning Drill 1. This exercise reinforces correct jumping and landing skill, requires good balance and coordination, and develops explosive strength to move off the ground. Figure 5-1 on page 5-2 breaks down the movement Soldiers conduct at a moderate cadence:",
+   "start": "The starting position for the Power Jump is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On count 1, squat with the heels flat while rounding spine forward and reaching to the ground. Place palms on the ground. Gaze remains forward.",
+    "On count 2, jump forcefully from the ground, swinging the arms up and overhead to unweight the body and increase the height of the jump. Palms face inward.",
+    "On count 3, return to the count 1 position after landing softly with feet directed forward and shoulder-width apart.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-prone-row",
+   "source": "army",
+   "name": "Prone Row",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-11 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "upper-pull",
+   "about": "The Prone Row is the eighth exercise in the Preparation Drill (see figure 3-11). This exercise develops the strength of the neck, upper back, and shoulders. It prepares Soldiers to fire from the Prone position and to tolerate the weight of the helmet and body armor across the shoulders and neck. Soldiers conduct the movement at a slow cadence:",
+   "start": "The starting position for the Prone Row is the Prone position with arms overhead, palms down, fingers and thumbs extended and joined. Arms are lifted 1–2 inches from the ground and toes are pointed to the rear.",
+   "steps": [
+    "On count 1, raise the head and chest slightly while lifting the arms and pulling them rearward. Make hands into fists as they move toward the shoulders.",
+    "Feet stay together and on the ground. Arms and hands are off the ground.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position. Arms and hands remain off the ground.",
+    "On count 3, repeat count 1."
+   ]
+  },
+  {
+   "id": "army-pull-over",
+   "source": "army",
+   "name": "Pull Over",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-22 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Figures 14-20 and 14-21 on page 14-18 show the exercise as it would be conducted by an individual Soldier with single and double dumbbells:",
+   "area": "upper-push",
+   "about": "The Pull Over develops strength in the triceps muscles which support Free Weight Core exercises like the Bench Press. It is performed using a bench and spotter. Figures 14-20 and 14-21 on page 14-18 show the exercise as it would be conducted by an individual Soldier with single and double dumbbells:",
+   "start": "The starting position for the Pull Over is the Supine position on a bench with feet on the ground, and hips, shoulders, and head firmly resting on the bench.",
+   "steps": [
+    "A dumbbell is held in each hand, resting on the front of the shoulders. If one dumbbell is used, it rests on the front of the upper chest.",
+    "From the starting position, raise the weight up and past the face until it has cleared the top of the head. Lower the weight down until it is at or below the level of the bench.",
+    "After a brief pause, reverse the movement to return to the starting position.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use one weight to improve control if necessary."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session.",
+   "notes": [
+    "The spotting position for the Pull Over is the Front Leaning Stance position. The spotter is positioned and maintains hands close to the lifter’s hands throughout the movement."
+   ]
+  },
+  {
+   "id": "army-pull-up-climbing-drill-1",
+   "source": "army",
+   "name": "Pull-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 6-5 · Climbing Drill 1",
+   "group": "Climbing Drill 1",
+   "equipment": "bar",
+   "equipment_said": "On the command, “UP,” flex the elbows, raising the body in a straight line until the head is above the bar.",
+   "area": "upper-pull",
+   "about": "The Pull-Up is the third exercise in Climbing Drills 1 and 2. This exercise develops the Soldier’s ability to pull up without using the legs. Figure 6-3 on page 6-4 breaks down the exercise as Soldiers conduct it with two spotters to assist:",
+   "start": "The starting position for the Pull-Up is the Straight-Arm Hang using the closed overhand grip.",
+   "steps": [
+    "On the command, “UP,” flex the elbows, raising the body in a straight line until the head is above the bar.",
+    "On the command, “DOWN,” return to the starting position."
+   ],
+   "dose": "Repeat the exercise 5–10 times.",
+   "notes": [
+    "If the Soldier states, “No spotter needed,” the two spotters are not required. Otherwise, the spotters assume the Straddle Stance position with staggered legs in the front and back of the exerciser.",
+    "The front spotter places palms toward the exerciser at chest height to support the exerciser if his or her grip fails.",
+    "The rear spotter holds the exerciser’s feet against his or her thighs or abdomen to support the movement up. Once the Soldier is up, the rear spotter stops assisting.",
+    "The spotters may assist in guiding the exerciser to the foot pegs after the command “DOWN” prior to the command “DISMOUNT.”"
+   ]
+  },
+  {
+   "id": "army-pull-up-strength-training-circuit",
+   "source": "army",
+   "name": "Pull-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-7 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "bar",
+   "equipment_said": "On the command, “GO,” flex the elbows, raising the body in a straight line until the head is above the bar.",
+   "area": "upper-pull",
+   "about": "The Pull-Up is the fifth exercise in the strength training circuit. This exercise develops the Soldier’s ability to climb without using the legs. Figure 13-5 breaks down the exercise as a Soldier conducts it in the Strength Training Circuit for up to one minute:",
+   "start": "The starting position for the Pull-Up is the Straight-Arm Hang using the closed overhand grip.",
+   "steps": [
+    "After repeating 5 times, dismount to the Straddle Stance position on the ground.",
+    "On the command, “GO,” flex the elbows, raising the body in a straight line until the head is above the bar.",
+    "If the Soldier cannot complete one minute of pull-ups, he or she will perform the Straight-Arm Pull."
+   ]
+  },
+  {
+   "id": "army-push-up",
+   "source": "army",
+   "name": "Push-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-13 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "upper-push",
+   "about": "The Push-Up is the final exercise in the Preparation Drill (see figure 3-13). This exercise strengthens the muscles of the chest, shoulders, arms, and trunk. When conducted to standard, it is a safe way to prepare for more vigorous pushing motions required in training, testing, and combat tasks. Soldiers conduct the movement at a moderate cadence:",
+   "start": "The starting position for the Push-Up is the Front Leaning Rest. Hands are directly beneath the shoulders with fingers spread. Feet are together. The body forms a straight line from the top of the head to the heels. Soldiers maintain this position throughout the exercise.",
+   "steps": [
+    "On count 1, bend the elbows, lowering the body until the upper arms are parallel to the ground.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1."
+   ]
+  },
+  {
+   "id": "army-quadraplex",
+   "source": "army",
+   "name": "Quadraplex",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-18 · Four for the Core",
+   "group": "Four for the Core",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Quadraplex is the final exercise in Four for the Core. This exercise improves balance, coordination and strength of core muscles in the posterior chain. Figure 4-15 shows the exercise as performed in a formation at a slow cadence. Below is a breakdown of the movement which is performed for a count of 60 secs.",
+   "start": "The starting position for the Quadraplex is six-point position with the knees on the ground beneath the hips.",
+   "steps": [
+    "On the command of “ready, EXERCISE,” raise the left leg and right hand until they are both straight and parallel to the ground.",
+    "Head stays aligned with the spine. DO not let the low back, shoulder and trunk sag. Stay tall on the supporting shoulder.",
+    "Hold this position for 60 secs.",
+    "To rest, return to the starting position for 3-5 secs until resuming the effort.",
+    "On the command of “starting position, MOVE,” return to the starting position.",
+    "On the command of “change position, ready, EXERCISE,” repeat the exercise on the right."
+   ]
+  },
+  {
+   "id": "army-rear-lunge-preparation-drill",
+   "source": "army",
+   "name": "Rear Lunge",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-4 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "lower-push",
+   "about": "The Rear Lunge (see figure 3-2 and figure 3-3) is the second exercise in the Preparation Drill. This exercise promotes flexibility, strength, and balance in the hip and leg. It prepares the Soldier for taking cover and assuming kneeling firing positions. Soldiers conduct the movement in formation at a slow cadence:",
+   "start": "The starting position for the Rear Lunge is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On count 1, keeping hands on hips, take an exaggerated step backwards with the left leg, touching down with the ball of the foot placed directly back from the starting position. The heel should be off the ground, and a stretch should be felt in the front of the left hip and thigh. If not, allow the body to continue to lower to increase flexibility.",
+    "On count 2, return to the starting position, maintaining the same distance between the feet as used in the Straddle Stance.",
+    "On count 3, repeat count 1 with the right leg.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-rear-lunge-recovery-drill",
+   "source": "army",
+   "name": "Rear Lunge",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-4 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Rear Lunge is the second exercise in the Recovery Drill. Figure 16-2 demonstrates the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Rear Lunge is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On the command, “READY, STRETCH,” take an exaggerated step backward with the left leg, touching down with the ball of the foot directly behind the starting position. This creates a stretch sensation in the front of the left thigh and hip area. Back remains straight and gaze remains forward. Hold the position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position.",
+    "On the command, “READY, STRETCH,” take an exaggerated step backward with the right leg, touching down with the ball of the foot directly behind the starting position. This creates a stretch sensation in the front of the right thigh and hip area. The back remains straight and gaze remains forward. Hold the position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-rower",
+   "source": "army",
+   "name": "Rower",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraphs 3-6, 3-7 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Rower (see figure 3-5 and figure 3-6) is the fourth exercise in the Preparation Drill. This exercise improves abdominal strength and total body coordination. It prepares the Soldier to move from the Supine to Sitting positions and exercises in Conditioning Drills and Climbing Drills. Soldiers conduct the movement at a slow cadence:",
+   "start": "The starting position for the Rower is the Supine position with arms overhead, feet together and pointing up. The head is 1–2 inches off the ground to work muscles in the front of the neck. Arms are overhead with hands at shoulder width, palms facing inward with fingers and thumbs extended and joined.",
+   "steps": [
+    "On count 1, sit up while bending at the hip and knees and swinging arms forward until they are parallel to the ground. At the end of this count, the feet are flat on the ground with knees positioned between the arms. The arms are parallel to the ground.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ],
+   "dose": "Perform 5–10 repetitions."
+  },
+  {
+   "id": "army-seated-row",
+   "source": "army",
+   "name": "Seated Row",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-17 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "Lean forward and grasp the handgrips with the hands in a neutral, closed grip.",
+   "area": "upper-pull",
+   "about": "The Seated Row develops strength in the arm and back muscles. Figure 15-11 on page 15-10 shows the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Seated Row is the Sitting position with the knees bent at 90 degrees and feet flat on the floor.",
+   "steps": [
+    "From the starting position, stay seated with the feet firmly planted on the floor or foot supports (if using).",
+    "Lean forward and grasp the handgrips with the hands in a neutral, closed grip.",
+    "Sit erect so the upper body is perpendicular to the floor.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "On count 1, simultaneously bend the elbows and pull the handgrips to the chest or upper abdomen while keeping the trunk rigid and the back flat.",
+    "On count 2, return to the starting position by slowly extending the elbows."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-shrug",
+   "source": "army",
+   "name": "Shrug",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-21 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "The Shrug can be performed with a straight bar, dumbbells, or kettlebells.",
+   "area": "upper-pull",
+   "about": "The Shrug is another method of targeting the upper trapezius muscles in the shoulders and neck. The Straight Arm Pull and Upright Row require the same muscles. The Shrug can be performed with a straight bar, dumbbells, or kettlebells. Figure 14-19 breaks down the exercise as a Soldier conducts it using a dumbbells, kettlebells, and straight bar:",
+   "start": "The starting position for the Shrug is the Straddle Stance position with arms fully extended and down in front of the body holding the straight bar, dumbbell, or kettlebell with a closed overhand grip. The knees are slightly flexed.",
+   "steps": [
+    "From the starting position, raise the weight up by shrugging the shoulders upward.",
+    "After a brief pause, reverse the movement to return to the down position.",
+    "As the weight and repetitions increase, concentrate on preventing the upper back and shoulder from rounding forward.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use the same movement with neutral grips for the kettlebell version of this exercise."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-side-bridge",
+   "source": "army",
+   "name": "Side Bridge",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-16 · Four for the Core",
+   "group": "Four for the Core",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Side Bridge is the second exercise in Four for the Core. This exercise isolates one side of the trunk at a time. It strengthens all the muscles on the side nearest the ground - from the spine to the side of the trunk and pelvis. It is a safe way to contract the obliques and the hip abductors without compressing or loading the spine. Figure 4-13 the exercise as performed in a formation. Below is a breakdown of the movement which is performed for a count of 60 secs.",
+   "start": "The starting position for the Side Bridge is laying on the left side with upper body off the ground, supported by the left shoulder. The left elbow is on the ground directly beneath the shoulder. The legs are straight with the left foot resting ON TOP of the right foot. The right arm rests on the trunk, elbow flexed to allow the right hand to rest on the abdomen.",
+   "steps": [
+    "On the command of “ready, EXERCISE,” raise the trunk off the ground until the trunk, pelvis and legs form a straight line when viewed from the front and top. Head stays aligned with the spine.",
+    "Hold this position for 60 secs.",
+    "To rest, return to the starting position for 3-5 secs until resuming the effort.",
+    "On the command of “starting position, MOVE,” return to the starting position.",
+    "On the command of “change position, ready, EXERCISE,” swing the legs and body through the sitting position to lay on the right side. Repeat the exercise on the right."
+   ]
+  },
+  {
+   "id": "army-single-arm-bent-over-row",
+   "source": "army",
+   "name": "Single-Arm Bent-Over Row",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-17 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "It can be performed with a single dumbbell or kettlebell.",
+   "area": "upper-pull",
+   "about": "The Single-Arm Bent-Over Row is a modified version of the Bent-Over Row. It can be performed with a single dumbbell or kettlebell. Figure 14-14 breaks down the exercise as an individual Soldier conducts it using a variety of approaches:",
+   "start": "The starting position for the Single Arm Bent-Over Row requires the use of a bench. The right arm and knee rest on the bench to support the body on that side. The left leg rests on the ground and the left arm is fully extended down and in front of the body holding the dumbbell with an overhand grip.",
+   "steps": [
+    "The back is straight and the head is in line with the spine.",
+    "From the starting position, pull the weight toward the chest until the upper arm is parallel to the ground. Elbow should be up and pointing to the rear. Head and spine position remain in the starting position.",
+    "Move the dumbbell from the down position to the up position.",
+    "After a brief pause, reverse the movement to return to the down position.",
+    "As the weight and repetitions increase, concentrate on preventing the upper back and shoulder from rounding forward.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use the same movement with neutral grips for the kettlebell version of this exercise."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session. Switch to the opposite side to perform the same movement for the right side."
+  },
+  {
+   "id": "army-single-leg-over-hip-stability-drill",
+   "source": "army",
+   "name": "Single Leg Over",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-7 · Hip Stability Drill",
+   "group": "Hip Stability Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Single Leg Over is the fifth exercise in the Hip Stability Drill (see figure 4-5). This exercise develops flexibility of the hip and low back. Soldiers conduct the movement in formation for 30–60 seconds.",
+   "start": "The starting position for the Single Leg Over is the Supine position with arms straight out to the side on ground with palms down with fingers and thumbs extended and joined. Feet are together on the ground. The head is on the ground.",
+   "steps": [
+    "On the command “READY, STRETCH,” bend the left knee to 90 degrees over the right leg and grasp the outside of the left knee with the right hand pulling toward the right. Keep the left shoulder and arm on the ground. Hold this position for 20–30 seconds.",
+    "On the command “STARTING POSITION, MOVE,” assume the starting position.",
+    "On the command “CHANGE POSITION, READY, STRETCH,” bend the right knee to 90 degrees over the left leg and grasp the outside of the right knee with the left hand pulling toward the left. Keep the right shoulder and arm on the ground. Hold this position for 20–30 seconds.",
+    "On the command “STARTING POSITION, MOVE,” return to the starting position, and then the Position of Attention."
+   ]
+  },
+  {
+   "id": "army-single-leg-over-recovery-drill",
+   "source": "army",
+   "name": "Single-Leg Over",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-7 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Single-Leg Over is the fifth exercise in Recovery Drill. This exercise develops flexibility of the hip and low back. Figure 16-5 breaks down the movement as Soldiers conduct it in a formation for 30–60 seconds:",
+   "start": "The starting position for the Single-Leg Over is the Supine position with arms straight out to the side on ground with palms down with fingers and thumbs extended and joined. Feet are together with heels on the ground. The head is on the ground.",
+   "steps": [
+    "On the command, “READY, STRETCH,” bend the left knee to 90 degrees over the right leg and grasp the outside of the left knee with the right hand pulling toward the right. Keep the left shoulder and arm on the ground. Hold this position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” assume the starting position.",
+    "On the command, “CHANGE POSITION, READY, STRETCH,” bend the right knee to 90 degrees over the left leg and grasp the outside of the right knee with the left hand pulling toward the left. Keep the right shoulder and arm on the ground. Hold this position for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-single-leg-push-up",
+   "source": "army",
+   "name": "Single-Leg Push-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 5-7 · Conditioning Drill 1",
+   "group": "Conditioning Drill 1",
+   "equipment": "none",
+   "area": "upper-push",
+   "about": "The Single-Leg Push-Up is the final exercise in Conditioning Drill 1. This exercise strengthens the muscles of the chest and hips as well as increases the challenge to shoulder stability. When conducted to standard, it safely prepares Soldiers for more vigorous pushing motions required in training, testing, and combat tasks. Figure 5-5 breaks down the movement Soldiers conduct at a moderate cadence:",
+   "start": "The starting position for the Single-Leg Push-Up is the Front Leaning Rest. Hands are directly beneath the shoulders with fingers spread. Feet are together. The body forms a straight line from the top of the head to the heels.",
+   "steps": [
+    "On count 1, bend the elbows, lowering the body until the upper arms are parallel to the ground. At the same time, raise the left leg until the toe is level or just above the right heel. Keep the left knee straight. This is not a high leg raise or hyper-extension of the hip.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1, moving the right leg the same way that the left leg moved in count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-single-leg-tuck",
+   "source": "army",
+   "name": "Single-Leg Tuck",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-6 · Hip Stability Drill",
+   "group": "Hip Stability Drill",
+   "equipment": "none",
+   "area": "lower-push",
+   "about": "The Single-Leg Tuck is the fourth exercise in the Hip Stability Drill. Figure 4-4 on page 4-4 shows the exercise Soldiers perform it in a formation at a slow cadence:",
+   "start": "The starting position for the Single-Leg Tuck is the Sitting position. Soldiers move to a side lying position, with legs extended, the left leg is held 6–8 inches above the right.",
+   "steps": [
+    "Support the trunk off the ground with the right elbow. Bend the elbow to 90 degrees and place it directly below the shoulder. Fist the right hand and rest it on the ground, thumb up. Place the left hand across the stomach.",
+    "On the count of 1, bend the left knee and hip to 90 degrees, holding the leg and foot in the same plane throughout the movement. Control the movement to the end point. The left foot and knee should be the same height from the ground to work the correct muscles in the hip. Do not let the foot drop to the ground.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the first starting position.",
+    "Repeat 5–10 times.",
+    "On the command, “CHANGE POSITION, MOVE,” swing the legs together toward the front of the formation, swiveling on the buttocks into the second starting position with the trunk supported on the left elbow.",
+    "Complete the same series of repetitions for the right leg and hip."
+   ]
+  },
+  {
+   "id": "army-squat-bender",
+   "source": "army",
+   "name": "Squat Bender",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-8 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "lower-push",
+   "about": "The Squat Bender (see figure 3-7) is the fifth exercise in the Preparation Drill. This exercise develops strength, endurance, and flexibility in the lower back and thigh muscles. It prepares Soldiers to use proper lifting technique in more vigorous training and testing events that require heavy lifts. Soldiers conduct the movement at a slow cadence:",
+   "start": "The starting position for the Squat Bender is the Straddle Stance position with hands on hips.",
+   "steps": [
+    "On count 1, squat while leaning slightly forward from the waist, keeping the head up and moving both arms to a position in front of the body and parallel to the ground. Palms face inwards.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, with the knees slightly bent, bend forward at the waist. Maintain the head in alignment with the spine and keep the spine straight. Reach toward the ground until a stretch is felt in the back of the thighs.",
+    "On count 4, return to the starting position."
+   ],
+   "dose": "Perform 5–10 repetitions."
+  },
+  {
+   "id": "army-straight-arm-pull-climbing-drill-1",
+   "source": "army",
+   "name": "Straight-Arm Pull",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 6-3 · Climbing Drill 1",
+   "group": "Climbing Drill 1",
+   "equipment": "bar",
+   "equipment_said": "On the command, “UP,” move from the starting position, keep the arms straight, and pull the body up with the effect of raising the head between the arms. The chest will move up toward the bar and the shoulder blades will move together.",
+   "area": "upper-pull",
+   "about": "The Straight-Arm Pull is the first exercise in Climbing Drill 1. This exercise develops the Soldier’s ability to initiate the pull-up motion, maintain grip, and contract upper back and shoulder muscles. Figure 6-1 on page 6-2 breaks down the exercise as Soldiers conduct it with two spotters:",
+   "start": "The starting position for the Straight-Arm Pull is the Straight-Arm Hang using the closed overhand grip.",
+   "steps": [
+    "On the command, “UP,” move from the starting position, keep the arms straight, and pull the body up with the effect of raising the head between the arms. The chest will move up toward the bar and the shoulder blades will move together.",
+    "On the command, “DOWN,” return to the starting position."
+   ],
+   "dose": "Repeat the exercise 5–10 times.",
+   "notes": [
+    "If the Soldier states “No spotter needed,” the two spotters are not required. Otherwise, the spotters assume the Straddle Stance position with staggered legs in front and behind the exerciser.",
+    "The front spotter places palms toward the exerciser at chest height to support the exerciser if his or her grip fails.",
+    "The rear spotter places palms toward the exerciser at chest height to support the exerciser if his or her grip fails. The rear spotter assists in guiding the exerciser to the foot pegs on the climbing bar."
+   ]
+  },
+  {
+   "id": "army-straight-arm-pull-strength-training-circuit",
+   "source": "army",
+   "name": "Straight-Arm Pull",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-8 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "bar",
+   "area": "upper-pull",
+   "about": "The Straight-Arm Pull is the alternate fifth exercise in the Strength Training Circuit. This exercise develops the Soldier’s ability to pull up without using the legs. Figure 13-6 shows the exercise as it would be conducted by an individual Soldier during the Strength Training Circuit:",
+   "start": "The starting position for the Straight Arm Pull is the Straight-Arm Hang using the closed overhand grip.",
+   "steps": [
+    "After repeating 5 times, dismount to the Straddle Stance position on the ground.",
+    "On count 1, from the starting position and keeping the arms straight, pull the body up using a shrugging motion."
+   ],
+   "dose": "Repeat the exercise for up to one minute."
+  },
+  {
+   "id": "army-straight-leg-deadlift-free-weight-core-training",
+   "source": "army",
+   "name": "Straight-Leg Deadlift",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-9 · Free Weight Core training",
+   "group": "Free Weight Core training",
+   "equipment": "free weights",
+   "equipment_said": "Figure 14-5 breaks down the exercise as it would be conducted by an individual Soldier using a straight bar and dumbbells:",
+   "area": "lower-pull",
+   "about": "The Straight-Leg Deadlift is a variation of the Deadlift that further challenges the muscles in the lower back, hips, and legs. Figure 14-5 breaks down the exercise as it would be conducted by an individual Soldier using a straight bar and dumbbells:",
+   "start": "The starting position for the Straight-Leg Deadlift using the straight bar is the Straddle Stance position. Hold the bar with a grip suited to the Soldier’s capability, the equipment, and the goal of the exercise session. Keep the knees slightly flexed—not locked—and in the same flexed position throughout the exercise.",
+   "steps": [
+    "From the starting position, flex forward from the waist, keeping the head aligned with the spine to avoid extending the neck.",
+    "While keeping the back straight, bend over until the back is parallel to the ground. Slightly adjust knee flexion to increase the engagement of the hamstring muscles in the back of the thigh.",
+    "After a brief pause, reverse the movement to return to the starting position.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use the same movement with different grips for the kettlebell and dumbbell versions of this exercise."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-straight-leg-deadlift-strength-training-circuit",
+   "source": "army",
+   "name": "Straight-Leg Deadlift",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-4 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the Straight-Leg Deadlift is the Straddle Stance position. Hold the kettlebells in front of the legs using a pronated grip. Keep the knees slightly flexed—not locked—and in the same flexed position throughout the exercise.",
+   "area": "lower-pull",
+   "about": "The Straight-Leg Deadlift is the second exercise in the Strength Training Circuit (see figure 13-2). A Soldier conducts the exercise for one minute at station 2 of the Strength Training Circuit. The cadence is always slow:",
+   "start": "The starting position for the Straight-Leg Deadlift is the Straddle Stance position. Hold the kettlebells in front of the legs using a pronated grip. Keep the knees slightly flexed—not locked—and in the same flexed position throughout the exercise.",
+   "steps": [
+    "On count 1, flex forward from the waist, keeping the head in line with the spine to avoid extending the neck. While keeping the back straight, move down until the back is parallel to the ground. Slightly adjust knee flexion to increase the engagement of the hamstring muscles in the back of the thigh.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1."
+   ],
+   "dose": "Complete one minute of repetitions, stopping to rest if necessary, or adjusting the weight and range of movement to match the required performance."
+  },
+  {
+   "id": "army-sumo-deadlift",
+   "source": "army",
+   "name": "Sumo Deadlift",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-14 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Figure 14-11 on page 14-10 illustrates a Soldier performing the exercise using two of the three types of free weights—straight bar, kettlebells, and dumbbells:",
+   "area": "lower-pull",
+   "about": "The Sumo Deadlift is a free-weight exercise performed throughout a Soldier’s career to improve lower body muscular strength and endurance. It is a modification of the Deadlift that further challenges a Soldier’s coordination, balance, and hip mobility. Figure 14-11 on page 14-10 illustrates a Soldier performing the exercise using two of the three types of free weights—straight bar, kettlebells, and dumbbells:",
+   "start": "The starting position for the Sumo Deadlift is the Straddle Stance position with feet slightly wider than shoulder width and toes pointing outward. When performing the lift with dumbbells or kettlebells, start in the Straddle Stance position with a single weight held between and in front of the legs. Knees are bent, back is straight, and the bar or weight is held in both hands with a grip suited to the lifter’s capability, the equipment, and the goal of the exercise session.",
+   "steps": [
+    "From the starting position, straighten the knees and slowly raise the trunk into the upright Position of Attention.",
+    "Pause before reversing the upward movement to return to the starting position.",
+    "Maintain a natural arch in the lower back with the head and neck staying in alignment to avoid extending the neck. Do not round out the upper back.",
+    "Keep the knees and feet turned outward throughout the movement. The wider stance permits a lower lifting range of motion.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use the same movement with different grips for the kettlebell and dumbbell versions."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-sumo-squat",
+   "source": "army",
+   "name": "Sumo Squat",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-3 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "Hold a single kettlebell with both hands in front of the body, palms pronated to face the body.",
+   "area": "lower-push",
+   "about": "The Sumo Squat is the first exercise in the Strength Training Circuit. The starting position for the Sumo Squat is the Straddle Stance position with the feet slightly wider than the shoulders and the toes pointing outward. Hold a single kettlebell with both hands in front of the body, palms pronated to face the body. Figure 13-1 on page 13-2 shows the exercise as a Soldier conducts it for one minute at station 1 of the Strength Training Circuit. The cadence is always slow:",
+   "steps": [
+    "On count 1, squat while leaning slightly forward from the waist with the head up. Move downward until the upper legs are parallel to the ground.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ],
+   "dose": "Complete one minute of repetitions, stopping to rest if necessary, or adjusting the weight and range of movement to match the required performance."
+  },
+  {
+   "id": "army-supine-body-twist",
+   "source": "army",
+   "name": "Supine Body Twist",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-12 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "The starting position for the Supine Body Twist is the Supine position with the hips and knees bent to 90 degrees so that the feet are off the ground. The head is off the ground. One kettlebell is held in front of and off the chest. The kettlebell handle is held by both hands, palms facing each other. The bell portion of the kettlebell is positioned above the stomach, not above the head.",
+   "area": "trunk",
+   "about": "The Supine Body Twist is the ninth exercise in the Strength Training Circuit. This exercise strengthens the trunk muscles used for movement in the transverse plane. By keeping the knees together it also strengthens hip adductor muscles often referred to as the groin muscles. Figure 13-10 shows the exercise as a Soldier conducts it for one minute at station 9 of the Strength Training Circuit:",
+   "start": "The starting position for the Supine Body Twist is the Supine position with the hips and knees bent to 90 degrees so that the feet are off the ground. The head is off the ground. One kettlebell is held in front of and off the chest. The kettlebell handle is held by both hands, palms facing each other. The bell portion of the kettlebell is positioned above the stomach, not above the head.",
+   "steps": [
+    "On the command, “BEGIN,” rotate the kettlebell to the left and the legs to the right as far as possible under control. Keep the weight away from the body and the arms and head off the ground.",
+    "Return to the starting position.",
+    "Repeat the first movement—this time to the opposite side—arms to the right and legs to the left.",
+    "The head may turn with the arms but should not lift more than 2–4 inches from the ground."
+   ],
+   "dose": "Continue the exercise at own pace for one minute maintaining the range of motion. Increase or decrease the kettlebell weight if necessary, continuing only if the exercise can be completed to standard."
+  },
+  {
+   "id": "army-supine-chest-press",
+   "source": "army",
+   "name": "Supine Chest Press",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 13-9 · Strength Training Circuit",
+   "group": "Strength Training Circuit",
+   "equipment": "free weights",
+   "equipment_said": "Holding a kettlebell of the same weight in each hand using a closed partial pronated grip, bend the elbows to allow the kettlebells to rest on the front of the shoulders.",
+   "area": "upper-push",
+   "about": "The Supine Chest Press is the sixth exercise in the Strength Training Circuit. This exercise strengthens the chest, shoulder, and triceps muscles. It develops the Soldier’s ability to push during more vigorous combatives, testing, and combat tasks. Figure 13-7 illustrates the exercise as a Soldier conducts it for one minute at station 6 of the Strength Training Circuit:",
+   "start": "The starting position for the Supine Chest Press is the Supine position with knees bent to 90 degrees, feet 8–12 inches apart and flat on the ground. The head and upper arms are resting on the ground.",
+   "steps": [
+    "Holding a kettlebell of the same weight in each hand using a closed partial pronated grip, bend the elbows to allow the kettlebells to rest on the front of the shoulders.",
+    "On the command, “BEGIN,” extend the elbows to raise the kettlebells straight up in front of the shoulders, rotating to a fully pronated grip.",
+    "Return to the starting position."
+   ],
+   "dose": "Continue the exercise at own pace for one minute. Increase or decrease the kettlebell weight if necessary, continuing only if the Supine Chest Press movement can be completed to standard."
+  },
+  {
+   "id": "army-t-raise",
+   "source": "army",
+   "name": "T Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-10 · Shoulder Stability Drill",
+   "group": "Shoulder Stability Drill",
+   "equipment": "none",
+   "area": "upper-pull",
+   "about": "The second exercise for the Shoulder Stability Drill is the T Raise. Figure 4-7 illustrates the exercise as performed in a formation at a slow cadence:",
+   "start": "The starting position for the T Raise is the Prone position with arms laying on the ground straight out from the shoulders at 90 degrees to the trunk. This is the T position. The head is slightly elevated. Feet are together and toes are pointing rearward. Fingers and thumbs are extended and joined with palms perpendicular to the ground, facing directly ahead.",
+   "steps": [
+    "On the count of 1, raise both arms from the ground 3–6 inches while continuing to keep the elbows straight. The head remains in its starting position.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-thigh-stretch",
+   "source": "army",
+   "name": "Thigh Stretch",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 16-6 · Recovery Drill",
+   "group": "Recovery Drill",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "The Thigh Stretch is the fourth exercise in the Recovery Drill. It develops flexibility in the hip and knee joints. Figure 16-4 shows the movement as Soldiers conduct it in a formation:",
+   "start": "The starting position for the Thigh Stretch is the Sitting position with the arms at the sides and palms on the floor.",
+   "steps": [
+    "On the command, “READY, STRETCH,” roll on the right side and place the right elbow and forearm on the ground directly below the shoulder. The right hand makes a fist with the thumb side up. Grasp the left ankle and pull toward the left buttock. Push the left thigh further to the rear with the heel of the right foot. Hold this position for 20–30 seconds.",
+    "On the command, “CHANGE POSITION, READY, STRETCH,” move back through the starting position before changing sides to stretch the right leg. Hold for 20–30 seconds.",
+    "On the command, “STARTING POSITION, MOVE,” return to the starting position."
+   ]
+  },
+  {
+   "id": "army-triceps-extension",
+   "source": "army",
+   "name": "Triceps Extension",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-22 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "Select the weight and ensure the pin is secure in the weight stack.",
+   "area": "upper-push",
+   "about": "The Triceps Extension develops strength in the triceps muscles and supports other pushing tasks found in training and combat. Figure 15-14 breaks down the exercise as a Soldier conducts it:",
+   "steps": [
+    "Select the weight and ensure the pin is secure in the weight stack.",
+    "Conduct this exercise from the Sitting position. Start with the feet placed firmly on the ground. Place the hips and low back firmly against the seat back with the eyes looking straight ahead.",
+    "Maintain an erect position, eyes looking straight ahead, grasping the bar with a closed, pronated grip.",
+    "On count 1, push downward until both arms are fully extended but not locked.",
+    "On count 2, return to the starting position."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-trunk-extension",
+   "source": "army",
+   "name": "Trunk Extension",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-20 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "The starting position for the Trunk Extension is the Sitting position with the knees slightly bent and feet flat on the foot platform.",
+   "area": "trunk",
+   "about": "The Trunk Extension is the seventh exercise in the Strength Training Machine drill. This exercise develops strength in the low back muscles and supports the Deadlift exercise. Figure 15-13 on page 15-12 shows the exercise as a Soldier conducts it:",
+   "start": "The starting position for the Trunk Extension is the Sitting position with the knees slightly bent and feet flat on the foot platform.",
+   "steps": [
+    "From the starting position, stay seated on the machine, leaning slightly forward, with the back firmly against the padded lever arm.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "Grip the support bars using a neutral, closed grip.",
+    "Keep the head in a neutral position with the eyes looking straight ahead.",
+    "On count 1, raise the upper body and continue extending the trunk, moving to the Supine position.",
+    "On count 2, return to the starting position."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."
+  },
+  {
+   "id": "army-trunk-flexion",
+   "source": "army",
+   "name": "Trunk Flexion",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 15-29 · Strength Training Machine Drill",
+   "group": "Strength Training Machine Drill",
+   "equipment": "machine",
+   "equipment_said": "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+   "area": "trunk",
+   "about": "The Trunk Flexion is the tenth exercise in the strength training machine drill. This exercise develops strength in the abdominal muscles. Figure 15-18 on page 15-16 shows the exercise as a Soldier conducts it:",
+   "start": "The starting position for the Trunk Flexion is the Sitting position with the knees bent at 90 degrees and feet flat on the floor.",
+   "steps": [
+    "From the starting position, stay seated with the feet firmly on the ground.",
+    "Select the appropriate weight and ensure the pin is secure in the weight stack.",
+    "Keep the elbows shoulder-width apart and bent at 90 degrees, with hands in a closed grip.",
+    "Place the hips and low back firmly against the seat back with the eyes looking straight ahead.",
+    "On count 1, bend forward, flexing the trunk and bringing the chest to the thighs.",
+    "On count 2, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-upright-row",
+   "source": "army",
+   "name": "Upright Row",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-18 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "It can be performed with a straight bar, dumbbells, or kettlebells.",
+   "area": "upper-pull",
+   "about": "The Upright Row is a modified version of the Bent-Over Row. It focuses the work on the upper trapezius as well as those muscles targeted in the Bent-Over Row. It can be performed with a straight bar, dumbbells, or kettlebells. Figures 14-15 and 14-16 on page 14-14 illustrate the exercise as it would be conducted by an individual Soldier using a straight bar and kettlebells:",
+   "start": "The starting position for the Upright Row is the Straddle Stance position with arms fully extended and down in front of the body holding the straight bar or kettlebell with a closed overhand grip. A single weight or short bar can be used when first performing this exercise.",
+   "steps": [
+    "From the starting position, pull the weight up to the collar bones until the arms are parallel to the ground.",
+    "After a brief pause, reverse the movement to return to the down position.",
+    "As the weight and repetitions increase, concentrate on preventing the upper back and shoulder from rounding forward.",
+    "Always lift a weight that can be controlled throughout the range of motion.",
+    "Use the same movement with neutral grips for the kettlebell version of this exercise."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-v-up",
+   "source": "army",
+   "name": "V-Up",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 5-4 · Conditioning Drill 1",
+   "group": "Conditioning Drill 1",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The V-Up is the second exercise in Conditioning Drill 1. This exercise develops the abdominal and hip flexor muscles for more vigorous training and combat tasks such as the leg tuck, rope traverse, and surmounting obstacles. Figure 5-2 breaks down the movement Soldier conduct at a moderate cadence:",
+   "start": "The starting position for the V-Up is the Supine position with arms on the ground at 45 degrees from the body, knees bent to 90 degrees. The head is 1–2 inches off the ground.",
+   "steps": [
+    "On count 1, raise the legs and trunk at the same time into a V position, using the arms to balance. Keep the knees straight and the head aligned with the trunk—neither bent forward nor extended backwards.",
+    "On count 2, return under control to the starting position. Avoid dropping the legs.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the count 2 position."
+   ]
+  },
+  {
+   "id": "army-w-raise",
+   "source": "army",
+   "name": "W Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-13 · Shoulder Stability Drill",
+   "group": "Shoulder Stability Drill",
+   "equipment": "none",
+   "area": "upper-pull",
+   "about": "The fifth exercise for the Shoulder Stability Drill is the W Raise. Figures 4-10 and 4-11 show the exercise as performed in a formation at a slow cadence:",
+   "start": "The starting position for the W Raise is the Prone position with arms on the ground at 45 degrees to the trunk and elbows bent to 45 degrees. This is the W position. The head is slightly elevated. Feet are together and toes are pointing rearward. Fingers and thumbs are extended and joined with palms facing each other.",
+   "steps": [
+    "On the count of 1, raise both arms from the ground 3–6 inches while continuing to keep the elbows bent. The head remains in its starting position. The elbows, forearms, and hands should leave the ground at the same time.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "army-weighted-trunk-extension",
+   "source": "army",
+   "name": "Weighted Trunk Extension",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-26 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Hold a weight plate against the chest before lowering the upper body toward the ground by flexing at the hips. This is the starting position.",
+   "area": "trunk",
+   "about": "The Weighted Trunk Extension develops strength in the muscles of the lower back and hips. It is performed using a bench and a partner. Figure 14-25 shows the exercise as a Soldier conducts it:",
+   "start": "To reach the starting position for the Weighted Trunk Extension, lay in the Prone position on a trunk extension bench with the knees slightly flexed and feet anchored or on the end of a flat bench. A partner secures the exerciser’s legs at the calves or ankles.",
+   "steps": [
+    "Hold a weight plate against the chest before lowering the upper body toward the ground by flexing at the hips. This is the starting position.",
+    "From the starting position, raise the upper body to align the trunk with the legs. When viewed from the side, the body and legs will form a straight line from the head to the heels.",
+    "The partner continues to brace the legs throughout the movement.",
+    "After a brief pause, reverse the movement lowering the body back down to the starting position.",
+    "Always lift a weight that can be controlled throughout the range of motion."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-weighted-trunk-flexion",
+   "source": "army",
+   "name": "Weighted Trunk Flexion",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 14-25 · Free Weight Assistive training",
+   "group": "Free Weight Assistive training",
+   "equipment": "free weights",
+   "equipment_said": "Hold a dumbbell or plate in each hand, resting on the front of the chest.",
+   "area": "trunk",
+   "about": "The Weighted Trunk Flexion develops strength in the abdominal muscles to support trunk movement when the Soldier is wearing full uniform and protective equipment. Figure 14-24 shows the exercise as it would be conducted by an individual Soldier:",
+   "start": "The starting position for the Weighted Trunk Flexion is the Supine position with knees bent to 90 degrees and feet on the ground. Feet are unanchored.",
+   "steps": [
+    "Hold a dumbbell or plate in each hand, resting on the front of the chest.",
+    "From the starting position, raise the trunk up into a sitting position without shifting the feet and leg position.",
+    "After a brief pause, reverse the movement to return under control to the starting position.",
+    "Always use a weight that can be controlled throughout the range of motion.",
+    "Use a lighter weight to improve control if necessary."
+   ],
+   "dose": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the free weight session."
+  },
+  {
+   "id": "army-windmill",
+   "source": "army",
+   "name": "Windmill",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 3-9 · Preparation Drill",
+   "group": "Preparation Drill",
+   "equipment": "none",
+   "area": "trunk",
+   "about": "The Windmill (see figure 3-8 and figure 3-9) is the sixth exercise in the Preparation Drill. This exercise develops the ability to safely bend and simultaneously rotate the trunk. It requires flexibility in the spine and coordination of the shoulder girdle. It prepares Soldiers to use proper movement technique in more vigorous training, testing, and combat tasks. Soldiers conduct the movement at a slow cadence:",
+   "start": "The starting position for the Windmill is the Straddle Stance position with arms straight out to the side. Fingers and thumbs are extended and joined, palms are facing down.",
+   "steps": [
+    "On count 1, bend the hips and knees while rotating the trunk to the left. Reach down to touch the outside of the left foot with the right hand and look to the rear. The left arm is pulled rearward to maintain alignment across the shoulders with the right arm.",
+    "On count 2, reverse the movement performed in count 1 to return to the starting position.",
+    "On count 3, repeat count 1, this time to the right.",
+    "On count 4, return to the starting position."
+   ],
+   "dose": "Perform 5–10 repetitions."
+  },
+  {
+   "id": "army-y-raise",
+   "source": "army",
+   "name": "Y Raise",
+   "url": "https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN45013-ATP_7-22.02-001-WEB-4.pdf",
+   "ref": "paragraph 4-11 · Shoulder Stability Drill",
+   "group": "Shoulder Stability Drill",
+   "equipment": "none",
+   "area": "upper-pull",
+   "about": "The third exercise for the Shoulder Stability Drill is the Y Raise. Figure 4-8 shows Soldiers performing the exercise in a formation at a slow cadence:",
+   "start": "The starting position for the Y Raise is the Prone position with arms laying on the ground extended overhead at 45 degrees to the trunk. This is the Y position. The head is slightly elevated. Feet are together and toes are pointing rearward. Fingers and thumbs are extended and joined with palms facing each other.",
+   "steps": [
+    "On the count of 1, raise both arms from the ground 3–6 inches while continuing to keep the elbows straight. The head remains in its starting position.",
+    "On count 2, return to the starting position.",
+    "On count 3, repeat count 1.",
+    "On count 4, return to the starting position."
+   ]
+  },
+  {
+   "id": "nhs-ankle-stretch",
+   "source": "nhs",
+   "name": "Ankle stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+   "ref": "Sitting exercises · page last reviewed 18 January 2024",
+   "group": "Sitting exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Sit upright, hold on to the side of the chair and straighten your left leg with your foot off the floor.",
+   "area": "flexibility",
+   "about": "This stretch will improve ankle flexibility and lower the risk of developing a blood clot.",
+   "steps": [
+    "Sit upright, hold on to the side of the chair and straighten your left leg with your foot off the floor.",
+    "With your leg straight and raised, point your toes away from you.",
+    "Point your toes back towards you."
+   ],
+   "dose": "Try 2 sets of 5 stretches with each foot."
+  },
+  {
+   "id": "nhs-biceps-curls",
+   "source": "nhs",
+   "name": "Biceps curls",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "free weights",
+   "equipment_said": "Hold a pair of light weights (filled water bottles will do) and stand with your feet hip-width apart.",
+   "area": "upper-pull",
+   "steps": [
+    "Hold a pair of light weights (filled water bottles will do) and stand with your feet hip-width apart.",
+    "Keeping your arms by your side, slowly bend them until the weight in your hand reaches your shoulder.",
+    "Slowly lower again."
+   ],
+   "dose": "This can also be carried out while sitting. Attempt 3 sets of 5 curls with each arm."
+  },
+  {
+   "id": "nhs-buttock-stretch",
+   "source": "nhs",
+   "name": "Buttock stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+   "ref": "How to stretch after exercising · page last reviewed 16 March 2026",
+   "group": "How to stretch after exercising",
+   "equipment": "none",
+   "area": "flexibility",
+   "steps": [
+    "Lie on your back and bring your knees up to your chest.",
+    "Cross your right leg over your left thigh.",
+    "Grasp the back of your left thigh with both hands.",
+    "Pull your left leg towards your chest.",
+    "Repeat with the opposite leg."
+   ],
+   "dose": "hold for 15 to 20 seconds"
+  },
+  {
+   "id": "nhs-calf-raises",
+   "source": "nhs",
+   "name": "Calf raises",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Rest your hands on the back of a chair for stability.",
+   "area": "lower-push",
+   "steps": [
+    "Rest your hands on the back of a chair for stability.",
+    "Lift both heels off the floor as far as is comfortable. The movement should be slow and controlled."
+   ],
+   "dose": "Repeat 5 times.",
+   "notes": [
+    "To make this more difficult, perform the exercise without support."
+   ]
+  },
+  {
+   "id": "nhs-calf-stretch-flexibility-exercises",
+   "source": "nhs",
+   "name": "Calf stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+   "ref": "Flexibility exercises · page last reviewed 20 November 2023",
+   "group": "Flexibility exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Place your hands against a wall for stability. Bend the right leg and step the left leg back at least a foot's distance, keeping it straight. Both feet should be flat on the floor.",
+   "area": "flexibility",
+   "about": "Good for loosening tight calf muscles.",
+   "steps": [
+    "Place your hands against a wall for stability. Bend the right leg and step the left leg back at least a foot's distance, keeping it straight. Both feet should be flat on the floor.",
+    "The left calf muscle is stretched by keeping the left leg as straight as possible and the left heel on the floor.",
+    "Repeat with the opposite leg."
+   ],
+   "dose": "Perform 3 on each side."
+  },
+  {
+   "id": "nhs-calf-stretch-how-to-stretch-after-exercising",
+   "source": "nhs",
+   "name": "Calf stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+   "ref": "How to stretch after exercising · page last reviewed 16 March 2026",
+   "group": "How to stretch after exercising",
+   "equipment": "none",
+   "area": "flexibility",
+   "steps": [
+    "Step your right leg forward, keeping it bent, and lean forwards slightly.",
+    "Keep your left leg straight and try to lower the left heel to the ground.",
+    "If you need to, lean on the back of a chair or on a wall to support yourself.",
+    "Repeat with the opposite leg."
+   ],
+   "dose": "hold for 15 to 20 seconds"
+  },
+  {
+   "id": "nhs-chest-stretch",
+   "source": "nhs",
+   "name": "Chest stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+   "ref": "Sitting exercises · page last reviewed 18 January 2024",
+   "group": "Sitting exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Sit upright and away from the back of the chair. Pull your shoulders back and down. Extend your arms out to the side.",
+   "area": "flexibility",
+   "about": "This stretch is good for posture.",
+   "steps": [
+    "Sit upright and away from the back of the chair. Pull your shoulders back and down. Extend your arms out to the side.",
+    "Gently push your chest forward and up until you feel a stretch across your chest."
+   ],
+   "dose": "Hold for 5 to 10 seconds and repeat 5 times."
+  },
+  {
+   "id": "nhs-hamstring-stretch",
+   "source": "nhs",
+   "name": "Hamstring stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+   "ref": "How to stretch after exercising · page last reviewed 16 March 2026",
+   "group": "How to stretch after exercising",
+   "equipment": "none",
+   "area": "flexibility",
+   "steps": [
+    "Lie on your back and raise your right leg.",
+    "Hold your right leg with both hands, below your knee.",
+    "Keeping your left leg bent with your foot on the floor, pull your right leg towards you keeping it straight.",
+    "Repeat with the opposite leg."
+   ],
+   "dose": "hold for 15 to 20 seconds"
+  },
+  {
+   "id": "nhs-hamstring-stretch-with-thigh-contraction",
+   "source": "nhs",
+   "name": "Hamstring stretch with thigh contraction",
+   "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+   "ref": "Knee exercises for runners · page last reviewed 20 September 2024",
+   "group": "Knee exercises for runners",
+   "equipment": "chair or wall",
+   "equipment_said": "Sit on the edge of a chair. Keep your right leg bent and straighten your left leg, placing the left heel on the ground with your foot pointing slightly outwards.",
+   "area": "flexibility",
+   "steps": [
+    "Sit on the edge of a chair. Keep your right leg bent and straighten your left leg, placing the left heel on the ground with your foot pointing slightly outwards.",
+    "Keeping your back straight, bend towards your left leg to stretch your hamstring while tensing the muscle above your knee at the same time. Repeat with other leg."
+   ],
+   "dose": "3 sets of 15 seconds with each leg",
+   "notes": [
+    "Tip: keep your back straight and bend from the hips, you can do the move looking straight ahead or looking straight down."
+   ]
+  },
+  {
+   "id": "nhs-heel-digs",
+   "source": "nhs",
+   "name": "Heel digs",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-warm-up-before-exercising/",
+   "ref": "How to warm up before exercising · page last reviewed 24 June 2026",
+   "group": "How to warm up before exercising",
+   "equipment": "none",
+   "area": "warm-up",
+   "steps": [
+    "For heel digs, place alternate heels to the front, keeping the front foot pointing up, and punch out with each heel dig. Keep a slight bend in the supporting leg."
+   ],
+   "dose": "aim for 60 heel digs in 60 seconds"
+  },
+  {
+   "id": "nhs-heel-to-toe-walk",
+   "source": "nhs",
+   "name": "Heel-to-toe walk",
+   "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+   "ref": "Balance exercises · page last reviewed 7 November 2023",
+   "group": "Balance exercises",
+   "equipment": "none",
+   "area": "balance",
+   "steps": [
+    "Standing upright, place your right heel on the floor directly in front of your left toe.",
+    "Then do the same with your left heel. Make sure you keep looking forward at all times. If necessary, put your fingers against a wall for stability."
+   ],
+   "dose": "Try to perform at least 5 steps. As you progress, move away from the wall."
+  },
+  {
+   "id": "nhs-hip-marching",
+   "source": "nhs",
+   "name": "Hip marching",
+   "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+   "ref": "Sitting exercises · page last reviewed 18 January 2024",
+   "group": "Sitting exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Sit upright and do not lean on the back of the chair. Hold on to the sides of the chair.",
+   "area": "lower-push",
+   "about": "This exercise will strengthen hips and thighs, and improve flexibility.",
+   "steps": [
+    "Sit upright and do not lean on the back of the chair. Hold on to the sides of the chair.",
+    "Lift your left leg with your knee bent as far as is comfortable. Place your foot down with control.",
+    "Repeat with the opposite leg."
+   ],
+   "dose": "Do 5 lifts with each leg."
+  },
+  {
+   "id": "nhs-inner-thigh-stretch",
+   "source": "nhs",
+   "name": "Inner thigh stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+   "ref": "How to stretch after exercising · page last reviewed 16 March 2026",
+   "group": "How to stretch after exercising",
+   "equipment": "none",
+   "area": "flexibility",
+   "steps": [
+    "Sit down with your back straight and your legs bent.",
+    "Put the soles of your feet together.",
+    "Holding on to your feet, try to lower your knees towards the floor."
+   ],
+   "dose": "hold for 15 to 20 seconds"
+  },
+  {
+   "id": "nhs-knee-bends",
+   "source": "nhs",
+   "name": "Knee bends",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-warm-up-before-exercising/",
+   "ref": "How to warm up before exercising · page last reviewed 24 June 2026",
+   "group": "How to warm up before exercising",
+   "equipment": "none",
+   "area": "warm-up",
+   "steps": [
+    "To do knee bends, stand with your feet shoulder-width apart and your hands stretched out. Lower yourself no more than 10cm by bending your knees. Come up and repeat."
+   ],
+   "dose": "10 repetitions"
+  },
+  {
+   "id": "nhs-knee-lifts",
+   "source": "nhs",
+   "name": "Knee lifts",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-warm-up-before-exercising/",
+   "ref": "How to warm up before exercising · page last reviewed 24 June 2026",
+   "group": "How to warm up before exercising",
+   "equipment": "none",
+   "area": "warm-up",
+   "steps": [
+    "To do knee lifts, stand tall and bring up alternate knees to touch the opposite hand. Keep your abs tight and back straight. Keep a slight bend in the supporting leg."
+   ],
+   "dose": "aim for 30 knee lifts in 30 seconds"
+  },
+  {
+   "id": "nhs-leg-extension",
+   "source": "nhs",
+   "name": "Leg extension",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Rest your hands on the back of a chair for stability.",
+   "area": "lower-pull",
+   "steps": [
+    "Rest your hands on the back of a chair for stability.",
+    "Standing upright, raise your left leg backwards, keeping it straight. Avoid arching your back as you take your leg back. You should feel the effort in the back of your thigh and bottom.",
+    "Repeat with the right leg."
+   ],
+   "dose": "Hold the lift for up to 5 seconds and repeat 5 times with each leg."
+  },
+  {
+   "id": "nhs-lunges",
+   "source": "nhs",
+   "name": "Lunges",
+   "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+   "ref": "Knee exercises for runners · page last reviewed 20 September 2024",
+   "group": "Knee exercises for runners",
+   "equipment": "none",
+   "area": "lower-push",
+   "steps": [
+    "Stand in a split stance with your right leg forward and left leg back.",
+    "Slowly bend the knees, lowering into a lunge until the right leg is nearly at a right angle. Keeping the weight on your heels, push back up to the starting position. Keep your back straight and do not let your knees extend over your toes."
+   ],
+   "dose": "3 sets of 5 reps with each leg"
+  },
+  {
+   "id": "nhs-march-on-the-spot",
+   "source": "nhs",
+   "name": "March on the spot",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-warm-up-before-exercising/",
+   "ref": "How to warm up before exercising · page last reviewed 24 June 2026",
+   "group": "How to warm up before exercising",
+   "equipment": "none",
+   "area": "warm-up",
+   "steps": [
+    "Start off marching on the spot and then march forwards and backwards. Pump your arms up and down in rhythm with your steps, keeping the elbows bent and the fists soft."
+   ],
+   "dose": "keep going for 3 minutes"
+  },
+  {
+   "id": "nhs-mini-squats",
+   "source": "nhs",
+   "name": "Mini-squats",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Rest your hands on the back of the chair for stability and stand with your feet hip-width apart.",
+   "area": "lower-push",
+   "steps": [
+    "Rest your hands on the back of the chair for stability and stand with your feet hip-width apart.",
+    "Slowly bend your knees as far as is comfortable, keeping them facing forwards. Aim to get them over your big toe. Keep your back straight at all times.",
+    "Gently come up to standing, squeezing (clenching) your buttocks as you do so."
+   ],
+   "dose": "Repeat 5 times."
+  },
+  {
+   "id": "nhs-neck-rotation",
+   "source": "nhs",
+   "name": "Neck rotation",
+   "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+   "ref": "Flexibility exercises · page last reviewed 20 November 2023",
+   "group": "Flexibility exercises",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "Improves neck mobility and flexibility.",
+   "steps": [
+    "Sit upright with shoulders down. Look straight ahead.",
+    "Slowly turn your head towards your left shoulder as far as is comfortable. Hold for 5 seconds and return to the starting position.",
+    "Repeat on the right."
+   ],
+   "dose": "Do 3 rotations on each side."
+  },
+  {
+   "id": "nhs-neck-stretch",
+   "source": "nhs",
+   "name": "Neck stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+   "ref": "Flexibility exercises · page last reviewed 20 November 2023",
+   "group": "Flexibility exercises",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "Good for loosening tight neck muscles.",
+   "steps": [
+    "Sitting upright, look straight ahead and hold your left shoulder down with your right hand.",
+    "Slowly tilt your head to the right while holding your shoulder down.",
+    "Repeat on the opposite side."
+   ],
+   "dose": "Hold each stretch for 5 seconds and repeat 3 times on each side."
+  },
+  {
+   "id": "nhs-one-leg-stand",
+   "source": "nhs",
+   "name": "One-leg stand",
+   "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+   "ref": "Balance exercises · page last reviewed 7 November 2023",
+   "group": "Balance exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Start by standing facing the wall, with your arms outstretched and your fingertips touching the wall.",
+   "area": "balance",
+   "steps": [
+    "Start by standing facing the wall, with your arms outstretched and your fingertips touching the wall.",
+    "Lift your left leg, keep your hips level and keep a slight bend in the opposite leg. Gently place your foot back on the floor."
+   ],
+   "dose": "Hold the lift for 5 to 10 seconds and perform 3 on each side."
+  },
+  {
+   "id": "nhs-shoulder-rolls",
+   "source": "nhs",
+   "name": "Shoulder rolls",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-warm-up-before-exercising/",
+   "ref": "How to warm up before exercising · page last reviewed 24 June 2026",
+   "group": "How to warm up before exercising",
+   "equipment": "none",
+   "area": "warm-up",
+   "steps": [
+    "For shoulder rolls, keep marching on the spot. Roll your shoulders forwards 5 times and backwards 5 times. Let your arms hang loose by your sides."
+   ],
+   "dose": "2 sets of 10 repetitions"
+  },
+  {
+   "id": "nhs-sideways-bend",
+   "source": "nhs",
+   "name": "Sideways bend",
+   "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+   "ref": "Flexibility exercises · page last reviewed 20 November 2023",
+   "group": "Flexibility exercises",
+   "equipment": "none",
+   "area": "flexibility",
+   "about": "Helps restore flexibility to the lower back.",
+   "steps": [
+    "Stand upright with your feet hip-width apart and arms by your sides.",
+    "Slide your left arm down your side as far as is comfortable. As you lower your arm, you should feel a stretch on the opposite hip.",
+    "Repeat with your right arm."
+   ],
+   "dose": "Hold each stretch for 2 seconds and perform 3 on each side."
+  },
+  {
+   "id": "nhs-sideways-leg-lift",
+   "source": "nhs",
+   "name": "Sideways leg lift",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Rest your hands on the back of a chair for stability.",
+   "area": "lower-pull",
+   "steps": [
+    "Rest your hands on the back of a chair for stability.",
+    "Raise your right leg to the side as far as is comfortable, keeping your back and hips straight. Avoid tilting to the right.",
+    "Return to the starting position. Now raise your left leg to the side as far as possible."
+   ],
+   "dose": "Raise and lower each leg 5 times."
+  },
+  {
+   "id": "nhs-sideways-walking",
+   "source": "nhs",
+   "name": "Sideways walking",
+   "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+   "ref": "Balance exercises · page last reviewed 7 November 2023",
+   "group": "Balance exercises",
+   "equipment": "none",
+   "area": "balance",
+   "steps": [
+    "Stand with your feet together, knees slightly bent.",
+    "Step sideways in a slow and controlled manner, moving one foot to the side first.",
+    "Move the other to join it."
+   ],
+   "dose": "Avoid dropping your hips as you step. Perform 10 steps each way or step from one side of the room to the other."
+  },
+  {
+   "id": "nhs-simple-grapevine",
+   "source": "nhs",
+   "name": "Simple grapevine",
+   "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+   "ref": "Balance exercises · page last reviewed 7 November 2023",
+   "group": "Balance exercises",
+   "equipment": "none",
+   "area": "balance",
+   "about": "This involves walking sideways by crossing one foot over the other.",
+   "steps": [
+    "Start by crossing your right foot over your left.",
+    "Bring your left foot to join it."
+   ],
+   "dose": "Attempt 5 cross-steps on each side. If necessary, put your fingers against a wall for stability. The smaller the step, the more you work on your balance."
+  },
+  {
+   "id": "nhs-sit-to-stand",
+   "source": "nhs",
+   "name": "Sit-to-stand",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Sit on the edge of the chair, feet hip-width apart. Lean slightly forwards.",
+   "area": "lower-push",
+   "steps": [
+    "Sit on the edge of the chair, feet hip-width apart. Lean slightly forwards.",
+    "Stand up slowly using your legs, not arms. Keep looking forward and do not look down.",
+    "Stand upright and then slowly sit down, using your hands or arms just to guide you if possible ."
+   ],
+   "dose": "Aim for 5 repetitions. The slower the repetitions, the better."
+  },
+  {
+   "id": "nhs-squats",
+   "source": "nhs",
+   "name": "Squats",
+   "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+   "ref": "Knee exercises for runners · page last reviewed 20 September 2024",
+   "group": "Knee exercises for runners",
+   "equipment": "none",
+   "area": "lower-push",
+   "steps": [
+    "Stand with your feet shoulder-width apart, feet pointing slightly outwards and your hands down by your sides or stretched out in front for extra balance.",
+    "Lower yourself as if you're going to sit down, by bending your knees to no more than a right angle. Keep your back straight and do not let your knees go past your toes."
+   ]
+  },
+  {
+   "id": "nhs-step-up",
+   "source": "nhs",
+   "name": "Step-up",
+   "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+   "ref": "Balance exercises · page last reviewed 7 November 2023",
+   "group": "Balance exercises",
+   "equipment": "other",
+   "equipment_said": "Use a step, preferably with a railing or near a wall, to use as support.",
+   "area": "balance",
+   "about": "Use a step, preferably with a railing or near a wall, to use as support.",
+   "steps": [
+    "Step up with your right leg.",
+    "Bring your left leg up to join it.",
+    "Step down again and return to the start position."
+   ],
+   "dose": "The key for building balance is to step up and down slowly and in a controlled manner. Perform up to 5 steps with each leg."
+  },
+  {
+   "id": "nhs-thigh-contraction",
+   "source": "nhs",
+   "name": "Thigh contraction",
+   "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+   "ref": "Knee exercises for runners · page last reviewed 20 September 2024",
+   "group": "Knee exercises for runners",
+   "equipment": "chair or wall",
+   "equipment_said": "Sit up straight on a chair. Slowly straighten and raise your right leg until straight with your foot pointing slightly outwards.",
+   "area": "lower-push",
+   "steps": [
+    "Sit up straight on a chair. Slowly straighten and raise your right leg until straight with your foot pointing slightly outwards.",
+    "Squeeze your right thigh muscles and hold this position for 5 seconds. For the exercise to be effective, you should keep tensing the muscle above your knee. Repeat with the other leg."
+   ],
+   "dose": "10 sets of 5 seconds with each leg",
+   "notes": [
+    "Tip: for more of a challenge, perform with an ankle weight"
+   ]
+  },
+  {
+   "id": "nhs-thigh-stretch",
+   "source": "nhs",
+   "name": "Thigh stretch",
+   "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+   "ref": "How to stretch after exercising · page last reviewed 16 March 2026",
+   "group": "How to stretch after exercising",
+   "equipment": "none",
+   "area": "flexibility",
+   "steps": [
+    "Lie on your right side.",
+    "Grab the top of your left foot and gently pull your heel towards your left buttock to stretch the front of the thigh.",
+    "Keep your knees touching.",
+    "Repeat on the other side."
+   ],
+   "dose": "hold for 15 to 20 seconds"
+  },
+  {
+   "id": "nhs-upper-body-twist",
+   "source": "nhs",
+   "name": "Upper-body twist",
+   "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+   "ref": "Sitting exercises · page last reviewed 18 January 2024",
+   "group": "Sitting exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "For these exercises, choose a solid, stable chair that does not have wheels.",
+   "area": "flexibility",
+   "about": "This stretch will develop and maintain flexibility in the upper back.",
+   "steps": [
+    "Sit upright with your feet flat on the floor, cross your arms and reach for your shoulders.",
+    "Without moving your hips, turn your upper body to the left as far as is comfortable. Hold for 5 seconds.",
+    "Repeat on the right side."
+   ],
+   "dose": "Do 5 times on each side."
+  },
+  {
+   "id": "nhs-wall-press-up",
+   "source": "nhs",
+   "name": "Wall press-up",
+   "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+   "ref": "Strength exercises · page last reviewed 28 February 2024",
+   "group": "Strength exercises",
+   "equipment": "chair or wall",
+   "equipment_said": "Stand at arm's length from the wall. Place your hands flat against the wall at chest level, with your fingers pointing upwards.",
+   "area": "upper-push",
+   "steps": [
+    "Stand at arm's length from the wall. Place your hands flat against the wall at chest level, with your fingers pointing upwards.",
+    "With your back straight, slowly bend your arms, keeping your elbows by your side. Aim to close the gap between you and the wall as much as you can.",
+    "Slowly return to the start."
+   ],
+   "dose": "Attempt 3 sets of 5 to 10 repetitions."
+  },
+  {
+   "id": "nhs-wall-squats",
+   "source": "nhs",
+   "name": "Wall squats",
+   "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+   "ref": "Knee exercises for runners · page last reviewed 20 September 2024",
+   "group": "Knee exercises for runners",
+   "equipment": "chair or wall",
+   "equipment_said": "Stand a foot away from a wall with your knees hip-width apart and your feet pointing slightly outwards.",
+   "area": "lower-push",
+   "steps": [
+    "Stand a foot away from a wall with your knees hip-width apart and your feet pointing slightly outwards.",
+    "Slide your back down the wall by slowly bending your knees. Do not let your knees go past your toes. Let the knees point in the same direction as your toes. As you come up, focus on tensing the muscle above your knee and your buttocks."
+   ],
+   "notes": [
+    "Tip: place an exercise ball between your back and the wall for smooth movement"
+   ]
+  }
+ ]
+}

@@ -570,7 +570,7 @@ export interface TotalsDef {
   /** Which of the closed set of add actions the group's add control opens. */
   add: 'food' | 'workout' | 'body';
   /** `plan` is the screen where a diet or a regime is chosen and followed. */
-  span: 'day' | 'range' | 'plan' | 'menu' | 'week';
+  span: 'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards';
   metrics: Metric[];
   slots: Slot[];
 }
@@ -886,9 +886,64 @@ export interface PlanActivity {
   kind: string;
   by: string;
 }
+/** A week laid out day by day by a public body, word for word. */
+export interface ExampleWeeks {
+  by: string;
+  title: string;
+  url: string;
+  seen: string;
+  examples: { name: string; about: string; days: string[]; total: string }[];
+}
 export interface PlanLibrary {
   plans: PlanOption[];
   activities: PlanActivity[];
+  /** Fitness only. Sunday to Saturday, as the source lists them. */
+  weeks?: ExampleWeeks[];
+}
+/** How an exercise is done, as its source wrote it (`exercise_library`). */
+export interface ExerciseSource {
+  id: string;
+  by: string;
+  credit: string;
+  /** NHS: the day the text was copied, `DDMMYY`, which its terms ask to be shown. */
+  as_at?: string;
+  licence: string;
+  licence_url?: string;
+  home: string;
+}
+export interface ExerciseCard {
+  id: string;
+  source: string;
+  name: string;
+  url: string;
+  ref: string;
+  group: string;
+  equipment: 'none' | 'chair or wall' | 'bar' | 'free weights' | 'machine' | 'other';
+  equipment_said?: string;
+  area: string;
+  about?: string;
+  start?: string;
+  steps: string[];
+  dose?: string;
+  notes?: string[];
+}
+export interface ExerciseVideo {
+  exercise: string;
+  url: string;
+  title: string;
+  channel: string;
+  /** `body`: a known body's own channel. `trainer`: an individual's, offered where no body's exists. */
+  tier: 'body' | 'trainer';
+  body?: string;
+  views?: number | null;
+  note?: string;
+}
+export interface ExerciseLibrary {
+  seen: string;
+  sources: ExerciseSource[];
+  exercises: ExerciseCard[];
+  videos: ExerciseVideo[];
+  videos_seen?: string;
 }
 /** A person's measurements, as far as they have given them. */
 export interface PlanProfile {
