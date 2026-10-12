@@ -10348,6 +10348,13 @@ a known body). It widens what ships, so it is recorded. No dependency.
   with many views and nothing confirmed; the Army's own clips last.** Several may be linked. On a
   card whose written steps are the Army's, the films come above the text. A body's channel that
   could be matched only by its name says so.)*
+  *(And, with the trainers found: thirteen channels whose owner's degree or licence was read on
+  their own site — sports-science and physiotherapy doctorates, a medical degree, and at the low
+  end two bachelor's degrees and one "physical therapists" with no degree named. The card shows
+  the qualification in the source's own words, linked to where it was read; **it is what the
+  person says of themselves, checked nowhere else.** Films with a coarse title are left out.
+  Two beginner routines by such trainers are linked from *Strength, twice a week*, each marked
+  as a trainer's routine and not a health body's.)*
 - **A protocol known by its name is offered by its name**, with what stands behind it said as
   plainly as its dose: *Norwegian 4×4 intervals* (its originators' own figures; its one large
   trial found no difference in mortality, and they say so), *Interval walking*, and *Activity for

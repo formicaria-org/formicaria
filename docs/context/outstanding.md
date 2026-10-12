@@ -1137,6 +1137,11 @@ well known sources and when not available from trainers that have high views".
   - A card's exercise is added to a session by its name, and a session's exercise opens its
     card (*How*) when their names match, a plural or a hyphen aside. A routine cannot be built
     by picking cards in one go.
+  - **Films**: 157 links on 78 cards (105 counting a whole drill's), checked to exist on
+    2026-10-12 and never watched. A trainer's qualification is as their own site states it,
+    not verified elsewhere. Nine films had no card to go on (plank, dead bug, leg extension
+    machine, single-leg deadlift, bench dip): those exercises have no carriable text. Links
+    rot: nothing re-checks them.
   - Sets and repetitions on a card are its source's (five for the NHS's, a soldier's for the
     Army's); the regime followed is what says how many.
   - No pictures. The NHS's alternative text describes each pose and is text; not carried yet.

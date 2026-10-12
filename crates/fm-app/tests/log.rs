@@ -804,7 +804,16 @@ fn the_carried_exercises_read_and_are_whole() {
     for v in lib["videos"].as_array().unwrap() {
         let url = v["url"].as_str().unwrap();
         assert!(url.starts_with("https://www.youtube.com/watch?v="), "{url}");
-        assert!(["body", "trainer"].contains(&v["tier"].as_str().unwrap()), "{url}");
+        let tier = v["tier"].as_str().unwrap();
+        assert!(["body", "expert", "trainer"].contains(&tier), "{url}");
+        // A trainer shown as qualified says what the qualification is and where it was read.
+        if tier == "expert" {
+            assert!(v["credential"].as_str().is_some_and(|c| c.len() > 8), "{url}");
+            assert!(
+                v["credential_url"].as_str().is_some_and(|u| u.starts_with("https://")),
+                "{url}"
+            );
+        }
         assert!(!v["channel"].as_str().unwrap().is_empty(), "{url}");
         // Each film says which cards it is of, by ids that exist, or which drill.
         let of_cards = v["cards"].as_array().map(|c| c.len()).unwrap_or(0);
