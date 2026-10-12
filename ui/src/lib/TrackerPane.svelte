@@ -97,6 +97,18 @@
   let range = $state<DayTotals[]>([]);
   let last = $state<RecentItem[]>([]);
   let routines = $state<Routine[]>([]);
+  /// **A day of the week, opened** (`decisions.md#ui`, 2026-10-12, *Fitness is the week, the
+  /// exercises and the regime*): the week is the view; pressing one of its days shows that day's
+  /// session in its place, and Back returns to the week. Closing it puts today in front again.
+  let dayOpen = $state(false);
+  $effect(() => {
+    if (dayOpen) nav.openLayer('fitness-day', () => (dayOpen = false));
+    else {
+      nav.closeLayer('fitness-day');
+      if (untrack(() => selected) !== today) selected = today;
+    }
+  });
+  $effect(() => () => nav.closeLayer('fitness-day'));
   /// The chosen day against the diet the person follows, when they follow one.
   let followed = $state<PlanProgress | null>(null);
   /// The exercises that have a card, so a session can offer "How" beside the ones it knows.
@@ -110,7 +122,7 @@
   });
   $effect(() => () => nav.closeLayer('card-sheet'));
   $effect(() => {
-    if (def?.add !== 'workout' || def.span !== 'day' || cardNames.length) return;
+    if (def?.add !== 'workout' || cardNames.length) return;
     void exercises()
       .then((l) => (cardNames = l.exercises.map((e) => e.name)))
       .catch(() => undefined);
@@ -167,7 +179,9 @@
   async function load() {
     // The plan screen asks for its own week (`plan/PlanScreen.svelte`).
     // These screens ask for what they show themselves.
-    if (!def || !view || ['plan', 'menu', 'week', 'cards'].includes(def.span)) return;
+    // …and so does the week, until one of its days is opened: then it is a day like any other.
+    if (!def || !view || ['plan', 'menu', 'cards'].includes(def.span)) return;
+    if (def.span === 'week' && !dayOpen) return;
     const mine = ++asked;
     try {
       if (def.span === 'range') {
@@ -205,6 +219,7 @@
     void view;
     void selected;
     void span;
+    void dayOpen;
     void load();
   });
   function pick(d: string) {
@@ -488,17 +503,18 @@
       {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}
         <ExercisesScreen onadd={(card) => (workout = { set: null, preset: card })} />
       {/await}
-    {:else if def.span === 'week'}
+    {:else if def.span === 'week' && !dayOpen}
       {#await import('./training/WeekScreen.svelte') then { default: WeekScreen }}
         <WeekScreen
           {view}
+          {def}
           {today}
+          {onsaved}
           signal={[feed, wrotes]}
           onday={(d) => {
-            const first = group?.views[0];
-            if (!first || first === view) return;
-            carried.give(pane.id, d);
-            onchange({ viewName: first });
+            selected = d;
+            day = null;
+            dayOpen = true;
           }}
           onplan={(r, d) => planRoutine(r, d)}
         />
@@ -528,7 +544,8 @@
         {routines}
         today={selected}
         label={selected === today ? '' : dayLabel(selected)}
-        ontoday={selected === today ? undefined : () => pick(today)}
+        onback={def.span === 'week' ? () => (dayOpen = false) : undefined}
+        ondone={confirm}
         cards={cardNames}
         onhow={(name) => (how = name)}
         onplan={(r) => planRoutine(r)}

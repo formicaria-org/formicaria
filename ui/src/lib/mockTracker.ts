@@ -67,11 +67,13 @@ const BODY: TotalsDef = {
 const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Menu', 'Trends', 'Diet'] };
 const FITNESS_GROUP: ViewGroup = {
   name: 'Fitness',
-  views: ['Session', 'Week', 'Exercises', 'Volume', 'Regime'],
+  views: ['Week', 'Exercises', 'Regime'],
 };
 
 const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
+  // In the order the `.view` files list them: a group opens on its first.
   Day: { totals: FOOD, group: FOOD_GROUP },
+  Menu: { totals: { ...FOOD, span: 'menu' }, group: FOOD_GROUP },
   Trends: {
     totals: {
       ...FOOD,
@@ -84,12 +86,9 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
     group: FOOD_GROUP,
   },
   Diet: { totals: { ...FOOD, span: 'plan' }, group: FOOD_GROUP },
-  Menu: { totals: { ...FOOD, span: 'menu' }, group: FOOD_GROUP },
-  Session: { totals: TRAINING, group: FITNESS_GROUP },
-  Volume: { totals: { ...TRAINING, span: 'range' }, group: FITNESS_GROUP },
-  Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },
   Week: { totals: { ...TRAINING, span: 'week' }, group: FITNESS_GROUP },
   Exercises: { totals: { ...TRAINING, span: 'cards' }, group: FITNESS_GROUP },
+  Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },
 };
 
 export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) => ({

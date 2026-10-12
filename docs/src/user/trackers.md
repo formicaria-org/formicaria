@@ -208,72 +208,63 @@ your latest weighing.
 
 ## Fitness
 
-**Fitness → Session** is today's session: each exercise, each set, and what you did last time
-beside it.
+Fitness has three tabs: **Week**, **Exercises** and **Regime**.
 
-- **Add an exercise or an activity** opens one sheet with two sides.
-  - *Exercise, in sets* — its name, how many sets, the reps and the load. Exercises you have done
-    before are offered, with the numbers they had. Nothing is filled in for you otherwise: the
-    app does not suggest sets, reps or loads. *It trains* says which part of the body the
-    exercise works (upper or lower body, pushing or pulling); a regime that counts sets per part
-    needs it, and nothing else does.
-  - *Activity, in minutes* — a walk, a swim, a yoga class. Say what it was, what it counts as
-    (aerobic, strengthening, balance or stretching), for how many minutes, and how hard it felt
-    from 0 to 10. The sheet tells you what your number means: 5 or 6 is moderate (you can talk,
-    not sing), 7 and above is vigorous. Lighter than that is recorded and does not count towards
-    a weekly total, which is how the World Health Organization counts it.
-- **Same as last time** — when nothing is planned for today, this plans the sets of your last
-  session again, ready to change.
-- Tap a set's numbers to change them or remove the set.
-- **Tick a set** when it is finished; a clock starts counting the time since. It does not tell
-  you how long to rest.
+### Week
 
-**Fitness → Week** is your timetable: Monday to Sunday, each day with the routines you meant for
-it, what you did, and — on a day still to come — a button to plan a routine there. At the top it
-shows the regime you follow and how the week stands against it. **Open** on a day shows that
-day's session; step to earlier or later weeks with the arrows.
+Your timetable, Monday to Sunday. Each day shows the routines you meant for it and what you did.
+At the top is the regime you follow and how the week stands against it, and what you lifted this
+week beside the week before.
 
-With no routines yet, the Week tab also shows three **example weeks** as the U.S. Centers for
-Disease Control and Prevention publishes them — for instance a 30-minute brisk walk on five days
-and weight training on two — to start from.
+- **Open** on a day shows that day: its exercises and activities, to add to, change and tick.
+  **Back to the week** returns.
+- A day still to come with a routine and nothing on it has **Plan …** to put the routine there.
+- **Plan the days left as last week went** copies what you actually did last week onto the same
+  weekdays of this one.
+- If you follow a regime, its **week to start from** is shown here: an example, as a health body
+  published it where one did, and otherwise arranged by the app from that regime's own numbers —
+  the screen says which. It is only an indication. **Use it as my week** turns it into routines
+  of your own, which you then change freely.
+- With nothing followed and no routines yet, three example weeks from the U.S. CDC are shown.
 
-**Fitness → Exercises** shows how each exercise is done, in the words of the body that published
-it. Choose what you have — **No equipment**, **A bar**, **Free weights**, **Machines** — and the
-part of the body, then open a card for its steps.
+### Adding to a day
 
-- The no-equipment cards are mostly the NHS website's; the others are the U.S. Army's exercise
-  manual, which is public. The Army's are written for soldiers and shown exactly as written, so
-  they speak of counts, commands and "Soldiers". Nothing is reworded: rewording is how a
-  source's words stop being its own.
-- **To watch** links to films of the exercise on YouTube, often more than one. A health body's
-  own channel comes first; then a trainer whose science or clinical qualification could be
-  confirmed, shown with it; the Army's own short clips last. Each says whose it is, and a
-  trainer's says how many views it had. On the Army's cards the films come above the text.
-- **Add to today's session** starts the add sheet with that exercise.
-- In a session, an exercise that has a card shows **How** beside its name: it opens the card
-  over the session, and closing it puts you back where you were.
-- How many sets and repetitions is for the regime you follow to say, not the card: a card's own
-  figure is its source's, for its own readers.
+Press **+** (or *Add an exercise or an activity* on a day). You pick from a list — what you did
+before, activities such as walking, and the exercise cards (all, no equipment, or gym) — and it
+arrives with numbers to start from:
 
-**Fitness → Volume** is the trend view over what you lifted. *Volume load* is repetitions ×
-load, added up over the sets you ticked — the usual meaning of the term in the training
-literature. It is a rough measure of work done, not a score.
+- an **exercise** with sets and repetitions: what you did last time, or the figure on its card,
+  or a general starting point from the NHS (2 sets of 8);
+- an **activity** with minutes and effort, where a source gives them (a 30-minute brisk walk).
+
+The sheet says where the numbers come from. Change them to what you do, then add. Something not
+in the list can still be typed. *It trains* says which part of the body an exercise works, which
+a regime that counts sets per part needs. Effort runs from 0 to 10: 5 or 6 is moderate (you can
+talk, not sing), 7 and above is vigorous; lighter than that is recorded and does not count
+towards a weekly total.
+
+Tick a set, or a planned activity, when it is done.
 
 ### Routines
 
-A routine is a session kept under a name.
+A routine is a day's exercises kept under a name, meant for some weekdays; it comes back every
+week. **Keep this session as a routine** makes one from a day; **Routines**, at the bottom of a
+day, lists them to rename, change their days or remove. To change a routine's exercises, plan
+it, change the day, and keep it again under the same name.
 
-- **Keep this session as a routine** — under today's sets. Give it a name and, if you like, the
-  days of the week it is meant for.
-- On a day with nothing planned, the routines meant for that day are offered first — **Plan
-  Legs** — and the others after them. Planning one puts its sets on today, ready to change and
-  tick.
-- **Routines**, at the bottom, lists them with their days. Press one to rename it, change its
-  days or remove it.
-- To change a routine's sets, plan it, change the session, and keep it again under the same name.
+### Exercises
 
-There is no list of exercises to choose from and no best-lift history, and the app never
-suggests sets, reps or loads: a routine holds only what you put in it.
+How each exercise is done, in the words of the body that published it. Choose what you have —
+**No equipment**, **A bar**, **Free weights**, **Machines** — and the part of the body, then open
+a card for its steps.
+
+- The no-equipment cards are mostly the NHS website's; the others are the U.S. Army's exercise
+  manual, which is public. The Army's are written for soldiers and shown exactly as written.
+- **To watch** links to films on YouTube, often several: a health body's own channel first; then
+  a trainer whose science or clinical qualification could be read on their own site, shown with
+  it; the Army's own clips last. On the Army's cards the films come above the text.
+- **Add to today's session** starts the add sheet with that exercise. On a day, **How** beside an
+  exercise opens its card.
 
 ## Following a diet or a regime
 

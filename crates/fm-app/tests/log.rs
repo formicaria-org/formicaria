@@ -284,9 +284,9 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let shipped = shipped_views();
-    // Day, Menu, Trends and Diet for food; Session, Week, Exercises, Volume and Regime for
-    // training.
-    assert_eq!(shipped.len(), 9);
+    // Day, Menu, Trends and Diet for food; Week, Exercises and Regime for training. A day's
+    // session is opened from the week and the volume is a line of it: neither is a view.
+    assert_eq!(shipped.len(), 7);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));
@@ -577,7 +577,7 @@ fn a_routine_is_its_note_and_its_sets_and_is_in_no_day() {
         ],
     )
     .unwrap();
-    let session = totals_named(&[], "Session").unwrap();
+    let session = totals_named(&[], "Week").unwrap();
     let routines = log_routines(&s, &session).unwrap();
     assert_eq!(routines.len(), 1);
     assert_eq!((routines[0].title.as_str(), routines[0].sets.len()), ("Push day", 2));

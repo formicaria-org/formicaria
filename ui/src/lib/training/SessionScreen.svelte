@@ -38,8 +38,10 @@
     onhow?: (name: string) => void;
     /** The names of the exercises that have a card. */
     cards?: string[];
-    /** Go back to today's session. Offered only when another day is shown. */
-    ontoday?: () => void;
+    /** Go back to the week this day was opened from. */
+    onback?: () => void;
+    /** A planned activity was done: count it. */
+    ondone?: (activity: ObjectMeta) => void;
   }
   let {
     def,
@@ -55,7 +57,8 @@
     onkeep,
     onroutine,
     label = '',
-    ontoday,
+    onback,
+    ondone,
     onhow,
     cards = [],
   }: Props = $props();
@@ -123,9 +126,9 @@
 
 <div class="session">
   <header class="head">
-    <h2>{label ? `Session · ${label}` : 'Today’s session'}</h2>
-    {#if ontoday}
-      <button type="button" class="quiet" onclick={ontoday}>Back to today</button>
+    <h2>{label || 'Today'}</h2>
+    {#if onback}
+      <button type="button" class="quiet" onclick={onback}>Back to the week</button>
     {/if}
     <p>
       {finished} of {sets.length} sets
@@ -161,7 +164,15 @@
       <h3>Activities</h3>
       <ul>
         {#each activities as a (a.id)}
-          <li class="finished">
+          <li class:finished={!a.props.planned}>
+            {#if a.props.planned && ondone}
+              <button
+                type="button"
+                class="tick"
+                onclick={() => ondone(a)}
+                aria-label={`done ${a.title ?? 'an activity'}`}
+              ></button>
+            {/if}
             <button
               type="button"
               class="what wide-what"

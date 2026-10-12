@@ -121,7 +121,7 @@ pub struct Check {
     pub basis: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Plan {
     pub id: String,
     /// `food` or `fitness`.
@@ -147,6 +147,12 @@ pub struct Plan {
     pub caution: String,
     #[serde(default)]
     pub guides: Vec<Guide>,
+    /// A week to start from, to be changed: a body's own example where it publishes one, and
+    /// otherwise the app's arrangement of the regime's own figures and the exercise cards, which
+    /// then says so (`decisions.md#data`, 2026-10-12, *every regime has a week to start from*).
+    /// Read by the screens as written; a test holds each to seven days and cards that exist.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub examples: Vec<serde_json::Value>,
 }
 
 /// An activity a known body names, and what it counts as.
@@ -155,6 +161,13 @@ pub struct Activity {
     pub name: String,
     pub kind: String,
     pub by: String,
+    /// Where a source gives a length and an effort for it, a place to start from — and whose.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minutes: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<i64>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub basis: String,
 }
 
 /// A week laid out day by day, as a public body publishes it — a place to start, word for word.

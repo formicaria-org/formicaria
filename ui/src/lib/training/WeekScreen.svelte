@@ -6,13 +6,23 @@
   // `weekdays`; what was done is the day's entries; planning a routine onto a day is the same
   // write the session screen makes. Pressing a day opens that day's session.
   import Icon from '../Icon.svelte';
+  import ExampleWeek from '../plan/ExampleWeek.svelte';
   import { logDays, logRoutines, planLibrary, planProgress } from '../ipc';
   import { shownAsk, shownValue, verdict } from '../plan/measure';
-  import { addDays, dayLabel, whole } from '../units';
-  import type { DayTotals, ExampleWeeks, PlanProgress, Routine } from '../types';
+  import { addDays, dayLabel, showWith, whole } from '../units';
+  import type {
+    DayTotals,
+    ExampleWeeks,
+    NoteDraft,
+    PlanProgress,
+    Routine,
+    TotalsDef,
+  } from '../types';
+  import { createNotesUndoable } from '../undo.svelte';
 
   interface Props {
     view: string;
+    def: TotalsDef;
     today: string;
     /** Changes whenever something was written: ask again. */
     signal?: unknown;
@@ -20,8 +30,10 @@
     onday: (day: string) => void;
     /** Plan a routine's sets onto a day. */
     onplan: (r: Routine, day: string) => void;
+    /** Something was written from here. */
+    onsaved: () => void;
   }
-  let { view, today, signal, onday, onplan }: Props = $props();
+  let { view, def, today, signal, onday, onplan, onsaved }: Props = $props();
 
   const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T12:00:00`).getDay() + 6) % 7));
   // svelte-ignore state_referenced_locally
@@ -30,6 +42,8 @@
   const thisWeek = $derived(monday === mondayOf(today));
 
   let days = $state<DayTotals[]>([]);
+  /// The week before the one shown: what its total came to, and what "the same again" copies.
+  let before = $state<DayTotals[]>([]);
   let routines = $state<Routine[]>([]);
   let progress = $state<PlanProgress | null>(null);
   let failed = $state('');
@@ -57,13 +71,15 @@
     // from its start when it is still to come.
     const upto = thisWeek ? today : sunday < today ? sunday : monday;
     try {
-      const [d, r, p] = await Promise.all([
+      const [d, b, r, p] = await Promise.all([
         logDays(view, monday, sunday, true),
+        logDays(view, addDays(monday, -7), addDays(monday, -1), true),
         logRoutines(view),
         planProgress('fitness', upto).catch(() => null),
       ]);
       if (mine !== asked) return;
       days = d.days;
+      before = b.days;
       routines = r;
       progress = p;
       failed = '';
@@ -97,6 +113,51 @@
     };
   }
   const weekOver = $derived(sunday < today);
+
+  /// What the week's first value came to — the load lifted, for the shipped view — beside the
+  /// week before. A total of what was done, never a target.
+  const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
+  const totalOf = (list: DayTotals[]) =>
+    list.reduce((t, d) => t + (d.sums[primary.key]?.sum ?? 0), 0);
+  const lifted = $derived(totalOf(days));
+  const liftedBefore = $derived(totalOf(before));
+
+  /// **The same again**: what was done on each day of last week, planned on the same weekday of
+  /// this one — for the days still to come that have nothing on them yet. Sets as they were
+  /// done; an activity is logged when it is done, so it is not copied.
+  const again = $derived.by(() => {
+    const drafts: NoteDraft[] = [];
+    before.forEach((d, i) => {
+      const target = addDays(monday, i);
+      if (target < today || (days[i]?.rows ?? []).length) return;
+      for (const r of d.rows ?? []) {
+        if (r.props.planned || r.props.activity !== undefined) continue;
+        const { work_g: _w, session: _s, ...keep } = r.props;
+        const props = Object.fromEntries(
+          Object.entries(keep).filter(
+            (e): e is [string, string | number] =>
+              typeof e[1] === 'string' || typeof e[1] === 'number',
+          ),
+        );
+        drafts.push({ title: r.title ?? '', start: target, props: { ...props, planned: 1 } });
+      }
+    });
+    return drafts;
+  });
+  let busy = $state(false);
+  async function repeat() {
+    if (busy || !again.length) return;
+    busy = true;
+    try {
+      await createNotesUndoable(again, 'planned this week as the last one went');
+      onsaved();
+      await load();
+    } catch (e) {
+      failed = String(e);
+    } finally {
+      busy = false;
+    }
+  }
 </script>
 
 <div class="week">
@@ -147,13 +208,46 @@
     {/if}
   </section>
 
+  <!-- Following something, and no timetable yet: its week to start from, on the first screen. -->
+  {#if progress?.plan?.examples?.length}
+    {#if routines.length}
+      <!-- A timetable of the person's own is there already: the example steps back. -->
+      <details class="fold">
+        <summary>A week to start from, for {progress.plan.name}</summary>
+        {#each progress.plan.examples as example, i (i)}
+          <ExampleWeek {example} onsaved={() => (onsaved(), void load())} />
+        {/each}
+      </details>
+    {:else}
+      {#each progress.plan.examples as example, i (i)}
+        <ExampleWeek {example} onsaved={() => (onsaved(), void load())} />
+      {/each}
+    {/if}
+  {/if}
+  {#if lifted > 0 || liftedBefore > 0}
+    <p class="says">
+      {primary.label} this week: {showWith(primary.key, lifted, 1000)}{#if liftedBefore > 0}
+        · the week before: {showWith(primary.key, liftedBefore, 1000)}{/if}
+    </p>
+  {/if}
+  {#if thisWeek && again.length}
+    <button type="button" class="quiet wide" onclick={repeat} disabled={busy}>
+      Plan the days left as last week went
+    </button>
+  {/if}
+
   {#each days as d (d.day)}
     {@const meant = meantFor(d.day)}
     {@const done = did(d)}
     <section class="day" class:today={d.day === today} aria-label={dayLabel(d.day)}>
       <header>
         <h3>{d.day === today ? `Today · ${dayLabel(d.day)}` : dayLabel(d.day)}</h3>
-        <button type="button" class="quiet" onclick={() => onday(d.day)}>Open</button>
+        <button
+          type="button"
+          class="quiet"
+          onclick={() => onday(d.day)}
+          aria-label={d.day === today ? 'open today' : `open ${dayLabel(d.day)}`}>Open</button
+        >
       </header>
       {#if meant.length}
         <p class="meant">Meant for it: {meant.map((r) => r.title).join(', ')}</p>
@@ -188,7 +282,7 @@
     </p>
   {/if}
 
-  {#each examples as set (set.url)}
+  {#each progress?.plan ? [] : examples as set (set.url)}
     <section class="card" aria-label="example weeks">
       <h3>Example weeks</h3>
       <p class="says">
@@ -305,6 +399,11 @@
     font-size: var(--text-sm);
     color: var(--text-muted);
   }
+  .fold {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
   details {
     border-top: 1px solid var(--border);
     padding-top: var(--space-2);
@@ -335,6 +434,9 @@
   .quiet {
     border: 1px solid var(--border);
     background: none;
+  }
+  .wide {
+    align-self: stretch;
   }
   .link {
     align-self: flex-start;

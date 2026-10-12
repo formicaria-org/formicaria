@@ -908,10 +908,8 @@ const SHIPPED: &[(&str, &str)] = &[
     ("food-menu", include_str!("shipped/food-menu.view")),
     ("food-trends", include_str!("shipped/food-trends.view")),
     ("food-plan", include_str!("shipped/food-plan.view")),
-    ("training-session", include_str!("shipped/training-session.view")),
     ("training-week", include_str!("shipped/training-week.view")),
     ("training-exercises", include_str!("shipped/training-exercises.view")),
-    ("training-volume", include_str!("shipped/training-volume.view")),
     ("training-plan", include_str!("shipped/training-plan.view")),
 ];
 

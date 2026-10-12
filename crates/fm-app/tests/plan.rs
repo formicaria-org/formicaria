@@ -393,3 +393,33 @@ fn a_named_protocol_counts_the_days_it_was_logged_under_its_name() {
     assert!(lib.weeks[0].examples.iter().all(|e| e.days.len() == 7));
     assert!(fm_app::plan::plan_library("food").unwrap().weeks.is_empty());
 }
+
+/// Every regime but "My own" has a week to start from; each is seven days from Monday, says what
+/// it is and whose, and names only exercise cards that exist.
+#[test]
+fn every_fitness_regime_has_a_week_to_start_from() {
+    let lib = fm_app::plan::plan_library("fitness").unwrap();
+    let cards = fm_app::log::exercise_library().unwrap();
+    let ids: std::collections::BTreeSet<&str> =
+        cards["exercises"].as_array().unwrap().iter().map(|e| e["id"].as_str().unwrap()).collect();
+    for p in &lib.plans {
+        if p.rests_on == "own" {
+            continue;
+        }
+        assert!(!p.examples.is_empty(), "{} has no week to start from", p.id);
+        for e in &p.examples {
+            assert!(["published", "assembled"].contains(&e["kind"].as_str().unwrap()), "{}", p.id);
+            assert!(e["note"].as_str().unwrap().len() > 20, "{}", p.id);
+            assert!(e["url"].as_str().unwrap().starts_with("https://"), "{}", p.id);
+            let week = e["week"].as_array().unwrap();
+            let days: Vec<&str> = week.iter().map(|d| d["day"].as_str().unwrap()).collect();
+            assert_eq!(days, ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "{}", p.id);
+            for item in week.iter().flat_map(|d| d["items"].as_array().unwrap()) {
+                for x in item["exercises"].as_array().into_iter().flatten() {
+                    let card = x["card"].as_str().unwrap();
+                    assert!(ids.contains(card), "{}: no card {card}", p.id);
+                }
+            }
+        }
+    }
+}

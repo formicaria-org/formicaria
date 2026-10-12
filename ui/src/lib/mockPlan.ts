@@ -121,6 +121,32 @@ const whoActivity: PlanOption = {
     },
   ],
   unmeasured: [],
+  examples: [
+    {
+      kind: 'published',
+      by: 'Centers for Disease Control and Prevention',
+      title: 'Adding Physical Activity as an Adult',
+      url: 'https://www.cdc.gov/',
+      note: 'The CDC’s own first example week; only a simple indication to start from.',
+      week: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) => ({
+        day,
+        items:
+          day === 'wed'
+            ? [{ type: 'activity' as const, name: 'Weight training', counts_as: 'strength' }]
+            : day === 'mon'
+              ? [
+                  {
+                    type: 'activity' as const,
+                    name: 'Brisk walking',
+                    minutes: 30,
+                    effort: 5,
+                    counts_as: 'aerobic',
+                  },
+                ]
+              : [],
+      })),
+    },
+  ],
   guides: [
     {
       label: 'Strength exercises to do at home',

@@ -16,7 +16,15 @@
   import { createNotesUndoable, setPropertiesUndoable, deleteUndoable } from '../undo.svelte';
   import { whole } from '../units';
   import { planLibrary } from '../ipc';
-  import type { NoteDraft, ObjectMeta, PlanActivity, RecentItem, TotalsDef } from '../types';
+  import { exercises as cardLibrary, sameName } from './exercises';
+  import type {
+    ExerciseCard,
+    NoteDraft,
+    ObjectMeta,
+    PlanActivity,
+    RecentItem,
+    TotalsDef,
+  } from '../types';
 
   interface Props {
     def: TotalsDef;
@@ -71,6 +79,101 @@
   function pickActivity(a: PlanActivity) {
     activity = a.name;
     countsAs = a.kind;
+    // A place to start, where a source gives one; the note under the fields says whose.
+    if (a.minutes) minutes = a.minutes;
+    if (a.effort) effort = a.effort;
+    start = a.basis ?? '';
+  }
+
+  // ── choosing from a list, then changing the numbers ────────────────────────────────────────────
+  // **What is added is picked, not typed** (`decisions.md#ui`, 2026-10-12, *Fitness is the week,
+  // the exercises and the regime*): what was done before, the activities a body names, and the
+  // exercise cards. It arrives with a place to start — what it was last time, or its source's own
+  // figure, or the general one — and the person changes it. Typing a name is still there.
+  let picked = $state(untrack(() => !!set || !!preset));
+  let seek = $state('');
+  let cards = $state<ExerciseCard[]>([]);
+  $effect(() => {
+    void cardLibrary()
+      .then((l) => (cards = l.exercises))
+      .catch(() => (cards = []));
+  });
+  /// Whose the starting numbers are, said under the fields.
+  let start = $state('');
+  /// Opened on an exercise from its card: the same place to start as picking it from the list.
+  let presetDone = false;
+  $effect(() => {
+    if (presetDone || !preset || set || !cards.length) return;
+    presetDone = true;
+    const card = cards.find((c) => sameName(c.name, preset.name));
+    if (card) pickCard(card);
+  });
+  const GYM: ExerciseCard['equipment'][] = ['bar', 'free weights', 'machine'];
+  let where = $state<'all' | 'none' | 'gym'>('all');
+  const found = $derived.by(() => {
+    const text = seek.trim().toLowerCase();
+    const has = (n: string) => !text || n.toLowerCase().includes(text);
+    return {
+      before: last.filter((r) => has(r.title)).slice(0, 6),
+      activities: known.filter((a) => has(a.name)),
+      cards: cards
+        .filter((c) => !['flexibility', 'warm-up'].includes(c.area) || !!text)
+        .filter((c) => has(c.name))
+        .filter((c) =>
+          where === 'all'
+            ? true
+            : where === 'gym'
+              ? GYM.includes(c.equipment)
+              : !GYM.includes(c.equipment),
+        )
+        .slice(0, text ? 40 : 14),
+    };
+  });
+  /// A card's own line, read for its numbers: "3 sets of 5 to 10 repetitions", "Repeat 5 times".
+  function doseOf(line: string | undefined): { sets: number; reps: number } | null {
+    if (!line) return null;
+    const many = /(\d+)\s+sets?\s+of\s+(\d+)/i.exec(line);
+    if (many) return { sets: Number(many[1]), reps: Number(many[2]) };
+    const once = /(?:repeat(?: the exercise)?|aim for|perform|do)\s+(\d+)/i.exec(line);
+    return once ? { sets: 1, reps: Number(once[1]) } : null;
+  }
+  function pickCard(c: ExerciseCard) {
+    mode = 'sets';
+    name = c.name;
+    region = ['upper-push', 'upper-pull', 'lower-push', 'lower-pull'].includes(c.area)
+      ? c.area
+      : '';
+    const before = last.find((r) => sameName(r.title, c.name));
+    const own = doseOf(c.dose);
+    if (before && whole(before.props.reps) !== null) {
+      choose(before);
+      start = 'As it was the last time you did it.';
+    } else if (own) {
+      sets = own.sets;
+      reps = own.reps;
+      start = `Its card says: “${c.dose}” Change it to what you do.`;
+    } else {
+      // The general figure, where the card gives none of its own.
+      sets = 2;
+      reps = 8;
+      start =
+        'A place to start, from the NHS: “Try to do 8 to 12 repetitions … Try to do at least 2 sets”. Change it to what you do.';
+    }
+    picked = true;
+  }
+  function pickBefore(r: RecentItem) {
+    if (r.props.activity !== undefined) {
+      mode = 'activity';
+      activity = String(r.props.activity);
+      countsAs = String(r.props.counts_as ?? 'aerobic');
+      minutes = whole(r.props.minutes) ?? 0;
+      effort = whole(r.props.effort) ?? 0;
+    } else {
+      mode = 'sets';
+      choose(r);
+    }
+    start = 'As it was the last time you did it.';
+    picked = true;
   }
   /// WHO's own wording for the scale (2020 guidelines): moderate is "a 5 or 6", vigorous "a 7 or
   /// 8", of 10. The talk test is the NHS's.
@@ -227,161 +330,240 @@
       </button>
     </header>
 
-    {#if !set}
-      <div class="modes" role="group" aria-label="what to add">
-        <button type="button" class:on={mode === 'sets'} onclick={() => (mode = 'sets')}
-          >Exercise, in sets</button
-        >
-        <button type="button" class:on={mode === 'activity'} onclick={() => (mode = 'activity')}
-          >Activity, in minutes</button
-        >
+    {#if !set && !picked}
+      <!-- Pick, then change the numbers. -->
+      <input
+        class="seek"
+        type="search"
+        placeholder="An exercise or an activity"
+        aria-label="search what to add"
+        bind:value={seek}
+        spellcheck="false"
+      />
+      <div class="chips" role="group" aria-label="where">
+        {#each [['all', 'All'], ['none', 'No equipment'], ['gym', 'Gym']] as [k, label] (k)}
+          <button
+            type="button"
+            class="chip"
+            class:on={where === k}
+            aria-pressed={where === k}
+            onclick={() => (where = k as typeof where)}>{label}</button
+          >
+        {/each}
       </div>
-    {/if}
-
-    {#if !set && mode === 'sets'}
-      <label class="field">
-        <span>Exercise</span>
-        <input type="text" bind:value={name} autocomplete="off" />
-      </label>
-      {#if exercises.length}
-        <div class="chips">
-          {#each exercises.slice(0, 8) as r (r.title)}
-            <button type="button" class="chip" class:on={r.title === name} onclick={() => choose(r)}
-              >{r.title}</button
-            >
+      {#if found.before.length}
+        <h3>Done before</h3>
+        <ul class="pick">
+          {#each found.before as r (r.title)}
+            <li>
+              <button type="button" onclick={() => pickBefore(r)}>
+                <span>{r.title}</span>
+                <span class="sub"
+                  >{r.props.activity !== undefined
+                    ? `${whole(r.props.minutes) ?? 0} min`
+                    : `${whole(r.props.reps) ?? 0} reps`}</span
+                >
+              </button>
+            </li>
           {/each}
+        </ul>
+      {/if}
+      {#if found.activities.length}
+        <h3>Activities, by the minute</h3>
+        <ul class="pick">
+          {#each found.activities as a (a.name)}
+            <li>
+              <button
+                type="button"
+                onclick={() => ((mode = 'activity'), pickActivity(a), (picked = true))}
+              >
+                <span>{a.name}</span>
+                <span class="sub">{a.minutes ? `${a.minutes} min to start` : a.kind}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if found.cards.length}
+        <h3>Exercises, in sets</h3>
+        <ul class="pick">
+          {#each found.cards as c (c.id)}
+            <li>
+              <button type="button" onclick={() => pickCard(c)}>
+                <span>{c.name}</span>
+                <span class="sub">{c.equipment === 'none' ? 'no equipment' : c.equipment}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <button type="button" class="quiet" onclick={() => ((picked = true), (start = ''))}>
+        Not in the list: type a name
+      </button>
+    {:else}
+      {#if !set && !preset}
+        <button type="button" class="quiet" onclick={() => (picked = false)}>Choose another</button>
+      {/if}
+      {#if start}<p class="says" role="note">{start}</p>{/if}
+      {#if !set}
+        <div class="modes" role="group" aria-label="what to add">
+          <button type="button" class:on={mode === 'sets'} onclick={() => (mode = 'sets')}
+            >Exercise, in sets</button
+          >
+          <button type="button" class:on={mode === 'activity'} onclick={() => (mode = 'activity')}
+            >Activity, in minutes</button
+          >
         </div>
       {/if}
-    {/if}
 
-    {#snippet stepper(
-      label: string,
-      value: number,
-      by: number,
-      min: number,
-      put: (v: number) => void,
-    )}
-      <div class="row">
-        <span class="lbl">{label}</span>
-        <button
-          type="button"
-          class="round"
-          aria-label={`less ${label}`}
-          onclick={() => put(step(value, -by, min))}
-        >
-          <Icon name="minus" size={20} />
-        </button>
-        <input
-          type="number"
-          inputmode="decimal"
-          aria-label={label}
-          {min}
-          {value}
-          oninput={(e) => put(Number((e.currentTarget as HTMLInputElement).value) || min)}
-        />
-        <button
-          type="button"
-          class="round"
-          aria-label={`more ${label}`}
-          onclick={() => put(step(value, by, min))}
-        >
-          <Icon name="plus" size={20} />
-        </button>
-      </div>
-    {/snippet}
-
-    {#if mode === 'activity'}
-      {#if !set}
+      {#if !set && mode === 'sets'}
         <label class="field">
-          <span>Activity</span>
-          <input type="text" bind:value={activity} autocomplete="off" />
+          <span>Exercise</span>
+          <input type="text" bind:value={name} autocomplete="off" />
         </label>
-        {#if known.length}
+        {#if exercises.length}
           <div class="chips">
-            {#each known as a (a.name)}
+            {#each exercises.slice(0, 8) as r (r.title)}
               <button
                 type="button"
                 class="chip"
-                class:on={a.name === activity}
-                title={`${a.by} counts it as ${a.kind}`}
-                onclick={() => pickActivity(a)}>{a.name}</button
+                class:on={r.title === name}
+                onclick={() => choose(r)}>{r.title}</button
               >
             {/each}
           </div>
         {/if}
       {/if}
-      <div class="field">
-        <span>It counts as</span>
-        <div class="chips" role="radiogroup" aria-label="what it counts as">
-          {#each KINDS as [v, label] (v)}
-            <button
-              type="button"
-              role="radio"
-              class="chip"
-              class:on={countsAs === v}
-              aria-checked={countsAs === v}
-              onclick={() => (countsAs = v)}>{label}</button
-            >
-          {/each}
-        </div>
-      </div>
-      {@render stepper('Minutes', minutes, 5, 0, (v) => (minutes = Math.round(v)))}
-      {@render stepper(
-        'Effort (0–10)',
-        effort,
-        1,
-        0,
-        (v) => (effort = Math.min(10, Math.round(v))),
+
+      {#snippet stepper(
+        label: string,
+        value: number,
+        by: number,
+        min: number,
+        put: (v: number) => void,
       )}
-      <p class="says">{effortSays}</p>
-    {:else}
-      {#if !set}{@render stepper(
-          'Sets',
-          sets,
-          1,
-          1,
-          (v) => (sets = Math.min(Math.round(v), 12)),
-        )}{/if}
-      {@render stepper('Reps', reps, 1, 0, (v) => (reps = Math.round(v)))}
-      {@render stepper('Load (kg)', kg, 2.5, 0, (v) => (kg = v))}
-      <div class="field">
-        <span>It trains</span>
-        <div class="chips" role="radiogroup" aria-label="the region it trains">
-          {#each REGIONS as [v, label] (v)}
-            <button
-              type="button"
-              role="radio"
-              class="chip"
-              class:on={region === v}
-              aria-checked={region === v}
-              onclick={() => (region = region === v ? '' : v)}>{label}</button
-            >
-          {/each}
-        </div>
-      </div>
-    {/if}
-
-    {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
-
-    {#if set}
-      <div class="pair">
-        <button type="button" class="quiet" onclick={remove} disabled={busy}>Remove</button>
-        {#if mode === 'activity'}
-          <button type="button" class="go" onclick={saveActivity} disabled={busy || minutes <= 0}
-            >Save</button
+        <div class="row">
+          <span class="lbl">{label}</span>
+          <button
+            type="button"
+            class="round"
+            aria-label={`less ${label}`}
+            onclick={() => put(step(value, -by, min))}
           >
-        {:else}
-          <button type="button" class="go" onclick={save} disabled={busy || !ready}>Save</button>
+            <Icon name="minus" size={20} />
+          </button>
+          <input
+            type="number"
+            inputmode="decimal"
+            aria-label={label}
+            {min}
+            {value}
+            oninput={(e) => put(Number((e.currentTarget as HTMLInputElement).value) || min)}
+          />
+          <button
+            type="button"
+            class="round"
+            aria-label={`more ${label}`}
+            onclick={() => put(step(value, by, min))}
+          >
+            <Icon name="plus" size={20} />
+          </button>
+        </div>
+      {/snippet}
+
+      {#if mode === 'activity'}
+        {#if !set}
+          <label class="field">
+            <span>Activity</span>
+            <input type="text" bind:value={activity} autocomplete="off" />
+          </label>
+          {#if known.length}
+            <div class="chips">
+              {#each known as a (a.name)}
+                <button
+                  type="button"
+                  class="chip"
+                  class:on={a.name === activity}
+                  title={`${a.by} counts it as ${a.kind}`}
+                  onclick={() => pickActivity(a)}>{a.name}</button
+                >
+              {/each}
+            </div>
+          {/if}
         {/if}
-      </div>
-    {:else if mode === 'activity'}
-      <button type="button" class="go" onclick={addActivity} disabled={busy || !activityReady}>
-        Log {minutes} min
-      </button>
-    {:else}
-      <button type="button" class="go" onclick={add} disabled={busy || !ready}>
-        Add {sets} × {reps}
-      </button>
+        <div class="field">
+          <span>It counts as</span>
+          <div class="chips" role="radiogroup" aria-label="what it counts as">
+            {#each KINDS as [v, label] (v)}
+              <button
+                type="button"
+                role="radio"
+                class="chip"
+                class:on={countsAs === v}
+                aria-checked={countsAs === v}
+                onclick={() => (countsAs = v)}>{label}</button
+              >
+            {/each}
+          </div>
+        </div>
+        {@render stepper('Minutes', minutes, 5, 0, (v) => (minutes = Math.round(v)))}
+        {@render stepper(
+          'Effort (0–10)',
+          effort,
+          1,
+          0,
+          (v) => (effort = Math.min(10, Math.round(v))),
+        )}
+        <p class="says">{effortSays}</p>
+      {:else}
+        {#if !set}{@render stepper(
+            'Sets',
+            sets,
+            1,
+            1,
+            (v) => (sets = Math.min(Math.round(v), 12)),
+          )}{/if}
+        {@render stepper('Reps', reps, 1, 0, (v) => (reps = Math.round(v)))}
+        {@render stepper('Load (kg)', kg, 2.5, 0, (v) => (kg = v))}
+        <div class="field">
+          <span>It trains</span>
+          <div class="chips" role="radiogroup" aria-label="the region it trains">
+            {#each REGIONS as [v, label] (v)}
+              <button
+                type="button"
+                role="radio"
+                class="chip"
+                class:on={region === v}
+                aria-checked={region === v}
+                onclick={() => (region = region === v ? '' : v)}>{label}</button
+              >
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
+
+      {#if set}
+        <div class="pair">
+          <button type="button" class="quiet" onclick={remove} disabled={busy}>Remove</button>
+          {#if mode === 'activity'}
+            <button type="button" class="go" onclick={saveActivity} disabled={busy || minutes <= 0}
+              >Save</button
+            >
+          {:else}
+            <button type="button" class="go" onclick={save} disabled={busy || !ready}>Save</button>
+          {/if}
+        </div>
+      {:else if mode === 'activity'}
+        <button type="button" class="go" onclick={addActivity} disabled={busy || !activityReady}>
+          Log {minutes} min
+        </button>
+      {:else}
+        <button type="button" class="go" onclick={add} disabled={busy || !ready}>
+          Add {sets} × {reps}
+        </button>
+      {/if}
     {/if}
   </div>
 </div>
@@ -576,5 +758,50 @@
     padding: 0 var(--space-4);
     border: 1px solid var(--border);
     background: none;
+  }
+  .seek {
+    min-height: 2.75rem;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+  }
+  h3 {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .pick {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .pick button {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .sub {
+    flex: none;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 </style>

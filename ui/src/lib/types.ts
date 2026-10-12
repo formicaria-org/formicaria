@@ -880,11 +880,38 @@ export interface PlanOption {
   unmeasured: string[];
   caution?: string;
   guides: PlanGuide[];
+  /** A week to start from, to be changed. */
+  examples?: PlanExample[];
+}
+export interface PlanExampleItem {
+  type: 'activity' | 'session';
+  name: string;
+  minutes?: number;
+  effort?: number;
+  counts_as?: string;
+  exercises?: { card: string; sets: number; reps: string | number; said?: string }[];
+  said?: string;
+}
+export interface PlanExample {
+  /** `published`: a body's own example. `assembled`: the app's arrangement of sourced figures. */
+  kind: 'published' | 'assembled';
+  variant?: string;
+  by: string;
+  title: string;
+  url: string;
+  note: string;
+  week: { day: string; items: PlanExampleItem[] }[];
+  meets?: string;
+  later?: string;
 }
 export interface PlanActivity {
   name: string;
   kind: string;
   by: string;
+  /** A place to start from, where a source gives one, and whose it is. */
+  minutes?: number;
+  effort?: number;
+  basis?: string;
 }
 /** A week laid out day by day by a public body, word for word. */
 export interface ExampleWeeks {
