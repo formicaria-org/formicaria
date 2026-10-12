@@ -77,3 +77,28 @@ user experience"*, then *"I want the release and try it myself on the phone afte
   **Not seen on a phone.**
 - **Found on the way**: reading a second log in `log_days` pulled in other groups' program notes
   as targets — caught by the new test before it shipped.
+
+## Last of the day: food made easy to use (v0.7.3)
+
+The owner brainstormed usability — a packet with a barcode, the time of a meal, whether the day
+follows the diet, micronutrients, simple feedback, a kitchen, recipes from known sources — then a
+menu for several days and amounts as ranges; asked for it to be grounded in sources, then:
+*"execute the plan"* and *"release 0.7.3"*.
+
+- **Research first**: three agents (about 370k tokens) read primary pages; the register's §6c
+  holds what they read, with what was only excerpted marked for re-reading. It changed the plan:
+  Open Food Facts has 11,883 products for Singapore, so a typed label became half the feature;
+  every camera reader but one needs Google's services; no carried recipe collection has grams.
+- **Built**: a time on every entry and the night's fast measured from it; the diet on the Day
+  screen; `log_nutrients` and its sheet; eating rhythm on Trends; an amount as a range; the
+  *Menu* view with a shopping-list note; packaged foods from their labels. Three decision
+  entries of 2026-10-12 under `#data` and `#ui`.
+- **Not built, and why**: the barcode look-up (the first thing in food to reach the network — the
+  owner was asked and said "execute the plan", which is not the same as a yes to that; and it
+  reverses a ruling, so the reversal is written first); the camera; the kitchen; recipes from
+  outside; proposing meals. All in `outstanding.md` §2.24.
+- **Seen** in headless Chromium against the built program at 360 wide: each new screen. **Not on
+  a phone**; released on the owner's word as before.
+- **Found on the way**: a timed `start` broke every place that compared it to a day; a title
+  crammed into a third of a phone row on the first Menu; a test that passed only because a
+  reload used to be faster.

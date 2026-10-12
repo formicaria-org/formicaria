@@ -34,6 +34,7 @@ import type {
   LogDays,
   RecentItem,
   Nutrients,
+  Product,
   Recipe,
   Routine,
   PlanLibrary,
@@ -1215,6 +1216,7 @@ export const logRecent = (view: string, opts: { slot?: string; q?: string; limit
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
 export const logNutrients = (view: string, day: string) =>
   invoke<Nutrients>('log_nutrients', { view, day });
+export const logProducts = () => invoke<Product[]>('log_products', {});
 export const logRoutines = (view: string) => invoke<Routine[]>('log_routines', { view });
 
 /** What can be followed in a group (`food` or `fitness`): the library carried in the app. */

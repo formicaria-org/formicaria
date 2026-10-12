@@ -11,7 +11,8 @@
   // where the food came from, or from the values as they were when this sheet opened.
   import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { logRecent, logRecipes, foodSearch, foodGet } from '../ipc';
+  import { logRecent, logRecipes, logProducts, foodSearch, foodGet } from '../ipc';
+  import { digitsOf, isBarcode, sameCode } from './barcode';
   import {
     createNotesUndoable,
     setPropertiesUndoable,
@@ -26,6 +27,7 @@
     Metric,
     NoteDraft,
     ObjectMeta,
+    Product,
     RecentItem,
     Recipe,
     TotalsDef,
@@ -109,6 +111,107 @@
     }, 120);
     return () => clearTimeout(t);
   });
+
+  // ── packaged foods, from their labels ──────────────────────────────────────────────────────────
+  // A packet is not in a table of generic foods. It is written down once from its label — per
+  // 100 g, in the order a European label prints it — and is one of the person's foods from then
+  // on (`decisions.md#data`, 2026-10-12, *a packaged food is a note read off its label*).
+  let products = $state<Product[]>([]);
+  const loadProducts = () =>
+    logProducts()
+      .then((r) => (products = r))
+      .catch(() => (products = []));
+  onMount(loadProducts);
+  /// The person's own packaged foods that the search text names, by name or by barcode.
+  const mine = $derived.by(() => {
+    const text = q.trim().toLowerCase();
+    if (!text) return products;
+    const code = sameCode(text);
+    return products.filter(
+      (p) => p.title.toLowerCase().includes(text) || (!!p.barcode && sameCode(p.barcode) === code),
+    );
+  });
+  const LABEL: { key: string; label: string; per: number }[] = [
+    { key: 'kcal', label: 'Energy (kcal)', per: 1 },
+    { key: 'fat_mg', label: 'Fat (g)', per: 1000 },
+    { key: 'saturated_fat_mg', label: 'of which saturates (g)', per: 1000 },
+    { key: 'carbs_mg', label: 'Carbohydrate (g)', per: 1000 },
+    { key: 'sugars_mg', label: 'of which sugars (g)', per: 1000 },
+    { key: 'fiber_mg', label: 'Fibre (g)', per: 1000 },
+    { key: 'protein_mg', label: 'Protein (g)', per: 1000 },
+    // A label states salt; the tables and every reference here are in sodium. Salt is sodium
+    // × 2.5 (Regulation (EU) 1169/2011, Annex I), so a gram of salt is 400 mg of sodium.
+    { key: 'sodium_ug', label: 'Salt (g)', per: 400_000 },
+  ];
+  let labelling = $state<{
+    name: string;
+    barcode: string;
+    serving: number | string | null;
+    ingredients: string;
+    values: Record<string, number | string | null | undefined>;
+  } | null>(null);
+  const startLabel = () =>
+    (labelling = {
+      name: /^[\d\s-]+$/.test(q.trim()) ? '' : q.trim(),
+      barcode: /^[\d\s-]+$/.test(q.trim()) ? digitsOf(q) : '',
+      serving: null,
+      ingredients: '',
+      values: {},
+    });
+  const labelValues = $derived.by(() => {
+    const out: Record<string, number> = {};
+    for (const f of LABEL) {
+      const raw = labelling?.values[f.key];
+      if (raw === '' || raw === null || raw === undefined) continue;
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 0) out[f.key] = Math.round(n * f.per);
+    }
+    return out;
+  });
+  const badCode = $derived(!!labelling?.barcode.trim() && !isBarcode(labelling.barcode));
+  const labelReady = $derived(
+    !!labelling?.name.trim() && labelValues.kcal !== undefined && !badCode,
+  );
+  const saveLabel = () =>
+    write(async () => {
+      const l = labelling;
+      if (!l || !labelReady) return;
+      const title = l.name.trim();
+      const serving = Math.round(Number(l.serving));
+      await createNotesUndoable(
+        [
+          {
+            title,
+            body: l.ingredients.trim()
+              ? `Ingredients, as on the pack:\n\n${l.ingredients.trim()}\n`
+              : '',
+            props: {
+              product: 'label',
+              ...(l.barcode.trim() ? { barcode: digitsOf(l.barcode) } : {}),
+              ...(serving > 0 ? { serving_g: serving } : {}),
+              ...labelValues,
+            },
+          },
+        ],
+        `wrote down “${title}” from its label`,
+      );
+      await loadProducts();
+      labelling = null;
+      const made = products.find((p) => p.title === title);
+      if (made) openProduct(made);
+    });
+  function openProduct(p: Product) {
+    failed = '';
+    portion = {
+      title: p.title,
+      grams: p.serving_g ?? 100,
+      per100: p.per100,
+      base: {},
+      baseGrams: 0,
+      portions: p.serving_g ? [{ label: `1 serving (${p.serving_g} g)`, grams: p.serving_g }] : [],
+      source: `product/${p.id}`,
+    };
+  }
 
   // ── the portion step ───────────────────────────────────────────────────────────────────────────
   type Portion = {
@@ -926,6 +1029,65 @@
           </button>
         </div>
       </section>
+    {:else if labelling}
+      <section class="quick" aria-label="a packaged food, from its label">
+        <h2>From the label</h2>
+        <label>
+          <span>Name</span>
+          <input class="field" type="text" bind:value={labelling.name} autocomplete="off" />
+        </label>
+        <label>
+          <span>Barcode number (optional)</span>
+          <input
+            class="field"
+            type="text"
+            inputmode="numeric"
+            bind:value={labelling.barcode}
+            autocomplete="off"
+          />
+        </label>
+        {#if badCode}
+          <p class="hint">
+            That is not a barcode number: its last digit does not check. Leave it empty if unsure.
+          </p>
+        {/if}
+        <p class="hint">
+          Per 100 g, as the label prints it. Energy is needed; the rest as you like.
+        </p>
+        {#each LABEL as f (f.key)}
+          <label>
+            <span>{f.label}</span>
+            <input
+              class="field"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.1"
+              bind:value={labelling.values[f.key]}
+            />
+          </label>
+        {/each}
+        <label>
+          <span>A serving, in grams (optional)</span>
+          <input
+            class="field"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            bind:value={labelling.serving}
+          />
+        </label>
+        <label>
+          <span>Ingredients, as on the pack (optional)</span>
+          <textarea class="field tall" rows="3" bind:value={labelling.ingredients}></textarea>
+        </label>
+        <div class="pair">
+          <button type="button" class="quiet" onclick={() => (labelling = null)}>Back</button>
+          <button type="button" class="go" onclick={saveLabel} disabled={busy || !labelReady}>
+            Save it
+          </button>
+        </div>
+      </section>
     {:else}
       {#if picking}
         <button
@@ -1001,10 +1163,19 @@
           autofocus
           spellcheck="false"
         />
-        {#if q.trim() && hits.length === 0}
+        {#if q.trim() && hits.length === 0 && mine.length === 0}
           <p class="hint">No food by that name. Quick add takes any name.</p>
         {/if}
         <ul class="rows">
+          {#each mine as p (p.id)}
+            <li>
+              <button type="button" class="row" onclick={() => openProduct(p)}>
+                <span class="t">{p.title}</span>
+                <span class="a">Your label · per 100 g</span>
+                <span class="v">{show(primary.key, p.per100[primary.key] ?? 0).text}</span>
+              </button>
+            </li>
+          {/each}
           {#each hits as h (h.id)}
             <li>
               <button type="button" class="row" onclick={() => openHit(h)}>
@@ -1016,6 +1187,9 @@
             </li>
           {/each}
         </ul>
+        <button type="button" class="link" onclick={startLabel}>
+          A packaged food? Write it down from its label
+        </button>
       {:else if mode === 'recipes'}
         {#if recipes === null}
           <ul class="rows" aria-hidden="true">
@@ -1318,6 +1492,12 @@
     gap: var(--space-1);
     font-size: var(--text-sm);
     color: var(--text-muted);
+  }
+  .tall {
+    min-height: 5rem;
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    resize: vertical;
   }
   .link {
     align-self: flex-start;

@@ -2234,3 +2234,15 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
   thousand there tells someone they lack a vitamin; the unit test pins the ones most looked at.
 - **A screen test that asserted right after a toast** raced the day's reload once the day began
   asking for the plan too; it waits now.
+
+## Menu and packaged foods — traps (2026-10-12)
+
+- **The Menu asks for its own days**; the pane's sheets tell it something was written through a
+  counter (`wrotes`), not through the view's feed, which does not change for a planned entry.
+- **The shopping list is a snapshot**: a note written once from the menu as it stood.
+- **A product's values are per 100 g on a note that is not an entry.** `log_products` takes every
+  whole-number property whose key ends in `_mg` or `_ug`, and `kcal`; `serving_g` and `barcode`
+  are deliberately not among them.
+- **A typed label states salt; the note keeps sodium** (÷ 2.5). Reading the note's `sodium_ug` as
+  salt is off by that factor.
+- **A barcode of 12 digits and the same with a zero in front are one product** (`sameCode`).

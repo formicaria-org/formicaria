@@ -12,6 +12,7 @@ import type {
   LogDays,
   RecentItem,
   Nutrients,
+  Product,
   Recipe,
   Routine,
   NoteDraft,
@@ -557,6 +558,22 @@ export function logNutrients(notes: ObjectMeta[], args: { view: string; day: str
       row('calcium_ug', 'Calcium', 950_000, 'PRI'),
     ],
   };
+}
+export function logProducts(notes: ObjectMeta[]): Product[] {
+  return notes
+    .filter((x) => x.props.product && !x.props.log && !x.tags.includes('template'))
+    .map((x) => ({
+      id: x.id,
+      title: x.title ?? '',
+      barcode: x.props.barcode ? String(x.props.barcode) : undefined,
+      serving_g: whole(x.props.serving_g) ?? undefined,
+      per100: Object.fromEntries(
+        Object.entries(x.props).flatMap(([k, v]) =>
+          (k === 'kcal' || /_(mg|ug)$/.test(k)) && typeof v === 'number' ? [[k, v]] : [],
+        ),
+      ),
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title));
 }
 export function logRoutines(notes: ObjectMeta[], args: { view: string }): Routine[] {
   const def = trackerDef(args.view)?.totals;

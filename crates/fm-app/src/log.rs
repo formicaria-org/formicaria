@@ -487,6 +487,72 @@ pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, St
     Ok(out)
 }
 
+// ── packaged foods ───────────────────────────────────────────────────────────────────────────────
+
+/// The note carrying this is a packaged food, written down from its label.
+pub const PRODUCT: &str = "product";
+
+/// A packaged food: what its label says a hundred grams hold.
+#[derive(Debug, Serialize)]
+pub struct Product {
+    pub id: String,
+    pub title: String,
+    /// The number under its barcode, when the person gave it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub barcode: String,
+    /// What the pack calls a serving, in grams, when it says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serving_g: Option<i64>,
+    /// Every whole-number value the note carries whose key ends in a unit, and `kcal`: per 100 g.
+    pub per100: BTreeMap<String, i64>,
+}
+
+/// The packaged foods a person has written down from their labels, by name.
+///
+/// **A product is an ordinary note** (`decisions.md#data`, 2026-10-12, *a packaged food is a note
+/// read off its label*): its `product` property says so, its values are the label's per 100 g
+/// under the keys every logged food uses, and its ingredient list is its text. It is in no log
+/// and in no day; logging some of it makes an entry that carries its own numbers, as for a food
+/// from the list.
+pub fn log_products(store: &dyn Store) -> Result<Vec<Product>, StoreError> {
+    let query = Query {
+        filter: crate::thread::plan_base(&[], &[PRODUCT]),
+        sort: vec![SortKey::asc("created")],
+        ..Default::default()
+    };
+    let mut out: Vec<Product> = store
+        .query(&query)?
+        .rows
+        .iter()
+        .filter(|o| o.get(LOG).is_null() && !o.get(PRODUCT).is_null())
+        .filter(|o| !is_template(o) && !is_message(o) && !is_proposal(o))
+        .map(|o| Product {
+            id: o.id.to_string(),
+            title: o.title.clone().unwrap_or_default(),
+            barcode: match o.get("barcode") {
+                PropertyValue::Text(s) => s,
+                PropertyValue::Int(n) => n.to_string(),
+                _ => String::new(),
+            },
+            serving_g: match o.get("serving_g") {
+                PropertyValue::Int(n) if n > 0 => Some(n),
+                _ => None,
+            },
+            per100: o
+                .extra
+                .iter()
+                .filter(|(k, _)| k.as_str() == "kcal" || k.ends_with("_mg") || k.ends_with("_ug"))
+                .filter_map(|(k, v)| match v {
+                    PropertyValue::Int(n) => Some((k.clone(), *n)),
+                    _ => None,
+                })
+                .collect(),
+        })
+        .collect();
+    out.sort_by_key(|p| p.title.to_lowercase());
+    Ok(out)
+}
+
 // ── routines ─────────────────────────────────────────────────────────────────────────────────────
 
 /// A routine's notes share one word under this key: the routine itself and each of its sets.

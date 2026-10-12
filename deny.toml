@@ -77,6 +77,18 @@ version = 2
 # No advisory waivers: the Tauri/gtk3 tree that required them was removed with the
 # native window. Any real vulnerability, unsound, or unmaintained advisory now
 # surfaces on its own; add a documented `ignore` entry only if one reappears.
+#
+# One reappeared on 2026-10-12 (`decisions.md#toolchain`, that date):
+ignore = [
+    # `unsafe-libyaml` is *unmaintained* (its repository was archived in March 2024) — not a
+    # vulnerability and not unsound. It is the C-to-Rust translation of libyaml under
+    # `serde_yaml_ng`, which reads every note's front matter and every `.view` file. The advisory
+    # names no safe upgrade; the alternative is a different YAML parser under the one format
+    # every file in every vault depends on, which is a migration to plan and test on real vaults,
+    # not a change to make because a gate turned red on a release day. Waived until that
+    # migration is decided (`outstanding.md`, *the YAML parser*). Remove this entry with it.
+    { id = "RUSTSEC-2024-0449", reason = "unmaintained, no safe upgrade; replacing the YAML parser is a planned migration, see decisions.md 2026-10-12 #toolchain" },
+]
 
 [bans]
 multiple-versions = "warn"

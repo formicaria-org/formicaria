@@ -6,7 +6,8 @@ kept as notes in your own notebook — plain files, like everything else.
 
 > **Early.** New in 0.7.0, and used so far by one person on Linux and on an Android phone. On an
 > iPhone, a Mac or a Windows computer it has not been tried. Following a diet or a regime (0.7.1),
-> weight as a trend and routines (0.7.2) were released before being tried on a phone.
+> weight as a trend and routines (0.7.2), and meal times, the menu, packaged foods and the
+> nutrient list (0.7.3) were released before being tried on a phone.
 
 ## Hiding it
 
@@ -98,6 +99,18 @@ so a few weeks of eating less, then back to normal, is two saves and nothing to 
 Below the meals, *Also today* lists fibre, calcium, iron and vitamin C. When a value comes from
 only some of the day's entries it says so — *from 3 of 4* — because an entry typed in by hand has
 energy and nothing else, and a total that left it out without saying would look complete.
+
+### A packaged food
+
+A packet of pasta is not in a table of generic foods. Under **Search**, press **A packaged food?
+Write it down from its label** and copy the label's lines for 100 g — energy is the only one
+needed. Salt is typed as the label states it. You can add the number under the barcode and the
+ingredient list as well.
+
+It is saved as a note of yours and found from then on by its name, or by its barcode number, in
+the same search. Logging some of it works like any other food.
+
+The app does not look products up anywhere yet: nothing leaves your device.
 
 ### When you ate
 

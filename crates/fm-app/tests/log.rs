@@ -6,7 +6,8 @@
 
 use fm_app::commands;
 use fm_app::log::{
-    create_notes, log_days, log_recent, log_recipes, log_routines, set_properties, NoteDraft,
+    create_notes, log_days, log_products, log_recent, log_recipes, log_routines, set_properties,
+    NoteDraft,
 };
 use fm_app::views::{group_of, run_shipped, shipped_views, totals_named, with_shipped, Renderer};
 use fm_core::MemoryStore;
@@ -684,4 +685,35 @@ fn an_amount_given_as_a_range_gives_the_day_a_low_and_a_high() {
     assert_eq!(r.days[0].sums["protein_mg"].low, Some(4_000));
     // A day where every amount is one number says nothing about a range.
     assert_eq!((r.days[1].sums["kcal"].low, r.days[1].sums["kcal"].high), (None, None));
+}
+
+/// A packaged food is a note read off its label: per 100 g, under the keys every food uses. It
+/// is in no day, and a barcode written as digits is still its barcode.
+#[test]
+fn a_packaged_food_is_a_note_with_what_its_label_says_per_100_g() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Penne rigate",
+                "",
+                json!({ "product": "label", "barcode": "8076802085738", "serving_g": 80,
+                        "kcal": 359, "protein_mg": 13_000, "sodium_ug": 5_000, "note": "x" }),
+            ),
+            food("Oats", "2026-10-11", "breakfast", 228, 0),
+        ],
+    )
+    .unwrap();
+    let got = log_products(&s).unwrap();
+    assert_eq!(got.len(), 1);
+    let p = &got[0];
+    assert_eq!(
+        (p.title.as_str(), p.barcode.as_str(), p.serving_g),
+        ("Penne rigate", "8076802085738", Some(80))
+    );
+    assert_eq!(p.per100.keys().collect::<Vec<_>>(), ["kcal", "protein_mg", "sodium_ug"]);
+    let r = log_days(&s, &day_view(), "2026-10-01", "2026-10-12", false).unwrap();
+    assert_eq!(r.days.iter().map(|d| d.of).sum::<usize>(), 1, "the product is in no day");
 }

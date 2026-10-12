@@ -2178,6 +2178,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return tracker.logRecipes(notes, args as { view: string }) as T;
     case 'log_nutrients':
       return tracker.logNutrients(notes, args as { view: string; day: string }) as T;
+    case 'log_products':
+      return tracker.logProducts(notes) as T;
     case 'log_routines':
       return tracker.logRoutines(notes, args as { view: string }) as T;
     case 'plan_library':

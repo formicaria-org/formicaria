@@ -373,3 +373,36 @@ test('the menu is the days ahead by meal, for as many days as asked, and says wh
   await fireEvent.click(screen.getAllByRole('button', { name: /^plan Lunch for / })[1]);
   expect(await screen.findByRole('dialog')).toBeTruthy();
 });
+
+test('a packaged food is written down once from its label, and is then one of your foods', async () => {
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  const sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Search' }));
+  await fireEvent.click(
+    await within(sheet).findByRole('button', { name: /A packaged food\? Write it down/ }),
+  );
+  const form = await within(sheet).findByRole('region', {
+    name: 'a packaged food, from its label',
+  });
+  const save = () => within(form).getByRole('button', { name: 'Save it' }) as HTMLButtonElement;
+  await fireEvent.input(within(form).getByLabelText('Name'), { target: { value: 'Penne' } });
+  expect(save().disabled).toBe(true); // energy is needed
+  await fireEvent.input(within(form).getByLabelText('Energy (kcal)'), { target: { value: '359' } });
+  await fireEvent.input(within(form).getByLabelText('Salt (g)'), { target: { value: '0.5' } });
+  // A number that is not a barcode is said to be none, and is not kept.
+  await fireEvent.input(within(form).getByLabelText('Barcode number (optional)'), {
+    target: { value: '6291041500214' },
+  });
+  expect(within(form).getByText(/its last digit does not check/)).toBeTruthy();
+  expect(save().disabled).toBe(true);
+  await fireEvent.input(within(form).getByLabelText('Barcode number (optional)'), {
+    target: { value: '6291041500213' },
+  });
+  await fireEvent.click(save());
+  // It opens at an amount, ready to log, with the label's energy for 100 g.
+  expect(await within(sheet).findByRole('heading', { name: 'Penne' })).toBeTruthy();
+  expect((within(sheet).getByLabelText('amount in grams') as HTMLInputElement).value).toBe('100');
+});

@@ -1082,12 +1082,14 @@ what each left open is said under it. The rest is neither built nor ruled. In th
    sodium's EFSA figure (unread); a nutrient cannot be picked on Trends unless the view names it.
 4. **Feedback as counts** — built on Trends: times eaten a day, usual first and last. Left: days
    the diet was met, over more than the week the Diet tab shows.
-5. **Packaged food.** First: type the barcode (GS1 check), one request to Open Food Facts from the
-   core, the product kept as the person's own food with its link, the attribution and the
-   caveat; **and a label typed in by hand**, per 100 g, because coverage is thin (Singapore:
-   11,883 products). Then, as its own decision: the camera, with `zxing-wasm`.
-   **Reverses** the 2026-10-11 ruling that left barcodes out — the dated reversal is written
-   first. Open: OFF's own reading of share-alike for one stored product (page not readable).
+5. **Packaged food** — the half that needs no network is built: a label typed in once, a
+   barcode number checked and searchable (`decisions.md#data`, 2026-10-12). **Left, and waiting
+   for the owner's yes:** one request to Open Food Facts from the core when a barcode is not
+   known (terms read; it reverses the 2026-10-11 ruling, so the dated reversal is written
+   first; the fetch belongs in `fm-serve` and the phone shell behind their guards, with a pure
+   parser in `fm-app`). Then, separately, the camera with `zxing-wasm`. Also left: a product
+   cannot be changed from the sheet once saved (it is a note: edit it in the Library), and a
+   label's vitamins have no fields.
 6. **What is in the kitchen**: have or have not, on foods and products; no quantities.
 7. **Recipes and suggestions.** The person's own recipes first; then NHLBI's 54 (public domain,
    its own values per serving) carried unchanged and named. Wikibooks and based.cooking may be
@@ -1105,6 +1107,14 @@ what each left open is said under it. The rest is neither built nor ruled. In th
 **For the owner to decide:** whether a scan may reach the network (the first thing in food that
 would); whether the camera permission is worth a changed *Take a photo* prompt; which recipe
 collections to carry; how directive a suggestion may sound.
+
+### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
+
+`deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12
+(`decisions.md#toolchain`). To end the waiver: choose a maintained parser (the advisory names
+`saphyr` / `serde-saphyr` and `noyalib`; neither has been read or tried), and prove on real vaults
+that every note and `.view` file reads the same and is written back byte for byte. Until then a
+flaw found in that code has no upstream fix.
 
 ### 2.22 After v0.6.9 — releases and the version check (2026-10-11)
 

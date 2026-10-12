@@ -646,6 +646,15 @@ export interface Nutrients {
   needs_sex: boolean;
   entries: ObjectMeta[];
 }
+/** A packaged food written down from its label (`log_products`). */
+export interface Product {
+  id: string;
+  title: string;
+  barcode?: string;
+  serving_g?: number;
+  /** What a hundred grams hold, by the keys every food uses. */
+  per100: Record<string, number>;
+}
 /** A session kept under a name, to plan again on the days it is meant for (`log_routines`). */
 export interface Routine {
   /** The word its notes share. */
