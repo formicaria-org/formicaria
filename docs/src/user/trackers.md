@@ -244,8 +244,10 @@ part of the body, then open a card for its steps.
   manual, which is public. The Army's are written for soldiers and shown exactly as written, so
   they speak of counts, commands and "Soldiers". Nothing is reworded: rewording is how a
   source's words stop being its own.
-- **To watch** links to a film of the exercise on YouTube: a known body's own channel where one
-  was found, and otherwise a trainer's, which the card says, with how many views it had.
+- **To watch** links to films of the exercise on YouTube, often more than one. A health body's
+  own channel comes first; then a trainer whose science or clinical qualification could be
+  confirmed, shown with it; the Army's own short clips last. Each says whose it is, and a
+  trainer's says how many views it had. On the Army's cards the films come above the text.
 - **Add to today's session** starts the add sheet with that exercise.
 - How many sets and repetitions is for the regime you follow to say, not the card: a card's own
   figure is its source's, for its own readers.

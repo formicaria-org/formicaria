@@ -76,21 +76,17 @@
     );
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   }
-  const key = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/\(.*?\)/g, ' ')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
-  /// The videos found for an exercise: the same name, give or take a bracket or a hyphen.
+  /// The films found for an exercise: of the exercise itself, then of the drill it is part of.
+  /// **Their order is the file's** (`exercise-videos.json`): a known body's that is not a drill
+  /// manual's first, a trainer whose qualification was confirmed next, the Army's own clips last
+  /// — the owner's order (`decisions.md#data`, 2026-10-12). Which film goes with which card is in
+  /// the file too.
   function videosFor(e: ExerciseCard): ExerciseVideo[] {
-    const k = key(e.name);
-    return (lib?.videos ?? [])
-      .filter((v) => {
-        const vk = key(v.exercise);
-        return vk === k || vk.split(' or ').some((part) => part.trim() === k);
-      })
-      .sort((a, b) => (a.tier === b.tier ? 0 : a.tier === 'body' ? -1 : 1));
+    const all = lib?.videos ?? [];
+    return [
+      ...all.filter((v) => v.cards?.includes(e.id)),
+      ...all.filter((v) => v.groups?.includes(e.group)),
+    ];
   }
   const REGIONS = ['upper-push', 'upper-pull', 'lower-push', 'lower-pull'];
   const shownAlready = (c: ExerciseCard, text: string) =>
@@ -106,9 +102,47 @@
     <button type="button" class="back" onclick={() => (open = null)}>
       <Icon name="chevronLeft" size={18} /> All exercises
     </button>
+    {#snippet watch()}
+      {#if vids.length}
+        <h3>To watch</h3>
+        <ul class="videos">
+          {#each vids as v (v.url)}
+            <li>
+              <a href={v.url} target="_blank" rel="noreferrer noopener">{v.title}</a>
+              <span class="meta">
+                {#if v.groups?.length}the whole drill ·{/if}
+                {#if v.tier === 'body' && v.confirmed}
+                  {v.channel}, its own channel
+                {:else if v.tier === 'body'}
+                  {v.channel} — a channel under that name, not confirmed from its own website
+                {:else if v.tier === 'expert'}
+                  {v.channel} — a trainer’s channel;
+                  {#if v.credential_url}
+                    <a href={v.credential_url} target="_blank" rel="noreferrer noopener"
+                      >{v.credential}</a
+                    >
+                  {:else}{v.credential}{/if}
+                {:else}
+                  {v.channel}, a trainer’s channel — no known body’s film was found
+                {/if}
+                {#if v.tier !== 'body' && v.views}
+                  · {v.views.toLocaleString()} views when seen
+                {/if}
+              </span>
+            </li>
+          {/each}
+        </ul>
+        <p class="meta">Links to YouTube, seen {lib?.videos_seen ?? ''}. Nothing is played here.</p>
+      {/if}
+    {/snippet}
     <article class="card" aria-label={card.name}>
       <h2>{card.name}</h2>
       <p class="meta">{AREAS[card.area] ?? card.area} · {card.group}</p>
+      <!-- A drill manual's steps read hard; where there is a film, it comes first. -->
+      {#if card.source === 'army'}
+        {@render watch()}
+        <h3>Written steps, from the U.S. Army’s manual</h3>
+      {/if}
       <!-- Each source's own text, set apart and credited as its terms ask. -->
       <div class="theirs">
         {#if card.about}<p>{card.about}</p>{/if}
@@ -137,26 +171,8 @@
           {/if}
         </p>
       </div>
-      {#if vids.length}
-        <h3>To watch</h3>
-        <ul class="videos">
-          {#each vids as v (v.url)}
-            <li>
-              <a href={v.url} target="_blank" rel="noreferrer noopener">{v.title}</a>
-              <span class="meta">
-                {#if v.tier === 'body'}
-                  {v.channel} — {v.body ?? 'a known body’s own channel'}
-                {:else}
-                  {v.channel}, a trainer’s channel — no known body’s video was found{v.views
-                    ? ` · ${v.views.toLocaleString()} views when seen`
-                    : ''}
-                {/if}
-              </span>
-            </li>
-          {/each}
-        </ul>
-        <p class="meta">Links to YouTube, seen {lib?.videos_seen ?? ''}. Nothing is played here.</p>
-      {/if}
+
+      {#if card.source !== 'army'}{@render watch()}{/if}
       <button
         type="button"
         class="go"

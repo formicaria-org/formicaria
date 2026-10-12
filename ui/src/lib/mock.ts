@@ -2272,6 +2272,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
             channel: 'A Trainer',
             tier: 'trainer',
             views: 1_200_000,
+            cards: ['army-deadlift'],
           },
         ],
         videos_seen: '2026-10-12',

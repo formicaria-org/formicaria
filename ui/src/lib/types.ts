@@ -932,11 +932,20 @@ export interface ExerciseVideo {
   url: string;
   title: string;
   channel: string;
-  /** `body`: a known body's own channel. `trainer`: an individual's, offered where no body's exists. */
-  tier: 'body' | 'trainer';
-  body?: string;
+  /** `body`: a known body's own channel. `expert`: a trainer whose science or clinical
+   *  qualification was confirmed. `trainer`: an individual with many views and nothing confirmed. */
+  tier: 'body' | 'expert' | 'trainer';
+  /** For `expert`: the qualification, in its source's words, and where it was read. */
+  credential?: string;
+  credential_url?: string;
+  /** For a body's channel: was it confirmed from the body's own website, or only by its name? */
+  confirmed?: boolean;
   views?: number | null;
+  seconds?: number | null;
   note?: string;
+  /** The cards it is of, by id; or the drills, by the group their cards carry. */
+  cards?: string[];
+  groups?: string[];
 }
 export interface ExerciseLibrary {
   seen: string;

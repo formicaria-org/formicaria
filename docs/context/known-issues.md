@@ -2323,3 +2323,7 @@ that logs on completion) before reaching for a retry.
   Rewording any of it means the NHS may no longer be named — so a typo in it stays.
 - **A pane is rebuilt when its tab changes.** State that must cross tabs is handed over by the
   pane's id (`carried` in `TrackerPane.svelte`), as the chosen day is.
+- **Which film goes with which card is in `exercise-videos.json`** (`cards`, or `groups` for a
+  whole drill), and so is their order. It is hand-kept data: about half the films did not match
+  a card by name ("Bird dog" is the Army's "Quadraplex"). A card id that no longer exists fails
+  `tests/log.rs`. Films are links, checked to exist on the file's `seen` date and no later.

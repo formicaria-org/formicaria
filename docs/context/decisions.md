@@ -10340,6 +10340,14 @@ a known body). It widens what ships, so it is recorded. No dependency.
   found, a trainer's widely viewed video — **a departure from "known bodies only", made by the
   owner** — and the card says it is a trainer's, with the views it had when seen. Every link was
   checked to exist; none is played or embedded.
+  *(Refined the same day, after the owner saw that most gym films were the Army's: "I would
+  avoid the army as the primary source if possible, no famous well known trainer with science
+  background that does it?" and "We can also link more than one." **The order on a card is now:
+  a known body's that is not a drill manual's; then a trainer whose science or clinical
+  qualification was confirmed from a primary page, shown with that qualification; then a trainer
+  with many views and nothing confirmed; the Army's own clips last.** Several may be linked. On a
+  card whose written steps are the Army's, the films come above the text. A body's channel that
+  could be matched only by its name says so.)*
 - **A protocol known by its name is offered by its name**, with what stands behind it said as
   plainly as its dose: *Norwegian 4×4 intervals* (its originators' own figures; its one large
   trial found no difference in mortality, and they say so), *Interval walking*, and *Activity for

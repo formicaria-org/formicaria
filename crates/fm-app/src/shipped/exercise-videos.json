@@ -1,4 +1,1019 @@
 {
- "seen": "",
- "videos": []
+ "seen": "2026-10-12",
+ "videos": [
+  {
+   "exercise": "Sit-to-stand",
+   "url": "https://www.youtube.com/watch?v=PzcDncvCUVI",
+   "title": "Sit to Stand without arms - Stronger My Way",
+   "channel": "The Chartered Society of Physiotherapy",
+   "tier": "body",
+   "confirmed": true,
+   "views": 3144,
+   "seconds": 36,
+   "note": "Title indicates a sit-to-stand without using the arms; 'Stronger My Way' series for adults new to strength work.",
+   "cards": [
+    "nhs-sit-to-stand"
+   ]
+  },
+  {
+   "exercise": "Sit-to-stand",
+   "url": "https://www.youtube.com/watch?v=_3PIip7pi78",
+   "title": "Sit to Stand using arms - Stronger My Way",
+   "channel": "The Chartered Society of Physiotherapy",
+   "tier": "body",
+   "confirmed": true,
+   "views": 2287,
+   "seconds": 39,
+   "note": "Easier variation: sit-to-stand using the arms (title).",
+   "cards": [
+    "nhs-sit-to-stand"
+   ]
+  },
+  {
+   "exercise": "Mini-squat",
+   "url": "https://www.youtube.com/watch?v=WiW5PO4cnqc",
+   "title": "Mini squat",
+   "channel": "NHS Ayrshire & Arran",
+   "tier": "body",
+   "confirmed": true,
+   "views": 5956,
+   "seconds": 96,
+   "note": "Title 'Mini squat'; physiotherapy patient exercise clip.",
+   "cards": [
+    "nhs-mini-squats"
+   ]
+  },
+  {
+   "exercise": "Biceps curl",
+   "url": "https://www.youtube.com/watch?v=3FOeYNtUidg",
+   "title": "Single Weight Bicep Curl - Stronger My Way",
+   "channel": "The Chartered Society of Physiotherapy",
+   "tier": "body",
+   "confirmed": true,
+   "views": 2047,
+   "seconds": 29,
+   "note": "Titled 'Single Weight Bicep Curl' — uses one light weight; 'Stronger My Way' series.",
+   "cards": [
+    "army-biceps-curl"
+   ]
+  },
+  {
+   "exercise": "Step-up",
+   "url": "https://www.youtube.com/watch?v=xOcpKS8APxo",
+   "title": "Forward step up",
+   "channel": "NHS Ayrshire & Arran",
+   "tier": "body",
+   "confirmed": true,
+   "views": 34894,
+   "seconds": 118,
+   "note": "Titled 'Forward step up'; physiotherapy patient exercise clip.",
+   "cards": [
+    "nhs-step-up"
+   ]
+  },
+  {
+   "exercise": "Squat",
+   "url": "https://www.youtube.com/watch?v=pgKxvKyLL6E",
+   "title": "Squats - Stronger My Way",
+   "channel": "The Chartered Society of Physiotherapy",
+   "tier": "body",
+   "confirmed": true,
+   "views": 2159,
+   "seconds": 32,
+   "note": "Titled 'Squats'; bodyweight, 'Stronger My Way' series.",
+   "cards": [
+    "nhs-squats"
+   ]
+  },
+  {
+   "exercise": "Lunge",
+   "url": "https://www.youtube.com/watch?v=j4OFRC-bbjA",
+   "title": "Forward Lunges - Stronger My Way",
+   "channel": "The Chartered Society of Physiotherapy",
+   "tier": "body",
+   "confirmed": true,
+   "views": 3306,
+   "seconds": 31,
+   "note": "Titled 'Forward Lunges'; bodyweight, 'Stronger My Way' series.",
+   "cards": [
+    "nhs-lunges"
+   ]
+  },
+  {
+   "exercise": "Warm-up routine (5-6 minutes)",
+   "url": "https://www.youtube.com/watch?v=c41OYHF9BB8",
+   "title": "Warm-up exercises before workout: 15-minute routine",
+   "channel": "British Heart Foundation",
+   "tier": "body",
+   "confirmed": true,
+   "views": 24992,
+   "seconds": 1091,
+   "note": "Titled 'Warm-up exercises before workout: 15-minute routine' — longer (about 18 min) than the 5-6 minutes asked for; cardiac-rehab style.",
+   "cards": [
+    "nhs-heel-digs",
+    "nhs-knee-bends",
+    "nhs-knee-lifts",
+    "nhs-march-on-the-spot",
+    "nhs-shoulder-rolls"
+   ]
+  },
+  {
+   "exercise": "Push-up (press-up)",
+   "url": "https://www.youtube.com/watch?v=MxNnN80EJ-Y",
+   "title": "Knee Press Up - Stronger My Way",
+   "channel": "The Chartered Society of Physiotherapy",
+   "tier": "body",
+   "confirmed": true,
+   "views": 2267,
+   "seconds": 36,
+   "note": "Beginner variation: titled 'Knee Press Up' (siblings in the same series: 'Incline Press Up' wFUOloRcHwQ, 'Floor Press Up' eDfoMlePWho).",
+   "cards": [
+    "army-push-up"
+   ]
+  },
+  {
+   "exercise": "Calf raise",
+   "url": "https://www.youtube.com/watch?v=04zZLGcrN5Y",
+   "title": "Toe Stand Strength Exercise for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 71399,
+   "seconds": 117,
+   "note": "Titled 'Toe Stand' (rising onto the toes holding a chair); aimed at older adults.",
+   "cards": [
+    "army-heel-raise",
+    "nhs-calf-raises"
+   ]
+  },
+  {
+   "exercise": "Sideways leg lift",
+   "url": "https://www.youtube.com/watch?v=045sWtKt5D4",
+   "title": "Side Leg Raise – Strength Training Exercise for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 43174,
+   "seconds": 124,
+   "note": "Titled 'Side Leg Raise'; aimed at older adults.",
+   "cards": [
+    "nhs-sideways-leg-lift"
+   ]
+  },
+  {
+   "exercise": "Leg extension (standing, leg back)",
+   "url": "https://www.youtube.com/watch?v=B54sRn3f8S0",
+   "title": "Back Leg Raise Strength Exercise for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 70402,
+   "seconds": 118,
+   "note": "Titled 'Back Leg Raise'; aimed at older adults.",
+   "cards": [
+    "nhs-leg-extension"
+   ]
+  },
+  {
+   "exercise": "Wall press-up",
+   "url": "https://www.youtube.com/watch?v=751E9kAdkwg",
+   "title": "Wall Pushups Strength Exercise for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 116432,
+   "seconds": 86,
+   "note": "Titled 'Wall Pushups'; aimed at older adults.",
+   "cards": [
+    "nhs-wall-press-up"
+   ]
+  },
+  {
+   "exercise": "One-leg stand",
+   "url": "https://www.youtube.com/watch?v=QT5d4tTXW6U",
+   "title": "Stand on One Foot Balance Exercise for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 234570,
+   "seconds": 181,
+   "note": "Titled 'Stand on One Foot' balance exercise; aimed at older adults.",
+   "cards": [
+    "nhs-one-leg-stand"
+   ]
+  },
+  {
+   "exercise": "Heel-to-toe walk",
+   "url": "https://www.youtube.com/watch?v=z_GKdFf3qv4",
+   "title": "Heel-to-Toe Walk Balance Exercise for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 342452,
+   "seconds": 67,
+   "note": "Titled 'Heel-to-Toe Walk' balance exercise; aimed at older adults.",
+   "cards": [
+    "nhs-heel-to-toe-walk"
+   ]
+  },
+  {
+   "exercise": "Hamstring stretch",
+   "url": "https://www.youtube.com/watch?v=29jVlG6w4IU",
+   "title": "Standing hamstring stretch complete",
+   "channel": "NHS inform",
+   "tier": "body",
+   "confirmed": false,
+   "views": 47766,
+   "seconds": 28,
+   "note": "Titled 'Standing hamstring stretch complete'; from NHS inform's 'Exercises for thigh problems' playlist.",
+   "cards": [
+    "army-hamstring-stretch",
+    "nhs-hamstring-stretch"
+   ]
+  },
+  {
+   "exercise": "Calf stretch",
+   "url": "https://www.youtube.com/watch?v=uuVyVuSbXrA",
+   "title": "Standing calf stretch",
+   "channel": "NHS inform",
+   "tier": "body",
+   "confirmed": false,
+   "views": 99334,
+   "seconds": 28,
+   "note": "Titled 'Standing calf stretch'; from NHS inform's 'Exercises for calf and ankle problems' playlist.",
+   "cards": [
+    "army-calf-stretch",
+    "nhs-calf-stretch-flexibility-exercises",
+    "nhs-calf-stretch-how-to-stretch-after-exercising"
+   ]
+  },
+  {
+   "exercise": "Thigh (quadriceps) stretch",
+   "url": "https://www.youtube.com/watch?v=U_6sQ38wChM",
+   "title": "Standing quad stretch",
+   "channel": "NHS inform",
+   "tier": "body",
+   "confirmed": false,
+   "views": 49535,
+   "seconds": 15,
+   "note": "Titled 'Standing quad stretch'; from NHS inform's 'Exercises for thigh problems' playlist.",
+   "cards": [
+    "army-thigh-stretch",
+    "nhs-thigh-stretch"
+   ]
+  },
+  {
+   "exercise": "Inner thigh stretch",
+   "url": "https://www.youtube.com/watch?v=WsIs87By-a8",
+   "title": "Inner Thigh Stretch for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 357583,
+   "seconds": 103,
+   "note": "Titled 'Inner Thigh Stretch'; aimed at older adults.",
+   "cards": [
+    "nhs-inner-thigh-stretch"
+   ]
+  },
+  {
+   "exercise": "Neck stretch",
+   "url": "https://www.youtube.com/watch?v=DT1vnU3n6VQ",
+   "title": "Head tilt",
+   "channel": "NHS inform",
+   "tier": "body",
+   "confirmed": false,
+   "views": 206610,
+   "seconds": 23,
+   "note": "Titled 'Head tilt'; from NHS inform's 'Exercises for neck problems' playlist (siblings: 'Head turn' eme0i13WgTk, 'Forward head tilt' U8MQ_NHhd38).",
+   "cards": [
+    "nhs-neck-stretch"
+   ]
+  },
+  {
+   "exercise": "Buttock (glute) stretch",
+   "url": "https://www.youtube.com/watch?v=JR1rtQ-PF38",
+   "title": "Piriformis stretch",
+   "channel": "Royal Free London NHS Foundation Trust",
+   "tier": "body",
+   "confirmed": false,
+   "views": 947387,
+   "seconds": 48,
+   "note": "Titled 'Piriformis stretch' (a deep-buttock stretch); physiotherapy patient clip.",
+   "cards": [
+    "nhs-buttock-stretch"
+   ]
+  },
+  {
+   "exercise": "Chest stretch",
+   "url": "https://www.youtube.com/watch?v=BXVTnO8Rxjk",
+   "title": "Physical Activity Break - Chest Stretch",
+   "channel": "Veterans Health Administration",
+   "tier": "body",
+   "confirmed": false,
+   "views": 126950,
+   "seconds": 38,
+   "note": "Titled 'Physical Activity Break - Chest Stretch'; a short desk-break clip.",
+   "cards": [
+    "nhs-chest-stretch"
+   ]
+  },
+  {
+   "exercise": "Warm-up routine (5-6 minutes)",
+   "url": "https://www.youtube.com/watch?v=4QAxXiz5Blc",
+   "title": "Warm Up - Cancer rehabilitation exercise videos",
+   "channel": "RoyalUnitedHospitalBath NHS Foundation Trust",
+   "tier": "body",
+   "confirmed": false,
+   "views": 465,
+   "seconds": 380,
+   "note": "Titled 'Warm Up - Cancer rehabilitation exercise videos'; about 6 minutes; made for cancer-rehabilitation patients, so gentle.",
+   "cards": [
+    "nhs-heel-digs",
+    "nhs-knee-bends",
+    "nhs-knee-lifts",
+    "nhs-march-on-the-spot",
+    "nhs-shoulder-rolls"
+   ]
+  },
+  {
+   "exercise": "Chin-up or assisted pull-up",
+   "url": "https://www.youtube.com/watch?v=5rR_bzBc1NA",
+   "title": "Band Assisted Pull up",
+   "channel": "Jenny LaBaw",
+   "tier": "trainer",
+   "views": 150748,
+   "seconds": 41,
+   "note": "Titled 'Band Assisted Pull up' — a short single-exercise demonstration using a resistance band.",
+   "cards": [
+    "army-alternating-grip-pull-up",
+    "army-pull-up-climbing-drill-1",
+    "army-pull-up-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Kettlebell deadlift",
+   "url": "https://www.youtube.com/watch?v=aYZDE2t7Rrs",
+   "title": "Kettlebell Deadlift",
+   "channel": "E3 Rehab Exercise Library",
+   "tier": "trainer",
+   "views": 104780,
+   "seconds": 16,
+   "note": "Titled 'Kettlebell Deadlift'; a 16-second single-exercise demonstration from a physiotherapist-run exercise library; higher-viewed videos exist but on brand/media channels.",
+   "cards": [
+    "army-deadlift"
+   ]
+  },
+  {
+   "exercise": "Wall squat (wall sit)",
+   "url": "https://www.youtube.com/watch?v=lBsNH5vpCHI",
+   "title": "Wall Sit",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 136,
+   "seconds": 17,
+   "note": "Titled 'Wall Sit'; a very short silent-style clip from the Army's exercise library, aimed at soldiers.",
+   "cards": [
+    "nhs-wall-squats"
+   ]
+  },
+  {
+   "exercise": "Push-up (press-up)",
+   "url": "https://www.youtube.com/watch?v=3QCojSPcq80",
+   "title": "Preparation Exercise 10 - Push-Up",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 16645,
+   "seconds": 84,
+   "note": "Army Preparation Drill exercise 10, the push-up; done to Army cadence, aimed at soldiers.",
+   "cards": [
+    "army-push-up"
+   ]
+  },
+  {
+   "exercise": "Side bridge (side plank)",
+   "url": "https://www.youtube.com/watch?v=xc8RCfTteu0",
+   "title": "4 for the Core Exercise 2 - Side Bridge",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 28932,
+   "seconds": 94,
+   "note": "Army '4 for the Core' exercise 2, the side bridge; aimed at soldiers.",
+   "cards": [
+    "army-side-bridge"
+   ]
+  },
+  {
+   "exercise": "Back bridge (glute bridge)",
+   "url": "https://www.youtube.com/watch?v=Lm3vN7xq8B4",
+   "title": "4 for the Core Exercise 3 - Back Bridge",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 19534,
+   "seconds": 69,
+   "note": "Army '4 for the Core' exercise 3, the back bridge; aimed at soldiers.",
+   "cards": [
+    "army-back-bridge"
+   ]
+  },
+  {
+   "exercise": "Bird dog (Quadraplex)",
+   "url": "https://www.youtube.com/watch?v=LHlZxvSMLXU",
+   "title": "4 for the Core Exercise 4 - Quadraplex",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 11926,
+   "seconds": 67,
+   "note": "Army '4 for the Core' exercise 4, the Quadraplex (the Army's name for the bird dog).",
+   "cards": [
+    "army-quadraplex"
+   ]
+  },
+  {
+   "exercise": "Mountain climber",
+   "url": "https://www.youtube.com/watch?v=DT51nB9JcaY",
+   "title": "Conditioning Drill 1 Exercise 3 - Mountain Climber",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 25977,
+   "seconds": 63,
+   "note": "Army Conditioning Drill 1 exercise 3, the mountain climber; done to Army cadence.",
+   "cards": [
+    "army-mountain-climber"
+   ]
+  },
+  {
+   "exercise": "Rear lunge",
+   "url": "https://www.youtube.com/watch?v=0-ve7rHzu4M",
+   "title": "Preparation Drill Exercise 2 - Rear Lunge",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 39245,
+   "seconds": 76,
+   "note": "Army Preparation Drill exercise 2, the rear lunge; done to Army cadence.",
+   "cards": [
+    "army-rear-lunge-preparation-drill",
+    "army-rear-lunge-recovery-drill"
+   ]
+  },
+  {
+   "exercise": "Forward lunge",
+   "url": "https://www.youtube.com/watch?v=yVi8Wv7Tmv8",
+   "title": "Preparation Drill Exercise 7 - Forward Lunge",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 24827,
+   "seconds": 87,
+   "note": "Army Preparation Drill exercise 7, the forward lunge; done to Army cadence.",
+   "cards": [
+    "army-forward-lunge-preparation-drill",
+    "army-forward-lunge-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Pull-up",
+   "url": "https://www.youtube.com/watch?v=yFR5uQiZzQ0",
+   "title": "Strength Training Circuit Exercise 5 - Pull Up",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 1275,
+   "seconds": 54,
+   "note": "Army Strength Training Circuit exercise 5, the pull-up.",
+   "cards": [
+    "army-pull-up-climbing-drill-1",
+    "army-pull-up-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Dead hang / flexed-arm hang",
+   "url": "https://www.youtube.com/watch?v=Zm-APBpMawA",
+   "title": "Climbing Drill 2 Exercise 1 - Flexed Arm Hang",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 19084,
+   "seconds": 91,
+   "note": "Army Climbing Drill 2 exercise 1, the flexed-arm hang (not a straight-arm dead hang).",
+   "cards": [
+    "army-straight-arm-pull-climbing-drill-1",
+    "army-straight-arm-pull-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Leg tuck / hanging knee raise",
+   "url": "https://www.youtube.com/watch?v=vBj_uKGQc-8",
+   "title": "Climbing Drill 1 Exercise 4 - Leg Tuck",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 2940,
+   "seconds": 76,
+   "note": "Army Climbing Drill 1 exercise 4, the leg tuck, hanging from a bar.",
+   "cards": [
+    "army-leg-tuck-climbing-drill-1",
+    "army-leg-tuck-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Back squat",
+   "url": "https://www.youtube.com/watch?v=ySUkcc8ECUY",
+   "title": "Back Squat",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 182,
+   "seconds": 25,
+   "note": "Titled 'Back Squat'; a very short clip from the Army's exercise library.",
+   "cards": [
+    "army-back-squat"
+   ]
+  },
+  {
+   "exercise": "Front squat",
+   "url": "https://www.youtube.com/watch?v=j_whaDOZRX4",
+   "title": "Free Weight Assisted Exercise 15 - Front Squat",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 228,
+   "seconds": 167,
+   "note": "Army 'Free Weight Assisted Exercise 15 - Front Squat'.",
+   "cards": [
+    "army-front-squat"
+   ]
+  },
+  {
+   "exercise": "Deadlift",
+   "url": "https://www.youtube.com/watch?v=ILZWBTbBlZg",
+   "title": "Free Weight Assisted Exercise 16 - Deadlift",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 212,
+   "seconds": 105,
+   "note": "Army 'Free Weight Assisted Exercise 16 - Deadlift'; the Army's test uses a hex bar — which bar is shown was not checked.",
+   "cards": [
+    "army-deadlift"
+   ]
+  },
+  {
+   "exercise": "Romanian or straight-leg deadlift",
+   "url": "https://www.youtube.com/watch?v=SeZVrjAtu9I",
+   "title": "Free Weight Assisted Exercise 12 - Straight Leg Deadlift",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 315,
+   "seconds": 102,
+   "note": "Army 'Free Weight Assisted Exercise 12 - Straight Leg Deadlift' (the same channel also has a 20-second 'RDL' clip, tmN9dn2nr6M).",
+   "cards": [
+    "army-straight-leg-deadlift-free-weight-core-training",
+    "army-straight-leg-deadlift-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Sumo deadlift",
+   "url": "https://www.youtube.com/watch?v=IW2jbmxtbkE",
+   "title": "Free Weight Assisted Exercise 7 - Sumo Deadlift",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 377,
+   "seconds": 110,
+   "note": "Army 'Free Weight Assisted Exercise 7 - Sumo Deadlift'.",
+   "cards": [
+    "army-sumo-deadlift"
+   ]
+  },
+  {
+   "exercise": "Bench press",
+   "url": "https://www.youtube.com/watch?v=B0vhVW1neSY",
+   "title": "Free Weight Assisted Exercise 18 - Bench Press",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 204,
+   "seconds": 200,
+   "note": "Army 'Free Weight Assisted Exercise 18 - Bench Press'.",
+   "cards": [
+    "army-bench-press"
+   ]
+  },
+  {
+   "exercise": "Incline bench press",
+   "url": "https://www.youtube.com/watch?v=Oozj5TYWu9s",
+   "title": "Free Weight Assisted Exercise 17 - Incline Bench",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 119,
+   "seconds": 138,
+   "note": "Army 'Free Weight Assisted Exercise 17 - Incline Bench'.",
+   "cards": [
+    "army-incline-bench"
+   ]
+  },
+  {
+   "exercise": "Overhead press (push press)",
+   "url": "https://www.youtube.com/watch?v=JkJz6K1XEA4",
+   "title": "Free Weight Assisted Exercise 3 - Overhead Push Press",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 247,
+   "seconds": 108,
+   "note": "Army 'Free Weight Assisted Exercise 3 - Overhead Push Press'.",
+   "cards": [
+    "army-overhead-press"
+   ]
+  },
+  {
+   "exercise": "Bent-over row",
+   "url": "https://www.youtube.com/watch?v=nOSoxsBp94M",
+   "title": "Free Weight Assisted Exercise 6 - Bent Over Row",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 260,
+   "seconds": 98,
+   "note": "Army 'Free Weight Assisted Exercise 6 - Bent Over Row'.",
+   "cards": [
+    "army-bent-over-row-free-weight-assistive-training",
+    "army-bent-over-row-strength-training-circuit"
+   ]
+  },
+  {
+   "exercise": "Single-arm dumbbell row",
+   "url": "https://www.youtube.com/watch?v=eEAE4hXXAqE",
+   "title": "Free Weight Assisted Exercise 14 - Single Arm Bent Over Row",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 277,
+   "seconds": 88,
+   "note": "Army 'Free Weight Assisted Exercise 14 - Single Arm Bent Over Row'.",
+   "cards": [
+    "army-single-arm-bent-over-row"
+   ]
+  },
+  {
+   "exercise": "Upright row",
+   "url": "https://www.youtube.com/watch?v=9c6xWm2NpKs",
+   "title": "Free Weight Assisted Exercise 4 - Upright Row",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 245,
+   "seconds": 92,
+   "note": "Army 'Free Weight Assisted Exercise 4 - Upright Row'.",
+   "cards": [
+    "army-upright-row"
+   ]
+  },
+  {
+   "exercise": "Lateral raise",
+   "url": "https://www.youtube.com/watch?v=OgjDqlbDRrE",
+   "title": "Free Weight Assisted Exercise 1 - Bent Arm Lateral Raise",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 420,
+   "seconds": 78,
+   "note": "Army 'Free Weight Assisted Exercise 1 - Bent Arm Lateral Raise' — the bent-arm version.",
+   "cards": [
+    "army-lateral-raise"
+   ]
+  },
+  {
+   "exercise": "Shrug",
+   "url": "https://www.youtube.com/watch?v=kwgUSzGqq-g",
+   "title": "Free Weight Assisted Exercise 2 - Shrug",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 197,
+   "seconds": 90,
+   "note": "Army 'Free Weight Assisted Exercise 2 - Shrug'.",
+   "cards": [
+    "army-shrug"
+   ]
+  },
+  {
+   "exercise": "Pull-over",
+   "url": "https://www.youtube.com/watch?v=MQze5TeQdmI",
+   "title": "Free Weight Assisted Exercise 5 - Pullover",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 203,
+   "seconds": 97,
+   "note": "Army 'Free Weight Assisted Exercise 5 - Pullover'.",
+   "cards": [
+    "army-pull-over"
+   ]
+  },
+  {
+   "exercise": "Overhead triceps extension",
+   "url": "https://www.youtube.com/watch?v=N-vnorIff58",
+   "title": "Free Weight Assisted Exercise 9 - Overhead Triceps Extension",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 205,
+   "seconds": 77,
+   "note": "Army 'Free Weight Assisted Exercise 9 - Overhead Triceps Extension'.",
+   "cards": [
+    "army-overhead-triceps-extension"
+   ]
+  },
+  {
+   "exercise": "Biceps curl",
+   "url": "https://www.youtube.com/watch?v=4KndhX3j_HY",
+   "title": "Free Weight Assisted Exercise 8 Biceps Curl",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 223,
+   "seconds": 103,
+   "note": "Army 'Free Weight Assisted Exercise 8 Biceps Curl'.",
+   "cards": [
+    "army-biceps-curl"
+   ]
+  },
+  {
+   "exercise": "Heel (calf) raise",
+   "url": "https://www.youtube.com/watch?v=z03nZ9AmJBA",
+   "title": "Free Weight Assisted Exercise 13 - Heel Raise",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 230,
+   "seconds": 94,
+   "note": "Army 'Free Weight Assisted Exercise 13 - Heel Raise'.",
+   "cards": [
+    "army-heel-raise"
+   ]
+  },
+  {
+   "exercise": "Goblet or sumo squat with a kettlebell",
+   "url": "https://www.youtube.com/watch?v=ffZ_EBRpThM",
+   "title": "Strength Training Exercise 1 - Sumo Squat",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 11856,
+   "seconds": 117,
+   "note": "Army Strength Training Circuit exercise 1, the sumo squat (the circuit uses a kettlebell).",
+   "cards": [
+    "army-sumo-squat"
+   ]
+  },
+  {
+   "exercise": "Goblet or sumo squat with a kettlebell",
+   "url": "https://www.youtube.com/watch?v=-BXvjcLn7ag",
+   "title": "Goblet Squat",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 316,
+   "seconds": 20,
+   "note": "Titled 'Goblet Squat'; a very short clip from the Army's exercise library.",
+   "cards": [
+    "army-sumo-squat"
+   ]
+  },
+  {
+   "exercise": "Leg press",
+   "url": "https://www.youtube.com/watch?v=sXAE7SHWdBE",
+   "title": "Strength Training Machine Drill Exercise 1 - Leg Press",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 423,
+   "seconds": 132,
+   "note": "Army 'Strength Training Machine Drill Exercise 1 - Leg Press'.",
+   "cards": [
+    "army-leg-press"
+   ]
+  },
+  {
+   "exercise": "Leg curl",
+   "url": "https://www.youtube.com/watch?v=502As8fCXiI",
+   "title": "Strength Training Machine Drill Exercise 2 - Leg Curl",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 398,
+   "seconds": 167,
+   "note": "Army 'Strength Training Machine Drill Exercise 2 - Leg Curl'.",
+   "cards": [
+    "army-leg-curl"
+   ]
+  },
+  {
+   "exercise": "Lat pull-down",
+   "url": "https://www.youtube.com/watch?v=-ld4rShsq6M",
+   "title": "Strength Training Machine Drill Exercise 7 - Lat Pull Down",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 220,
+   "seconds": 113,
+   "note": "Army 'Strength Training Machine Drill Exercise 7 - Lat Pull Down'.",
+   "cards": [
+    "army-lat-pull-down"
+   ]
+  },
+  {
+   "exercise": "Seated row",
+   "url": "https://www.youtube.com/watch?v=6lUYCz6Kvq0",
+   "title": "Strength Training Machine Drill Exercise 5 - Seated Row",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 526,
+   "seconds": 102,
+   "note": "Army 'Strength Training Machine Drill Exercise 5 - Seated Row'.",
+   "cards": [
+    "army-seated-row"
+   ]
+  },
+  {
+   "exercise": "Chest press machine",
+   "url": "https://www.youtube.com/watch?v=bK3LMrm_LvA",
+   "title": "Strength Training Machine Drill Exercise 4 - Chest Press",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 157,
+   "seconds": 147,
+   "note": "Army 'Strength Training Machine Drill Exercise 4 - Chest Press'.",
+   "cards": [
+    "army-chest-press"
+   ]
+  },
+  {
+   "exercise": "Shoulder press machine",
+   "url": "https://www.youtube.com/watch?v=ACGuV0XpaWw",
+   "title": "Strength Training Machine Drill Exercise 6 - Overhead Press",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 110,
+   "seconds": 129,
+   "note": "Army 'Strength Training Machine Drill Exercise 6 - Overhead Press'.",
+   "cards": [
+    "army-overhead-press"
+   ]
+  },
+  {
+   "exercise": "Triceps push-down/extension",
+   "url": "https://www.youtube.com/watch?v=HmDxETu-C20",
+   "title": "Strength Training Machine Drill Exercise 9 - Triceps Extension",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 170,
+   "seconds": 139,
+   "note": "Army 'Strength Training Machine Drill Exercise 9 - Triceps Extension'.",
+   "cards": [
+    "army-triceps-extension"
+   ]
+  },
+  {
+   "exercise": "Trunk flexion (ab crunch) machine",
+   "url": "https://www.youtube.com/watch?v=wL70MQsYHbE",
+   "title": "Strength Training Machine Drill Exercise 11 - Trunk Flexion",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 608,
+   "seconds": 87,
+   "note": "Army 'Strength Training Machine Drill Exercise 11 - Trunk Flexion'.",
+   "cards": [
+    "army-trunk-flexion"
+   ]
+  },
+  {
+   "exercise": "Back extension machine",
+   "url": "https://www.youtube.com/watch?v=bVpPtECVnoU",
+   "title": "Strength Training Machine Drill Exercise 12 - Trunk Extension",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 383,
+   "seconds": 94,
+   "note": "Army 'Strength Training Machine Drill Exercise 12 - Trunk Extension'.",
+   "cards": [
+    "army-trunk-extension"
+   ]
+  },
+  {
+   "exercise": "Preparation Drill",
+   "url": "https://www.youtube.com/watch?v=s6HlWmhyHy4",
+   "title": "Preparation Drill",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 1337396,
+   "seconds": 479,
+   "note": "The whole 10-exercise drill in one video. Per-exercise videos are on the 'U.S. Army Holistic Health and Fitness' channel.",
+   "groups": [
+    "Preparation Drill"
+   ]
+  },
+  {
+   "exercise": "Four for the Core",
+   "url": "https://www.youtube.com/watch?v=-Td3JecGhIg",
+   "title": "4 For The Core",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 397644,
+   "seconds": 433,
+   "note": "The whole drill in one video.",
+   "groups": [
+    "Four for the Core"
+   ]
+  },
+  {
+   "exercise": "Hip Stability Drill",
+   "url": "https://www.youtube.com/watch?v=PNNFF3YdIMs",
+   "title": "The Hip Stability Drill",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 221656,
+   "seconds": 443,
+   "note": "The whole drill in one video.",
+   "groups": [
+    "Hip Stability Drill"
+   ]
+  },
+  {
+   "exercise": "Shoulder Stability Drill",
+   "url": "https://www.youtube.com/watch?v=23H5aUgsTGg",
+   "title": "Shoulder Stability Drill",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 71382,
+   "seconds": 266,
+   "note": "The whole drill in one video.",
+   "groups": [
+    "Shoulder Stability Drill"
+   ]
+  },
+  {
+   "exercise": "Conditioning Drill 1",
+   "url": "https://www.youtube.com/watch?v=znURygmJ3eQ",
+   "title": "Conditioning Drill 1",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 483584,
+   "seconds": 184,
+   "note": "The whole drill in one video.",
+   "groups": [
+    "Conditioning Drill 1"
+   ]
+  },
+  {
+   "exercise": "Climbing Drill 1",
+   "url": "https://www.youtube.com/watch?v=ipaam59FoL8",
+   "title": "Climbing Drill 1",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 42580,
+   "seconds": 416,
+   "note": "The whole drill in one video.",
+   "groups": [
+    "Climbing Drill 1"
+   ]
+  },
+  {
+   "exercise": "Recovery Drill",
+   "url": "https://www.youtube.com/watch?v=Fm9-lRXBxGY",
+   "title": "Recovery Drill",
+   "channel": "US Army Physical Fitness School",
+   "tier": "body",
+   "confirmed": false,
+   "views": 464787,
+   "seconds": 386,
+   "note": "The whole drill in one video.",
+   "groups": [
+    "Recovery Drill"
+   ]
+  }
+ ]
 }

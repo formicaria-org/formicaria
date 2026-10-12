@@ -806,5 +806,13 @@ fn the_carried_exercises_read_and_are_whole() {
         assert!(url.starts_with("https://www.youtube.com/watch?v="), "{url}");
         assert!(["body", "trainer"].contains(&v["tier"].as_str().unwrap()), "{url}");
         assert!(!v["channel"].as_str().unwrap().is_empty(), "{url}");
+        // Each film says which cards it is of, by ids that exist, or which drill.
+        let of_cards = v["cards"].as_array().map(|c| c.len()).unwrap_or(0);
+        let of_drills = v["groups"].as_array().map(|c| c.len()).unwrap_or(0);
+        assert!(of_cards + of_drills > 0, "{url} is of no card");
+        for c in v["cards"].as_array().into_iter().flatten() {
+            assert!(ids.contains(c.as_str().unwrap()), "{url} names a card that is not there");
+        }
     }
+    assert!(lib["videos"].as_array().unwrap().len() >= 50);
 }

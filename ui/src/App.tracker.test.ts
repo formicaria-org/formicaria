@@ -521,7 +521,7 @@ test('an exercise card shows how it is done in its source’s words, credited, a
   expect(within(card).getByText(/Written for soldiers, and shown as written/)).toBeTruthy();
   // A trainer's video is said to be a trainer's, with its views.
   expect(
-    within(card).getByText(/a trainer’s channel — no known body’s video was found/),
+    within(card).getByText(/a trainer’s channel — no known body’s film was found/),
   ).toBeTruthy();
   await fireEvent.click(within(card).getByRole('button', { name: 'Add to today’s session' }));
   const sheet = await screen.findByRole('dialog', { name: 'add to the session' });
