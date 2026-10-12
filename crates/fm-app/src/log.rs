@@ -69,6 +69,30 @@ pub struct MetricSum {
     /// How many carried something that is not one (`12.5`). Reported, never added, never dropped.
     #[serde(skip_serializing_if = "is_zero")]
     pub odd: usize,
+    /// The least and the most the sum could be, when some entry's amount is a range
+    /// ([`AMOUNT_MIN`]). Absent when every amount is one number.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub low: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub high: Option<i64>,
+}
+
+/// How much of a food an entry is, in grams — and, when the person only knows it roughly, the
+/// least and the most it could be (`decisions.md#data`, 2026-10-12, *an amount may be a range*).
+/// **Every value of a food scales with its amount**, so the two bounds are all an entry has to
+/// carry: a value's least is the value × least ÷ amount, and no nutrient is stored twice.
+pub const AMOUNT: &str = "amount_g";
+pub const AMOUNT_MIN: &str = "amount_min_g";
+pub const AMOUNT_MAX: &str = "amount_max_g";
+
+/// `(amount, least, most)` when an entry's amount is a range that holds its amount.
+fn range_of(o: &Object) -> Option<(i64, i64, i64)> {
+    let int = |k: &str| match o.get(k) {
+        PropertyValue::Int(v) if v > 0 => Some(v),
+        _ => None,
+    };
+    let (amount, min, max) = (int(AMOUNT)?, int(AMOUNT_MIN)?, int(AMOUNT_MAX)?);
+    (min <= amount && amount <= max && min < max).then_some((amount, min, max))
 }
 fn is_zero(n: &usize) -> bool {
     *n == 0
@@ -84,6 +108,39 @@ pub struct DayTotals {
     pub targets: BTreeMap<String, i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rows: Option<Vec<ObjectMeta>>,
+    /// When the day's entries were, for those that carry a time: how many separate occasions,
+    /// and the first and the last (`HH:MM`). `None` when no counted entry has a time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub times: Option<DayTimes>,
+}
+
+/// The times of a day's entries.
+///
+/// **An occasion is a run of entries less than 15 minutes apart** — the rule of Gill and Panda
+/// (*Cell Metab* 2015;22:789), one of several in use (`sources-2026-10-11.md` §6c). It is a count
+/// of what happened; no body gives a number to reach.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct DayTimes {
+    pub occasions: usize,
+    pub first: String,
+    pub last: String,
+}
+
+/// Minutes apart below which two entries are one occasion.
+pub const OCCASION_GAP_MIN: i64 = 15;
+
+/// The minute of the day an entry was at, when it carries a time.
+pub fn minute_of(o: &Object) -> Option<i64> {
+    o.start.and_then(|s| s.time).map(|t| i64::from(t.hour()) * 60 + i64::from(t.minute()))
+}
+
+fn day_times(counted: &[Object]) -> Option<DayTimes> {
+    let mut at: Vec<i64> = counted.iter().filter_map(minute_of).collect();
+    at.sort_unstable();
+    let (first, last) = (*at.first()?, *at.last()?);
+    let occasions = 1 + at.windows(2).filter(|w| w[1] - w[0] >= OCCASION_GAP_MIN).count();
+    let clock = |m: i64| format!("{:02}:{:02}", m / 60, m % 60);
+    Some(DayTimes { occasions, first: clock(first), last: clock(last) })
 }
 
 #[derive(Debug, Serialize)]
@@ -171,9 +228,28 @@ pub fn log_days(
             .iter()
             .map(|k| {
                 let t = tallied.tallies.get(k).cloned().unwrap_or_default();
-                (k.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd })
+                (k.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd, low: None, high: None })
             })
             .collect();
+        if counted.iter().any(|o| range_of(o).is_some()) {
+            for (key, got) in sums.iter_mut() {
+                let (mut low, mut high) = (0i64, 0i64);
+                for o in &counted {
+                    let PropertyValue::Int(v) = o.get(key) else { continue };
+                    match range_of(o) {
+                        Some((amount, min, max)) => {
+                            low = low.saturating_add(v.saturating_mul(min) / amount);
+                            high = high.saturating_add(v.saturating_mul(max) / amount);
+                        }
+                        None => {
+                            low = low.saturating_add(v);
+                            high = high.saturating_add(v);
+                        }
+                    }
+                }
+                (got.low, got.high) = (Some(low), Some(high));
+            }
+        }
         let others = beside.remove(&day).unwrap_or_default();
         for m in &def.metrics {
             let Some(l) = m.log.as_deref().filter(|l| *l != def.log) else { continue };
@@ -185,7 +261,10 @@ pub fn log_days(
                     .get(&m.key)
                     .cloned()
                     .unwrap_or_default();
-            sums.insert(m.key.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd });
+            sums.insert(
+                m.key.clone(),
+                MetricSum { sum: t.sum, n: t.n, odd: t.odd, low: None, high: None },
+            );
         }
         days.push(DayTotals {
             day: day_string(day),
@@ -193,6 +272,7 @@ pub fn log_days(
             sums,
             targets: targets_on(&programs, day, &keys),
             rows: rows.then(|| all.iter().map(ObjectMeta::from).collect()),
+            times: day_times(&counted),
         });
         if day >= to {
             break;
@@ -390,7 +470,7 @@ pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, St
             .iter()
             .map(|k| {
                 let t = tallied.tallies.get(k).cloned().unwrap_or_default();
-                (k.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd })
+                (k.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd, low: None, high: None })
             })
             .collect();
         out.push(Recipe {

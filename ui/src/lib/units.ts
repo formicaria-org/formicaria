@@ -98,6 +98,15 @@ export function dayString(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 export const today = () => dayString(new Date());
+/** The time it is, as an entry's moment carries it: `HH:MM`. */
+export function nowClock(at = new Date()): string {
+  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+}
+/** The time an entry's moment carries (`2026-10-12T13:05` → `13:05`), or nothing. */
+export const clockOf = (start: string | null | undefined): string =>
+  start && start.length > 10 ? start.slice(11, 16) : '';
+/** The day of an entry's moment. */
+export const dayOf = (start: string | null | undefined): string => (start ?? '').slice(0, 10);
 function parse(day: string): Date {
   const [y, m, d] = day.split('-').map(Number);
   return new Date(y, m - 1, d, 12); // noon, so a clock change never moves the date

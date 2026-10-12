@@ -130,7 +130,7 @@ test('removing an entry takes it out of the day and offers to put it back', asyn
   await fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
 
   const said = await screen.findByText(/^Removed “Oats, rolled”$/);
-  expect(screen.queryByText('Oats, rolled')).toBeNull();
+  await waitFor(() => expect(screen.queryByText('Oats, rolled')).toBeNull());
   await fireEvent.click(
     within(said.parentElement as HTMLElement).getByRole('button', { name: 'Undo' }),
   );
@@ -307,4 +307,51 @@ test('a session is kept as a routine for some weekdays, and planned again from i
   await waitFor(() =>
     expect(screen.queryByRole('button', { name: 'change the routine Legs' })).toBeNull(),
   );
+});
+
+test('the day says whether it follows the diet, and what is off', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+  const bar = await screen.findByRole('group', { name: 'Food' });
+  // Follow the WHO option from the Diet tab…
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Diet' }));
+  await fireEvent.click(await screen.findByRole('button', { name: /WHO healthy diet/ }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'Follow this' }));
+  await screen.findByRole('button', { name: 'Stop following' });
+  // …and the Day screen names it, with nothing to say until something is logged.
+  const again = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(again).getByRole('button', { name: 'Day' }));
+  const diet = await screen.findByRole('region', { name: 'today against what you follow' });
+  expect(within(diet).getByRole('heading', { name: 'WHO healthy diet' })).toBeTruthy();
+  expect(within(diet).getByText('nothing logged yet')).toBeTruthy();
+});
+
+test('every nutrient of the day is one press from the day screen, each beside its reference', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(await screen.findByRole('button', { name: 'All nutrients' }));
+  const sheet = await screen.findByRole('dialog', { name: 'all nutrients' });
+  expect(await within(sheet).findByText('Calcium')).toBeTruthy();
+  // The sex is not known, so what differs by it is left out and the sheet says why.
+  expect(within(sheet).getByText(/differ for men and women/)).toBeTruthy();
+  expect(within(sheet).getByText(/European Food Safety Authority/)).toBeTruthy();
+});
+
+test('an amount known only roughly is kept as a range, and the day says between what and what', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(await screen.findByText('Oats, rolled'));
+  await fireEvent.click(await screen.findByRole('button', { name: 'Not sure of the amount?' }));
+  const grams = Number((screen.getByLabelText('amount in grams') as HTMLInputElement).value);
+  await fireEvent.input(screen.getByLabelText('At least (g)'), { target: { value: grams - 10 } });
+  await fireEvent.input(screen.getByLabelText('At most (g)'), { target: { value: grams + 10 } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText(/^between .* and .* kcal$/)).toBeTruthy();
+  expect(screen.getByText(new RegExp(`^${grams - 10}–${grams + 10} g$`))).toBeTruthy();
 });

@@ -78,6 +78,8 @@ pub struct Guide {
 /// - `sets`: how many sets the week had in `regions`.
 /// - `region_days`: on how many days each of `regions` was trained — the least of them.
 /// - `kept`: how many days of the week the person said they kept to it.
+/// - `fast`: the minutes without eating that ended on a day — from the last entry with energy
+///   the day before to the first that day, by the times the entries carry.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Check {
     pub id: String,
@@ -480,6 +482,8 @@ struct Week<'a> {
     /// The counted entries of the group's log, by day of the week.
     entries: [Vec<&'a Object>; 7],
     kept: [bool; 7],
+    /// The counted entries of the day before the week's Monday: a night's fast starts there.
+    eve: Vec<&'a Object>,
     /// Up to which day of the week there is anything to say (the day asked about).
     upto: usize,
 }
@@ -563,6 +567,28 @@ fn measure(check: &Check, bound: Bound, energy: Option<i64>, w: &Week) -> CheckP
                 .collect(),
         ),
         "kept" => ("days".into(), "week", w.kept.iter().map(|k| k.then_some(1)).collect()),
+        // The minutes from the last thing eaten the day before to the first thing eaten that
+        // day. Only entries with a time, and with energy: "calorie containing (≥5 kcal)" is what
+        // an eating event is in Gill and Panda 2015, and the consensus definition counts "food
+        // intake and the consumption of caloric beverages". A day or an eve with no such entry
+        // has nothing to measure.
+        "fast" => {
+            let eats = |list: &[&Object]| -> Vec<i64> {
+                list.iter()
+                    .filter(|o| int_of(o, "kcal").is_some_and(|k| k >= 5))
+                    .filter_map(|o| crate::log::minute_of(o))
+                    .collect()
+            };
+            let days = (0..7)
+                .map(|d| {
+                    let before = if d == 0 { eats(&w.eve) } else { eats(&w.entries[d - 1]) };
+                    let last = before.into_iter().max()?;
+                    let first = eats(&w.entries[d]).into_iter().min()?;
+                    Some(24 * 60 - last + first)
+                })
+                .collect();
+            ("duration".into(), "day", days)
+        }
         _ => (String::new(), "week", vec![None; 7]),
     };
 
@@ -626,6 +652,8 @@ pub fn plan_progress(store: &dyn Store, group: &str, day: &str) -> Result<Progre
     let mut programs: Vec<&Object> = Vec::new();
     let mut entries: [Vec<&Object>; 7] = Default::default();
     let mut kept_notes: Vec<&Object> = Vec::new();
+    let mut eve: Vec<&Object> = Vec::new();
+    let sunday_before = monday - Duration::days(1);
     for o in &rows {
         if is_template(o) || is_message(o) || is_proposal(o) {
             continue;
@@ -636,6 +664,9 @@ pub fn plan_progress(store: &dyn Store, group: &str, day: &str) -> Result<Progre
                 programs.push(o);
             }
             continue;
+        }
+        if o.start.is_some_and(|s| s.date == sunday_before) && kind == log && !is_planned(o) {
+            eve.push(o);
         }
         let Some(at) = o.start.map(|s| s.date).filter(|d| *d >= monday && *d <= sunday) else {
             continue;
@@ -680,7 +711,7 @@ pub fn plan_progress(store: &dyn Store, group: &str, day: &str) -> Result<Progre
             out.kept_today = Some(k.id.to_string());
         }
     }
-    let week = Week { days, entries, kept, upto: (day - monday).whole_days() as usize };
+    let week = Week { days, entries, kept, eve, upto: (day - monday).whole_days() as usize };
     let _ = &week.days;
     let energy = int_of(note, ENERGY);
     out.checks = plan
@@ -751,8 +782,18 @@ mod tests {
             for c in &p.checks {
                 assert!(checks.insert(&c.id), "{}/{} is listed twice", p.id, c.id);
                 assert!(
-                    ["sum", "share", "low_days", "minutes", "days", "sets", "region_days", "kept"]
-                        .contains(&c.kind.as_str()),
+                    [
+                        "sum",
+                        "share",
+                        "low_days",
+                        "minutes",
+                        "days",
+                        "sets",
+                        "region_days",
+                        "kept",
+                        "fast"
+                    ]
+                    .contains(&c.kind.as_str()),
                     "{}/{} is of a kind nothing measures: {}",
                     p.id,
                     c.id,

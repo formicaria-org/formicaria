@@ -584,6 +584,9 @@ export interface MetricSum {
   n: number;
   /** How many entries carried something that is not a whole number. Absent when none did. */
   odd?: number;
+  /** The least and the most the sum could be, when some entry's amount is a range. */
+  low?: number;
+  high?: number;
 }
 export interface DayTotals {
   /** `YYYY-MM-DD`. */
@@ -594,6 +597,9 @@ export interface DayTotals {
   /** The targets in force that day, by metric key. Empty when there is no program. */
   targets: Record<string, number>;
   rows?: ObjectMeta[];
+  /** When the day's entries were, for those that carry a time. Entries less than 15 minutes
+   *  apart are one occasion. */
+  times?: { occasions: number; first: string; last: string };
 }
 export interface LogDays {
   days: DayTotals[];
@@ -617,6 +623,28 @@ export interface Recipe {
   /** The whole recipe, per value: the sum, and how many ingredients carried it. */
   sums: Record<string, MetricSum>;
   ingredients: ObjectMeta[];
+}
+/** One vitamin or mineral of a day beside its reference (`log_nutrients`). */
+export interface NutrientRow {
+  key: string;
+  label: string;
+  sum: number;
+  /** How many of the day's entries carried the value. */
+  n: number;
+  /** The reference for this person, in the key's own unit, when there is one figure. */
+  reference?: number;
+  /** `PRI` or `AI` in EFSA's terms; empty when the row has only a limit. */
+  kind: string;
+  upper?: number;
+  note?: string;
+}
+export interface Nutrients {
+  day: string;
+  of: number;
+  rows: NutrientRow[];
+  /** The person's sex is not known, so references that differ by it are left out. */
+  needs_sex: boolean;
+  entries: ObjectMeta[];
 }
 /** A session kept under a name, to plan again on the days it is meant for (`log_routines`). */
 export interface Routine {
@@ -790,7 +818,8 @@ export interface PlanGuide {
 export interface PlanCheck {
   id: string;
   label: string;
-  kind: 'sum' | 'share' | 'low_days' | 'minutes' | 'days' | 'sets' | 'region_days' | 'kept';
+  kind:
+    'sum' | 'share' | 'low_days' | 'minutes' | 'days' | 'sets' | 'region_days' | 'kept' | 'fast';
   key?: string;
   min?: number;
   max?: number;

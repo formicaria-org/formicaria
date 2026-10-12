@@ -13,8 +13,15 @@
   import Meter from '../lib/charts/Meter.svelte';
   import Icon from '../lib/Icon.svelte';
   import { dur, tween } from '../lib/charts/motion';
-  import { show, showWith, whole, dayLabel, dayLetter, dayNumber } from '../lib/units';
-  import type { DayTotals, ObjectMeta, TotalsDef } from '../lib/types';
+  import { clockOf, show, showWith, whole, dayLabel, dayLetter, dayNumber } from '../lib/units';
+  import { dayAgainst, gap, shownAsk, shownValue } from '../lib/plan/measure';
+  import type {
+    DayTotals,
+    ObjectMeta,
+    PlanCheckProgress,
+    PlanProgress,
+    TotalsDef,
+  } from '../lib/types';
 
   interface Props {
     def: TotalsDef;
@@ -34,6 +41,11 @@
     ontargets?: () => void;
     /** A planned entry happened: count it. Offered only when its owner can do it. */
     onconfirm?: (row: ObjectMeta) => void;
+    /** The day against what the person follows, when they follow something
+     *  (`decisions.md#ui`, 2026-10-12, *the day says whether it follows the diet*). */
+    plan?: PlanProgress | null;
+    /** Open every vitamin and mineral of the day. Offered only when its owner can show them. */
+    onnutrients?: () => void;
   }
   let {
     def,
@@ -48,7 +60,26 @@
     oncopy,
     ontargets,
     onconfirm,
+    plan = null,
+    onnutrients,
   }: Props = $props();
+
+  const against = $derived(plan?.plan ? dayAgainst(plan.checks) : null);
+  /// Which check is opened to show what made it up.
+  let opened = $state<string | null>(null);
+  /// The day's entries that put most into a check's value — for a check of one value.
+  function makers(c: PlanCheckProgress): { title: string; text: string }[] {
+    const key = plan?.plan?.checks.find((x) => x.id === c.id)?.key;
+    if (!key) return [];
+    return (day?.rows ?? [])
+      .filter((r) => !r.props.planned && (whole(r.props[key]) ?? 0) > 0)
+      .sort((a, b) => (whole(b.props[key]) ?? 0) - (whole(a.props[key]) ?? 0))
+      .slice(0, 3)
+      .map((r) => ({
+        title: r.title ?? 'Untitled',
+        text: showWith(key, whole(r.props[key]) ?? 0),
+      }));
+  }
 
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
   const secondary = $derived(def.metrics.filter((m) => m.role === 'secondary'));
@@ -91,11 +122,25 @@
   ]);
   const slotSum = (list: ObjectMeta[]) =>
     list.reduce((t, r) => t + (r.props.planned ? 0 : (whole(r.props[primary.key]) ?? 0)), 0);
+  /// An entry's amount — and, when it is only known roughly, the least and the most it could be.
   const amountOf = (r: ObjectMeta) => {
-    const k = Object.keys(r.props).find((p) => p.startsWith('amount_'));
+    const k = Object.keys(r.props).find((p) => /^amount_(?!min_|max_)/.test(p));
     const v = k ? whole(r.props[k]) : null;
-    return k && v !== null ? showWith(k, v) : '';
+    if (!k || v === null) return '';
+    const unit = k.slice('amount_'.length);
+    const min = whole(r.props[`amount_min_${unit}`]);
+    const max = whole(r.props[`amount_max_${unit}`]);
+    return min !== null && max !== null && min < max
+      ? `${show(k, min).text}–${showWith(k, max)}`
+      : showWith(k, v);
   };
+  /// The least and the most the day's first value could be, when an amount was a range.
+  const between = $derived.by(() => {
+    const got = day?.sums[primary.key];
+    return got?.low !== undefined && got?.high !== undefined && got.low < got.high
+      ? `between ${show(primary.key, got.low).text} and ${showWith(primary.key, got.high)}`
+      : '';
+  });
 
   let stripEl = $state<HTMLElement | null>(null);
   $effect(() => {
@@ -182,6 +227,7 @@
         {:else}
           {primary.label}
         {/if}
+        {#if between}<span class="between">{between}</span>{/if}
         {#if ontargets}
           <button type="button" class="targets" onclick={ontargets}>
             {target > 0 ? 'Change' : 'Set a target'}
@@ -209,6 +255,78 @@
     </div>
   </section>
 
+  {#if against && plan?.plan}
+    <section class="diet" aria-label="today against what you follow">
+      <header>
+        <h3>{plan.plan.name}</h3>
+        <span class="tally">
+          {#if against.nothing}
+            nothing logged yet
+          {:else if against.daily}
+            {against.met} of {against.daily} met today
+          {/if}
+        </span>
+      </header>
+      {#if against.daily && !against.nothing && !against.off.length}
+        <p class="fine">Today is within everything it asks of a day.</p>
+      {/if}
+      {#if against.off.length}
+        <ul>
+          {#each against.off as c (c.id)}
+            {@const from = makers(c)}
+            <li>
+              <button
+                type="button"
+                class="off"
+                aria-expanded={opened === c.id}
+                onclick={() => (opened = opened === c.id ? null : c.id)}
+              >
+                <span class="what">{c.label}</span>
+                <span class="now"
+                  >{c.value !== undefined && c.value !== null ? shownValue(c, c.value) : ''}
+                  <span class="sub">· {shownAsk(c)}</span></span
+                >
+                <span class="gap" class:over={c.state === 'over'}>{gap(c)}</span>
+              </button>
+              {#if opened === c.id}
+                <div class="why">
+                  {#if from.length}
+                    <p>Most of it today came from:</p>
+                    <ul>
+                      {#each from as f (f.title + f.text)}
+                        <li><span>{f.title}</span><span>{f.text}</span></li>
+                      {/each}
+                    </ul>
+                  {:else}
+                    <p>It is worked out from the whole day, not from one value of each entry.</p>
+                  {/if}
+                  <p class="basis">{c.basis}</p>
+                </div>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#each against.weekly as c (c.id)}
+        <p class="weekly">
+          {c.label}: {c.value !== undefined && c.value !== null
+            ? shownValue(c, c.value)
+            : 'nothing yet'}
+          <span class="sub">· {shownAsk(c)}</span>
+        </p>
+      {/each}
+    </section>
+  {/if}
+  {#if day?.times}
+    <p class="times">
+      {day.times.occasions === 1 ? 'Once' : `${day.times.occasions} times`}
+      {#if day.times.first === day.times.last}
+        · at {day.times.first}
+      {:else}
+        · first at {day.times.first} · last at {day.times.last}
+      {/if}
+    </p>
+  {/if}
   {#each slots as s (s.value)}
     {@const list = bySlot.get(s.value) ?? []}
     <section class="slot">
@@ -229,7 +347,11 @@
           {#each list as r (r.id)}
             <li in:slide={{ duration: dur(220) }} class:planned={!!r.props.planned}>
               <button type="button" class="entry" onclick={() => onedit(r)}>
-                <span class="title">{r.title ?? 'Untitled'}</span>
+                <span class="title"
+                  >{r.title ?? 'Untitled'}{#if clockOf(r.start)}<span class="at"
+                      >{clockOf(r.start)}</span
+                    >{/if}</span
+                >
                 <span class="amount">{amountOf(r)}</span>
                 <span class="value">{show(primary.key, whole(r.props[primary.key]) ?? 0).text}</span
                 >
@@ -278,6 +400,9 @@
           </div>
         {/each}
       </dl>
+      {#if onnutrients}
+        <button type="button" class="more" onclick={onnutrients}>All nutrients</button>
+      {/if}
     </section>
   {/if}
 </div>
@@ -599,5 +724,125 @@
       gap: var(--space-3);
       padding: var(--space-3);
     }
+  }
+  .times {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    text-align: center;
+  }
+  .at {
+    margin-left: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .diet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+  .diet header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .diet h3 {
+    margin: 0;
+    font-size: var(--text-md);
+  }
+  .diet .tally,
+  .diet .fine,
+  .diet .weekly,
+  .diet .basis {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .diet ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .diet > ul > li {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .why ul li {
+    display: flex;
+    padding: 0;
+    border: 0;
+  }
+  .off {
+    width: 100%;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 var(--space-2);
+    align-items: baseline;
+    min-height: 2.75rem;
+    padding: var(--space-2);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-hover);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .off .what {
+    font-weight: 600;
+  }
+  .off .now {
+    grid-column: 1;
+    font-size: var(--text-sm);
+  }
+  .off .gap {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .off .gap.over {
+    color: var(--danger-fg);
+  }
+  .why {
+    padding: var(--space-2);
+    font-size: var(--text-sm);
+  }
+  .why p {
+    margin: 0 0 var(--space-1);
+  }
+  .why li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .more {
+    align-self: flex-start;
+    min-height: 2.75rem;
+    margin-top: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .between {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 </style>

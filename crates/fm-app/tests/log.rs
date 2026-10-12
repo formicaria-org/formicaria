@@ -583,3 +583,105 @@ fn a_routine_is_its_note_and_its_sets_and_is_in_no_day() {
     let r = log_days(&s, &session, "2026-10-01", "2026-10-12", false).unwrap();
     assert!(r.days.iter().all(|d| d.of == 0));
 }
+
+/// An entry may carry a time. It is still its day's, and the day then says when its entries were:
+/// how many occasions (entries less than 15 minutes apart are one), the first and the last.
+#[test]
+fn a_day_says_when_its_entries_were_when_they_carry_a_time() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            food("Oats", "2026-10-11T07:30", "breakfast", 228, 0),
+            food("Milk", "2026-10-11T07:40", "breakfast", 90, 0),
+            food("Rice", "2026-10-11T13:05", "lunch", 205, 0),
+            food("Apple", "2026-10-11", "snack", 52, 0),
+            food("Soup", "2026-10-12", "lunch", 120, 0),
+        ],
+    )
+    .unwrap();
+    let r = log_days(&s, &day_view(), "2026-10-11", "2026-10-12", true).unwrap();
+    assert_eq!((r.days[0].of, r.days[0].sums["kcal"].sum), (4, 575));
+    let t = r.days[0].times.as_ref().unwrap();
+    assert_eq!((t.occasions, t.first.as_str(), t.last.as_str()), (2, "07:30", "13:05"));
+    assert_eq!(r.days[0].rows.as_ref().unwrap()[0].start.as_deref(), Some("2026-10-11T07:30"));
+    assert!(r.days[1].times.is_none(), "no entry of that day has a time");
+}
+
+/// Every vitamin and mineral of a day beside the figure a named body gives: by the person's sex
+/// where it differs, by the day's energy where the source says so, and left out where the
+/// source gives no single figure.
+#[test]
+fn a_days_nutrients_are_set_beside_the_reference_for_the_person() {
+    use fm_app::nutrients::log_nutrients;
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Peppers",
+                "2026-10-11",
+                json!({ "log": "food", "kcal": 1000, "vitamin_c_ug": 60_000, "iron_ug": 4_000 }),
+            ),
+            draft("Bread", "2026-10-11", json!({ "log": "food", "kcal": 1000 })),
+            draft("Tomorrow", "2026-10-11", json!({ "log": "food", "kcal": 9, "planned": 1 })),
+        ],
+    )
+    .unwrap();
+    let before = log_nutrients(&s, &day_view(), "2026-10-11").unwrap();
+    let row = |n: &fm_app::nutrients::Nutrients, key: &str| {
+        let r = n.rows.iter().find(|r| r.key == key).unwrap();
+        (r.sum, r.n, r.reference)
+    };
+    assert!(before.needs_sex);
+    assert_eq!(before.of, 2);
+    // It differs by sex and the sex is not known: no figure, rather than a guess.
+    assert_eq!(row(&before, "vitamin_c_ug"), (60_000, 1, None));
+    // The same for everybody.
+    assert_eq!(row(&before, "folate_dfe_ug"), (0, 0, Some(330)));
+    // 2,000 kcal is 8.368 MJ; 0.1 mg of thiamin for each.
+    assert_eq!(row(&before, "thiamin_ug").2, Some(836));
+    assert_eq!(row(&before, "zinc_ug").2, None);
+
+    create_notes(
+        &mut s,
+        "",
+        &[draft("About me", "", json!({ "profile": "me", "sex": "female", "born": 2004 }))],
+    )
+    .unwrap();
+    let after = log_nutrients(&s, &day_view(), "2026-10-11").unwrap();
+    assert!(!after.needs_sex);
+    assert_eq!(row(&after, "vitamin_c_ug").2, Some(95_000));
+    assert_eq!(row(&after, "iron_ug"), (4_000, 1, Some(16_000)));
+    assert_eq!(row(&after, "calcium_ug").2, Some(1_000_000), "22 years old: the higher figure");
+}
+
+/// An amount known only roughly: the entry keeps its amount and a least and a most, and the day's
+/// total then says the least and the most it could be — every value scaled by the same two.
+#[test]
+fn an_amount_given_as_a_range_gives_the_day_a_low_and_a_high() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Olive oil",
+                "2026-10-11",
+                json!({ "log": "food", "slot": "lunch", "amount_g": 20, "amount_min_g": 10,
+                        "amount_max_g": 30, "kcal": 180, "protein_mg": 0 }),
+            ),
+            food("Rice", "2026-10-11", "lunch", 200, 4_000),
+            food("Bread", "2026-10-12", "lunch", 250, 8_000),
+        ],
+    )
+    .unwrap();
+    let r = log_days(&s, &day_view(), "2026-10-11", "2026-10-12", false).unwrap();
+    let kcal = &r.days[0].sums["kcal"];
+    assert_eq!((kcal.sum, kcal.low, kcal.high), (380, Some(290), Some(470)));
+    assert_eq!(r.days[0].sums["protein_mg"].low, Some(4_000));
+    // A day where every amount is one number says nothing about a range.
+    assert_eq!((r.days[1].sums["kcal"].low, r.days[1].sums["kcal"].high), (None, None));
+}

@@ -1071,21 +1071,17 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
 The owner's list: a packet with a barcode; the time of a meal, taken without asking; whether the
 day follows the diet and what to change; micronutrients; simple feedback; what is in the kitchen;
 recipes from known sources and suggestions that fit the diet. Sources: `sources-2026-10-11.md`
-§6c. **Nothing here is built or ruled.** In the order proposed:
+§6c. **Items 1 to 4 and 9 are built** (`decisions.md#data`, 2026-10-12, *food made easy to use*);
+what each left open is said under it. The rest is neither built nor ruled. In the order proposed:
 
-1. **A time on every entry**, the moment it is logged, changeable, never asked for. Then
-   time-restricted eating is measured (the hours between the last entry of a day and the first
-   of the next, against the definition's 14) and the *I kept to it* tick goes for that option.
-   The meal label stays the person's (the 2026-10-11 ruling: none is assigned from the clock).
-2. **The diet on the Day screen**: how many of its checks today meets, then only the ones that
-   are off, each with the amount to go or over. Pressing one shows which of today's entries
-   contributed most, and foods from the list with most of it per 100 g. No "rich in" label
-   unless the EU claim rule is adopted by name.
-3. **All the nutrients the list carries**, against EFSA's values (table read). Thiamin and niacin
-   need the day's energy; zinc is a range; sodium stays WHO's. Upper levels only where they
-   apply to food.
-4. **Feedback as counts**: days logged, eating occasions a day (15-minute rule, named), the usual
-   first and last time, days the diet was met. No number of meals to reach.
+1. **A time on every entry** — built. Left: the time is the time of logging; nothing offers
+   "an hour ago"; training entries carry none.
+2. **The diet on the Day screen** — built: checks met, the ones that are off, what made each
+   up. Left: foods from the list that would close a gap (item 7 answers it with recipes).
+3. **Every nutrient against EFSA's values** — built, as a sheet from the Day screen. Left:
+   sodium's EFSA figure (unread); a nutrient cannot be picked on Trends unless the view names it.
+4. **Feedback as counts** — built on Trends: times eaten a day, usual first and last. Left: days
+   the diet was met, over more than the week the Diet tab shows.
 5. **Packaged food.** First: type the barcode (GS1 check), one request to Open Food Facts from the
    core, the product kept as the person's own food with its link, the attribution and the
    caveat; **and a label typed in by hand**, per 100 g, because coverage is thin (Singapore:
@@ -1118,6 +1114,9 @@ recipes from known sources and suggestions that fit the diet. Sources: `sources-
      arithmetic; the person accepts each.
    Its first form needs only the person's own recipes and can come before items 5 to 7; the
    shopping list waits for the kitchen (6), outside recipes for 7.
+
+9. **An amount as a range** — built for a logged food. Left: a recipe's ingredients; a plan is
+   measured on the middle of the range.
 
 **For the owner to decide:** whether a scan may reach the network (the first thing in food that
 would); whether the camera permission is worth a changed *Take a photo* prompt; which recipe

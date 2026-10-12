@@ -2218,3 +2218,19 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
   day sees them: `log_recent` does, which is harmless (they are offered as things done before).
 - **The weekday is the device's**, worked out in the UI from today's date; the core stores the
   three-letter English names and gives them back as written.
+
+## Times, the diet on the day, nutrients, ranges — traps (2026-10-12)
+
+- **An entry's `start` may now carry a time.** Anything that compares it to a day must take its
+  first ten characters (`dayOf` in `units.ts`); the stand-in backend compared whole strings and
+  lost every timed entry until it did.
+- **`amount_min_g` and `amount_max_g` begin with `amount_`.** The day screen found "the amount"
+  by that prefix and would have shown the least as the amount.
+- **A fast needs both ends.** No timed entry with energy on the day before, or on the day: the
+  check reads *nothing to measure*. Monday's reaches back to the Sunday before the week.
+- **5 kcal is what ends a fast** (Gill and Panda); the count of occasions on the Day screen uses
+  no such floor, so a black coffee is an occasion and does not end a fast.
+- **The nutrient references are a table in `nutrients.rs`**, in each key's own unit. A slip of a
+  thousand there tells someone they lack a vitamin; the unit test pins the ones most looked at.
+- **A screen test that asserted right after a toast** raced the day's reload once the day began
+  asking for the plan too; it waits now.

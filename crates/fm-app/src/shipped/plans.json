@@ -139,16 +139,18 @@
       "group": "food",
       "name": "Time-restricted eating",
       "rests_on": "definition",
-      "summary": "All eating inside a part of the day, leaving at least 14 hours without. You say each day whether you kept to it.",
+      "summary": "All eating inside a part of the day, leaving at least 14 hours without. Measured from the times of what you log.",
       "sources": [
         { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — “a daily fasting window of at least 14 hours. There is no explicit limit on energy intake during eating hours”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" }
       ],
       "needs": [],
       "checks": [
-        { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "min": 7, "basis": "You say so each day: what you log has a day and no time of day, so formicaria cannot measure the hours" }
+        { "id": "fast", "label": "Hours without eating, overnight", "kind": "fast", "min": 840, "basis": "Koppold et al. 2024: a daily fasting window of at least 14 hours. Measured from the last thing with energy you logged the day before to the first that day" },
+        { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "basis": "You say so each day, if you would rather not rely on the times" }
       ],
       "unmeasured": [
-        "The hours themselves: a logged food has a day and no time."
+        "Anything eaten and not logged, or logged later without correcting its time: an entry's time is when you logged it unless you change it.",
+        "Three of the consensus's experts would have preferred a window of at least 12 hours; the number is yours to change."
       ],
       "caution": "This is a definition, not advice.",
       "guides": []

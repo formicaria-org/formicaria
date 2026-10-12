@@ -19,6 +19,9 @@ export function unitOf(check: Pick<PlanCheck, 'kind' | 'key'>): Unit {
       return { unit: 'min', per: 1 };
     case 'sets':
       return { unit: 'sets', per: 1 };
+    case 'fast':
+      // Kept in minutes, typed in hours.
+      return { unit: 'h', per: 60 };
     default:
       return { unit: 'days', per: 1 };
   }
@@ -53,6 +56,8 @@ export function shownValue(c: Pick<PlanCheckProgress, 'unit'>, v: number): strin
       return v === 1 ? '1 day' : `${v} days`;
     case 'sets':
       return v === 1 ? '1 set' : `${v} sets`;
+    case 'duration':
+      return v % 60 === 0 ? `${v / 60} h` : `${Math.floor(v / 60)} h ${v % 60} min`;
     default:
       return showWith(c.unit, v);
   }
@@ -138,4 +143,34 @@ export function planBody(
     out.push('');
   }
   return out.join('\n');
+}
+
+/** How far a check is from what it asks, in words: `13 g to go`, `4% over`. Nothing when it is
+ *  met or there is nothing to measure. */
+export function gap(
+  c: Pick<PlanCheckProgress, 'unit' | 'min' | 'max' | 'value' | 'state'>,
+): string {
+  if (c.value === undefined || c.value === null) return '';
+  if (c.state === 'under' && c.min !== undefined) return `${shownValue(c, c.min - c.value)} to go`;
+  if (c.state === 'over' && c.max !== undefined) return `${shownValue(c, c.value - c.max)} over`;
+  return '';
+}
+
+/** Today against a followed plan, in one line, and the checks that are off.
+ *  Daily checks are today's; weekly ones are the week so far and are never "off" before it ends. */
+export function dayAgainst(checks: PlanCheckProgress[]): {
+  daily: number;
+  met: number;
+  off: PlanCheckProgress[];
+  weekly: PlanCheckProgress[];
+  nothing: boolean;
+} {
+  const daily = checks.filter((c) => c.per === 'day');
+  return {
+    daily: daily.length,
+    met: daily.filter((c) => c.state === 'met').length,
+    off: daily.filter((c) => c.state === 'under' || c.state === 'over'),
+    weekly: checks.filter((c) => c.per !== 'day'),
+    nothing: daily.length > 0 && daily.every((c) => c.state === 'none'),
+  };
 }

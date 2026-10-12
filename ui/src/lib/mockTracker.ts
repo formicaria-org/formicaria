@@ -11,6 +11,7 @@ import type {
   DayTotals,
   LogDays,
   RecentItem,
+  Nutrients,
   Recipe,
   Routine,
   NoteDraft,
@@ -434,7 +435,7 @@ export function logDays(
   const days: DayTotals[] = [];
   for (let day = args.from; day <= args.to && days.length < 400; day = addDays(day, 1)) {
     const all = notes
-      .filter((x) => isLog(x, def.log) && x.start === day)
+      .filter((x) => isLog(x, def.log) && (x.start ?? '').slice(0, 10) === day)
       .sort(
         (a, b) =>
           (slotOrder.get(String(a.props.slot)) ?? 99) -
@@ -449,7 +450,9 @@ export function logDays(
       let carried = 0;
       // A value kept in another log is read from that log's entries of the day.
       const from = m.log
-        ? notes.filter((x) => isLog(x, m.log!) && x.start === day && !x.props.planned)
+        ? notes.filter(
+            (x) => isLog(x, m.log!) && (x.start ?? '').slice(0, 10) === day && !x.props.planned,
+          )
         : counted;
       for (const x of from) {
         const v = whole(x.props[m.key]);
@@ -458,10 +461,34 @@ export function logDays(
         carried += 1;
       }
       sums[m.key] = { sum, n: carried };
+      // As `log.rs`: an amount given as a range scales every value of its entry.
+      const scaled = (which: 'amount_min_g' | 'amount_max_g') =>
+        from.reduce((t, x) => {
+          const v = whole(x.props[m.key]);
+          if (v === null) return t;
+          const [a, b] = [whole(x.props.amount_g), whole(x.props[which])];
+          return t + (a && b ? Math.floor((v * b) / a) : v);
+        }, 0);
+      if (from.some((x) => whole(x.props.amount_min_g) && whole(x.props.amount_max_g)))
+        Object.assign(sums[m.key], { low: scaled('amount_min_g'), high: scaled('amount_max_g') });
     }
+    const at = counted
+      .map((x) => (x.start ?? '').slice(11, 16))
+      .filter(Boolean)
+      .sort();
+    const mins = at.map((t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3)));
     days.push({
       day,
       of: counted.length,
+      ...(at.length
+        ? {
+            times: {
+              occasions: 1 + mins.filter((m, i) => i > 0 && m - mins[i - 1] >= 15).length,
+              first: at[0],
+              last: at.at(-1)!,
+            },
+          }
+        : {}),
       sums,
       targets: targetsOn(
         notes,
@@ -507,6 +534,29 @@ export function logRecent(
     .map(({ inSlot: _inSlot, ...rest }) => rest);
 }
 
+/** A stand-in: three rows, one figure each. The table and its sources are `nutrients.rs`. */
+export function logNutrients(notes: ObjectMeta[], args: { view: string; day: string }): Nutrients {
+  const def = trackerDef(args.view)?.totals;
+  if (!def) throw new Error(`no such view: ${args.view}`);
+  const entries = notes.filter(
+    (x) => isLog(x, def.log) && (x.start ?? '').slice(0, 10) === args.day && !x.props.planned,
+  );
+  const row = (key: string, label: string, reference: number | undefined, kind: string) => {
+    const got = entries.map((x) => whole(x.props[key])).filter((v): v is number => v !== null);
+    return { key, label, sum: got.reduce((t, v) => t + v, 0), n: got.length, reference, kind };
+  };
+  return {
+    day: args.day,
+    of: entries.length,
+    needs_sex: true,
+    entries,
+    rows: [
+      row('fiber_mg', 'Fibre', 25_000, 'AI'),
+      row('vitamin_c_ug', 'Vitamin C', undefined, 'PRI'),
+      row('calcium_ug', 'Calcium', 950_000, 'PRI'),
+    ],
+  };
+}
 export function logRoutines(notes: ObjectMeta[], args: { view: string }): Routine[] {
   const def = trackerDef(args.view)?.totals;
   if (!def) throw new Error(`no such view: ${args.view}`);

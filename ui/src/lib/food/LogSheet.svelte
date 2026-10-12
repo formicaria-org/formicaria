@@ -18,7 +18,7 @@
     deleteUndoable,
     deleteNotesUndoable,
   } from '../undo.svelte';
-  import { show, showWith, today, typed, whole } from '../units';
+  import { show, showWith, today, typed, whole, nowClock, clockOf, dayOf } from '../units';
   import { RECIPE, recipeWord } from '../templates';
   import type {
     FoodHit,
@@ -57,6 +57,23 @@
   // time of day into one of them (`docs/context/sources-2026-10-11.md`, *Meal occasions*).
   // Read once, on purpose: the sheet is opened for one slot or one entry and closed again.
   let chosen = $state(untrack(() => (entry ? String(entry.props.slot ?? '') : (slot ?? ''))));
+  /// An amount known only roughly: the least and the most it could be, in grams
+  /// (`decisions.md#data`, 2026-10-12, *an amount may be a range*). Empty until the person asks.
+  let unsure = $state(untrack(() => !!entry && whole(entry.props.amount_min_g) !== null));
+  let least = $state<number | string | null>(untrack(() => whole(entry?.props.amount_min_g)));
+  let most = $state<number | string | null>(untrack(() => whole(entry?.props.amount_max_g)));
+  /// The range as it is kept: both ends, holding the amount between them — or nothing.
+  function rangeProps(grams: number): Record<string, number | string> {
+    const [lo, hi] = [Math.round(Number(least)), Math.round(Number(most))];
+    const ok = unsure && lo > 0 && hi > lo && lo <= grams && grams <= hi;
+    if (ok) return { amount_min_g: lo, amount_max_g: hi };
+    // Changing an entry that had one: an empty value takes the key away.
+    return entry && whole(entry.props.amount_min_g) !== null
+      ? { amount_min_g: '', amount_max_g: '' }
+      : {};
+  }
+  /// The time of an entry being changed, `HH:MM`, or empty when it has none.
+  let at = $state(untrack(() => clockOf(entry?.start)));
   const slotLabel = $derived(def.slots.find((s) => s.value === chosen)?.label ?? '');
   const unplaced = $derived(def.slots.length > 0 && !chosen);
 
@@ -206,7 +223,9 @@
   }
   const draft = (title: string, props: Record<string, string | number>): NoteDraft => ({
     title,
-    start: day,
+    // **The time is taken, never asked for**: logged today, an entry is of now. For another day
+    // nobody knows when it was, so it carries the day alone until the person says.
+    start: day === today() ? `${day}T${nowClock()}` : day,
     // For a day still to come it is a plan, not something eaten: in no total until confirmed.
     props: { log: def.log, slot: chosen, ...props, ...(day > today() ? { planned: 1 } : {}) },
   });
@@ -266,7 +285,11 @@
         picking = false;
         return;
       }
-      const props: Record<string, string | number> = { [AMOUNT]: p.grams, ...valuesAt(p, p.grams) };
+      const props: Record<string, string | number> = {
+        [AMOUNT]: p.grams,
+        ...valuesAt(p, p.grams),
+        ...rangeProps(p.grams),
+      };
       if (p.source) props.source = p.source;
       await createNotesUndoable([draft(p.title, props)], `logged “${p.title}”`);
       added += 1;
@@ -278,9 +301,19 @@
     write(async () => {
       if (!portion || !entry) return;
       const p = portion;
+      const was = clockOf(entry.start);
       await setPropertiesUndoable(
         entry.id,
-        { [AMOUNT]: p.grams, slot: chosen, ...valuesAt(p, p.grams) },
+        {
+          [AMOUNT]: p.grams,
+          slot: chosen,
+          ...valuesAt(p, p.grams),
+          ...rangeProps(p.grams),
+          // Only when the time was changed: the day is the entry's own, never the screen's.
+          ...(at !== was
+            ? { start: at ? `${dayOf(entry.start) || day}T${at}` : dayOf(entry.start) || day }
+            : {}),
+        },
         `changed “${p.title}”`,
       );
       onwrote();
@@ -681,6 +714,34 @@
             <span class:lead={i === 0}>{part}</span>
           {/each}
         </p>
+        {#if !fixing && !building && !into}
+          {#if unsure}
+            <div class="range">
+              <label>
+                <span>At least (g)</span>
+                <input class="field" type="number" inputmode="numeric" min="1" bind:value={least} />
+              </label>
+              <label>
+                <span>At most (g)</span>
+                <input class="field" type="number" inputmode="numeric" min="1" bind:value={most} />
+              </label>
+            </div>
+            <p class="hint">
+              {#if Number(least) > 0 && Number(most) > Number(least) && (Number(least) > portion.grams || Number(most) < portion.grams)}
+                The amount above has to lie between the two.
+              {:else}
+                The day's totals will say the least and the most they could be.
+              {/if}
+              <button type="button" class="link" onclick={() => (unsure = false)}>
+                One amount
+              </button>
+            </p>
+          {:else}
+            <button type="button" class="link" onclick={() => (unsure = true)}>
+              Not sure of the amount?
+            </button>
+          {/if}
+        {/if}
         {#if fixing}
           <div class="pair">
             <button type="button" class="quiet" onclick={removeIngredient} disabled={busy}>
@@ -690,6 +751,10 @@
           </div>
           <button type="button" class="link" onclick={leaveFix}>Back to the recipe</button>
         {:else if entry}
+          <label class="when">
+            <span>Time</span>
+            <input class="field" type="time" bind:value={at} />
+          </label>
           <div class="pair">
             <button type="button" class="quiet" onclick={remove} disabled={busy}>Remove</button>
             <button type="button" class="go" onclick={save} disabled={busy}>Save</button>
@@ -1402,5 +1467,32 @@
   .makes .field {
     width: 5rem;
     text-align: right;
+  }
+  .when {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .when .field {
+    width: 9rem;
+  }
+  .range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+  .range label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .range .field {
+    width: 100%;
+    box-sizing: border-box;
   }
 </style>

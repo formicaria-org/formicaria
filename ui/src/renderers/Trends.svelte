@@ -82,6 +82,23 @@
   const latest = $derived(known.at(-1) ?? 0);
   const moved = $derived(known.length > 1 ? latest - known[0] : 0);
   const asLine = $derived(measured(primary) || days.length > 31);
+
+  /// When the entries of these days were, for the days that carry times: how many occasions a
+  /// day, and the usual first and last — the middle value, so one late night does not move it.
+  /// A count of what happened; nobody gives a number to reach (`sources-2026-10-11.md` §6c).
+  const timed = $derived(days.filter((d) => d.times));
+  const middle = (list: string[]) => [...list].sort()[Math.floor((list.length - 1) / 2)] ?? '';
+  const rhythm = $derived(
+    timed.length
+      ? {
+          occasions:
+            Math.round((timed.reduce((t, d) => t + d.times!.occasions, 0) / timed.length) * 10) /
+            10,
+          first: middle(timed.map((d) => d.times!.first)),
+          last: middle(timed.map((d) => d.times!.last)),
+        }
+      : null,
+  );
 </script>
 
 <div class="trends">
@@ -165,6 +182,22 @@
       </p>
     </section>
 
+    {#if rhythm}
+      <section class="card">
+        <div class="line">
+          <span class="name">Times you ate a day</span>
+          <span class="val">{rhythm.occasions}</span>
+        </div>
+        <div class="line">
+          <span class="name">Usual first and last</span>
+          <span class="val">{rhythm.first} – {rhythm.last}</span>
+        </div>
+        <p class="honest">
+          From the {timed.length} of {days.length} days whose entries have a time. Entries less than 15
+          minutes apart count as one.
+        </p>
+      </section>
+    {/if}
     {#if others.length}
       <section class="card">
         {#each others as m, i (m.key)}

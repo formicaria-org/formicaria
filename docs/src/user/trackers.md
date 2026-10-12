@@ -99,6 +99,32 @@ Below the meals, *Also today* lists fibre, calcium, iron and vitamin C. When a v
 only some of the day's entries it says so — *from 3 of 4* — because an entry typed in by hand has
 energy and nothing else, and a total that left it out without saying would look complete.
 
+### When you ate
+
+A food you log today is marked with the time you logged it; you are never asked. Open the entry to
+change the time or clear it. Under the day's numbers the screen says how many times you ate and
+when the first and last were — entries less than 15 minutes apart count as one. It is a
+description of your day, not a score: no health body recommends a number of meals.
+
+### Not sure how much?
+
+Under the amount, **Not sure of the amount?** lets you give a least and a most. The entry keeps
+your best guess, and the day then also says the least and the most it could have come to.
+
+### Are you following your diet?
+
+If you follow a diet (see below), the Day screen names it and says how many of the things it asks
+of a day are met. Only the ones that are off are listed, each with how far: *13 g to go*, *4%
+over*. Press one to see which of today's foods put most into it.
+
+### All nutrients
+
+**All nutrients**, under *Also today*, lists every vitamin and mineral of the day beside the
+European reference value for an adult of your sex. Press one to see which foods it came from.
+Where the reference differs for men and women and the app does not know which you are, it is
+left out until you say so in *About you*. The references describe what covers a population, not
+what you in particular need.
+
 ## Planning a meal ahead
 
 Step to a day after today — the day screen reaches a week ahead — and add as usual. What you add
@@ -203,8 +229,9 @@ what was asked, where you are today or so far this week, and the seven days from
 you logged nothing on reads *nothing logged*, not zero. A weekly amount is only called short
 once the week is over.
 
-Some things only you can say — whether you ate inside your hours, whether you kept to a diet
-written in portions of food groups. For those there is **I kept to it today**.
+The hours you went without eating are measured from the times of what you logged: from the last
+thing with energy the day before to the first that day. Some things only you can say — whether
+you kept to a diet written in portions of food groups. For those there is **I kept to it today**.
 
 A diet's energy and protein numbers also become the targets on **Food → Day**.
 

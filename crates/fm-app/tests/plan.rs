@@ -275,3 +275,43 @@ fn a_profile_is_a_note_and_a_preview_is_the_option_worked_out_for_it() {
     assert_eq!(plan_profile(&s).unwrap().weight_g, Some(78_000));
     assert_eq!(plan_profile(&s).unwrap().sex.as_deref(), Some("male"));
 }
+
+/// With a time on each entry, the hours without eating are measured: from the last thing with
+/// energy the day before to the first that day. A drink with no energy does not end a fast, and a
+/// day with no time to go by has nothing to measure.
+#[test]
+fn a_nights_fast_is_measured_from_the_times_of_what_was_logged() {
+    let mut s = MemoryStore::new();
+    let food =
+        |title: &str, at: &str, kcal: i64| draft(title, at, json!({ "log": "food", "kcal": kcal }));
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Eating in a window",
+                "2026-10-05",
+                json!({ "program": "food", "plan": "time-restricted-eating", "p_fast_min": 840 }),
+            ),
+            // The Sunday before the week: its last meal starts Monday's fast.
+            food("Dinner", "2026-10-11T19:30", 600),
+            food("Black coffee", "2026-10-12T07:00", 2),
+            food("Lunch", "2026-10-12T12:00", 500),
+            food("Dinner", "2026-10-12T20:00", 700),
+            food("Breakfast", "2026-10-13T08:00", 300),
+            // Wednesday's entry has no time: nothing to measure that day or the next.
+            food("Something", "2026-10-14", 400),
+        ],
+    )
+    .unwrap();
+    let mon = plan_progress(&s, "food", "2026-10-12").unwrap();
+    let c = check(&mon.checks, "fast");
+    assert_eq!((c.unit.as_str(), c.per.as_str()), ("duration", "day"));
+    assert_eq!((c.value, c.state.as_str()), (Some(16 * 60 + 30), "met"));
+    let tue = plan_progress(&s, "food", "2026-10-13").unwrap();
+    assert_eq!(check(&tue.checks, "fast").value, Some(12 * 60));
+    assert_eq!(check(&tue.checks, "fast").state, "under");
+    let wed = plan_progress(&s, "food", "2026-10-14").unwrap();
+    assert_eq!(check(&wed.checks, "fast").state, "none");
+    assert_eq!(check(&wed.checks, "fast").days[..3], [Some(990), Some(720), None]);
+}

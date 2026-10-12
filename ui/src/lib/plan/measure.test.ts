@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   boundProps,
+  dayAgainst,
+  gap,
   fraction,
   planBody,
   shownAsk,
@@ -89,5 +91,45 @@ describe('a plan’s numbers, shown and typed', () => {
     expect(body).toContain('- **Fibre**: at least 25 g. WHO: at least 25 g a day');
     expect(body).toContain('- WHO: [Healthy diet](<https://example.org/a>)');
     expect(body).toContain('- ACSM: A paper');
+  });
+});
+
+describe('a day against what is followed', () => {
+  const c = (over: object) => ({
+    id: 'x',
+    label: 'X',
+    kind: 'sum' as const,
+    unit: 'fiber_mg',
+    per: 'day' as const,
+    state: 'met' as const,
+    days: [],
+    basis: '',
+    ...over,
+  });
+  it('says how far a check is from what it asks, in the unit it is shown in', () => {
+    expect(gap(c({ state: 'under', min: 25_000, value: 12_000 }))).toBe('13 g to go');
+    expect(gap(c({ state: 'over', unit: 'percent', max: 10, value: 14 }))).toBe('4% over');
+    expect(gap(c({ state: 'met', min: 25_000, value: 30_000 }))).toBe('');
+    expect(gap(c({ state: 'none', min: 25_000 }))).toBe('');
+  });
+  it('shows a night without eating in hours, typed in hours and kept in minutes', () => {
+    expect(shownValue({ unit: 'duration' }, 840)).toBe('14 h');
+    expect(shownValue({ unit: 'duration' }, 990)).toBe('16 h 30 min');
+    expect(storedBound({ kind: 'fast' }, '14')).toBe(840);
+    expect(shownBound({ kind: 'fast' }, 720)).toBe('12');
+  });
+  it('counts only the checks of a day, lists the ones that are off, and never faults a week under way', () => {
+    const a = dayAgainst([
+      c({ id: 'a', state: 'met' }),
+      c({ id: 'b', state: 'under', min: 2, value: 1 }),
+      c({ id: 'w', per: 'week', state: 'under' }),
+    ]);
+    expect([a.daily, a.met, a.off.map((x) => x.id), a.weekly.map((x) => x.id)]).toEqual([
+      2,
+      1,
+      ['b'],
+      ['w'],
+    ]);
+    expect(dayAgainst([c({ state: 'none' })]).nothing).toBe(true);
   });
 });

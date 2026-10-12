@@ -10,15 +10,16 @@
   import Trends from '../renderers/Trends.svelte';
   import SessionScreen from './training/SessionScreen.svelte';
   import * as nav from './nav.svelte';
-  import { logDays, logRecent, logRoutines } from './ipc';
+  import { logDays, logRecent, logRoutines, planProgress } from './ipc';
   import { createNotesUndoable, setPropertiesUndoable, undo } from './undo.svelte';
-  import { addDays, today as todayNow } from './units';
+  import { addDays, clockOf, nowClock, today as todayNow } from './units';
   import type { Feed, Pane } from './panes';
   import type {
     DayTotals,
     NoteDraft,
     ObjectMeta,
     RecentItem,
+    PlanProgress,
     Routine,
     TotalsDef,
     ViewGroup,
@@ -61,6 +62,8 @@
   let range = $state<DayTotals[]>([]);
   let last = $state<RecentItem[]>([]);
   let routines = $state<Routine[]>([]);
+  /// The chosen day against the diet the person follows, when they follow one.
+  let followed = $state<PlanProgress | null>(null);
   let failed = $state('');
 
   /// The strip is a fortnight ending today, or around the chosen day once that is further back.
@@ -83,10 +86,14 @@
       }
       // **One ask for the strip, the day and the day before it.** Each ask is a pass over the
       // whole vault on the other side, so the screen makes one (`crates/fm-app/tests/perf.rs`).
-      const [all, recent, kept] = await Promise.all([
+      const [all, recent, kept, held] = await Promise.all([
         logDays(view, addDays(stripEnd, -14), stripEnd, true),
         def.add === 'workout' ? logRecent(view, { limit: 50 }) : Promise.resolve([]),
         def.add === 'workout' ? logRoutines(view) : Promise.resolve([]),
+        // Never the reason a day fails to draw.
+        def.add === 'food'
+          ? planProgress('food', selected).catch(() => null)
+          : Promise.resolve(null),
       ]);
       if (mine !== asked) return; // a later ask has already answered
       strip = all.days.slice(1);
@@ -94,6 +101,7 @@
       day = all.days.find((d) => d.day === selected) ?? null;
       last = recent;
       routines = kept;
+      followed = held;
       failed = '';
     } catch (e) {
       if (mine === asked) failed = String(e);
@@ -151,6 +159,14 @@
     else nav.closeLayer('measure-sheet');
   });
   $effect(() => () => nav.closeLayer('measure-sheet'));
+
+  // ── every nutrient of the day ──────────────────────────────────────────────────────────────────
+  let nutrientsOpen = $state(false);
+  $effect(() => {
+    if (nutrientsOpen) nav.openLayer('nutrients-sheet', () => (nutrientsOpen = false));
+    else nav.closeLayer('nutrients-sheet');
+  });
+  $effect(() => () => nav.closeLayer('nutrients-sheet'));
 
   // ── the targets form ───────────────────────────────────────────────────────────────────────────
   let targetsOpen = $state(false);
@@ -219,7 +235,11 @@
     try {
       await setPropertiesUndoable(
         row.id,
-        { planned: '' },
+        // Confirmed today, it was had now — unless it was planned for a time, which it keeps.
+        {
+          planned: '',
+          ...(selected === today && !clockOf(row.start) ? { start: `${today}T${nowClock()}` } : {}),
+        },
         `confirmed “${row.title ?? 'an entry'}”`,
       );
     } catch (e) {
@@ -385,6 +405,8 @@
         oncopy={copyYesterday}
         ontargets={() => (targetsOpen = true)}
         onconfirm={confirm}
+        plan={followed}
+        onnutrients={def.add === 'food' ? () => (nutrientsOpen = true) : undefined}
       />
     {/if}
   </div>
@@ -430,6 +452,11 @@
     {/await}
   {/if}
 
+  {#if nutrientsOpen}
+    {#await import('./food/NutrientsSheet.svelte') then { default: NutrientsSheet }}
+      <NutrientsSheet {view} day={selected} onclose={() => (nutrientsOpen = false)} />
+    {/await}
+  {/if}
   {#if targetsOpen && def}
     {#await import('./TargetsSheet.svelte') then { default: TargetsSheet }}
       <TargetsSheet

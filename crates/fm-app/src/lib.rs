@@ -23,6 +23,7 @@ pub mod commands;
 pub mod dispatch;
 pub mod dto;
 pub mod log;
+pub mod nutrients;
 pub mod packs;
 pub mod paper;
 pub mod plan;

@@ -33,6 +33,7 @@ import type {
   BackupRun,
   LogDays,
   RecentItem,
+  Nutrients,
   Recipe,
   Routine,
   PlanLibrary,
@@ -1212,6 +1213,8 @@ export const logRecent = (view: string, opts: { slot?: string; q?: string; limit
   invoke<RecentItem[]>('log_recent', { view, ...opts });
 /** The recipes saved in a log, each with the sum of its ingredients. */
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
+export const logNutrients = (view: string, day: string) =>
+  invoke<Nutrients>('log_nutrients', { view, day });
 export const logRoutines = (view: string) => invoke<Routine[]>('log_routines', { view });
 
 /** What can be followed in a group (`food` or `fitness`): the library carried in the app. */
