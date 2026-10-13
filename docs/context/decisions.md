@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***How an exercise is done is its source's own words; a protocol with a name is offered by its name*** (2026-10-12; read before rewording a carried exercise, carrying a picture, adding a video that is not a known body's, or offering a training goal no body defines) · ***Recipes from outside are carried word for word, with their source's own figures*** (2026-10-12; read before adding a recipe collection, converting a carried recipe's units, or computing its values) · ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***Italy's table is carried on its own terms, read off its pages; Singapore's is not collected by a robot*** (2026-10-13; read before collecting a table from a website, before treating a licence as leave to crawl, or before storing CREA's carbohydrate) · ***The food list gains the Swiss table, and every table's own-language names are searched*** (2026-10-13; read before adding a table, translating a food's name, or treating a food in one table as the same food in another) · ***A label is typed as it is printed: per 100 g, per 100 ml or per serving; kcal or kJ; salt or sodium*** (2026-10-13; read before assuming a packaged food is per 100 g, treating a millilitre as a gram, or adding a unit to the label form) · ***How an exercise is done is its source's own words; a protocol with a name is offered by its name*** (2026-10-12; read before rewording a carried exercise, carrying a picture, adding a video that is not a known body's, or offering a training goal no body defines) · ***Recipes from outside are carried word for word, with their source's own figures*** (2026-10-12; read before adding a recipe collection, converting a carried recipe's units, or computing its values) · ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -10590,4 +10590,109 @@ page simple and one can easily go back to it."*
   which "by hand" would have left to memory.
 - Still no script, font, counter or outside request; the pages now share one stylesheet of
   their own.
+
+## 2026-10-13 — a label is typed as it is printed: per 100 g, per 100 ml or per serving; kcal or kJ; salt or sodium `#data` `#ui`
+
+> Extends *a packaged food is a note read off its label* (2026-10-12), which assumed the European
+> label: per 100 g, kcal, salt.
+
+The owner lives between Singapore and Europe, and asked whether labels would work across
+countries. Read at source (`sources-2026-10-11.md` §6f): the EU and the UK print per 100 g **or
+per 100 ml**, in kJ and kcal, with **salt** in grams; the United States prints **per serving**,
+in kcal, with **sodium** in milligrams; Singapore allows per serving **or** per 100 g/100 ml,
+*"kcal, kJ or both"*, and fixes no unit for sodium. A form that takes only the first makes the
+person do arithmetic the packet did not ask of them, and get it wrong.
+
+**Decision.**
+- **The form asks what the label says**: what the figures are for (100 g, 100 ml, or a serving
+  of a stated size in g or ml), energy in kcal or kJ, and salt in g or sodium in mg.
+- **What is kept is still per 100**, under the keys every food uses, so nothing downstream
+  changes: a serving's figures are multiplied by 100 ÷ its size; kJ are divided by 4.184 (one
+  thermochemical kilocalorie); salt is sodium × 2.5 (the same regulation, Annex I). This is
+  arithmetic on the label's own numbers, rounded to the whole unit a value is kept in.
+- **A food whose label is by volume is measured in millilitres, and stays so.** Its note says
+  `unit: ml`; an entry of it carries `amount_ml` and no `amount_g`. **No density is assumed**: a
+  millilitre is turned into a gram nowhere. A shopping list adds millilitres to millilitres.
+- **Not in this step**: an amount in millilitres given as a range (least and most), and a
+  label that gives both a weight and a volume for the same serving.
+
+**A label that prints both kJ and kcal is typed in kcal.** A label's two energy figures are each
+worked out from the nutrients with the regulation's own factors (17 kJ or 4 kcal a gram of
+carbohydrate; 37 or 9 a gram of fat — Annex XIV), so they are not exactly 4.184 apart, and kJ
+turned into kcal here can differ from the packet's own kcal by a kilocalorie or two in a hundred.
+The form says so.
+
+**What it costs.** A second amount key. Everything that shows or adds an amount now asks which
+one an entry has (`ui/src/lib/food/amount.ts`); a place that reads `amount_g` alone shows a
+drink as having no amount.
+
+## 2026-10-13 — the food list gains the Swiss table, and every table's own-language names are searched `#data` `#toolchain`
+
+> Under *the food list is European; USDA fills only what Europe's tables lack* (2026-10-11): a
+> fourth European table, permitted by that entry. It widens what ships, so it is written down.
+
+The owner wants food to work for an Italian and a Singaporean kitchen. Read at source
+(`sources-2026-10-11.md` §6g, §6h): Italy's own table cannot be carried without a letter; the
+**Swiss Food Composition Database** can, is published in Italian, German, French and English,
+and holds Italian dishes by name.
+
+**Decision.**
+- **The Swiss table is carried** (FSVO, version 7.1 of 2026-07-01, generic foods; its handful
+  of branded waters and the like are left out). Its terms, in its own words: *"the data may also
+  be used for commercial purposes (e.g. integration into food composition calculation software
+  or nutrition diary app) … subject to acknowledgment of the source."* Four files, one a
+  language, each pinned by checksum.
+- **A column is used only under the INFOODS identifier the table's own *Nutrient codes* sheet
+  gives it**, as for every table (§5). So Swiss foods have no folate here (the table has total
+  folate, `FOL`; the key is dietary folate equivalents) and no vitamin B6 (its tag is `VITB6-`,
+  method unknown). `tr.` and `<x` are 0, `nd` is no value: Ciqual's rule.
+- **Every table's own-language names are kept beside the English one and searched**: French for
+  Ciqual, German for BLS, Italian, German and French for the Swiss table, with its synonyms. A
+  food found by another name shows that name under the English one.
+- **Nothing is translated.** *Prosciutto crudo* finds the Swiss table's foods of that name; it
+  does not find Ciqual's *Jambon sec de Parme*, because nobody published that those are the same
+  food, and a list of translations made here would be an invention. A food in one table is still
+  never treated as the same food in another.
+
+**What it costs.** About 1,200 more foods in every search and a second or third "banana". The
+carried list grows (measured in the build's own output). The UK's table is next and is not in
+this step: its carbohydrate is in monosaccharide equivalents (`CHOAVLM`), which is not the
+definition the key holds, and turning one into the other is its own piece of work.
+
+## 2026-10-13 — Italy's table is carried on its own terms, read off its pages; Singapore's is not collected by a robot `#data` `#toolchain`
+
+I had drafted letters asking CREA and Singapore's Health Promotion Board before using their
+tables. The owner: *"we do not need the letters"*, and then, rightly: *"but they do not require
+letters to be used."* Neither's terms ask for permission. What I had treated as a condition was
+my own caution. The decision is the owner's, and it is to use what the terms allow.
+
+**CREA (Italy) — carried.**
+- **The terms**, at the foot of every page of www.alimentinutrizione.it: data and texts may not
+  be copied or reproduced *"senza una chiara indicazione della fonte originale. Il riferimento è:
+  CREA Centro di ricerca Alimenti e Nutrizione"*, and for *"scopi scientifici, educativi,
+  commerciali"* the source is to be given. Copying with the source named. **They do not speak of
+  adaptation**; the owner takes it as within them, and what is done to a value is said below.
+- **There is no file**, so `ci/fetch-crea.py` reads the 904 food pages once, two seconds apart,
+  naming itself, and writes a snapshot kept in the repository (`ci/data/crea-2019.json.gz`) with
+  the day it was read. `robots.txt` allows those pages (read 2026-10-13). This is the one table
+  whose input is a snapshot made here and not a file pinned upstream: a rebuild reads the
+  snapshot, never the site.
+- **What a value is**, from CREA's own *Presentazione dati*: energy by Southgate's factors;
+  protein as nitrogen × the FAO/WHO (1973) factor for the food; **available carbohydrate as
+  monosaccharide equivalents** (starch × 1.10 plus sugars), which is not what `carbs_mg` holds.
+  So `carbs_mg` is **starch, which CREA gives by weight, plus its soluble sugars** — the sugars
+  being in monosaccharide equivalents, up to 5 % above their weight where they are disaccharides.
+  A food with no starch or no sugars line has no carbohydrate here. Vitamin A is in retinol
+  equivalents (β-carotene ÷ 6) and vitamin E in α-tocopherol equivalents: neither is the key's
+  definition, and both are left out, as is total folate.
+- **Its Italian name is the food's other name**, searched like the others; its English name is
+  CREA's own. Its portion (*Porzione: 80 g*) is offered as a portion.
+
+**SG FoodID (Singapore) — still not carried, for a reason that is not the licence.** Its terms
+do license the data. Its website's `robots.txt` says `User-agent: * / Disallow: /`: no robot, no
+page. Collecting three thousand records with a script is exactly what that forbids, whatever the
+data's licence allows once one has it. So: nothing is harvested. What remains possible without
+asking is what a person does — open a food, press *Export as CSV* — and what remains possible
+with one message is a file. **Read before** treating "the licence allows reuse" as "the site
+allows a crawler": they are two different permissions, given by two different files.
 

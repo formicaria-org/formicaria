@@ -38,7 +38,7 @@ every figure names the body that published it. The manual's chapter is
 **Food** — four views: *Day*, *Menu*, *Trends*, *Diet*.
 
 - **Log what you eat**, by weight or as a range when you only know it roughly, at the time you
-  ate it. The list of 16,000 foods comes with the app (Ciqual and BLS, USDA where they have
+  ate it. The list of 18,300 foods comes with the app (the French, German, Swiss and Italian tables, USDA where they have
   none) and is searched offline.
 - **Packaged food**: write it down from its label, or look it up by its barcode — typed, or
   read from a photograph — at Open Food Facts, asked only when you press.

@@ -719,6 +719,31 @@ fn a_packaged_food_is_a_note_with_what_its_label_says_per_100_g() {
     assert_eq!(r.days.iter().map(|d| d.of).sum::<usize>(), 1, "the product is in no day");
 }
 
+/// A drink's label is per 100 ml: its note says `unit: ml`, its serving is in millilitres, and
+/// nothing turns one into a gram. A unit that is not that word is not believed.
+#[test]
+fn a_food_labelled_by_volume_is_measured_in_millilitres() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Oat drink",
+                "",
+                json!({ "product": "label", "unit": "ml", "serving_ml": 250, "kcal": 46 }),
+            ),
+            draft("Mystery", "", json!({ "product": "label", "unit": "cups", "kcal": 10 })),
+        ],
+    )
+    .unwrap();
+    let got = log_products(&s).unwrap();
+    let drink = got.iter().find(|p| p.title == "Oat drink").unwrap();
+    assert_eq!((drink.unit.as_str(), drink.serving_ml, drink.serving_g), ("ml", Some(250), None));
+    assert_eq!(drink.per100.keys().collect::<Vec<_>>(), ["kcal"], "its serving is not a value");
+    assert_eq!(got.iter().find(|p| p.title == "Mystery").unwrap().unit, "");
+}
+
 /// What is in the kitchen is a list of names: notes carrying `kitchen`, in no log and no day.
 #[test]
 fn the_kitchen_is_the_notes_that_say_so_by_name() {

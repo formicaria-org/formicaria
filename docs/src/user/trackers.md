@@ -24,16 +24,27 @@ hide them on your phone. Nothing you logged is touched either way.
 ## The food list
 
 To look a food up — its energy, protein, vitamins and minerals — formicaria uses a list of about
-16,000 foods that **comes with the app**: there is nothing to get and no connection is needed. It
-takes about 9 MB on the device.
+18,300 foods that **comes with the app**: there is nothing to get and no connection is needed. It
+takes about 11 MB on the device.
 
-It is made from two European food tables:
+It is made from four European food tables:
 
 - **Ciqual 2025**, the French table, from Anses;
-- **BLS 4.0**, the German table, from the Max Rubner-Institut.
+- **BLS 4.0**, the German table, from the Max Rubner-Institut;
+- the **Swiss Food Composition Database 7.1**, from the Federal Food Safety and Veterinary
+  Office, which has many Italian dishes;
+- the **Tabelle di composizione degli alimenti** (2019 update) of **CREA**, Italy's research
+  centre for food and nutrition: about 830 foods, the Italian cheeses, cured meats and breads by
+  their own names, each with CREA's portion to pick.
 
-A third, **FoodData Central** from the U.S. Department of Agriculture, is used only for what those
-two do not have: foods they do not list, and household portions ("1 cup", "1 medium"), which
+**You can search in the table's own language.** Each food is named in English, and also by the
+name its table gives it: French for Ciqual, German for BLS, Italian for CREA, and Italian, German and French
+for the Swiss table. Type *prosciutto crudo*, *jambon sec* or *Haferflocken* and the food is found;
+the name it was found by is shown under the English one. Nothing is translated by formicaria, so
+a French-only name is not found by its Italian word.
+
+A fifth, **FoodData Central** from the U.S. Department of Agriculture, is used only for what those
+four do not have: foods they do not list, and household portions ("1 cup", "1 medium"), which
 neither European table gives. A search shows European foods first, and each result says which
 table it is from — two tables may both list a banana, and they are two measurements, not one.
 
@@ -119,8 +130,20 @@ energy and nothing else, and a total that left it out without saying would look 
 A packet of pasta is not in a table of generic foods. Two buttons at the top of the add sheet
 are for it. **Scan a barcode** takes a picture of the barcode: a packet you have written down
 before opens straight away, and any other starts a form with its number filled in, from which
-you can look it up. **Type in a label** opens the same form empty: copy the label's lines for
-100 g — energy is the only one needed. Salt is typed as the label states it. You can add the number under the barcode and the
+you can look it up. **Type in a label** opens the same form empty: copy the label as it is
+printed — energy is the only line needed.
+
+Labels differ by country, so the form asks three things instead of assuming them:
+
+- **What the figures are for**: *per 100 g*, *per 100 ml* (drinks), or *per serving* — then say
+  how big a serving is, in g or ml. A European packet is per 100; an American one is per serving.
+- **Energy in kcal or kJ.** If the label prints both, type the kcal.
+- **Salt in grams, or sodium in milligrams**, whichever the label prints.
+
+Whatever you choose, the food is kept per 100 g or per 100 ml, worked out from what you typed.
+A food typed per 100 ml is **measured in millilitres** from then on: you log 250 ml of it, and a
+shopping list adds its millilitres up apart from grams. formicaria never turns a millilitre into
+a gram, because that depends on the food. Salt is typed as the label states it. You can add the number under the barcode and the
 ingredient list as well.
 
 It is saved as a note of yours and found from then on by its name, or by its barcode number, in

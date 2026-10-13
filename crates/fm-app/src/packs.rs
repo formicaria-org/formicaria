@@ -19,9 +19,9 @@ static FOOD_GZ: &[u8] = include_bytes!("../packs/foods.sqlite.gz");
 
 /// What the bytes above unpack to. **These three change together with the file**, and
 /// `tests/packs.rs` holds them to it: the version, the size, and the checksum the script prints.
-pub const FOOD_VERSION: &str = "2026.10.1";
-pub const FOOD_BYTES: u64 = 8_753_152;
-pub const FOOD_SHA256: &str = "8f909c31cb37405c61851d27980d519ba49847d9c84aa2f3f2a2ef46be8cc657";
+pub const FOOD_VERSION: &str = "2026.10.3";
+pub const FOOD_BYTES: u64 = 11_489_280;
+pub const FOOD_SHA256: &str = "5cff03f2dc677470823d9e5c1631e1da20b8cd459013c965c86872e9253c986a";
 
 /// Where the list is unpacked: beside the assistant's models and runtime, outside every vault.
 /// `FM_PACKS_DIR` overrides it, for tests.

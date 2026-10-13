@@ -571,6 +571,8 @@ export function logProducts(notes: ObjectMeta[]): Product[] {
       title: x.title ?? '',
       barcode: x.props.barcode ? String(x.props.barcode) : undefined,
       serving_g: whole(x.props.serving_g) ?? undefined,
+      serving_ml: whole(x.props.serving_ml) ?? undefined,
+      unit: x.props.unit === 'ml' ? 'ml' : undefined,
       per100: Object.fromEntries(
         Object.entries(x.props).flatMap(([k, v]) =>
           (k === 'kcal' || /_(mg|ug)$/.test(k)) && typeof v === 'number' ? [[k, v]] : [],

@@ -6,6 +6,7 @@
   // **It writes nothing of its own kind.** A meal on the menu is a planned entry — the same one
   // the day screen shows and confirms — put there with the same sheet. The shopping list is an
   // ordinary note with a box to tick on each line.
+  import { entryAmount, shownAmount, shownAs, type AmountUnit } from './amount';
   import Icon from '../Icon.svelte';
   import { logDays, logKitchen, logRecipes, planProgress, recipeLibrary } from '../ipc';
   import { dayAgainst, gap } from '../plan/measure';
@@ -160,8 +161,7 @@
   const amount = (r: ObjectMeta) => {
     const pct = whole(r.props.servings_pct);
     if (pct !== null) return pct === 100 ? '1 serving' : `${pct / 100} servings`;
-    const g = whole(r.props.amount_g);
-    return g !== null ? showWith('amount_g', g) : '';
+    return shownAmount(r.props);
   };
   const wordOf = (r: ObjectMeta) => {
     const s = String(r.props.source ?? '');
@@ -205,21 +205,26 @@
   /// What the planned meals need: a dish's ingredients for the servings planned, a plain food by
   /// its amount; the same thing added up. Only what is still planned — what was eaten was had.
   const needs = $derived.by(() => {
-    const sum = new Map<string, number>();
-    const add = (title: string, grams: number) =>
-      grams > 0 && sum.set(title, (sum.get(title) ?? 0) + grams);
+    // Grams and millilitres are added up apart: a drink is not turned into a weight.
+    const sum = new Map<string, { title: string; unit: AmountUnit; n: number }>();
+    const add = (title: string, props: Record<string, unknown>, part = 1) => {
+      const a = entryAmount(props);
+      const n = (a.n ?? 0) * part;
+      if (n <= 0) return;
+      const key = `${title}\u0000${a.unit}`;
+      sum.set(key, { title, unit: a.unit, n: (sum.get(key)?.n ?? 0) + n });
+    };
     for (const d of days)
       for (const r of d.rows ?? []) {
         if (!r.props.planned) continue;
         const recipe = recipes.find((x) => x.recipe === wordOf(r));
         if (recipe) {
           const part = (whole(r.props.servings_pct) ?? 100) / 100 / Math.max(1, recipe.servings);
-          for (const i of recipe.ingredients)
-            add(i.title ?? 'Untitled', (whole(i.props.amount_g) ?? 0) * part);
-        } else add(r.title ?? 'Untitled', whole(r.props.amount_g) ?? 0);
+          for (const i of recipe.ingredients) add(i.title ?? 'Untitled', i.props, part);
+        } else add(r.title ?? 'Untitled', r.props);
       }
-    return [...sum.entries()]
-      .map(([title, grams]) => ({ title, grams: Math.round(grams) }))
+    return [...sum.values()]
+      .map((x) => ({ title: x.title, unit: x.unit, grams: Math.round(x.n) }))
       .sort((a, b) => a.title.localeCompare(b.title));
   });
 
@@ -255,7 +260,7 @@
       body:
         `What the menu from ${from} to ${to} needs, added up from the planned meals and the ` +
         `recipes behind them. Tick what you have or have bought.\n\n` +
-        toBuy.map((n) => `- [ ] ${n.title} — ${showWith('amount_g', n.grams)}`).join('\n') +
+        toBuy.map((n) => `- [ ] ${n.title} — ${shownAs(n.grams, n.unit)}`).join('\n') +
         (needs.length > toBuy.length
           ? `\n\nLeft off because you have them: ${needs
               .filter((n) => had(n.title))
@@ -394,11 +399,11 @@
     <h3>What it needs</h3>
     {#if needs.length || asPublished.length}
       <ul class="plain needs">
-        {#each needs as n (n.title)}
+        {#each needs as n (n.title + n.unit)}
           {@const mine = had(n.title)}
           <li class:have={!!mine}>
             <span>{n.title}</span>
-            <span>{showWith('amount_g', n.grams)}</span>
+            <span>{shownAs(n.grams, n.unit)}</span>
             <button
               type="button"
               class="have-it"

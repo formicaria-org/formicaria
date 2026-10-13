@@ -503,7 +503,15 @@ pub struct Product {
     /// What the pack calls a serving, in grams, when it says.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_g: Option<i64>,
-    /// Every whole-number value the note carries whose key ends in a unit, and `kcal`: per 100 g.
+    /// The same for a food whose label is by volume, in millilitres.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serving_ml: Option<i64>,
+    /// `ml` when the label's figures are per 100 ml and the food is measured in millilitres
+    /// (`decisions.md#data`, 2026-10-13); absent for grams. No density is assumed anywhere.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub unit: String,
+    /// Every whole-number value the note carries whose key ends in a unit, and `kcal`: per 100
+    /// of the food's unit.
     pub per100: BTreeMap<String, i64>,
 }
 
@@ -537,6 +545,15 @@ pub fn log_products(store: &dyn Store) -> Result<Vec<Product>, StoreError> {
             serving_g: match o.get("serving_g") {
                 PropertyValue::Int(n) if n > 0 => Some(n),
                 _ => None,
+            },
+            serving_ml: match o.get("serving_ml") {
+                PropertyValue::Int(n) if n > 0 => Some(n),
+                _ => None,
+            },
+            // Only the one word is a unit; anything else written there is not believed.
+            unit: match o.get("unit") {
+                PropertyValue::Text(s) if s == "ml" => s,
+                _ => String::new(),
             },
             per100: o
                 .extra

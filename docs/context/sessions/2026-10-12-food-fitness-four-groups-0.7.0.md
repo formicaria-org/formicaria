@@ -210,3 +210,29 @@ person holding a packet looks. Now **Scan a barcode** and **Type in a label** si
 the add sheet. The lesson is 0.7.5's again: a feature is where it is found, not where it was
 built.
 
+### After 0.7.9: food for more than one country (2026-10-13)
+
+The owner, between Singapore and Europe: would labels and barcodes work across countries; are
+there open datasets, or governments'; *"are you sure there is nothing else for Italy?"*. Six
+research agents over the day (about 880k tokens) wrote `sources-2026-10-11.md` §6f to §6h. Then,
+on *"go ahead and start with that order"*:
+
+- **A label is typed as it is printed**: per 100 g, per 100 ml or per serving; kcal or kJ; salt
+  or sodium. A food labelled by volume is measured in millilitres (`amount_ml`), and no density
+  is assumed anywhere.
+- **The Swiss table is carried** (1,216 foods, Italian dishes among them): 17,506 foods.
+- **Italy's own table is carried** (CREA, 832 foods, read off its pages into a snapshot):
+  18,338 foods. Taleggio is found at last.
+- **Each table's own-language names are searched**: French, German, Italian. Nothing translated.
+- **No letters.** Two were drafted, to CREA and to Singapore's Health Promotion Board; the owner:
+  *"we do not need the letters"*, and: *"but they do not require letters to be used."* He was
+  right: the terms ask for none. CREA's table is being carried, read off its pages. Singapore's
+  is not, because its site's `robots.txt` forbids every robot — found only when I went to
+  collect it, a file I should have read the day I read the terms.
+- **Not done**: the UK's table (its carbohydrate is in monosaccharide equivalents), the label
+  read from a photograph, anything from Singapore's database.
+- **Slips**: the gate was started twice before the size of the always-read docs had been read
+  off the screen, and a third time before the third-party notice was regenerated: three runs
+  for what one look each would have saved. One Swiss food stopped the build, rightly: its
+  English row has no reference unit.
+

@@ -22,7 +22,26 @@ fn the_list_the_app_carries_is_unpacked_on_first_use_and_put_right_when_it_is_wr
     assert!(hits[0].name.starts_with("Banana"), "the plain food first: {}", hits[0].name);
     assert!(hits[0].kcal > 50);
     // European tables first: with five places and more than five European bananas, none is USDA's.
-    assert!(hits.iter().all(|h| h.src == "ciqual" || h.src == "bls"), "{hits:?}");
+    assert!(
+        hits.iter().all(|h| ["ciqual", "bls", "swiss", "crea"].contains(&h.src.as_str())),
+        "{hits:?}"
+    );
+    // A food is found by the name its own table gives it in its own language: Italian from the
+    // Swiss table, French from Ciqual, German from BLS. Nothing is translated.
+    let ham = packs::food_search("prosciutto crudo", 5).unwrap();
+    assert!(ham.iter().any(|h| h.src == "swiss" && h.alt.starts_with("Prosciutto")), "{ham:?}");
+    let parma = packs::food_search("jambon sec de parme", 5).unwrap();
+    assert_eq!(parma[0].src, "ciqual", "{parma:?}");
+    assert!(packs::food_search("haferflocken", 5).unwrap().iter().any(|h| h.src == "bls"));
+    // Italy's own table: a cheese no other table carried lists, found by its Italian name, with
+    // CREA's portion to pick.
+    let taleggio = packs::food_search("taleggio", 5).unwrap();
+    assert_eq!(taleggio[0].src, "crea", "{taleggio:?}");
+    let farro = packs::food_get("crea:000020").unwrap().expect("CREA's emmer");
+    assert_eq!(farro.portions[0].grams, 80);
+    // Its carbohydrate is its starch plus its sugars (60.9 + 2.4), not its 69.3 of
+    // monosaccharide equivalents.
+    assert_eq!(farro.per100["carbs_mg"], 63_300);
 
     // What landed is byte for byte the list the constants name — so a list rebuilt without
     // updating them fails here, not on someone's phone.

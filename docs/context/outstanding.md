@@ -1226,6 +1226,23 @@ publishes it with the manual beside it under `/manual/`. It is started by hand o
 `docs.yml` was deleted the same day: it only built the manual and threw it away, which `ci`
 and `pages` both do. Left: `ci/ios-logs.sh` still defaults to `ios.yml`; the experiments are `ios-ladder.yml`.
 
+### 2.31 Food for more than one country — what is left (2026-10-13)
+
+Shipped in 0.7.10: a label typed as printed, millilitres, the Swiss and Italian tables, search
+by each table's own-language names. Limits: `known-issues.md` (*A label from any country…*,
+*The food list with the Swiss table…*). Left, in the order they would help:
+
+1. **See it on a phone**: the label form, a drink logged in millilitres, a search in Italian.
+2. **The UK's table** (and then the Nordic and Asian ones in `sources-2026-10-11.md` §6g): its
+   carbohydrate is in monosaccharide equivalents, as CREA's is; the same starch-plus-sugars
+   reading may serve, once its documentation is read.
+3. **Singapore**: no robot may read the site. A file from the Board, or one food at a time on a
+   person's press, are the two ways left; the owner has chosen neither yet.
+4. **A label read from a photograph** by the assistant, filling this form (the owner's idea,
+   2026-10-13): the model transcribes, code reads the numbers, the person saves.
+5. A range for an amount in millilitres; a choice of which tables a search shows; the Swiss
+   table's densities, the only honest bridge from millilitres to grams.
+
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
 `deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12

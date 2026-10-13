@@ -44,11 +44,15 @@ pub struct FoodHit {
     /// The food's own identifier in its table, prefixed with the table: `ciqual:1000`.
     pub id: String,
     pub name: String,
-    /// Which table it is from: `ciqual`, `bls` or `usda`. Shown beside the name, because two
+    /// Which table it is from: `ciqual`, `bls`, `swiss`, `crea` or `usda`. Shown beside the name, because two
     /// tables may both list "banana" and they are not the same measurement.
     pub src: String,
     /// Energy per 100 g.
     pub kcal: i64,
+    /// The food's name in its own table's language, when what was typed was found there and not
+    /// in `name`: a person who typed *prosciutto* sees why *Ham, raw* is offered.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub alt: String,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -130,7 +134,7 @@ impl FoodPack {
         let mut stmt = self
             .db
             .prepare(
-                "SELECT f.code, f.name, f.src, coalesce(a.per100, 0)
+                "SELECT f.code, f.name, f.src, coalesce(a.per100, 0), f.alt
                    FROM names
                    JOIN food f ON f.id = names.rowid
                    LEFT JOIN amount a
@@ -142,16 +146,37 @@ impl FoodPack {
             .map_err(sql)?;
         let mut found: Vec<(u8, u8, usize, FoodHit)> = stmt
             .query_map([&expr], |r| {
-                Ok(FoodHit { id: r.get(0)?, name: r.get(1)?, src: r.get(2)?, kcal: r.get(3)? })
+                Ok(FoodHit {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    src: r.get(2)?,
+                    kcal: r.get(3)?,
+                    alt: r.get(4)?,
+                })
             })
             .map_err(sql)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(sql)?
             .into_iter()
-            .map(|hit| {
+            .map(|mut hit| {
                 let fallback = u8::from(hit.src == "usda");
-                let starts = u8::from(!hit.name.to_lowercase().starts_with(&terms[0]));
-                let len = hit.name.chars().count();
+                // The name the person's words are in: the English one, or one of the others.
+                let has = |name: &str| {
+                    let low = name.to_lowercase();
+                    terms.iter().all(|t| {
+                        low.split(|c: char| !c.is_alphanumeric()).any(|w| w.starts_with(t))
+                    })
+                };
+                let other = if has(&hit.name) {
+                    None
+                } else {
+                    hit.alt.split(" · ").find(|n| has(n)).map(str::to_string)
+                };
+                let shown = other.as_deref().unwrap_or(&hit.name);
+                let starts = u8::from(!shown.to_lowercase().starts_with(&terms[0]));
+                let len = shown.chars().count();
+                // Only the name that was found is sent on, and only when it is not the first.
+                hit.alt = other.unwrap_or_default();
                 (fallback, starts, len, hit)
             })
             .collect();
@@ -244,10 +269,12 @@ mod tests {
                (6, 'ciqual:22000', 'Egg, raw', 'ciqual', 'meat, egg and fish'),
                (7, 'ciqual:19024', 'Crème fraîche', 'ciqual', 'milk'),
                (8, 'usda:2705660', 'Poi', 'usda', '');
+             INSERT INTO food(id, code, name, src, grp, alt) VALUES
+               (9, 'swiss:1234', 'Ham, raw', 'swiss', 'Meat', 'Prosciutto crudo · Rohschinken · Jambon cru');
              INSERT INTO amount VALUES (2, 0, 95), (2, 1, 1150), (2, 2, 350), (4, 0, 97), (6, 0, 140),
                                        (7, 0, 300), (8, 0, 112);
              INSERT INTO portion VALUES (4, 0, '1 medium', 118), (4, 1, '1 cup, sliced', 150);
-             INSERT INTO names(rowid, name) SELECT id, name FROM food;",
+             INSERT INTO names(rowid, name, alt) SELECT id, name, alt FROM food;",
         )
         .unwrap();
         (dir, path)
@@ -256,11 +283,27 @@ mod tests {
         p.search(q, limit).unwrap().into_iter().map(|h| h.name).collect()
     }
 
+    /// A food is found by the name its own table gives it in another language, and says which
+    /// name that was. Nothing is translated: only a name that was published is searched.
+    #[test]
+    fn a_food_is_found_by_its_name_in_its_tables_own_language() {
+        let (_d, path) = pack();
+        let pack = FoodPack::open(&path).unwrap();
+        let hits = pack.search("prosciutto", 5).unwrap();
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!((hits[0].name.as_str(), hits[0].alt.as_str()), ("Ham, raw", "Prosciutto crudo"));
+        // By its German name too, and by the first letters of a later word.
+        assert_eq!(pack.search("rohsch", 5).unwrap()[0].alt, "Rohschinken");
+        assert_eq!(pack.search("jambon cr", 5).unwrap()[0].alt, "Jambon cru");
+        // Found by its English name, it shows no other.
+        assert_eq!(pack.search("ham", 5).unwrap()[0].alt, "");
+    }
+
     #[test]
     fn a_pack_says_what_it_is() {
         let (_d, path) = pack();
         let p = FoodPack::open(&path).unwrap();
-        assert_eq!((p.info().name.as_str(), p.info().foods), ("foods", 8));
+        assert_eq!((p.info().name.as_str(), p.info().foods), ("foods", 9));
     }
 
     #[test]

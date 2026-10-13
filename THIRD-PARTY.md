@@ -505,12 +505,18 @@ A list of foods, compiled into the app. Built by `ci/pack-foods.py` from the tab
 below, each pinned by SHA-256 in that script; the list itself is pinned by SHA-256 in
 `crates/fm-app/src/packs.rs`. **Changes made:** a subset of each table's constituents is
 kept, and every value is converted to a whole number per 100 g; Ciqual's *traces* and
-*below the limit of detection* are stored as zero. No value is averaged across tables.
+*below the limit of detection* are stored as zero, and so are the Swiss table's and
+CREA's. CREA's carbohydrate is its starch plus its soluble sugars, and its saturated
+fat is its fat times the percentage of saturated fatty acids it publishes. Each
+food keeps the names its own table gives it in other languages. No value is averaged
+across tables.
 
 | Table | Licence | Source |
 |---|---|---|
 | Ciqual 2025, French food composition table — Anses | Etalab Open Licence 2.0 | <https://ciqual.anses.fr>, doi:10.57745/RDMHWY |
 | Bundeslebensmittelschlüssel (BLS), Version 4.0 — Max Rubner-Institut (2025) | CC BY 4.0 | <https://blsdb.de>, doi:10.25826/Data20251217-134202-0 |
+| Swiss Food Composition Database, version 7.1 — Federal Food Safety and Veterinary Office (2026) | Free to use, commercially too, with the source acknowledged (the database's own terms) | <https://naehrwertdaten.ch> |
+| Tabelle di composizione degli alimenti, Aggiornamento 2019 — CREA Centro di ricerca Alimenti e Nutrizione | May be copied with the source named (the site's own terms); read from its pages into `ci/data/crea-2019.json.gz` | <https://www.alimentinutrizione.it>, <https://www.crea.gov.it/alimenti-e-nutrizione> |
 | FoodData Central: Foundation Foods, Survey Foods (FNDDS) — U.S. Department of Agriculture, Agricultural Research Service | U.S. Government work | <https://fdc.nal.usda.gov> |
 
 Etalab 2.0: <https://www.etalab.gouv.fr/licence-ouverte-open-licence>. CC BY 4.0:

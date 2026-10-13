@@ -30,6 +30,8 @@ set by hand.
 | `base`    | commit SHA          | **reserved.** The commit a proposal's branch is measured against (an immutable SHA, not a branch name). Used by the diff, not for grouping. |
 | `remind`  | minutes, or `off`   | when to be [reminded](../user/notes.md#reminders) of this note: that many minutes before its `start` or `due`; `off` leaves it out. Without it, at the time itself. |
 | `log`     | `food` \| `workout` \| `body` \| `kept` | **reserved.** Marks this note as a logged entry of the [food and training](../user/trackers.md) logs. A note carrying it is kept out of Board, Agenda, Timeline and search, and it is set by the logging sheets, not by hand. |
+| `amount_g`, `amount_ml` | whole number | how much of a food a logged entry is: grams, or millilitres for a food whose label is by volume. An entry has one or the other; neither is turned into the other. |
+| `unit`    | `ml`                | on a packaged food's note: its label is per 100 ml and it is measured in millilitres. Absent for grams. |
 | `product`, `kitchen`, `routine`, `weekdays`, `planned`, `program`, `plan`, `profile`, `kept` | various | used by the food and training logs (a packaged food, something in your kitchen, a routine and the days it repeats on, a planned entry, the diet or regime followed). Written by their own screens; not meant for grouping. |
 | *(custom)*| any                 | preserved verbatim; groupable with no code change.  |
 

@@ -13,6 +13,16 @@ is committed, so building formicaria needs neither this script nor the network.
 
   - Ciqual 2025        ANSES, France — 3,484 foods. Etalab Open Licence 2.0.
   - BLS 4.0            Max Rubner-Institut, Germany — 7,140 foods. CC BY 4.0.
+  - CREA, Tabelle di composizione degli alimenti, 2019 update
+                       Centro di ricerca Alimenti e Nutrizione, Italy — about 830 foods. Its
+                       own terms: copying with the source named. Published as a page a food and
+                       no file, so it is read from a snapshot of those pages made by
+                       `ci/fetch-crea.py` and kept in `ci/data/`.
+  - Swiss Food Composition Database 7.1
+                       Federal Food Safety and Veterinary Office, Switzerland — its generic
+                       foods, about 1,200. Free to use, commercially too, with the source
+                       acknowledged. Four workbooks, one a language: the food's names in Italian,
+                       German and French are kept beside the English one and searched.
   - FoodData Central   USDA — Foundation Foods and Survey Foods (FNDDS) only, and only as a
                        fallback: it has the household portions ("1 cup") that neither European
                        table has, and some foods they do not list. U.S. Government work.
@@ -74,7 +84,7 @@ import zipfile
 # The list's own version: bump it whenever an input, the constituents or the layout changes.
 # An entry records `<name>@<version>/<food>` as where its numbers came from.
 NAME = "foods"
-VERSION = "2026.10.1"
+VERSION = "2026.10.3"
 
 # ── inputs, each pinned by checksum ──────────────────────────────────────────────────────────────
 
@@ -241,7 +251,10 @@ def read_ciqual(cache):
         v = values.get(code, {})
         name = text(a, "alim_nom_eng")
         if "kcal" in v and name:
-            yield f"ciqual:{code}", name, "ciqual", groups.get(text(a, "alim_grp_code"), ""), v, []
+            # Its French name is its own; the two differ for most foods.
+            fr = text(a, "alim_nom_fr")
+            yield (f"ciqual:{code}", name, "ciqual", groups.get(text(a, "alim_grp_code"), ""), v, [],
+                   fr if fr.lower() != name.lower() else "")
 
 
 # ── BLS ──────────────────────────────────────────────────────────────────────────────────────────
@@ -289,6 +302,7 @@ def read_bls(cache):
         if code in wanted and "/100g]" in title:
             cols[col] = (wanted[code], PER[unit_of(wanted[code])][units[code]])
     name_col = next(c for c, t in head.items() if t == "Food name")
+    de_col = next(c for c, t in head.items() if t == "Lebensmittelbezeichnung")
     code_col = next(c for c, t in head.items() if t == "BLS Code")
     for r in rows:
         code, name = r.get(code_col, "").strip(), r.get(name_col, "").strip()
@@ -303,7 +317,229 @@ def read_bls(cache):
         if "kcal" in v:
             # The first letter of the code is the food's main group, but BLS 4.0 does not publish
             # the groups' names, so the food carries none.
-            yield f"bls:{code}", name, "bls", "", v, []
+            de = r.get(de_col, "").strip()
+            yield f"bls:{code}", name, "bls", "", v, [], de if de.lower() != name.lower() else ""
+
+
+# ── the Swiss table ──────────────────────────────────────────────────────────────────────────────
+# One workbook a language, the same foods in each by `ID`. The English one gives the name and the
+# values; the Italian, German and French ones give the food's other names and synonyms.
+SWISS = "https://naehrwertdaten.ch/wp-content/uploads/2026/07/"
+SWISS_FILES = {
+    "en": ("Swiss_food_composition_database.xlsx",
+           "323bae2eecd639d2c3b3bf3797d30b1426ccb0253fb62810f522778b38089196"),
+    "it": ("Banca_dati_svizzera_dei_valori_nutritivi.xlsx",
+           "7427ce03b3d20a0e676935c5bc6c06152b5e1f204e845afbe45d311abddeae23"),
+    "de": ("Schweizer_Nahrwertdatenbank.xlsx",
+           "f4bb854944ef811f9b8463984389f8121e73278c4fd24fc3e8d16336cb711270"),
+    "fr": ("Base_de_donnees_suisse_des_valeurs_nutritives.xlsx",
+           "1692aa241728f25d4823a6c97bb36c393f7f64173a00a8ed4175b1bf926a5405"),
+}
+# key → the column's heading in the English workbook. Each is used under the INFOODS identifier
+# the workbook's own *Nutrient codes* sheet gives it, read 2026-10-13. Left out because the
+# definition differs: folate (theirs is total folate, FOL; the key is FOLDFE) and vitamin B6
+# (theirs is VITB6-, method unknown). Salt is left out for sodium, which they also publish.
+SWISS_COLUMNS = {
+    "kcal": "Energy, kilocalories (kcal)",                 # ENERC
+    "protein_mg": "Protein (g)",                           # PROCNT (their PROT625)
+    "carbs_mg": "Carbohydrates, available (g)",            # CHOAVL
+    "fat_mg": "Fat, total (g)",                            # FAT
+    "fiber_mg": "Dietary fibres (g)",                      # FIB-
+    "sugars_mg": "Sugars (g)",                             # SUGAR
+    "saturated_fat_mg": "Fatty acids, saturated (g)",      # FASAT
+    "water_mg": "Water (g)",                               # WATER
+    "alcohol_mg": "Alcohol (g)",                           # ALC
+    "sodium_ug": "Sodium (Na) (mg)",                       # NA
+    "potassium_ug": "Potassium (K) (mg)",                  # K
+    "calcium_ug": "Calcium (Ca) (mg)",                     # CA
+    "iron_ug": "Iron (Fe) (mg)",                           # FE
+    "magnesium_ug": "Magnesium (Mg) (mg)",                 # MG
+    "phosphorus_ug": "Phosphorus (P) (mg)",                # P
+    "zinc_ug": "Zinc (Zn) (mg)",                           # ZN
+    "selenium_ug": "Selenium (Se) (µg)",                   # SE
+    "iodine_ug": "Iodide (I) (µg)",                        # ID
+    "vitamin_a_rae_ug": "Vitamin A activity, RAE (µg)",    # VITA_RAE
+    "vitamin_c_ug": "Vitamin C (ascorbic acid) (mg)",      # VITC
+    "vitamin_d_ug": "Vitamin D (calciferol) (µg)",         # VITD
+    "vitamin_e_ug": "Vitamin E (α-tocopherol) (mg)",       # TOCPHA
+    "thiamin_ug": "Vitamin B1 (thiamine) (mg)",            # THIA
+    "riboflavin_ug": "Vitamin B2 (riboflavin) (mg)",       # RIBF
+    "niacin_ug": "Niacin (mg)",                            # NIA
+    "pantothenic_acid_ug": "Pantothenic acid (mg)",        # PANTAC
+    "vitamin_b12_ug": "Vitamin B12 (cobalamin) (µg)",      # VITB12
+    "cholesterol_ug": "Cholesterol (mg)",                  # CHOL-
+}
+SWISS_PER_100G = "per 100g edible portion"
+# One food's English row leaves the reference unit blank (a four-cheese pizza, in 7.1); the same
+# food's Italian row states it. The table is one table: the other workbook's word is taken.
+SWISS_PER_100G_IT = "per 100 g di parte edibile"
+
+
+def squeeze(s):
+    return " ".join(html.unescape(s).split())
+
+
+def swiss_number(s):
+    """A Swiss value: `tr.` (traces) and `<x` are 0, as Ciqual's are; `n.d.` and blank are none."""
+    s = squeeze(s)
+    if not s:
+        return None
+    if s.startswith("<") or s.lower().startswith("tr"):
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def swiss_sheet(cache, lang):
+    """The generic foods of one language's workbook: (the heading row, the food rows)."""
+    name, sha = SWISS_FILES[lang]
+    rows = xlsx_rows(fetch(cache, name, SWISS + name, sha))
+    for r in rows:
+        if r.get("A") == "ID":
+            return r, list(rows)
+    sys.exit(f"{name}: no heading row. The workbook's layout changed — look at it.")
+
+
+def read_swiss(cache):
+    head, rows = swiss_sheet(cache, "en")
+    col = {squeeze(t): c for c, t in head.items()}
+    cols = {}
+    for key, title in SWISS_COLUMNS.items():
+        if title not in col:
+            sys.exit(f"Swiss table: no column headed {title!r}. Its layout changed — look at it.")
+        unit = re.search(r"\((kcal|g|mg|µg)\)$", title).group(1).replace("µ", "u")
+        cols[col[title]] = (key, PER[unit_of(key)][unit])
+    name_c, syn_c, cat_c, ref_c = col["Name"], col["Synonyms"], col["Category"], col["Matrix unit"]
+    # The other languages' names and synonyms, by the food's ID. The columns are where the English
+    # workbook has them: the four are one table in four languages.
+    others, ref_it = {}, {}
+    for lang in ("it", "de", "fr"):
+        _, lrows = swiss_sheet(cache, lang)
+        for r in lrows:
+            if lang == "it":
+                ref_it[r.get("A", "")] = squeeze(r.get(ref_c, ""))
+            others.setdefault(r.get("A", ""), []).extend(
+                [squeeze(r.get(name_c, ""))] + [squeeze(x) for x in r.get(syn_c, "").split(";")])
+    for r in rows:
+        code, name = r.get("A", "").strip(), squeeze(r.get(name_c, ""))
+        if not code or not name:
+            continue
+        ref = squeeze(r.get(ref_c, ""))
+        if ref != SWISS_PER_100G and not (ref == "" and ref_it.get(code) == SWISS_PER_100G_IT):
+            sys.exit(f"Swiss table: food {code} is {ref!r}, not per 100 g. Look at it.")
+        v = {}
+        for c, (key, per) in cols.items():
+            n = swiss_number(r.get(c, ""))
+            if n is not None:
+                v[key] = round(n * per)
+        if "kcal" not in v:
+            continue
+        alt, seen = [], {name.lower()}
+        for n in [squeeze(x) for x in r.get(syn_c, "").split(";")] + others.get(code, []):
+            if n and n.lower() not in seen:
+                seen.add(n.lower())
+                alt.append(n)
+        # The category is `Main/Sub`; the main one is the group.
+        yield (f"swiss:{code}", name, "swiss", squeeze(r.get(cat_c, "")).split("/")[0], v, [],
+               " · ".join(alt))
+
+
+# ── CREA, Italy ──────────────────────────────────────────────────────────────────────────────────
+# CREA publishes a page a food and no file, so its input is a snapshot of those pages made by
+# `ci/fetch-crea.py` and kept in the repository (`decisions.md#data`, 2026-10-13). Pinned like the
+# others: a snapshot made again is a different file, and that is a refusal here.
+CREA_SNAPSHOT = ("crea-2019.json.gz", "a4e54838e276007a4f20efe977d5a29a5bbcec090a195bbfc1e18ceff40d838e")
+# A line of a food's page, by its printed name → (key, the unit it is printed in). Read against
+# CREA's *Presentazione dati*: energy by Southgate's factors; protein from nitrogen by the
+# FAO/WHO (1973) factor for the food; fibre by the AOAC enzymatic-gravimetric method. Left out
+# because the definition is not the key's: available carbohydrate (monosaccharide equivalents —
+# see CREA_CARBS), vitamin A (retinol equivalents, β-carotene ÷ 6), vitamin E (α-tocopherol
+# equivalents), folate (total), vitamin B6 (not said).
+CREA_LINES = {
+    "Energia (kcal)": ("kcal", "kcal"),
+    "Proteine (g)": ("protein_mg", "g"),
+    "Lipidi (g)": ("fat_mg", "g"),
+    "Fibra totale (g)": ("fiber_mg", "g"),
+    "Zuccheri solubili (g)": ("sugars_mg", "g"),     # as monosaccharides: see CREA_CARBS
+    "Acqua (g)": ("water_mg", "g"),
+    "Alcool (g)": ("alcohol_mg", "g"),
+    "Colesterolo (mg)": ("cholesterol_ug", "mg"),
+    "Sodio (mg)": ("sodium_ug", "mg"),
+    "Potassio (mg)": ("potassium_ug", "mg"),
+    "Calcio (mg)": ("calcium_ug", "mg"),
+    "Ferro (mg)": ("iron_ug", "mg"),
+    "Magnesio (mg)": ("magnesium_ug", "mg"),
+    "Fosforo (mg)": ("phosphorus_ug", "mg"),
+    "Zinco (mg)": ("zinc_ug", "mg"),
+    "Rame (mg)": ("copper_ug", "mg"),
+    "Manganese (mg)": ("manganese_ug", "mg"),
+    "Selenio (μg)": ("selenium_ug", "ug"),
+    "Vitamina C (mg)": ("vitamin_c_ug", "mg"),
+    "Vitamina D (μg)": ("vitamin_d_ug", "ug"),
+    "Tiamina (mg)": ("thiamin_ug", "mg"),
+    "Riboflavina (mg)": ("riboflavin_ug", "mg"),
+    "Niacina (mg)": ("niacin_ug", "mg"),
+}
+# **Carbohydrate.** CREA's *Carboidrati disponibili* is starch × 1.10 plus sugars, in
+# monosaccharide equivalents (CHOAVLM), which is not what `carbs_mg` holds (CHOAVL, by weight).
+# Its *Amido* is starch as a polysaccharide — by weight — and its *Zuccheri solubili* are sugars
+# as monosaccharides, at most 5 % above their weight (a disaccharide yields 105 g of
+# monosaccharides per 100 g). So `carbs_mg` is starch plus soluble sugars, as printed: exact for
+# the starch, and for the sugars high by up to a twentieth of the sugars. A food without both
+# lines has no carbohydrate here, unless its available carbohydrate is printed as 0.
+CREA_CARBS = ("Amido (g)", "Zuccheri solubili (g)")
+# **Saturated fat.** *"Il contenuto in acidi grassi è riportato in % di lipidi"*: the saturated
+# fatty acids are a percentage of the food's fat, so the grams are fat × that ÷ 100.
+CREA_SATURATED = "Acidi grassi Saturi (%)"
+
+
+def crea_number(s):
+    """A CREA value: `tr` (present in traces) is 0; blank is no value."""
+    s = s.strip()
+    if not s:
+        return None
+    if s == "tr":
+        return 0.0
+    try:
+        return float(s.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def read_crea(cache):
+    import json
+    name, sha = CREA_SNAPSHOT
+    here = os.path.dirname(os.path.abspath(__file__))
+    snapshot = json.loads(gzip.decompress(checked(os.path.join(here, "data", name), sha, name)))
+    for f in snapshot["foods"]:
+        got = {}
+        for line in f["lines"]:
+            if line["section"].startswith("AMINO"):
+                continue
+            n = crea_number(line["per100"])
+            if n is not None:
+                got.setdefault(line["name"], n)
+        v = {}
+        for printed, (key, unit) in CREA_LINES.items():
+            if printed in got:
+                v[key] = round(got[printed] * PER[unit_of(key)][unit])
+        if all(x in got for x in CREA_CARBS):
+            v["carbs_mg"] = round(sum(got[x] for x in CREA_CARBS) * 1000)
+        elif got.get("Carboidrati disponibili (g)") == 0:
+            # None is none in any unit.
+            v["carbs_mg"] = 0
+        if CREA_SATURATED in got and "Lipidi (g)" in got:
+            v["saturated_fat_mg"] = round(got["Lipidi (g)"] * got[CREA_SATURATED] / 100 * 1000)
+        italian, english = f["name"].strip(), f["english"].strip()
+        if "kcal" not in v or not (italian or english):
+            continue
+        title = english or italian
+        portion = re.fullmatch(r"(\d+) g", f["portion"].strip())
+        yield (f"crea:{f['code']}", title, "crea", f["category"], v,
+               [("1 portion", int(portion.group(1)))] if portion else [],
+               italian if italian.lower() != title.lower() else "")
 
 
 # ── USDA, the fallback ───────────────────────────────────────────────────────────────────────────
@@ -385,7 +621,7 @@ def read_usda(cache):
             if total is not None and "fiber_mg" in v:
                 v["carbs_mg"] = max(0, total - v["fiber_mg"])
             if "kcal" in v:
-                yield f"usda:{fdc}", title, "usda", "", v, portions.get(fdc, [])
+                yield f"usda:{fdc}", title, "usda", "", v, portions.get(fdc, []), ""
 
 
 # ── the list ─────────────────────────────────────────────────────────────────────────────────────
@@ -402,27 +638,35 @@ def build(cache, out, embed):
     keys = {key: i for i, (key, *_) in enumerate(NUTRIENTS)}
     db.executemany("INSERT INTO nutrient(n, key) VALUES (?, ?)", [(i, k) for k, i in keys.items()])
     counts, fid = {}, 0
-    for source in (read_ciqual, read_bls, read_usda):
-        for code, title, src, grp, values, portions in source(cache):
+    for source in (read_ciqual, read_bls, read_swiss, read_crea, read_usda):
+        for code, title, src, grp, values, portions, alt in source(cache):
             fid += 1
-            db.execute("INSERT INTO food(id, code, name, src, grp) VALUES (?, ?, ?, ?, ?)",
-                       (fid, code, title, src, grp))
+            db.execute("INSERT INTO food(id, code, name, src, grp, alt) VALUES (?, ?, ?, ?, ?, ?)",
+                       (fid, code, title, src, grp, alt))
             db.executemany("INSERT INTO amount VALUES (?, ?, ?)",
                            [(fid, keys[k], v) for k, v in values.items()])
             db.executemany("INSERT INTO portion VALUES (?, ?, ?, ?)",
                            [(fid, i, label, grams) for i, (label, grams) in enumerate(portions)])
             counts[src] = counts.get(src, 0) + 1
-    db.execute("INSERT INTO names(rowid, name) SELECT id, name FROM food")
+    db.execute("INSERT INTO names(rowid, name, alt) SELECT id, name, alt FROM food")
     meta = {
         "name": NAME,
         "version": VERSION,
         "foods": str(sum(counts.values())),
-        "title": "Foods: Ciqual 2025 and BLS 4.0, with USDA FoodData Central as a fallback",
-        "licence": "Ciqual: Etalab Open Licence 2.0. BLS: CC BY 4.0. USDA: U.S. Government work",
+        "title": ("Foods: Ciqual 2025, BLS 4.0, the Swiss Food Composition Database 7.1 and "
+                  "CREA's tables (2019), with USDA FoodData Central as a fallback"),
+        "licence": ("Ciqual: Etalab Open Licence 2.0. BLS: CC BY 4.0. Swiss Food Composition "
+                    "Database: free to use, commercially too, with the source acknowledged. "
+                    "CREA: may be copied with the source named. "
+                    "USDA: U.S. Government work"),
         "attribution": (
             "Anses (2025), Ciqual French food composition table, doi:10.57745/RDMHWY. "
             "Max Rubner-Institut (2025), Bundeslebensmittelschlüssel (BLS), Version 4.0, "
             "doi:10.25826/Data20251217-134202-0. "
+            "Federal Food Safety and Veterinary Office (2026), Swiss Food Composition Database, "
+            "version 7.1, naehrwertdaten.ch. "
+            "CREA Centro di ricerca Alimenti e Nutrizione, Tabelle di composizione degli "
+            "alimenti, Aggiornamento 2019, www.alimentinutrizione.it. "
             "U.S. Department of Agriculture, Agricultural Research Service, FoodData Central. "
             "A subset of each table's constituents, converted to whole numbers per 100 g."
         ),

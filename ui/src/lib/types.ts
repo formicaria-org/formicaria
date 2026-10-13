@@ -652,7 +652,11 @@ export interface Product {
   title: string;
   barcode?: string;
   serving_g?: number;
-  /** What a hundred grams hold, by the keys every food uses. */
+  /** A serving of a food whose label is by volume. */
+  serving_ml?: number;
+  /** `ml` when the food is measured in millilitres; absent for grams. */
+  unit?: string;
+  /** What a hundred of its unit hold, by the keys every food uses. */
   per100: Record<string, number>;
 }
 /** A product as Open Food Facts gave it, shaped as the label form's fields (`product_lookup`). */
@@ -719,10 +723,12 @@ export interface NoteDraft {
 export interface FoodHit {
   id: string;
   name: string;
-  /** Which table the food is from: `ciqual`, `bls` or `usda`. */
+  /** Which table the food is from: `ciqual`, `bls`, `swiss`, `crea` or `usda`. */
   src: string;
   /** Energy per 100 g. */
   kcal: number;
+  /** The name it was found by in its own table's language, when not the English one. */
+  alt?: string;
 }
 export interface FoodPortion {
   label: string;

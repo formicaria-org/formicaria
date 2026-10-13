@@ -22,6 +22,15 @@
   } from '../ipc';
   import { digitsOf, isBarcode, sameCode } from './barcode';
   import {
+    AMOUNT_KEYS,
+    amountKey,
+    entryAmount,
+    shownAmount,
+    shownAs,
+    type AmountUnit,
+  } from './amount';
+  import * as label from './label';
+  import {
     createNotesUndoable,
     setPropertiesUndoable,
     deleteUndoable,
@@ -59,10 +68,15 @@
   }
   let { view, def, day, slot, entry = null, open = '', onclose, onwrote }: Props = $props();
 
-  const AMOUNT = 'amount_g';
   /// The food tables the list is made from, as a person would name them
   /// (`decisions.md#data`, 2026-10-11).
-  const TABLES: Record<string, string> = { ciqual: 'Ciqual', bls: 'BLS', usda: 'USDA' };
+  const TABLES: Record<string, string> = {
+    ciqual: 'Ciqual',
+    bls: 'BLS',
+    swiss: 'Swiss',
+    crea: 'CREA',
+    usda: 'USDA',
+  };
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
   const secondary = $derived(def.metrics.filter((m) => m.role === 'secondary'));
 
@@ -143,27 +157,19 @@
       (p) => p.title.toLowerCase().includes(text) || (!!p.barcode && sameCode(p.barcode) === code),
     );
   });
-  const LABEL: { key: string; label: string; per: number }[] = [
-    { key: 'kcal', label: 'Energy (kcal)', per: 1 },
-    { key: 'fat_mg', label: 'Fat (g)', per: 1000 },
-    { key: 'saturated_fat_mg', label: 'of which saturates (g)', per: 1000 },
-    { key: 'carbs_mg', label: 'Carbohydrate (g)', per: 1000 },
-    { key: 'sugars_mg', label: 'of which sugars (g)', per: 1000 },
-    { key: 'fiber_mg', label: 'Fibre (g)', per: 1000 },
-    { key: 'protein_mg', label: 'Protein (g)', per: 1000 },
-    // A label states salt; the tables and every reference here are in sodium. Salt is sodium
-    // × 2.5 (Regulation (EU) 1169/2011, Annex I), so a gram of salt is 400 mg of sodium.
-    { key: 'sodium_ug', label: 'Salt (g)', per: 400_000 },
-  ];
-  let labelling = $state<{
-    name: string;
-    barcode: string;
-    serving: number | string | null;
-    ingredients: string;
-    values: Record<string, number | string | null | undefined>;
-    /** Where the figures were looked up, when they were. */
-    page: string;
-  } | null>(null);
+  // What the label says its figures are for, and in which units, is asked and not assumed: a
+  // European label is per 100 g or 100 ml with salt, an American one per serving with sodium
+  // (`decisions.md#data`, 2026-10-13). The arithmetic is `label.ts`'s.
+  let labelling = $state<
+    | (label.LabelForm & {
+        name: string;
+        barcode: string;
+        ingredients: string;
+        /** Where the figures were looked up, when they were. */
+        page: string;
+      })
+    | null
+  >(null);
   /// Reading the number off a picture of the barcode. The same "take or choose a picture" the
   /// note panel uses, so no camera permission is asked for; the picture is read here and kept
   /// nowhere.
@@ -227,10 +233,11 @@
       l.serving = l.serving || (found.serving_g ?? null);
       l.ingredients = l.ingredients.trim() || found.ingredients;
       l.page = found.page;
-      for (const f of LABEL) {
-        const v = found.per100[f.key];
-        if (v !== undefined) l.values[f.key] = Math.round((v / f.per) * 100) / 100;
-      }
+      // What comes back is per 100 g, as a European label reads: the form is set to match.
+      l.basis = '100g';
+      l.energyIn = 'kcal';
+      l.sodiumAs = 'salt';
+      Object.assign(l.values, label.typedFrom(found.per100));
       lookedUp =
         found.per100.kcal === undefined
           ? 'Found, but with no energy figure: copy it from the pack.'
@@ -245,21 +252,18 @@
     (labelling = {
       name: /^[\d\s-]+$/.test(q.trim()) ? '' : q.trim(),
       barcode: /^[\d\s-]+$/.test(q.trim()) ? digitsOf(q) : '',
+      basis: '100g',
       serving: null,
+      servingUnit: 'g',
+      energyIn: 'kcal',
+      sodiumAs: 'salt',
       ingredients: '',
       values: {},
       page: '',
     });
-  const labelValues = $derived.by(() => {
-    const out: Record<string, number> = {};
-    for (const f of LABEL) {
-      const raw = labelling?.values[f.key];
-      if (raw === '' || raw === null || raw === undefined) continue;
-      const n = Number(raw);
-      if (Number.isFinite(n) && n >= 0) out[f.key] = Math.round(n * f.per);
-    }
-    return out;
-  });
+  /// The figures per 100 of the food's own unit, or nothing while they cannot be worked out.
+  const labelValues = $derived((labelling && label.per100(labelling)) ?? {});
+  const labelUnit = $derived<AmountUnit>(labelling ? label.unitOf(labelling) : 'g');
   const badCode = $derived(!!labelling?.barcode.trim() && !isBarcode(labelling.barcode));
   const labelReady = $derived(
     !!labelling?.name.trim() && labelValues.kcal !== undefined && !badCode,
@@ -269,7 +273,8 @@
       const l = labelling;
       if (!l || !labelReady) return;
       const title = l.name.trim();
-      const serving = Math.round(Number(l.serving));
+      const serving = label.servingOf(l);
+      const unit = label.unitOf(l);
       await createNotesUndoable(
         [
           {
@@ -286,7 +291,9 @@
               product: 'label',
               ...(l.page ? { source_url: l.page } : {}),
               ...(l.barcode.trim() ? { barcode: digitsOf(l.barcode) } : {}),
-              ...(serving > 0 ? { serving_g: serving } : {}),
+              // A food whose label is by volume is measured in millilitres, and its note says so.
+              ...(unit === 'ml' ? { unit: 'ml' } : {}),
+              ...(serving ? { [unit === 'ml' ? 'serving_ml' : 'serving_g']: serving } : {}),
               ...labelValues,
             },
           },
@@ -300,13 +307,16 @@
     });
   function openProduct(p: Product) {
     failed = '';
+    const unit: AmountUnit = p.unit === 'ml' ? 'ml' : 'g';
+    const serving = unit === 'ml' ? p.serving_ml : p.serving_g;
     portion = {
       title: p.title,
-      grams: p.serving_g ?? 100,
+      grams: serving ?? 100,
+      unit,
       per100: p.per100,
       base: {},
       baseGrams: 0,
-      portions: p.serving_g ? [{ label: `1 serving (${p.serving_g} g)`, grams: p.serving_g }] : [],
+      portions: serving ? [{ label: `1 serving (${shownAs(serving, unit)})`, grams: serving }] : [],
       source: `product/${p.id}`,
     };
   }
@@ -367,7 +377,9 @@
   // ── the portion step ───────────────────────────────────────────────────────────────────────────
   type Portion = {
     title: string;
+    /** How much, in `unit`. (Named for the commonest case; a drink's is millilitres.) */
     grams: number;
+    unit: AmountUnit;
     /** Values per 100 g, when the food's source is known. */
     per100: Record<string, number> | null;
     /** Otherwise: the values as they were at `baseGrams`, kept so stepping never compounds. */
@@ -400,7 +412,8 @@
   async function openPortion(title: string, props: Record<string, unknown>) {
     if (whole(props[PCT]) !== null) return openServing(title, props);
     failed = '';
-    const grams = whole(props[AMOUNT]) ?? 0;
+    const had = entryAmount(props);
+    const grams = had.n ?? 0;
     const source = typeof props.source === 'string' ? props.source : '';
     let found = null;
     if (source) {
@@ -413,6 +426,7 @@
     portion = {
       title,
       grams: grams || found?.portions[0]?.grams || 100,
+      unit: had.unit,
       per100: found?.per100 ?? null,
       base: numbersOf(props),
       baseGrams: grams,
@@ -428,6 +442,7 @@
       portion = {
         title: f.name,
         grams: f.portions[0]?.grams ?? 100,
+        unit: 'g',
         per100: f.per100,
         base: {},
         baseGrams: 0,
@@ -506,7 +521,7 @@
       if (into) {
         // An ingredient for a recipe that is already kept: one more entry under its word.
         const r = into;
-        const props = { [AMOUNT]: p.grams, ...valuesAt(p, p.grams) };
+        const props = { [amountKey(p.unit)]: p.grams, ...valuesAt(p, p.grams) };
         await createNotesUndoable(
           [
             {
@@ -532,6 +547,7 @@
         building.items.push({
           title: p.title,
           grams: p.grams,
+          unit: p.unit,
           values: valuesAt(p, p.grams),
           source: p.source,
         });
@@ -540,9 +556,10 @@
         return;
       }
       const props: Record<string, string | number> = {
-        [AMOUNT]: p.grams,
+        [amountKey(p.unit)]: p.grams,
         ...valuesAt(p, p.grams),
-        ...rangeProps(p.grams),
+        // A range is in grams; an amount in millilitres has none yet.
+        ...(p.unit === 'g' ? rangeProps(p.grams) : {}),
       };
       if (p.source) props.source = p.source;
       await createNotesUndoable([draft(p.title, props)], `logged “${p.title}”`);
@@ -559,10 +576,10 @@
       await setPropertiesUndoable(
         entry.id,
         {
-          [AMOUNT]: p.grams,
+          [amountKey(p.unit)]: p.grams,
           slot: chosen,
           ...valuesAt(p, p.grams),
-          ...rangeProps(p.grams),
+          ...(p.unit === 'g' ? rangeProps(p.grams) : {}),
           // Only when the time was changed: the day is the entry's own, never the screen's.
           ...(at !== was
             ? { start: at ? `${dayOf(entry.start) || day}T${at}` : dayOf(entry.start) || day }
@@ -601,7 +618,7 @@
   const wholeOf = (r: Recipe) =>
     Object.fromEntries(
       Object.entries(r.sums)
-        .filter(([k]) => k !== AMOUNT)
+        .filter(([k]) => !AMOUNT_KEYS.includes(k))
         .map(([k, v]) => [k, v.sum]),
     );
   /// What is missing from a total, in words: “Iron from 1 of 2 ingredients”.
@@ -747,7 +764,7 @@
       const p = portion;
       await setPropertiesUndoable(
         fixing.id,
-        { [AMOUNT]: p.grams, ...valuesAt(p, p.grams) },
+        { [amountKey(p.unit)]: p.grams, ...valuesAt(p, p.grams) },
         `changed “${p.title}”`,
       );
       await leaveFix();
@@ -773,7 +790,13 @@
     });
 
   // Putting a recipe together: a name, how many servings it makes, and foods by weight.
-  type Item = { title: string; grams: number; values: Record<string, number>; source: string };
+  type Item = {
+    title: string;
+    grams: number;
+    unit: AmountUnit;
+    values: Record<string, number>;
+    source: string;
+  };
   let building = $state<{
     name: string;
     servings: number | string | null;
@@ -810,7 +833,7 @@
           props: {
             log: def.log,
             recipe,
-            [AMOUNT]: i.grams,
+            [amountKey(i.unit)]: i.grams,
             ...i.values,
             ...(i.source ? { source: i.source } : {}),
           },
@@ -945,10 +968,10 @@
               type="number"
               inputmode="numeric"
               min="1"
-              aria-label="amount in grams"
+              aria-label={portion.unit === 'ml' ? 'amount in millilitres' : 'amount in grams'}
               bind:value={portion.grams}
             />
-            <span class="unit">g</span>
+            <span class="unit">{portion.unit}</span>
           </div>
           <button
             type="button"
@@ -979,7 +1002,7 @@
             <span class:lead={i === 0}>{part}</span>
           {/each}
         </p>
-        {#if !fixing && !building && !into}
+        {#if !fixing && !building && !into && portion.unit === 'g'}
           {#if unsure}
             <div class="range">
               <label>
@@ -1071,7 +1094,7 @@
               {#each r.ingredients as i (i.id)}
                 <li class="plain">
                   <span class="t">{i.title}</span>
-                  <span class="a">{showWith(AMOUNT, whole(i.props[AMOUNT]) ?? 0)}</span>
+                  <span class="a">{shownAmount(i.props)}</span>
                 </li>
               {/each}
             </ul>
@@ -1100,7 +1123,7 @@
                     aria-label={`change ${i.title ?? 'ingredient'}`}
                   >
                     <span class="t">{i.title}</span>
-                    <span class="a">{showWith(AMOUNT, whole(i.props[AMOUNT]) ?? 0)}</span>
+                    <span class="a">{shownAmount(i.props)}</span>
                     <span class="v">{show(primary.key, whole(i.props[primary.key]) ?? 0).text}</span
                     >
                   </button>
@@ -1154,7 +1177,7 @@
             <li>
               <span class="row still">
                 <span class="t">{i.title}</span>
-                <span class="a">{showWith(AMOUNT, i.grams)}</span>
+                <span class="a">{shownAs(i.grams, i.unit)}</span>
                 <span class="v">{show(primary.key, i.values[primary.key] ?? 0).text}</span>
               </span>
               <button
@@ -1261,10 +1284,77 @@
           </p>
         {/if}
         {#if lookedUp}<p class="hint" role="status">{lookedUp}</p>{/if}
+        <fieldset class="basis">
+          <legend>The label gives its figures</legend>
+          {#each [['100g', 'per 100 g'], ['100ml', 'per 100 ml'], ['serving', 'per serving']] as [v, words] (v)}
+            <label class="pick">
+              <input type="radio" name="label-basis" value={v} bind:group={labelling.basis} />
+              <span>{words}</span>
+            </label>
+          {/each}
+        </fieldset>
+        <div class="with-unit">
+          <label>
+            <span>
+              {labelling.basis === 'serving' ? 'A serving is' : 'A serving is (optional)'}
+            </span>
+            <input
+              class="field"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              bind:value={labelling.serving}
+            />
+          </label>
+          {#if labelling.basis === 'serving'}
+            <label>
+              <span>in</span>
+              <select
+                class="field"
+                bind:value={labelling.servingUnit}
+                aria-label="serving measured in"
+              >
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+              </select>
+            </label>
+          {:else}
+            <span class="fixed">{labelUnit}</span>
+          {/if}
+        </div>
         <p class="hint">
-          Per 100 g, as the label prints it. Energy is needed; the rest as you like.
+          Copy the label as it is printed; energy is needed, the rest as you like.
+          {#if labelling.basis === 'serving'}
+            It is kept per 100 {labelUnit}, worked out from the serving.
+          {/if}
         </p>
-        {#each LABEL as f (f.key)}
+        <div class="with-unit">
+          <label>
+            <span>Energy</span>
+            <input
+              class="field"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.1"
+              bind:value={labelling.values[label.ENERGY]}
+            />
+          </label>
+          <label>
+            <span>in</span>
+            <select class="field" bind:value={labelling.energyIn} aria-label="energy given in">
+              <option value="kcal">kcal</option>
+              <option value="kJ">kJ</option>
+            </select>
+          </label>
+        </div>
+        {#if labelling.energyIn === 'kJ'}
+          <p class="hint">
+            If the label also gives kcal, type that instead: the two are worked out separately on a
+            label, and kJ turned into kcal can be a little off its own figure.
+          </p>
+        {/if}
+        {#each label.LINES as f (f.key)}
           <label>
             <span>{f.label}</span>
             <input
@@ -1277,16 +1367,26 @@
             />
           </label>
         {/each}
-        <label>
-          <span>A serving, in grams (optional)</span>
-          <input
-            class="field"
-            type="number"
-            inputmode="numeric"
-            min="1"
-            bind:value={labelling.serving}
-          />
-        </label>
+        <div class="with-unit">
+          <label>
+            <span>{labelling.sodiumAs === 'salt' ? 'Salt' : 'Sodium'}</span>
+            <input
+              class="field"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              bind:value={labelling.values[label.SODIUM]}
+            />
+          </label>
+          <label>
+            <span>as</span>
+            <select class="field" bind:value={labelling.sodiumAs} aria-label="salt or sodium">
+              <option value="salt">salt, g</option>
+              <option value="sodium">sodium, mg</option>
+            </select>
+          </label>
+        </div>
         <label>
           <span>Ingredients, as on the pack (optional)</span>
           <textarea class="field tall" rows="3" bind:value={labelling.ingredients}></textarea>
@@ -1349,11 +1449,11 @@
         {:else}
           <ul class="rows">
             {#each offered as r (r.title + String(r.props.source ?? ''))}
-              {@const grams = whole(r.props[AMOUNT])}
+              {@const amount = shownAmount(r.props)}
               <li>
                 <button type="button" class="row" onclick={() => openPortion(r.title, r.props)}>
                   <span class="t">{r.title}</span>
-                  <span class="a">{grams !== null ? showWith(AMOUNT, grams) : ''}</span>
+                  <span class="a">{amount}</span>
                   <span class="v">{show(primary.key, whole(r.props[primary.key]) ?? 0).text}</span>
                 </button>
                 {#if !picking}
@@ -1390,7 +1490,7 @@
             <li>
               <button type="button" class="row" onclick={() => openProduct(p)}>
                 <span class="t">{p.title}</span>
-                <span class="a">Your label · per 100 g</span>
+                <span class="a">Your label · per 100 {p.unit === 'ml' ? 'ml' : 'g'}</span>
                 <span class="v">{show(primary.key, p.per100[primary.key] ?? 0).text}</span>
               </button>
             </li>
@@ -1398,7 +1498,11 @@
           {#each hits as h (h.id)}
             <li>
               <button type="button" class="row" onclick={() => openHit(h)}>
-                <span class="t">{h.name}</span>
+                <span class="t">
+                  {h.name}
+                  <!-- The name it was found by, when that is not the English one. -->
+                  {#if h.alt}<small class="alt">{h.alt}</small>{/if}
+                </span>
                 <!-- Which table: two may both list a banana, and they are not one measurement. -->
                 <span class="a">{TABLES[h.src] ?? h.src} · per 100 g</span>
                 <span class="v">{show(primary.key, h.kcal).text}</span>
@@ -1760,6 +1864,53 @@
     padding: var(--space-2) var(--space-3);
     font: inherit;
     resize: vertical;
+  }
+  .basis {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+  }
+  .basis legend {
+    padding: 0;
+    margin-bottom: var(--space-1);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+  .quick .basis .pick {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+  .with-unit {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+  }
+  .with-unit > label:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .with-unit > label:last-child {
+    flex: 0 0 7.5rem;
+  }
+  .with-unit .fixed {
+    flex: none;
+    min-height: 3rem;
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted);
+  }
+  .alt {
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: 400;
   }
   .packet {
     display: flex;

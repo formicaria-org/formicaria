@@ -30,6 +30,11 @@ const LADDERS: Record<string, Step[]> = {
     { unit: 'g', per: 1 },
     { unit: 'kg', per: 1000 },
   ],
+  // A food whose label is by volume (`amount_ml`): never turned into grams.
+  ml: [
+    { unit: 'ml', per: 1 },
+    { unit: 'l', per: 1000 },
+  ],
 };
 
 function suffix(key: string): string {

@@ -1359,6 +1359,53 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   intended, but each change is its own note, so a person who changes targets often accumulates
   them on the agenda.
 
+## The food list with the Swiss table and other-language names — limits (2026-10-13)
+
+`ci/pack-foods.py` (`read_swiss`), `fm-core/src/pack.rs`; `decisions.md#data`, 2026-10-13.
+
+- **Nothing is translated.** A food is found by a name its own table publishes: *prosciutto
+  crudo* finds the Swiss table's and CREA's, not Ciqual's *Jambon sec de Parme*.
+- **CREA's table is a snapshot of its website**, read 2026-10-13 (`ci/data/crea-2019.json.gz`,
+  made by `ci/fetch-crea.py`): 832 foods. It does not update itself, and CREA publishes no
+  file to compare it with. **60 of them have no carbohydrate here** (no starch or sugars line:
+  buckwheat, millet, the artichokes); CREA's own figure is in monosaccharide equivalents and is
+  not stored. Its sugars, and so its carbohydrate, read up to a twentieth of the sugars high.
+  No vitamin A, vitamin E or folate (other definitions); saturated fat is worked out from the
+  percentage of the fat it publishes. Its terms do not speak of adaptation: the owner's call.
+- **Singapore's database is not carried**: its site forbids every robot (`robots.txt`), and
+  nothing was found for it on Zenodo or any open portal.
+- **Swiss foods have no folate and no vitamin B6 here**: the table's definitions are not the
+  keys'. Their household portions are not published, so none are offered.
+- **One Swiss food's reference unit is taken from its Italian row** (the English one is blank).
+  The build stops if any other is not per 100 g.
+- **More duplicates.** Three tables may each have a banana; they are three measurements and are
+  not merged. Nothing lets a person hide a table yet.
+- **The carried list is 4.9 MB packed, 11.5 MB on the device** (was 3.8 and 8.8).
+- **Not next without work: the UK's table.** Its carbohydrate and sugars are in monosaccharide
+  equivalents; the Nordic and Asian tables each need their definitions read the same way.
+- **The Swiss database also publishes a density for 126 foods.** Not used: it would be the only
+  honest way to turn a millilitre into a gram, and only for those.
+
+## A label from any country, and millilitres — limits (2026-10-13)
+
+`ui/src/lib/food/label.ts`, `amount.ts`; `decisions.md#data`, 2026-10-13.
+
+- **Not seen on a phone.** The form was looked at in a headless browser at 360 px.
+- **An amount in millilitres cannot be a range** (least and most): the range keys and the
+  core's `range_of` are in grams. The *Not sure of the amount?* line is simply not offered.
+- **A label that gives a serving both ways** (*250 ml (258 g)*) is typed one way; the other is
+  lost, and with it the only honest density the app could ever have had.
+- **kJ turned into kcal is not the packet's own kcal** when it prints both (the form says so).
+- **A looked-up product is always taken as per 100 g.** Open Food Facts keeps a drink's figures
+  under the same names per 100 ml, and the look-up does not ask which; a drink found by its
+  barcode is therefore filed in grams until the person changes the choice before saving.
+- **`amount_ml` is new to everything that reads an amount.** The add sheet, the menu and the
+  day's rows ask `amount.ts` or read `amount_<unit>`; the stand-in's range arithmetic and the
+  core's still read grams only. A recipe built from a drink sums its values correctly and shows
+  no total weight for it.
+- **Per-serving figures are rounded on the way to per 100**, to the whole unit a value is kept
+  in; logging one serving back can differ from the label by a unit.
+
 ## Reminders — where they stand (2026-10-13)
 
 Built in 0.7.7 (`reminders.rs`, `ui/src/lib/reminders.svelte.ts`, `Reminders.kt` written by

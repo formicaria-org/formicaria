@@ -6,8 +6,11 @@ CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
 -- (`ciqual:1000`, `bls:C133000`, `usda:2709224`) — so a logged entry's `source` still means
 -- something outside this file. `src` is the table; `grp` its food group there, by the name that
 -- table publishes (empty where it publishes none). `id` is only a row number, for the name index.
+-- `alt` is the food's other names: what its own table calls it in its own language or languages,
+-- and its synonyms, joined by ` · ` (`decisions.md#data`, 2026-10-13). Published names only —
+-- nothing here is a translation made by the app.
 CREATE TABLE food(id INTEGER PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
-                  src TEXT NOT NULL, grp TEXT NOT NULL DEFAULT '');
+                  src TEXT NOT NULL, grp TEXT NOT NULL DEFAULT '', alt TEXT NOT NULL DEFAULT '');
 CREATE TABLE nutrient(n INTEGER PRIMARY KEY, key TEXT NOT NULL UNIQUE);
 -- Every value per 100 g, as a whole number in the unit the nutrient's key names.
 CREATE TABLE amount(food INTEGER NOT NULL, n INTEGER NOT NULL, per100 INTEGER NOT NULL,
@@ -16,5 +19,5 @@ CREATE TABLE portion(food INTEGER NOT NULL, seq INTEGER NOT NULL, label TEXT NOT
                      grams INTEGER NOT NULL, PRIMARY KEY(food, seq)) WITHOUT ROWID;
 -- Names only, folded like the app's own search, with short prefixes indexed: a food is found by
 -- the first letters of a word, typed on a phone.
-CREATE VIRTUAL TABLE names USING fts5(name, content='food', content_rowid='id',
+CREATE VIRTUAL TABLE names USING fts5(name, alt, content='food', content_rowid='id',
                                       tokenize='unicode61 remove_diacritics 2', prefix='1 2 3');
