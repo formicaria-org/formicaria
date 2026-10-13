@@ -6,6 +6,8 @@
   // its days — or remove it. The sets themselves are changed by planning the routine onto a day,
   // changing them there, and keeping that session under the same name.
   import Icon from '../Icon.svelte';
+  import Resumed from '../Resumed.svelte';
+  import { draftOf, dropDraft, keepDraft } from '../drafts';
   import { createNotesUndoable, deleteNotesUndoable, setPropertiesUndoable } from '../undo.svelte';
   import type { NoteDraft, ObjectMeta, Routine, TotalsDef } from '../types';
 
@@ -37,6 +39,26 @@
   let days = $state<string[]>(routine?.weekdays ?? []);
   let busy = $state(false);
   let failed = $state('');
+  // A new routine's name and days are kept on the device until it is saved (`drafts.ts`).
+  const DRAFT = 'routine';
+  let resumed = $state(false);
+  // svelte-ignore state_referenced_locally
+  if (!routine) {
+    const was = draftOf<{ name: string; days: string[] }>(DRAFT);
+    if (was && (was.name || was.days?.length)) {
+      name = was.name ?? '';
+      days = was.days ?? [];
+      resumed = true;
+    }
+  }
+  $effect(() => {
+    if (!routine) keepDraft(DRAFT, { name, days });
+  });
+  const afresh = () => {
+    name = '';
+    days = [];
+    resumed = false;
+  };
   const toggle = (d: string) =>
     (days = days.includes(d) ? days.filter((x) => x !== d) : [...days, d]);
   /// In the week's order, whatever order they were pressed in.
@@ -85,6 +107,7 @@
           ],
           `kept the routine “${title}”`,
         );
+        dropDraft(DRAFT);
       }
       onwrote();
       onclose();
@@ -159,6 +182,7 @@
       {count === 1 ? 'set' : 'sets'}. To change them, plan the routine, change the session, and keep
       it under the same name.
     </p>
+    {#if resumed}<Resumed onafresh={afresh} />{/if}
     {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
     <button type="button" class="go" onclick={save} disabled={busy || !ready}>
       {routine ? 'Save' : 'Keep it'}

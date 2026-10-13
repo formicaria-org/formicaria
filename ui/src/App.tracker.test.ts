@@ -346,6 +346,75 @@ test('the day says whether it follows the diet, and what is off', async () => {
   expect(within(diet).getByText('nothing logged yet')).toBeTruthy();
 });
 
+test('a diet being fine-tuned is still open, as typed, after another view and after the app is closed', async () => {
+  showTrackers();
+  const app = render(App);
+  const toDiet = async () => {
+    const rail = await screen.findByRole('navigation', { name: 'views' });
+    await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+    const bar = await screen.findByRole('group', { name: 'Food' });
+    await fireEvent.click(within(bar).getByRole('button', { name: 'Diet' }));
+    return bar;
+  };
+  let bar = await toDiet();
+  await fireEvent.click(await screen.findByRole('button', { name: /WHO healthy diet/ }));
+  await screen.findByRole('button', { name: 'Follow this' });
+  const bound = () => screen.queryAllByRole('spinbutton')[0] as HTMLInputElement | undefined;
+  await waitFor(() => expect(bound()).toBeTruthy());
+  await fireEvent.input(bound()!, { target: { value: '7' } });
+  // Away to the day, and back: it is as it was.
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Day' }));
+  bar = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Diet' }));
+  expect(await screen.findByRole('button', { name: 'Follow this' })).toBeTruthy();
+  await waitFor(() => expect(bound()?.value).toBe('7'));
+  // The app closed and opened again: it opens on the same option, with what was typed.
+  app.unmount();
+  render(App);
+  bar = await toDiet();
+  expect(await screen.findByText(/Carried on from where you left it/)).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Follow this' })).toBeTruthy();
+  await waitFor(() => expect(bound()?.value).toBe('7'));
+  // Its own Back is leaving it: the library is shown the next time.
+  await fireEvent.click(screen.getByRole('button', { name: /All diets/ }));
+  expect(await screen.findByRole('button', { name: /WHO healthy diet/ })).toBeTruthy();
+  expect(store.has('fm-draft:plan:food')).toBe(false);
+});
+
+test('a label half typed, and a food half typed in, are there when the sheet is opened again', async () => {
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  let sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Type in a label' }));
+  let form = await within(sheet).findByRole('region', { name: 'a packaged food, from its label' });
+  await fireEvent.input(within(form).getByLabelText('Name'), { target: { value: 'Penne' } });
+  await fireEvent.input(within(form).getByLabelText('Fat (g)'), { target: { value: '1.5' } });
+  // Closed without saving.
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'close' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'add to Food' }));
+  sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Type in a label' }));
+  form = await within(sheet).findByRole('region', { name: 'a packaged food, from its label' });
+  expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe('Penne');
+  expect((within(form).getByLabelText('Fat (g)') as HTMLInputElement).value).toBe('1.5');
+  expect(within(form).getByText(/Carried on from where you left it/)).toBeTruthy();
+  await fireEvent.click(within(form).getByRole('button', { name: 'Start afresh' }));
+  await waitFor(() =>
+    expect((within(sheet).getByLabelText('Name') as HTMLInputElement).value).toBe(''),
+  );
+  // Quick add keeps its name and figures the same way.
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Back' }));
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Quick add' }));
+  await fireEvent.input(within(sheet).getByLabelText('Name'), { target: { value: 'Soup' } });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'close' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'add to Food' }));
+  sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Quick add' }));
+  expect((within(sheet).getByLabelText('Name') as HTMLInputElement).value).toBe('Soup');
+});
+
 test('every nutrient of the day is one press from the day screen, each beside its reference', async () => {
   seedTrackerDemo();
   showTrackers();

@@ -1410,6 +1410,20 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   assistant: loopback is trusted. The picture would go to the port it named, on loopback only.
 - **Windows and macOS: compiled, never run**, like the assistant itself there.
 
+## Drafts of unsaved forms — limits (2026-10-14)
+
+`ui/src/lib/drafts.ts`, `Resumed.svelte`; `decisions.md#ui`, 2026-10-14.
+
+- **Per device, and not per notebook.** A draft is in the browser's or the phone app's own
+  storage: not in a backup, not on another device, and shared by every notebook opened there.
+- **One draft per form**: a second new label replaces the first's draft once it is typed in.
+- **Changing something that exists is not drafted** (a set, a routine, a packet's label): those
+  start from the note and are lost if left before saving.
+- **A label picture taken and never saved stays as an attachment** in the library.
+- **Not seen on a phone**; tested in the suite with a stand-in for the device's storage. A
+  browser set to clear its data on closing keeps nothing.
+- **The amount step and a serving being chosen are not drafted**: one number each.
+
 ## Kept pictures and a label settled later — limits (2026-10-13)
 
 `LogSheet.svelte` (`kept`, `saveChanged`, `fillIn`, `editLabel`); `decisions.md#data`, 2026-10-13.

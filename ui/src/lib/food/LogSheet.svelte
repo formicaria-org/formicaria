@@ -38,6 +38,8 @@
     type AmountUnit,
   } from './amount';
   import * as label from './label';
+  import Resumed from '../Resumed.svelte';
+  import { draftOf, dropDraft, keepDraft } from '../drafts';
   import { readLabel } from './labelText';
   import {
     createNotesUndoable,
@@ -206,20 +208,28 @@
   // A picture of a pack or a dish is kept, whole, in the food's own note
   // (`decisions.md#data`, 2026-10-13, *a food keeps its pictures, and a label can be settled
   // later*): it is the food's record, and what a better reader is given on another day.
-  type Pic = { url: string; file?: Blob; ref?: string };
+  // `fresh` is one this form added, whose line is still to be written in the note. It is
+  // stored the moment it is taken, so a draft of the form can name it (`drafts.ts`).
+  type Pic = { url: string; file?: Blob; ref?: string; fresh?: boolean };
+  async function store(pic: Pic, word: string) {
+    if (pic.ref || !pic.file) return;
+    const type = pic.file.type || 'image/jpeg';
+    const meta = await ingestFile(new File([pic.file], `${word}.jpg`, { type }));
+    const hash = meta.assets[0]?.replace(/^sha256:/, '');
+    if (hash) pic.ref = `asset:sha256-${hash}`;
+  }
   const picOf = (file: Blob): Pic => ({
     file,
+    fresh: true,
     url: typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '',
   });
   /// Store the pictures not yet stored, and answer the lines that show them in a note.
   async function kept(pics: Pic[], word: string): Promise<string> {
     const lines: string[] = [];
     for (const pic of pics) {
-      if (!pic.file) continue;
-      const type = pic.file.type || 'image/jpeg';
-      const meta = await ingestFile(new File([pic.file], `${word}.jpg`, { type }));
-      const hash = meta.assets[0]?.replace(/^sha256:/, '');
-      if (hash) lines.push(`![${word}](asset:sha256-${hash})`);
+      if (!pic.fresh) continue;
+      await store(pic, word);
+      if (pic.ref) lines.push(`![${word}](${pic.ref})`);
     }
     return lines.length ? `\n${lines.join('\n\n')}\n` : '';
   }
@@ -237,6 +247,9 @@
     const l = labelling;
     if (!l) return;
     l.pictures.push(picOf(file));
+    // Stored at once, quietly; saving stores it again if this did not finish.
+    const pushed = l.pictures[l.pictures.length - 1];
+    void store(pushed, 'pack').catch(() => undefined);
     if (wanted === 'picture') return;
     if (labelWhy) {
       labelSaid = `${labelWhy} The picture is kept with this food, so a device that reads labels well can read it later.`;
@@ -335,7 +348,11 @@
         if (known) openProduct(known);
         else {
           startLabel();
-          if (labelling) ((labelling.name = ''), (labelling.barcode = code));
+          if (labelling) {
+            // A form carried on from before keeps its name; a new one starts without.
+            if (!labelResumed) labelling.name = '';
+            labelling.barcode = code;
+          }
         }
       }
     } catch {
@@ -381,7 +398,47 @@
       looking = false;
     }
   }
-  const startLabel = () =>
+  // A new packet's form is kept on the device until it is saved (`drafts.ts`): the name, the
+  // figures typed, and the pictures taken, which are stored already and named by reference.
+  const LABEL = 'label';
+  let labelResumed = $state(false);
+  type KeptLabel = Omit<NonNullable<typeof labelling>, 'pictures'> & { pictures: string[] };
+  $effect(() => {
+    const l = labelling;
+    if (!l || l.id) return;
+    const pictures = l.pictures.flatMap((p) => (p.ref ? [p.ref] : []));
+    keepDraft(LABEL, { ...$state.snapshot(l), pictures } as KeptLabel);
+  });
+  const worthKeeping = (d: KeptLabel) =>
+    !!d.name?.trim() ||
+    !!d.pictures?.length ||
+    !!d.ingredients?.trim() ||
+    Object.values(d.values ?? {}).some((v) => v !== '' && v != null);
+  const labelAfresh = () => {
+    dropDraft(LABEL);
+    labelResumed = false;
+    labelling = null;
+    startLabel();
+  };
+  function startLabel() {
+    const was = draftOf<KeptLabel>(LABEL);
+    if (was && !was.id && worthKeeping(was)) {
+      labelling = {
+        ...was,
+        values: was.values ?? {},
+        pictures: (was.pictures ?? []).map((ref) => ({
+          ref,
+          fresh: true,
+          url: assetUrl(ref, 'thumb'),
+        })),
+      };
+      labelResumed = true;
+      return;
+    }
+    labelResumed = false;
+    blankLabel();
+  }
+  const blankLabel = () =>
     (labelling = {
       id: '',
       pictures: [],
@@ -441,6 +498,8 @@
         ],
         `wrote down “${title}” from its label`,
       );
+      dropDraft(LABEL);
+      labelResumed = false;
       await loadProducts();
       labelling = null;
       const made = products.find((p) => p.title === title);
@@ -1073,6 +1132,24 @@
   // A number field hands back a number, or nothing at all when it is empty.
   let typedIn = $state<Record<string, number | string | null | undefined>>({});
   let more = $state(false);
+  // What is typed here is kept on the device until it is added (`drafts.ts`).
+  const QUICK = untrack(() => `quick:${def.log}`);
+  let quickResumed = $state(false);
+  {
+    const was = draftOf<{ name: string; typedIn: typeof typedIn; more: boolean }>(QUICK);
+    if (was?.name || Object.values(was?.typedIn ?? {}).some((v) => v !== '' && v != null)) {
+      name = was?.name ?? '';
+      typedIn = was?.typedIn ?? {};
+      more = !!was?.more;
+      quickResumed = true;
+    }
+  }
+  $effect(() => keepDraft(QUICK, { name, typedIn, more }));
+  const quickAfresh = () => {
+    name = '';
+    typedIn = {};
+    quickResumed = false;
+  };
   const quickFields = $derived<Metric[]>(more ? [primary, ...secondary] : [primary]);
   const quickReady = $derived(name.trim() !== '' && Number(typedIn[primary.key]) > 0);
   const addQuick = () =>
@@ -1088,6 +1165,8 @@
       added += 1;
       name = '';
       typedIn = {};
+      dropDraft(QUICK);
+      quickResumed = false;
       onwrote();
     });
 
@@ -1474,6 +1553,7 @@
     {:else if labelling}
       <section class="quick" aria-label="a packaged food, from its label">
         <h2>From the label</h2>
+        {#if labelResumed && !labelling.id}<Resumed onafresh={labelAfresh} />{/if}
         <label>
           <span>Name</span>
           <input
@@ -1543,7 +1623,7 @@
                     aria-label={`read the label from picture ${i + 1}`}>Read it</button
                   >
                 {/if}
-                {#if pic.file}
+                {#if pic.fresh}
                   <button
                     type="button"
                     class="quiet"
@@ -1887,6 +1967,7 @@
         {/if}
       {:else}
         <div class="quick">
+          {#if quickResumed}<Resumed onafresh={quickAfresh} />{/if}
           <label>
             <span>Name</span>
             <input class="field" type="text" bind:value={name} autocomplete="off" />

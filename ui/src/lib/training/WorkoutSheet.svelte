@@ -17,6 +17,8 @@
   import { whole } from '../units';
   import { planLibrary } from '../ipc';
   import { exercises as cardLibrary, sameName } from './exercises';
+  import Resumed from '../Resumed.svelte';
+  import { draftOf, dropDraft, keepDraft } from '../drafts';
   import type {
     ExerciseCard,
     NoteDraft,
@@ -197,6 +199,67 @@
   ];
   let region = $state(untrack(() => String(set?.props.region ?? preset?.region ?? '')));
 
+  // What is being planned is kept on the device until it is written (`drafts.ts`): an exercise
+  // half chosen survives leaving the sheet or closing the app. Changing a set already there, or
+  // starting from an exercise's card, starts from that instead.
+  const DRAFT = untrack(() => `workout:${def.log}`);
+  type Kept = {
+    name: string;
+    sets: number;
+    reps: number;
+    kg: number;
+    mode: 'sets' | 'activity';
+    activity: string;
+    countsAs: string;
+    minutes: number;
+    effort: number;
+    region: string;
+    picked: boolean;
+  };
+  const fresh = untrack(() => !set && !preset);
+  let resumed = $state(false);
+  if (fresh) {
+    const was = draftOf<Kept>(DRAFT);
+    if (was && (was.name || was.activity || was.reps || was.minutes)) {
+      name = was.name ?? '';
+      sets = was.sets || 1;
+      reps = was.reps || 0;
+      kg = was.kg || 0;
+      mode = was.mode === 'activity' ? 'activity' : 'sets';
+      activity = was.activity ?? '';
+      countsAs = was.countsAs || 'aerobic';
+      minutes = was.minutes || 0;
+      effort = was.effort || 0;
+      region = was.region ?? '';
+      picked = !!was.picked;
+      resumed = true;
+    }
+  }
+  $effect(() => {
+    const now: Kept = {
+      name,
+      sets,
+      reps,
+      kg,
+      mode,
+      activity,
+      countsAs,
+      minutes,
+      effort,
+      region,
+      picked,
+    };
+    if (fresh) keepDraft(DRAFT, now);
+  });
+  function afresh() {
+    name = activity = region = '';
+    sets = 1;
+    reps = kg = minutes = effort = 0;
+    countsAs = 'aerobic';
+    picked = false;
+    resumed = false;
+  }
+
   /// What was done before that is an exercise: an activity is offered under activities.
   const exercises = $derived(last.filter((r) => r.props.activity === undefined));
   /// Choosing an exercise done before brings back what it was last time.
@@ -244,6 +307,7 @@
         },
       }));
       await createNotesUndoable(drafts, `planned ${exercise}`);
+      dropDraft(DRAFT);
       onwrote();
       onclose();
     });
@@ -262,6 +326,7 @@
         ],
         `logged ${what}`,
       );
+      dropDraft(DRAFT);
       onwrote();
       onclose();
     });
@@ -542,6 +607,7 @@
         </div>
       {/if}
 
+      {#if resumed}<Resumed onafresh={afresh} />{/if}
       {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
 
       {#if set}

@@ -10,7 +10,7 @@ kept as notes in your own notebook — plain files, like everything else.
 > nutrient list (0.7.3), and the barcode look-up, the kitchen and the recipes that come with the
 > app (0.7.4), and the week's timetable, the exercise cards and their films (0.7.5), and the three-tab Fitness, the pick-from-a-list add sheet and the weeks and days to
 > start from (0.7.6), and labels from any country and millilitres (0.7.10), and a label read from a
-> photograph, kept pictures and recipes that save as you go (0.8.0) were released before being tried on a phone.
+> photograph, kept pictures, recipes that save as you go and forms that keep what you typed (0.8.0) were released before being tried on a phone.
 
 ## Hiding it
 
@@ -128,6 +128,19 @@ so a few weeks of eating less, then back to normal, is two saves and nothing to 
 Below the meals, *Also today* lists fibre, calcium, iron and vitamin C. When a value comes from
 only some of the day's entries it says so — *from 3 of 4* — because an entry typed in by hand has
 energy and nothing else, and a total that left it out without saying would look complete.
+
+### Nothing you typed is lost
+
+Leaving a form, changing view or closing the app does not throw away what you were doing.
+
+- A **training session**, a **recipe**, and a **diet or regime you follow** are saved step by
+  step: each set, each ingredient, each change is written as you make it.
+- A form you have **not finished** — a label, a food typed in by hand, an exercise being
+  planned, a routine being named, a diet or regime you are fine-tuning — is kept on the device.
+  Open it again and it says *Carried on from where you left it*, with **Start afresh** beside it.
+
+A kept form is on this device only: it is not in your backup and not on your other devices
+until you save it.
 
 ### A packaged food
 

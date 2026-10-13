@@ -10,8 +10,10 @@
   // The library, the formulas and the measuring are the core's (`plan.rs`); this draws what it
   // answers. Following writes one note; stopping gives that note a last day.
   import ExampleDay from './ExampleDay.svelte';
+  import Resumed from '../Resumed.svelte';
+  import { draftOf, dropDraft, keepDraft } from '../drafts';
   import ExampleWeek from './ExampleWeek.svelte';
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
   import { planLibrary, planPreview, planProgress } from '../ipc';
   import { createNotesUndoable, deleteUndoable, setPropertiesUndoable } from '../undo.svelte';
@@ -138,6 +140,36 @@
       failed = String(e);
     }
   }
+  // The option that is open, with its numbers and the measurements as typed, is kept on the
+  // device until it is followed or left by its own Back (`drafts.ts`): fine-tuning a diet and
+  // then changing view, or closing the app, comes back to it as it was.
+  // Named once: the screen is of one group for as long as it is on screen.
+  const DRAFT = untrack(() => `plan:${program}`);
+  type Kept = { id: string; fields: typeof fields; me: typeof me };
+  let resumed = $state(false);
+  $effect(() => {
+    if (open) keepDraft(DRAFT, { id: open.plan.id, fields, me } satisfies Kept);
+  });
+  onMount(async () => {
+    const was = draftOf<Kept>(DRAFT);
+    if (!was?.id) return;
+    await look(was.id);
+    if (open?.plan.id !== was.id) return void dropDraft(DRAFT);
+    // Only the lines this option still has; what it has gained since keeps its own number.
+    for (const k of Object.keys(fields)) if (was.fields?.[k]) fields[k] = was.fields[k];
+    me = { ...me, ...was.me };
+    resumed = true;
+  });
+  function leave() {
+    dropDraft(DRAFT);
+    open = null;
+    resumed = false;
+  }
+  async function afresh() {
+    const id = open?.plan.id;
+    resumed = false;
+    if (id) await look(id);
+  }
   /// Change the numbers of what is followed: the same form, starting from the note's own bounds.
   function retune() {
     const p = progress;
@@ -243,6 +275,8 @@
         ],
         `followed ${p.plan.name}`,
       );
+      dropDraft(DRAFT);
+      resumed = false;
       open = null;
       choosing = false;
       onsaved();
@@ -323,9 +357,10 @@
 
   {#if open}
     {@const p = open.plan}
-    <button type="button" class="back" onclick={() => (open = null)}>
+    <button type="button" class="back" onclick={leave}>
       <Icon name="chevronLeft" size={18} /> All {noun}s
     </button>
+    {#if resumed}<Resumed onafresh={afresh} />{/if}
     <header class="head">
       <h2>{p.name}</h2>
       <p>{p.summary}</p>
