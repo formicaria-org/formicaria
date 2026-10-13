@@ -1178,6 +1178,35 @@ be checked in code were corrected the same day. **Left**:
 5. `assistant.md` gives three different sizes for the phone's model.
 6. Whether a `.view` asking for `search` still draws as a timeline was not checked.
 
+### 2.29 The website — built, not yet switched on (2026-10-13)
+
+`site/index.html` is an entry page for people who might use the app; `.github/workflows/pages.yml`
+publishes it with the manual beside it under `/manual/`. It is started by hand only, and it has
+**never run**: the three steps below need the owner's own login.
+
+1. **Switch Pages on, once**: repository Settings → Pages → *Build and deployment* → Source:
+   **GitHub Actions**. Until then the workflow fails at `configure-pages`.
+2. **Run the `pages` workflow** by hand on `main`, then open
+   `https://formicaria-org.github.io/formicaria/` and follow each link once — on a phone too.
+3. **Fill the About box** (the gear beside *About* on the repository's front page):
+   - Description: `A notebook kept as plain Markdown files you own: notes, tasks, a food log and a training log. No account. Works offline.`
+   - Website: `https://formicaria-org.github.io/formicaria/`
+   - Topics: `notes` `markdown` `local-first` `offline-first` `knowledge-management` `task-management` `food-log` `training-log` `self-hosted`
+
+**Left open**:
+
+1. Whether a push to `main` should publish by itself. The workflow's header says which `paths:`
+   to give it if so.
+2. The page has **no pictures of the app**. The nine under `docs/src/images/` date from
+   2026-09-04 and show the sidebar before the four groups, so none was used (the same gap as
+   2.28, item 3).
+3. The page repeats README *Project status* in short. When that section changes, the page's
+   *How far it is proven* changes with it; nothing checks the two against each other.
+4. The website's manual carries all three setting-up chapters (the workflow builds the manual
+   once per system and keeps each `setup.html`); the macOS and Windows ones are reachable from
+   the entry page only, not from the manual's own sidebar.
+5. The three Pages actions are pinned by commit; `actions/checkout` is `@v7` as everywhere else.
+
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
 `deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12

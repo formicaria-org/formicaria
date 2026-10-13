@@ -1,0 +1,114 @@
+# The website: an entry page for people who might use the app, and the manual beside it.
+#
+# What is published, at https://formicaria-org.github.io/formicaria/ :
+#   /                  site/index.html — one file, no script, nothing fetched from anyone else
+#   /formicaria.svg    docs/assets/formicaria.svg, copied here so the drawing has one source
+#   /manual/           the mdBook, exactly as `pixi run docs` builds it
+#
+# **Pages must be switched on once, by the owner, before this can work**: repository Settings →
+# Pages → *Build and deployment* → Source: **GitHub Actions**. Until then `configure-pages` fails
+# with "Get Pages site failed", which is the setting missing and not a fault in this file.
+#
+# This is a website only. Nothing here enters a release archive or the app: `release.yml` stages
+# the manual from `docs/book` by itself and does not read `site/`.
+name: pages
+
+# **By hand only.** Whether a push to `main` should also publish is the owner's call, made
+# separately. If it is ever made, give `push` a `paths:` filter
+# (`site/**`, `docs/src/**`, `docs/book.toml`, `docs/assets/formicaria.svg`, this file) so that an
+# ordinary code push does not republish a site that has not changed.
+on:
+  workflow_dispatch:
+
+# **Read at the top; write only where publishing happens** — the same shape as `release.yml`. The
+# `build` job needs nothing but the tree. The `deploy` job re-declares the two scopes a Pages
+# deployment is made of, and nothing else.
+permissions:
+  contents: read
+
+# One deployment at a time, and a running one is allowed to finish: cancelling a deployment half
+# way can leave the site neither old nor new.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # **The three Pages actions are pinned by commit although `actions/*` is exempt from the pin
+      # check in `ci/checks.sh`** — this is the only workflow besides `release.yml` that publishes
+      # anything, and the pin costs one line. Each SHA is what
+      #   git ls-remote --tags https://github.com/actions/<name>
+      # printed for the tag in the comment on 2026-10-13 (all three are lightweight tags, so the
+      # SHA is the commit itself).
+      - id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          # Pinned for the reason given in docs.yml: the pixi binary's hash is part of the cache key.
+          pixi-version: v0.72.2
+          run-install: true
+          cache: true
+      - name: Build the manual
+        env:
+          # **Set here, not in `docs/book.toml`.** mdBook uses `site-url` for one thing, the
+          # `<base>` of its 404 page, and every other link in the book is relative. The same book
+          # is baked into the binary and copied into every release archive, where it is opened
+          # from a folder and has no site at all — so the sub-path belongs to this one build.
+          MDBOOK_OUTPUT__HTML__SITE_URL: ${{ steps.pages.outputs.base_path }}/manual/
+        run: |
+          set -eu
+          # **Three builds, for one chapter.** `ci/docs.sh` assembles `user/setup.md` for a single
+          # system, which is right for an archive that knows which system it is for and wrong for
+          # a website, where the reader could be on any of them. So the macOS and Windows
+          # chapters are built first and set aside, and the Linux build — the same one the gate
+          # runs — is the book that is published, with the other two chapters added beside it.
+          mkdir -p _setup
+          for os in macos windows; do
+            FM_DOCS_OS="$os" pixi run docs
+            cp docs/book/user/setup.html "_setup/setup-$os.html"
+          done
+          FM_DOCS_OS=linux pixi run docs
+      - name: Assemble the site
+        run: |
+          set -eu
+          mkdir -p _site/manual
+          cp site/index.html _site/index.html
+          cp docs/assets/formicaria.svg _site/formicaria.svg
+          cp -R docs/book/. _site/manual/
+          cp _setup/setup-macos.html _setup/setup-windows.html _site/manual/user/
+
+          # **Every link on the entry page that stays on this site must name a file that was just
+          # built.** A chapter renamed in `SUMMARY.md` otherwise becomes a dead link on the first
+          # page a newcomer reads, and nothing else would notice: mdBook checks the book's links,
+          # not this page's.
+          bad=0
+          for target in $(grep -oE '(href|src)="[^"#]+' _site/index.html \
+                          | sed -E 's/^(href|src)="//' \
+                          | grep -vE '^[a-z]+:' | sort -u); do
+            if [ ! -s "_site/$target" ]; then
+              echo "pages: site/index.html points at '$target', which was not built" >&2
+              bad=1
+            fi
+          done
+          [ "$bad" -eq 0 ]
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # `pages: write` to publish; `id-token: write` because the deployment proves where it came
+    # from with a token minted for this run. Neither can touch the code.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

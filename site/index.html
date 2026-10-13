@@ -1,0 +1,362 @@
+<!doctype html>
+<!--
+  The entry page for people who might use formicaria. Published by .github/workflows/pages.yml,
+  which puts this file at the root, the manual beside it under manual/, and a copy of
+  docs/assets/formicaria.svg next to it (so the drawing has one source, and it is not this folder).
+
+  Rules this page keeps, on purpose:
+    - one file, styles inline, no script, no font, no request to anyone else's server, no cookie;
+    - nothing is claimed here that README.md or the manual does not say — when the README's
+      "Project status" changes, the section "How far it is proven" changes with it;
+    - plain words: what the app does is "back up", "send", "their changes".
+  Every link into manual/ is checked against the built book by the workflow before it publishes.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>formicaria — a notebook kept as plain files you own</title>
+<meta name="description" content="A notebook for research and daily life that runs on your own computer: notes, tasks, a food log and a training log, kept as plain Markdown files. No account. Works offline.">
+<link rel="icon" href="formicaria.svg" type="image/svg+xml">
+<style>
+:root {
+  --bg: #faf6ee;
+  --panel: #f1e8d8;
+  --line: #d9cbb2;
+  --text: #1f1a12;
+  --soft: #51483a;
+  --link: #9a1b1b;
+  --button: #b01c1c;
+  --button-text: #ffffff;
+  --note-bg: #fbeed5;
+  --note-line: #b7791f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16130e;
+    --panel: #211c15;
+    --line: #3d3528;
+    --text: #ede6d9;
+    --soft: #b9ae9b;
+    --link: #f3a798;
+    --button: #b01c1c;
+    --button-text: #ffffff;
+    --note-bg: #2a2212;
+    --note-line: #d9a441;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+main, header, footer {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+header { padding-top: 1.25rem; }
+header img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+h1 { font-size: 2.1rem; line-height: 1.15; margin: 1.5rem 0 0.25rem; letter-spacing: -0.01em; }
+.lede { font-size: 1.25rem; line-height: 1.45; margin: 0 0 1rem; color: var(--soft); }
+h2 {
+  font-size: 1.45rem;
+  line-height: 1.25;
+  margin: 3rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+h3 { font-size: 1.1rem; line-height: 1.3; margin: 0 0 0.35rem; }
+p { margin: 0 0 1rem; }
+a { color: var(--link); text-underline-offset: 0.15em; }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; border-radius: 0.25rem; }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  background: var(--panel);
+  border-radius: 0.25rem;
+  padding: 0.05em 0.3em;
+  overflow-wrap: anywhere;
+}
+.small { font-size: 0.95rem; color: var(--soft); }
+
+/* Every link that stands by itself is a 44 px target; the few links inside a sentence are not
+   buttons and are left as text. */
+.go, .button, nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.25rem 0;
+}
+.button {
+  padding: 0.5rem 1rem;
+  background: var(--button);
+  color: var(--button-text);
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.button:hover { text-decoration: underline; }
+.button:focus-visible { outline-color: var(--text); }
+nav ul, .links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.5rem;
+}
+nav li, .links li { min-width: 0; max-width: 100%; }
+nav { margin: 0.5rem 0 0; }
+
+.cards {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  /* min(100%, …) lets a card be narrower than 15rem on a 320 px screen instead of overflowing. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+.cards > li {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 1rem 1rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+.cards p { margin-bottom: 0.5rem; }
+.cards .links { margin-top: auto; }
+.note {
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-line);
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.75rem 1rem;
+}
+.note p:last-child { margin-bottom: 0; }
+.status { padding-left: 1.25rem; margin: 0 0 1rem; }
+.status li { margin-bottom: 0.6rem; }
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  padding-bottom: 2.5rem;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 30rem) {
+  body { font-size: 1rem; }
+  h1 { font-size: 1.8rem; }
+  .lede { font-size: 1.125rem; }
+  h2 { font-size: 1.3rem; margin-top: 2.25rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="formicaria.svg" width="1240" height="440"
+       alt="Three ant colonies, each nest a labyrinth of galleries and corridors, every one linked to every other by braided trails, with ants moving both ways along all of it">
+  <h1>formicaria</h1>
+  <p class="lede">A notebook for research and daily life that runs on your own computer: notes,
+  tasks, a food log and a training log, kept as plain files you own.</p>
+  <nav aria-label="On this page">
+    <ul>
+      <li><a href="#get-it">Get it</a></li>
+      <li><a href="#what-you-can-do">What you can do</a></li>
+      <li><a href="#how-far-it-is-proven">How far it is proven</a></li>
+      <li><a href="manual/index.html">The manual</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main>
+  <p>Each note is one ordinary text file, in a folder you choose. You can read the files in any
+  editor, copy them to a USB stick, or open them in ten years on a computer that has never heard
+  of this app. There is no account and no subscription, and nothing is uploaded anywhere.</p>
+  <p>It opens in your web browser, but it is not a website: the whole thing runs on your machine,
+  and it works with the internet switched off.</p>
+  <p class="note">This is a young project by one author, used daily on Linux and Android only.
+  Builds for macOS, Windows and iPhone exist, but the author has not been able to check them.
+  <a href="#how-far-it-is-proven">How far it is proven</a> says exactly what that means.</p>
+
+  <h2 id="get-it">Get it</h2>
+  <p>Download the archive for your system from the latest release, unpack it, and
+  double-click the launcher. Your browser opens by itself.</p>
+  <ul class="cards">
+    <li>
+      <h3>Linux</h3>
+      <p>Unpack the <code>linux-x86_64</code> archive and double-click
+      <code>Start formicaria.sh</code>.</p>
+      <p class="small">64-bit x86, glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, Fedora 35+).</p>
+      <ul class="links">
+        <li><a class="go" href="https://github.com/formicaria-org/formicaria/releases/latest">Download for Linux</a></li>
+        <li><a class="go" href="manual/user/setup.html">Setting up on Linux</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>macOS</h3>
+      <p>Unpack the <code>macos-arm64</code> archive and double-click
+      <code>Start formicaria.command</code>.</p>
+      <p class="small">Apple silicon. The first time, macOS warns about unsigned software: System
+      Settings → Privacy &amp; Security → Open Anyway.</p>
+      <ul class="links">
+        <li><a class="go" href="https://github.com/formicaria-org/formicaria/releases/latest">Download for macOS</a></li>
+        <li><a class="go" href="manual/user/setup-macos.html">Setting up on macOS</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>Windows</h3>
+      <p>Unpack the <code>windows-x86_64</code> zip and double-click
+      <code>Start formicaria.vbs</code>.</p>
+      <p class="small">Windows 10 or 11, 64-bit. The setting-up chapter says what to do about the
+      security warning.</p>
+      <ul class="links">
+        <li><a class="go" href="https://github.com/formicaria-org/formicaria/releases/latest">Download for Windows</a></li>
+        <li><a class="go" href="manual/user/setup-windows.html">Setting up on Windows</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>Android and iPhone</h3>
+      <p>The same release carries an Android <code>.apk</code> and an iPhone <code>.ipa</code>.
+      Both need a little more than a double-click, and each has its own chapter.</p>
+      <p class="small">The iPhone chapter is not optional reading: Apple's free signing expires
+      after seven days.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/android.html">On an Android phone</a></li>
+        <li><a class="go" href="manual/user/iphone.html">On an iPhone</a></li>
+      </ul>
+    </li>
+  </ul>
+  <p>All you need besides is a current web browser — Firefox, Chrome, Safari or Edge. Closing the
+  tab stops the app about a minute and a half later, unless a reminder is waiting. Later versions
+  are installed from inside the app: Settings, <em>Check now</em>. Each archive also carries the
+  whole manual, to read offline.</p>
+
+  <h2 id="what-you-can-do">What you can do</h2>
+  <ul class="cards">
+    <li>
+      <h3>Notes</h3>
+      <p>Write in Markdown, one note per file. The editor shows the result as you write, and the
+      text is still the file. Search looks inside every note. A Logseq or Obsidian folder can be
+      brought in, with its links kept.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/notes.html">Notes</a></li>
+        <li><a class="go" href="manual/user/import.html">Importing</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>Tasks and a calendar</h3>
+      <p>A task is a note with a date on it. Give a note a status or a date and the same notes
+      become a board, or a month and week calendar.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/views.html">Views</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>Reminders</h3>
+      <p>A note with a start or a due date reminds you at its time, once you turn that on in
+      Settings.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/notes.html#reminders">Reminders</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>A food log</h3>
+      <p>Log what you eat from a list of 16,000 foods that comes with the app and is searched
+      offline. Keep recipes, plan a menu with a shopping list, and follow a diet from a library of
+      sourced ones or set your own targets.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/trackers.html">Food and training</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>A training log</h3>
+      <p>A timetable for the week, 117 exercise cards in the words of the body that published
+      each, and training regimes to follow, each with a week to start from.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/trackers.html#fitness">Fitness</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>Backup, and working with someone else</h3>
+      <p>Send a notebook somewhere else to keep it safe, and see how a note looked last week. Two
+      people can keep the same notebook in step, each on their own machine; if both edit the same
+      note, their changes are merged rather than making you choose.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/backup.html">Backup</a></li>
+        <li><a class="go" href="manual/user/collaboration.html">Collaboration</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>An assistant on your own device</h3>
+      <p>Optional, and off until you turn it on. A small AI model that runs on your own device
+      answers in a note's discussion, can look something up on the web, and drafts edits for you
+      to approve. No account and no key; your notes never leave the machine.</p>
+      <ul class="links">
+        <li><a class="go" href="manual/user/assistant.html">The study assistant</a></li>
+      </ul>
+    </li>
+  </ul>
+  <p class="small">Food and fitness give no advice: every figure names the body that published
+  it. They can be hidden in Settings if you want only a notebook. History and backup need the
+  program <code>git</code> on Linux and macOS (Windows carries its own), and the assistant
+  downloads its model the first time you turn it on. When something optional is missing, the app
+  says so and nothing else is affected.</p>
+
+  <h2 id="how-far-it-is-proven">How far it is proven</h2>
+  <p>Taken from the project's own status notes. What is listed above is what has been built, which
+  is not the same as what has been proven on your machine.</p>
+  <ul class="status">
+    <li><strong>Young.</strong> The work began on 14 July 2026. This is one person's
+    project, built alongside their research rather than as a product.</li>
+    <li><strong>Used daily on Linux and Android</strong> — the two systems the author works on,
+    and the only two anything is checked against.</li>
+    <li><strong>macOS, Windows and iPhone have been run by other people and reported
+    working</strong> — the macOS report alongside real faults — but on early versions (0.2 and
+    0.3), not the current one. Nobody is known to have downloaded anything newer. None of it is verified by the author, who has no Mac, no Windows machine and no iPhone. The
+    builds are made and tested automatically and the downloads are real; that is a different
+    claim from someone having opened one.</li>
+    <li><strong>The newest parts are the least proven.</strong> Food and fitness are early and
+    have been used by the author alone. Reminders have never been seen to arrive on a phone, and
+    their notifications on Windows and macOS have never been run.</li>
+    <li><strong>The assistant</strong> has been run on Linux and Android. On macOS and Windows it
+    is built but has never been run.</li>
+  </ul>
+  <ul class="links">
+    <li><a class="go" href="https://github.com/formicaria-org/formicaria#project-status">The full status, in the project's own words</a></li>
+    <li><a class="go" href="https://github.com/formicaria-org/formicaria/blob/main/docs/context/known-issues.md">The list of known gaps</a></li>
+  </ul>
+
+  <h2 id="read-more">Read more</h2>
+  <p><a class="button" href="manual/index.html">Open the manual</a></p>
+  <ul class="links">
+    <li><a class="go" href="manual/user/first-note.html">Your first ten minutes</a></li>
+    <li><a class="go" href="https://github.com/formicaria-org/formicaria">The source (open source)</a></li>
+    <li><a class="go" href="https://github.com/formicaria-org/formicaria/blob/main/LICENSE">The licence (MIT)</a></li>
+    <li><a class="go" href="https://github.com/formicaria-org/formicaria/issues">Report a problem</a></li>
+  </ul>
+</main>
+
+<footer>
+  <p class="small">formicaria is the plural of <em>formicarium</em>, an ant colony's nest: you can
+  keep several notebooks, each its own place. This page uses no scripts, no cookies and nothing
+  from any other server.</p>
+</footer>
+
+</body>
+</html>
