@@ -201,3 +201,12 @@ background, that is a heavier task."*
   written two releases before there was. What is left is `outstanding.md` §2.28. Two agents,
   about 215k tokens.
 
+### After 0.7.8: the barcode nobody could find
+
+The owner, on the phone: *"I do not see scan the bar code option in the latest release."* It was
+there since 0.7.4 — as *Photograph the barcode*, inside a form reached from a line of small
+print at the foot of the Search tab. Built, tested, documented, and two screens from where a
+person holding a packet looks. Now **Scan a barcode** and **Type in a label** sit at the top of
+the add sheet. The lesson is 0.7.5's again: a feature is where it is found, not where it was
+built.
+

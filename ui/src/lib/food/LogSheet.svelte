@@ -169,23 +169,40 @@
   /// nowhere.
   let reading2 = $state(false);
   let photo = $state<HTMLInputElement | null>(null);
+  /// What a scan started from the list had to say, when it found nothing to open.
+  let scanned = $state('');
   async function readPhoto() {
+    // Pressed from the form, the number goes into it. Pressed from the list, there is no form
+    // yet: a packet already written down is opened, and any other number starts one.
     const l = labelling;
     const file = photo?.files?.[0];
     if (photo) photo.value = '';
-    if (!l || !file || reading2) return;
+    if (!file || reading2) return;
     reading2 = true;
     lookedUp = '';
+    scanned = '';
+    const unread =
+      'No barcode could be read in that picture. Try again closer and in good light, or type the number.';
     try {
       const { barcodeIn } = await import('./scan');
       const code = await barcodeIn(file);
       if (labelling !== l) return;
-      if (code) l.barcode = code;
-      else
-        lookedUp =
-          'No barcode could be read in that picture. Try again closer and in good light, or type the number.';
+      if (l) {
+        if (code) l.barcode = code;
+        else lookedUp = unread;
+      } else if (!code) scanned = unread;
+      else {
+        const known = products.find((p) => !!p.barcode && sameCode(p.barcode) === sameCode(code));
+        if (known) openProduct(known);
+        else {
+          startLabel();
+          if (labelling) ((labelling.name = ''), (labelling.barcode = code));
+        }
+      }
     } catch {
-      lookedUp = 'The barcode reader could not start on this device. Type the number instead.';
+      const broken = 'The barcode reader could not start on this device. Type the number instead.';
+      if (l) lookedUp = broken;
+      else scanned = broken;
     } finally {
       reading2 = false;
     }
@@ -856,6 +873,17 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
 <div class="log-overlay">
+  <!-- One picker for the whole sheet, always there: the buttons that open it are in two places,
+       and a press must reach it in the same breath or the phone will not open the camera. -->
+  <input
+    bind:this={photo}
+    type="file"
+    accept="image/*"
+    capture="environment"
+    hidden
+    onchange={readPhoto}
+    aria-label="a picture of the barcode"
+  />
   <button type="button" class="scrim" onclick={onclose} aria-label="close" tabindex="-1"></button>
   <div
     class="sheet"
@@ -1210,15 +1238,6 @@
             autocomplete="off"
           />
         </label>
-        <input
-          bind:this={photo}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          onchange={readPhoto}
-          aria-label="a picture of the barcode"
-        />
         <button type="button" class="quiet" onclick={() => photo?.click()} disabled={reading2}>
           {reading2 ? 'Reading…' : 'Photograph the barcode'}
         </button>
@@ -1311,6 +1330,15 @@
         {/if}
       </div>
 
+      <!-- A packet is the commonest thing to add and was two screens away, behind a line of
+           small print at the foot of Search: the owner could not find it on the phone. -->
+      <div class="packet" role="group" aria-label="a packaged food">
+        <button type="button" class="quiet" onclick={() => photo?.click()} disabled={reading2}>
+          {reading2 ? 'Reading…' : 'Scan a barcode'}
+        </button>
+        <button type="button" class="quiet" onclick={startLabel}>Type in a label</button>
+      </div>
+      {#if scanned}<p class="hint">{scanned}</p>{/if}
       {#if mode === 'recent'}
         {#if recent === null}
           <ul class="rows" aria-hidden="true">
@@ -1732,6 +1760,14 @@
     padding: var(--space-2) var(--space-3);
     font: inherit;
     resize: vertical;
+  }
+  .packet {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .packet .quiet {
+    flex: 1 1 9rem;
   }
   .link {
     align-self: flex-start;

@@ -116,9 +116,11 @@ energy and nothing else, and a total that left it out without saying would look 
 
 ### A packaged food
 
-A packet of pasta is not in a table of generic foods. Under **Search**, press **A packaged food?
-Write it down from its label** and copy the label's lines for 100 g — energy is the only one
-needed. Salt is typed as the label states it. You can add the number under the barcode and the
+A packet of pasta is not in a table of generic foods. Two buttons at the top of the add sheet
+are for it. **Scan a barcode** takes a picture of the barcode: a packet you have written down
+before opens straight away, and any other starts a form with its number filled in, from which
+you can look it up. **Type in a label** opens the same form empty: copy the label's lines for
+100 g — energy is the only one needed. Salt is typed as the label states it. You can add the number under the barcode and the
 ingredient list as well.
 
 It is saved as a note of yours and found from then on by its name, or by its barcode number, in

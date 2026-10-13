@@ -387,6 +387,23 @@ test('the menu is the days ahead by meal, for as many days as asked, and says wh
   expect(await screen.findByRole('dialog')).toBeTruthy();
 });
 
+test('scanning a barcode is offered the moment the add sheet opens', async () => {
+  // It was two screens away, behind small print at the foot of Search, and was not found.
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  const sheet = await screen.findByRole('dialog');
+  expect(within(sheet).getByRole('button', { name: 'Scan a barcode' })).toBeTruthy();
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Type in a label' }));
+  const form = await within(sheet).findByRole('region', {
+    name: 'a packaged food, from its label',
+  });
+  // And the one picker serves the form's own button too.
+  expect(within(form).getByRole('button', { name: 'Photograph the barcode' })).toBeTruthy();
+  expect(document.querySelectorAll('.log-overlay input[type="file"]').length).toBe(1);
+});
+
 test('a packaged food is written down once from its label, and is then one of your foods', async () => {
   showTrackers();
   render(App);
