@@ -1214,7 +1214,11 @@ publishes it with the manual beside it under `/manual/`. It is started by hand o
    the entry page only, not from the manual's own sidebar.
 5. The three Pages actions are pinned by commit; `actions/checkout` is `@v7` as everywhere else.
 
-### 2.30 The workflows after the split — prove them before the next tag (2026-10-13)
+### 2.30 The workflows after the split — proved by v0.7.10 (2026-10-13)
+
+**Done the same day**: v0.7.10 was the first release made through `desktop.yml`, `ios.yml` and
+`android.yml`. Every job passed, seven files were published, and the previous release updated
+itself to it on Linux, macOS and Windows. What follows is the entry as first written.
 
 `release.yml` now calls `desktop.yml`, `ios.yml` and `android.yml` and builds nothing itself
 (`decisions.md`, 2026-10-13). **Nothing has run.** By hand, on `main`, before tagging:
