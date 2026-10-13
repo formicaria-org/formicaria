@@ -9,7 +9,8 @@ kept as notes in your own notebook — plain files, like everything else.
 > weight as a trend and routines (0.7.2), and meal times, the menu, packaged foods and the
 > nutrient list (0.7.3), and the barcode look-up, the kitchen and the recipes that come with the
 > app (0.7.4), and the week's timetable, the exercise cards and their films (0.7.5), and the three-tab Fitness, the pick-from-a-list add sheet and the weeks and days to
-> start from (0.7.6) were released before being tried on a phone.
+> start from (0.7.6), and labels from any country and millilitres (0.7.10), and a label read from a
+> photograph, kept pictures and recipes that save as you go (0.8.0) were released before being tried on a phone.
 
 ## Hiding it
 
@@ -78,7 +79,10 @@ The fourth way to add is **Recipes**. A recipe is a name, the number of servings
 foods from the list by weight.
 
 - **New recipe** — give it a name and its servings, then **Add an ingredient**: search for a food
-  and set how many grams go in. What one serving comes to is shown as you go.
+  and set how many grams go in. What one serving comes to is shown as you go. **It is saved from
+  the moment it has a name**, and every ingredient, amount and picture after that is saved as
+  you add it: there is no Save button, and leaving half-way loses nothing. You find it under
+  Recipes and carry on.
 - **Log it** — tap a recipe, choose how much of a serving (in quarters), and add it to a meal.
   Every value the ingredients carry is logged, not only the ones on the day screen.
 - **Change it** — tap a recipe and it is all there to change: the servings it makes, **Add an
@@ -127,11 +131,13 @@ energy and nothing else, and a total that left it out without saying would look 
 
 ### A packaged food
 
-A packet of pasta is not in a table of generic foods. Two buttons at the top of the add sheet
+A packet of pasta is not in a table of generic foods. Three buttons at the top of the add sheet
 are for it. **Scan a barcode** takes a picture of the barcode: a packet you have written down
 before opens straight away, and any other starts a form with its number filled in, from which
-you can look it up. **Type in a label** opens the same form empty: copy the label as it is
-printed — energy is the only line needed.
+you can look it up. **Photograph a label** has the assistant read the nutrition table off a
+picture and fill the form for you to check (see below; on a computer, not yet on a phone).
+**Type in a label** opens the same form empty: copy the label as it is printed — energy is the
+only line needed.
 
 Labels differ by country, so the form asks three things instead of assuming them:
 
@@ -152,6 +158,48 @@ the same search. Logging some of it works like any other food.
 **Photograph the barcode** takes or chooses a picture and reads the number off it, so you need
 not type it. The picture is read on your device and is not kept. If nothing can be read, try
 again closer and in good light.
+
+**Photograph a label** (also **Photograph the label** in the form) takes or chooses a picture
+of the packet's nutrition table. The assistant on your device reads the table, and the form is
+filled with what it found: what the figures are for, the serving if one is printed, energy, fat,
+saturates, carbohydrate, sugars, fibre, protein, and salt or sodium. Nothing is saved until you
+press **Save it**.
+
+- **Check every figure against the packet.** The assistant can misread a digit or mix two lines
+  up, and the form cannot always tell. When the figures do not add up (sugars above
+  carbohydrate, energy that does not match the rest) it says so in red, but a wrong figure can
+  also look perfectly reasonable.
+- **Take the picture upright, close, and in good light**, with the table filling it. A table
+  photographed sideways is not read; **Turn the picture and read it again** turns it a quarter
+  turn each press. **What was read** shows the assistant's own words.
+- **It needs the assistant, with a model that reads labels well.** On a computer that is the
+  model the assistant installs by default; a reading takes from a quarter of a minute to a
+  minute. **On a phone it is not read yet**: the phone's small model got two packets right
+  out of nine when it was measured. The picture is taken and kept with the food all the same,
+  so you can type the label in now, or save it and have it read on your computer later (next
+  section). The barcode still works there.
+- The picture goes to the assistant on your own device and nowhere else.
+- Labels are read in English, Italian, French, German, Spanish and Portuguese. A table printed
+  sideways on (nutrients across the top) or two tables side by side may be read wrongly or not
+  at all.
+
+**Pictures, and settling a label later.** A packet keeps its pictures. The one you take of
+the label is kept, and **Add a picture of the pack** adds more: the ingredient list, the
+front. They are stored at full size in the food's own note and go into your backup with it. A
+recipe of your own keeps pictures the same way (**Add a picture of the dish**).
+
+With a name and a picture you can **save a packet before its figures are known**. Search then
+shows it as *label not read yet*. You can log some of it straight away: the entry keeps its
+amount and is not counted in the day's totals, which say so, until the label is filled in.
+
+To settle it, find the packet, and press **Fill in its label**. The form opens with its
+pictures; where the assistant can read labels (your computer, once a backup has brought the
+packet there), **Read it** under a picture reads it into the form. Check it against the
+picture, and save. What you logged before is then filled in with its share, and the screen
+says how many entries. An entry logged in grams of something that turns out to be measured in
+millilitres is not filled in, and you are told: open it and give its amount again.
+
+**Change its label** does the same for a packet that already has figures, to put one right.
 
 **Looking it up.** Once the form has a barcode number, **Look it up at Open Food Facts** asks
 that public database for the product and fills the form with what it has. Check it against the

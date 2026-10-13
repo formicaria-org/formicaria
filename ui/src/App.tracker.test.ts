@@ -6,10 +6,15 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
-import { clearFaults, reset, seedTrackerDemo } from './lib/mock';
+import { clearFaults, reset, seedTrackerDemo, setLabelReader } from './lib/mock';
 import * as nav from './lib/nav.svelte';
 import { clear as clearUndo } from './lib/undo.svelte';
 import * as trackers from './lib/trackers.svelte';
+
+// A browser draws the picture small before it is read; this suite has no canvas to draw on.
+vi.mock('./lib/food/shot', () => ({
+  shrink: async (_: Blob, turns = 0) => `data:image/jpeg;base64,TURN${turns}`,
+}));
 
 const store = new Map<string, string>();
 beforeEach(() => {
@@ -402,6 +407,123 @@ test('scanning a barcode is offered the moment the add sheet opens', async () =>
   // And the one picker serves the form's own button too.
   expect(within(form).getByRole('button', { name: 'Photograph the barcode' })).toBeTruthy();
   expect(document.querySelectorAll('.log-overlay input[type="file"]').length).toBe(1);
+});
+
+test('a label is photographed, read into the form, and saved only by the person', async () => {
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  const sheet = await screen.findByRole('dialog');
+  // Beside the barcode, on the first screen; pressing it opens the one picker.
+  expect(within(sheet).getByRole('button', { name: 'Photograph a label' })).toBeTruthy();
+  const picker = document.querySelector('.log-overlay input[type="file"]') as HTMLInputElement;
+  const clicked = vi.spyOn(picker, 'click').mockImplementation(() => {});
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Photograph a label' }));
+  expect(clicked).toHaveBeenCalledTimes(1);
+  Object.defineProperty(picker, 'files', {
+    configurable: true,
+    value: [new File(['x'], 'label.jpg', { type: 'image/jpeg' })],
+  });
+  await fireEvent.change(picker);
+  const form = await within(sheet).findByRole('region', {
+    name: 'a packaged food, from its label',
+  });
+  // What the stand-in reader returns is a can of cola: per 100 ml, the can as its serving.
+  expect(await within(form).findByText(/Read by stand-in: 7 of the label's figures/)).toBeTruthy();
+  expect((within(form).getByLabelText('per 100 ml') as HTMLInputElement).checked).toBe(true);
+  expect((within(form).getByLabelText('Energy') as HTMLInputElement).value).toBe('42');
+  expect((within(form).getByLabelText('Carbohydrate (g)') as HTMLInputElement).value).toBe('10.6');
+  expect((within(form).getByLabelText('A serving is (optional)') as HTMLInputElement).value).toBe(
+    '330',
+  );
+  // The picture is shown beside the figures, and what was read can be opened.
+  expect(within(form).getByAltText('the label, as photographed')).toBeTruthy();
+  expect(within(form).getByText('What was read')).toBeTruthy();
+  // Nothing is saved by the reading: it has no name yet, and the person presses Save.
+  const save = within(form).getByRole('button', { name: 'Save it' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  // Turning the picture reads it again, a quarter turn on.
+  await fireEvent.click(
+    within(form).getByRole('button', { name: 'Turn the picture and read it again' }),
+  );
+  await waitFor(() =>
+    expect(
+      (within(form).getByAltText('the label, as photographed') as HTMLImageElement).src,
+    ).toContain('TURN1'),
+  );
+  await fireEvent.input(within(form).getByLabelText('Name'), { target: { value: 'Cola' } });
+  await waitFor(() => expect(save.disabled).toBe(false));
+  await fireEvent.click(save);
+  expect(await within(sheet).findByRole('heading', { name: 'Cola' })).toBeTruthy();
+  expect(within(sheet).getByLabelText('amount in millilitres')).toBeTruthy();
+});
+
+test('where no model can read a label the picture is kept, and the label is settled later', async () => {
+  const why = 'The model on this device (tiny) misreads nutrition labels too often.';
+  setLabelReader(why);
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  let sheet = await screen.findByRole('dialog');
+  const picker = document.querySelector('.log-overlay input[type="file"]') as HTMLInputElement;
+  vi.spyOn(picker, 'click').mockImplementation(() => {});
+  const take = async () => {
+    Object.defineProperty(picker, 'files', {
+      configurable: true,
+      value: [new File(['x'], 'label.jpg', { type: 'image/jpeg' })],
+    });
+    await fireEvent.change(picker);
+  };
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Photograph a label' }));
+  await take();
+  let form = await within(sheet).findByRole('region', {
+    name: 'a packaged food, from its label',
+  });
+  // It is not read here, and says why; the picture is kept, and that is enough to save on.
+  expect(
+    within(form).getByText(/misreads nutrition labels too often\. The picture is kept/),
+  ).toBeTruthy();
+  expect(within(form).getByRole('list', { name: 'pictures of the pack' }).children.length).toBe(1);
+  expect(within(form).queryByRole('button', { name: /read the label from picture/ })).toBeNull();
+  const save = () => within(form).getByRole('button', { name: 'Save it' }) as HTMLButtonElement;
+  expect(save().disabled).toBe(true); // it still needs a name
+  await fireEvent.input(within(form).getByLabelText('Name'), { target: { value: 'Oat bar' } });
+  await waitFor(() => expect(save().disabled).toBe(false));
+  await fireEvent.click(save());
+  // It opens at an amount, says it is not counted yet, and can be logged all the same.
+  expect(await within(sheet).findByRole('heading', { name: 'Oat bar' })).toBeTruthy();
+  expect(within(sheet).getByText(/Its label has not been read yet/)).toBeTruthy();
+  await fireEvent.change(within(sheet).getByLabelText('amount in grams'), {
+    target: { value: '50' },
+  });
+  await fireEvent.change(within(sheet).getByRole('combobox'), { target: { value: 'lunch' } });
+  await fireEvent.click(within(sheet).getByRole('button', { name: /^Add to / }));
+  // It is in the day with its amount and no energy. Find it again by name.
+  await fireEvent.click(await screen.findByRole('button', { name: 'add to Food' }));
+  sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Search' }));
+  await fireEvent.input(within(sheet).getByRole('searchbox'), { target: { value: 'Oat bar' } });
+  await fireEvent.click(
+    await within(sheet).findByRole('button', { name: /Oat bar.*label not read yet/ }),
+  );
+  // Later, where a model can read: its label is opened again and read from the kept picture.
+  setLabelReader('');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Fill in its label' }));
+  form = await within(sheet).findByRole('region', { name: 'a packaged food, from its label' });
+  expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe('Oat bar');
+  expect(within(form).getByRole('list', { name: 'pictures of the pack' }).children.length).toBe(1);
+  // Typed here; reading the kept picture is the same reading as a new one.
+  await fireEvent.input(within(form).getByLabelText('Energy'), { target: { value: '400' } });
+  await waitFor(() => expect(save().disabled).toBe(false));
+  await fireEvent.click(save());
+  expect(await within(sheet).findByRole('button', { name: 'Change its label' })).toBeTruthy();
+  // And the 50 g logged before now has its share: 400 kcal in 100 g is 200.
+  expect(
+    within(sheet).getByText('Filled in 1 entry logged before its label was read.'),
+  ).toBeTruthy();
+  expect(within(sheet).queryByText(/Its label has not been read yet/)).toBeNull();
 });
 
 test('a packaged food is written down once from its label, and is then one of your foods', async () => {

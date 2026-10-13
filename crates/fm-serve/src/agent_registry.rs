@@ -32,6 +32,8 @@ pub struct ActivityView {
 pub struct AgentRegistry {
     activity: Mutex<HashMap<String, Activity>>,
     present: Mutex<HashMap<String, Instant>>,
+    /// The model server that can read a picture, as the assistant last said, and when it said so.
+    reader: Mutex<Option<(fm_agent_run::ImageReader, Instant)>>,
     activity_ttl: Duration,
     presence_ttl: Duration,
 }
@@ -41,6 +43,7 @@ impl Default for AgentRegistry {
         Self {
             activity: Mutex::new(HashMap::new()),
             present: Mutex::new(HashMap::new()),
+            reader: Mutex::new(None),
             activity_ttl: ACTIVITY_TTL,
             presence_ttl: PRESENCE_TTL,
         }
@@ -83,6 +86,18 @@ impl AgentRegistry {
     /// An agent says it is alive, by `@name`.
     pub fn heartbeat(&self, name: &str) {
         self.present.lock().unwrap().insert(name.to_string(), Instant::now());
+    }
+
+    /// The assistant says what can read a picture here, with each heartbeat; `None` when nothing
+    /// can. Kept only as long as a heartbeat is: a stopped assistant has no reader.
+    pub fn set_reader(&self, reader: Option<fm_agent_run::ImageReader>) {
+        *self.reader.lock().unwrap() = reader.map(|r| (r, Instant::now()));
+    }
+
+    /// What can read a picture right now, if the assistant has said so recently.
+    pub fn reader(&self) -> Option<fm_agent_run::ImageReader> {
+        let held = self.reader.lock().unwrap();
+        held.as_ref().filter(|(_, seen)| seen.elapsed() < self.presence_ttl).map(|(r, _)| r.clone())
     }
 
     /// The agents seen within the presence TTL, sorted — the @-picker list.
@@ -134,6 +149,21 @@ mod tests {
         assert!(r.activity("d").is_some());
         std::thread::sleep(Duration::from_millis(35));
         assert!(r.activity("d").is_none());
+    }
+
+    #[test]
+    fn a_reader_is_believed_only_as_long_as_a_heartbeat() {
+        let r = short();
+        assert!(r.reader().is_none(), "nobody has said anything can read");
+        let it =
+            fm_agent_run::ImageReader { port: 8081, model: "m".into(), prompt: None, labels: true };
+        r.set_reader(Some(it.clone()));
+        assert_eq!(r.reader(), Some(it.clone()));
+        std::thread::sleep(Duration::from_millis(35));
+        assert!(r.reader().is_none(), "a stopped assistant's reader is not asked");
+        r.set_reader(Some(it));
+        r.set_reader(None);
+        assert!(r.reader().is_none(), "and an assistant that cannot see says so");
     }
 
     #[test]

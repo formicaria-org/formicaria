@@ -77,16 +77,18 @@ describe('the food sheet', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Rice bowl' } });
     await fireEvent.input(screen.getByLabelText('Servings it makes'), { target: { value: '2' } });
-    const save = screen.getByRole('button', { name: 'Save recipe' }) as HTMLButtonElement;
-    expect(save.disabled, 'a recipe needs something in it').toBe(true);
 
+    // The first ingredient is asked for, and the recipe is already kept: nothing is left to save.
     await fireEvent.click(screen.getByRole('button', { name: 'Add an ingredient' }));
-    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'rice' } });
+    await fireEvent.input(await screen.findByLabelText('search foods'), {
+      target: { value: 'rice' },
+    });
+    expect((await handle('log_recipes', { view: 'Day' })) as unknown[]).toHaveLength(1);
     await fireEvent.click(await screen.findByText('Rice, brown, cooked'));
     // 195 g of a food at 123 kcal per 100 g is 240 kcal; halved, a serving is 120.
     await fireEvent.click(await screen.findByRole('button', { name: 'Add to the recipe' }));
-    expect(await screen.findByText(/divided by 2/)).toBeTruthy();
-    await fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+    expect(await screen.findByText('Saved as you go.')).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     await fireEvent.click(await screen.findByText('Rice bowl'));
     expect(await screen.findByText(/nothing is adjusted for\s+cooking/)).toBeTruthy();
@@ -98,9 +100,10 @@ describe('the food sheet', () => {
     expect(String(bowl.props.source)).toMatch(/^recipe\//);
     expect(bowl.props.amount_g, 'the weight that went in is not the weight served').toBeUndefined();
 
-    // Saving the recipe was one step, and the serving another.
+    // Each thing was its own step: the serving, the ingredient, and the recipe's start.
     expect(await undo()).toBe('logged “Rice bowl”');
-    expect(await undo()).toBe('saved the recipe “Rice bowl”');
+    expect(await undo()).toBe('added “Rice, brown, cooked” to “Rice bowl”');
+    expect(await undo()).toBe('started the recipe “Rice bowl”');
   });
 
   it('a kept recipe can be changed: what it makes, what goes in it, and how much', async () => {

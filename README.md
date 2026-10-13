@@ -41,7 +41,9 @@ every figure names the body that published it. The manual's chapter is
   ate it. The list of 18,300 foods comes with the app (the French, German, Swiss and Italian tables, USDA where they have
   none) and is searched offline.
 - **Packaged food**: write it down from its label, or look it up by its barcode — typed, or
-  read from a photograph — at Open Food Facts, asked only when you press.
+  read from a photograph — at Open Food Facts, asked only when you press. On a computer the
+  assistant can read the label off a photograph and fill it in for you to check; a phone keeps
+  the photograph with the food so that can be done later.
 - **Recipes** are notes: your own, and 54 public-domain ones carried word for word.
 - **A menu for the days ahead**, with a shopping list, and a list of what is in your kitchen.
 - **Follow a diet** from a library of sourced ones, or set your own targets, and see on the

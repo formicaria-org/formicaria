@@ -93,10 +93,11 @@ fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     // It fails safe in both directions anyway: an index from another schema, or one whose rebuild
     // was interrupted (`SIGKILL` — there is no shutdown hook to trust), carries no completion
     // marker and is rebuilt in full.
-    let loaded =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| App::load_with(ColdStart::TrustIndex)))
-            .map_err(|_| "opening the vaults panicked — see logcat for the backtrace".to_string())
-            .and_then(|r| r.map_err(|e| format!("could not open vaults: {e}")));
+    let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        App::load_with(ColdStart::TrustIndex)
+    }))
+    .map_err(|_| "opening the vaults panicked — see logcat for the backtrace".to_string())
+    .and_then(|r| r.map_err(|e| format!("could not open vaults: {e}")));
     let (fm_app, skipped) = match loaded {
         Ok(v) => v,
         Err(e) => {
@@ -223,9 +224,8 @@ fn blob_response(
 ) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::{Response, StatusCode};
     use tauri::Manager; // `try_state` lives on the trait, not on `AppHandle` itself
-    let not_found = || {
-        Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap_or_default()
-    };
+    let not_found =
+        || Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap_or_default();
     // Everything after the host: `fmblob://localhost/<ref>` → `<ref>`.
     let Some(rest) = uri.split_once("://").and_then(|(_, r)| r.split_once('/')).map(|(_, r)| r)
     else {
@@ -542,8 +542,38 @@ fn fm(
     if cmd == "agent_activity_poll" {
         return Ok("{\"active\":false}".to_string());
     }
+    // **A packet's label, read off a photograph** (`fm_agent_run::label`): a transport concern as
+    // on the desktop, where `fm-serve` answers `/api/read_label`. The picture comes by value and
+    // is kept nowhere; text comes back, and the page reads the figures out of it.
+    if cmd == "label_reader" {
+        #[cfg(agent_shell)]
+        return Ok(agent::label_reader().to_string());
+        #[cfg(not(agent_shell))]
+        return Ok(serde_json::json!({
+            "ready": false, "model": "",
+            "why": "This build of the app was made without the assistant. Type the label in.",
+        })
+        .to_string());
+    }
+    if cmd == "read_label" {
+        #[cfg(agent_shell)]
+        {
+            let data = args.get("data").and_then(|v| v.as_str()).unwrap_or_default();
+            let image =
+                b64_decode(data).ok_or("The picture did not arrive whole. Take it again.")?;
+            return agent::read_label(&image).map(|v| v.to_string());
+        }
+        #[cfg(not(agent_shell))]
+        return Err(
+            "This build of the app was made without the assistant. Type the label in.".into()
+        );
+    }
     #[cfg(agent_shell)]
-    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" || cmd == "update_agent_model" {
+    if cmd == "agent_status"
+        || cmd == "set_agent"
+        || cmd == "set_transcribe"
+        || cmd == "update_agent_model"
+    {
         use tauri::Manager;
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
         if cmd == "set_agent" {
@@ -587,7 +617,11 @@ fn fm(
         .to_string());
     }
     #[cfg(not(agent_shell))]
-    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" || cmd == "update_agent_model" {
+    if cmd == "agent_status"
+        || cmd == "set_agent"
+        || cmd == "set_transcribe"
+        || cmd == "update_agent_model"
+    {
         // A notes-only build: same shape again, and `why` says which kind of build this is rather
         // than leaving the row blank.
         return Ok(serde_json::json!({
@@ -697,7 +731,9 @@ fn configure_paths(handle: &tauri::AppHandle) -> Result<(), String> {
             // sets `FM_CONFIG_DIR` itself, and there `app_data_dir()` failing is not fatal — so
             // the refusal is scoped to the case where nothing else has supplied a location.
             if std::env::var_os("FM_CONFIG_DIR").is_some() {
-                log::warn!("no platform data directory ({e}) — using FM_CONFIG_DIR from the environment");
+                log::warn!(
+                    "no platform data directory ({e}) — using FM_CONFIG_DIR from the environment"
+                );
                 return Ok(());
             }
             let msg = format!(
@@ -893,12 +929,8 @@ impl log::Log for IosLogger {
         }
         // The `formicaria` prefix mirrors Android's logcat tag on purpose: one grep, and the two
         // smoke tests assert the same startup lines rather than drifting apart.
-        let line = format!(
-            "formicaria {:<5} {}: {}",
-            record.level(),
-            record.target(),
-            record.args()
-        );
+        let line =
+            format!("formicaria {:<5} {}: {}", record.level(), record.target(), record.args());
         eprintln!("{line}");
         // Flushed per record rather than buffered: a diagnostic still in a buffer when the process
         // dies is not a diagnostic, and this file exists for exactly the launches that end badly.
@@ -1065,10 +1097,7 @@ pub fn run() {
                 req.body(),
                 // **Forwarded, because the handler cannot answer a seek without it.** Until
                 // 2026-09-04 this was not passed at all and the handler had no way to know.
-                req.headers()
-                    .get("Range")
-                    .and_then(|v| v.to_str().ok())
-                    .map(str::to_string),
+                req.headers().get("Range").and_then(|v| v.to_str().ok()).map(str::to_string),
             )
         })
         .invoke_handler(tauri::generate_handler![

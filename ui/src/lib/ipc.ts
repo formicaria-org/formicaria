@@ -1223,6 +1223,14 @@ export const logNutrients = (view: string, day: string) =>
 /** One request to Open Food Facts, made by the shell. `null` when they have no such product. */
 export const productLookup = (code: string) =>
   invoke<ProductFound | null>('product_lookup', { code });
+/** Whether a label can be read on this device, and by which model; `why` says what is missing.
+ *  Asked before a picture is taken. */
+export const labelReader = () =>
+  invoke<{ ready: boolean; model: string; why: string }>('label_reader', {});
+/** A photograph of a packet's label, read by the assistant on this device: its text, and which
+ *  model read it. The picture (a JPEG, base64) is kept nowhere and nothing is written. */
+export const readLabelPhoto = (data: string) =>
+  invoke<{ text: string; model: string }>('read_label', { data });
 export const recipeLibrary = () => invoke<RecipeLibrary>('recipe_library', {});
 /** Hand the computer's program the reminders it says itself when no page is open. */
 export const remindSet = (items: { title: string; text: string; at: number }[]) =>

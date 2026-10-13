@@ -1242,8 +1242,15 @@ by each table's own-language names. Limits: `known-issues.md` (*A label from any
    reading may serve, once its documentation is read.
 3. **Singapore**: no robot may read the site. A file from the Board, or one food at a time on a
    person's press, are the two ways left; the owner has chosen neither yet.
-4. **A label read from a photograph** by the assistant, filling this form (the owner's idea,
-   2026-10-13): the model transcribes, code reads the numbers, the person saves.
+4. **A label read from a photograph**: built 2026-10-13 for a computer (`decisions.md#agent`;
+   limits in `known-issues.md`). **Left: the phone**, whose model is unfit (2 packets of 9).
+   The ways open: a larger model there (qwen3-vl-4b on its processor would take minutes; not
+   measured), a model made for documents (PaddleOCR-VL read tables well but took 2½–4 minutes
+   on the phone). The third way is half built the same day: the phone keeps the picture with
+   the packet and the computer reads it once a backup brings it (`decisions.md#data`).
+   **Left there: the assistant doing that on its own**, proposing the figures for the person
+   to accept, which needs nutrient values through `apply_props` and so a ruling. And: tables
+   with nutrients as columns, two tables side by side, knowing which way is up.
 5. A range for an amount in millilitres; a choice of which tables a search shows; the Swiss
    table's densities, the only honest bridge from millilitres to grams.
 

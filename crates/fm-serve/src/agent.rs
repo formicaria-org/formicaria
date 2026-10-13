@@ -80,6 +80,25 @@ struct DiscReq {
 struct PresentReq {
     #[serde(default)]
     name: String,
+    /// The model server that can read a picture, when the assistant has one.
+    #[serde(default)]
+    reader: Option<ReaderReq>,
+}
+
+#[derive(serde::Deserialize)]
+struct ReaderReq {
+    port: u16,
+    model: String,
+    /// Whether the catalogue records the model as fit to read a nutrition label.
+    #[serde(default)]
+    labels: bool,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct LabelReq {
+    /// The picture, base64.
+    #[serde(default)]
+    data: String,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -1147,8 +1166,40 @@ pub fn route(
             let req: PresentReq = serde_json::from_slice(body).unwrap_or_default();
             if !req.name.is_empty() {
                 r.heartbeat(&req.name);
+                r.set_reader(req.reader.map(|x| fm_agent_run::ImageReader {
+                    port: x.port,
+                    model: x.model,
+                    prompt: None,
+                    labels: x.labels,
+                }));
             }
             ("200 OK", "application/json", b"{\"ok\":true}".to_vec())
+        }
+        // Whether a label can be read here, asked before anybody takes a picture.
+        "/api/label_reader" => (
+            "200 OK",
+            "application/json",
+            fm_agent_run::label::ready_json(r.reader().as_ref()).to_string().into_bytes(),
+        ),
+        // A packet's label, read off a photograph (`fm_agent_run::label`). The picture comes by
+        // value, goes to the reader the assistant named, and is kept nowhere; what comes back is
+        // text for the page to read figures out of, and nothing is written.
+        "/api/read_label" => {
+            let req: LabelReq = serde_json::from_slice(body).unwrap_or_default();
+            let read = match fm_app::wire::b64_decode(&req.data) {
+                None => Err("The picture did not arrive whole. Take it again.".to_string()),
+                Some(image) => fm_agent_run::label::read(r.reader().as_ref(), &image),
+            };
+            match read {
+                Ok(got) => (
+                    "200 OK",
+                    "application/json",
+                    serde_json::json!({ "text": got.text, "model": got.model })
+                        .to_string()
+                        .into_bytes(),
+                ),
+                Err(e) => ("400 Bad Request", "text/plain", e.into_bytes()),
+            }
         }
         "/api/agents" => {
             let payload = serde_json::json!({ "agents": r.online() });

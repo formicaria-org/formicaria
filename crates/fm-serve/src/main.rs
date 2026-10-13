@@ -499,6 +499,9 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/set_transcribe",
     "/api/agent_activity",
     "/api/agent_present",
+    // Minutes of this machine's model, for a picture a guest sent. The host's to spend.
+    "/api/read_label",
+    "/api/label_reader",
     "/api/backup",
     "/api/open_external",
     "/api/open_skipped",

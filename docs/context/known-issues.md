@@ -1386,6 +1386,49 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
 - **The Swiss database also publishes a density for 126 foods.** Not used: it would be the only
   honest way to turn a millilitre into a gram, and only for those.
 
+## A label read from a photograph — limits (2026-10-13)
+
+`fm_agent_run::label`, `ui/src/lib/food/labelText.ts`, `shot.ts`; `decisions.md#agent`, 2026-10-13.
+
+- **Not on the phone.** Its model (`lfm2.5-vl-450m`) is unfit, measured; the picture is kept
+  and the form says why it is not read. Nothing here has run on a phone: the phone shell was compiled for Android
+  with the change (`cargo check --target aarch64-linux-android`), no more.
+- **Never taken through a real camera by me.** Driven end to end in a headless browser at 360
+  and 320 px with Open Food Facts' photographs handed to the file input.
+- **A wrong figure can pass every check.** The checks catch what does not add up; a fibre of
+  2.3 for 1.4 adds up. The person and the packet are the check, and the form says so.
+- **Two tables side by side** (Brazil's layout) came back with rows crossed even upright.
+  **A table with nutrients as columns** (a Singapore can) ran on and was refused. **Sideways**
+  is refused or invented until turned; nothing detects which way is up.
+- **Latin script only**, six languages' names for the lines. Vitamins and minerals, polyols,
+  alcohol and the ingredient list are not read.
+- **A serving printed as 21.5 g** is left out when it is optional and rounded, with a line
+  saying so, when the label is per serving: a serving is kept in whole grams.
+- **A reading holds a connection to `fm-serve` for up to four minutes** and the model for as
+  long; a chat turn asked meanwhile waits behind it.
+- **Any local program can name a reader** in a heartbeat, as it can already claim to be the
+  assistant: loopback is trusted. The picture would go to the port it named, on loopback only.
+- **Windows and macOS: compiled, never run**, like the assistant itself there.
+
+## Kept pictures and a label settled later — limits (2026-10-13)
+
+`LogSheet.svelte` (`kept`, `saveChanged`, `fillIn`, `editLabel`); `decisions.md#data`, 2026-10-13.
+
+- **Not seen on a phone**, and the phone half is the point: take, keep, save, back up. Driven in
+  a headless browser against the real program; *Read it* fetched the kept original from the
+  blob route and read it. On a phone that fetch goes through the shell's own protocol and has
+  not been tried (the button is not shown there while the model is unfit).
+- **Each picture is a few megabytes** and counts against the attachment limit a backup carries.
+- **A kept picture cannot be taken out of a packet from Food**; edit the note's text.
+- **Changing a label is not undoable as one step**, and renaming a packet is done on its note.
+- **Filling in looks back 330 days**, in the food log's view only, and only entries in the
+  food's own unit. An unread packet is logged in grams, since its unit is not known yet; if the
+  label turns out per 100 ml those entries stay empty and the person is told.
+- **A recipe's pictures are not shown in Food**, only in its note; the screen says one was kept.
+- **A recipe started and abandoned stays**, with its name and nothing in it, until removed
+  (*Remove this recipe*). That is the price of never losing one half-built (owner, 2026-10-14).
+- **Nothing settles on its own.** A person opens the packet on the computer and presses *Read it*.
+
 ## A label from any country, and millilitres — limits (2026-10-13)
 
 `ui/src/lib/food/label.ts`, `amount.ts`; `decisions.md#data`, 2026-10-13.

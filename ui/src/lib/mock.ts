@@ -732,6 +732,13 @@ export function setPlatform(os: string): void {
   mockPlatform = os;
 }
 
+/// Why this device cannot read a label, as `label_reader` would say it; empty when it can.
+/// Test-only: how a test stands on a phone whose model is not fit for it.
+let mockLabelWhy = '';
+export function setLabelReader(why: string): void {
+  mockLabelWhy = why;
+}
+
 let mockFaults: Fault[] = [];
 export function faults(list: Fault[]): void {
   mockFaults = list.map((f) => ({ ...f }));
@@ -742,6 +749,7 @@ export function faults(list: Fault[]): void {
 /// Deliberately does **not** touch the note list; use [`reset`] for that.
 export function clearFaults(): void {
   mockFaults = [];
+  mockLabelWhy = '';
   mockConflicts = [];
   mockUnrecorded = [];
   mockUnopenedVaults = [];
@@ -2192,6 +2200,28 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
             }
           : null
       ) as T;
+    case 'label_reader':
+      return (
+        mockLabelWhy
+          ? { ready: false, model: '', why: mockLabelWhy }
+          : { ready: true, model: 'stand-in', why: '' }
+      ) as T;
+    case 'read_label':
+      // What a reader returns for a can of cola: the table as text, and nothing else.
+      return {
+        model: 'stand-in',
+        text: [
+          '| Per: | 100ml | 330ml (*) |',
+          '|---|---|---|',
+          '| Energy: | 180kJ/42kcal | 594kJ/139kcal (7%) |',
+          '| Fat: | 0g | 0g (0%) |',
+          '| of which saturates: | 0g | 0g (0%) |',
+          '| Carbohydrate: | 10.6g | 35g (13%) |',
+          '| of which sugars: | 10.6g | 35g (39%) |',
+          '| Protein: | 0g | 0g (0%) |',
+          '| Salt: | 0g | 0g (0%) |',
+        ].join('\n'),
+      } as T;
     case 'recipe_library':
       // One recipe, in the shape of the carried file; the real ones are `recipes-nhlbi.json`.
       return {

@@ -15,7 +15,15 @@
     logRecent,
     logRecipes,
     logProducts,
+    assetUrl,
+    getNote,
+    ingestFile,
+    labelReader,
+    logDays,
     productLookup,
+    setProperties,
+    updateBody,
+    readLabelPhoto,
     recipeLibrary,
     foodSearch,
     foodGet,
@@ -30,6 +38,7 @@
     type AmountUnit,
   } from './amount';
   import * as label from './label';
+  import { readLabel } from './labelText';
   import {
     createNotesUndoable,
     setPropertiesUndoable,
@@ -162,9 +171,13 @@
   // (`decisions.md#data`, 2026-10-13). The arithmetic is `label.ts`'s.
   let labelling = $state<
     | (label.LabelForm & {
+        /** The food's own note when it is one already being changed; empty for a new one. */
+        id: string;
         name: string;
         barcode: string;
         ingredients: string;
+        /** Pictures of the pack, kept in the food's note. */
+        pictures: Pic[];
         /** Where the figures were looked up, when they were. */
         page: string;
       })
@@ -175,6 +188,126 @@
   /// nowhere.
   let reading2 = $state(false);
   let photo = $state<HTMLInputElement | null>(null);
+  /// What the one picker was opened for: the number under the barcode, or the label's table.
+  let wanted: 'barcode' | 'label' | 'picture' | 'dish' = 'barcode';
+  /// Why a label cannot be read on this device just now, or nothing when it can. Asked when
+  /// the sheet opens, so the press that would open the camera can say it without opening it.
+  let labelWhy = $state('');
+  const askReader = () =>
+    labelReader().then(
+      (r) => (labelWhy = r.ready ? '' : r.why),
+      () => (labelWhy = ''),
+    );
+  onMount(() => void askReader());
+  function pick(what: typeof wanted) {
+    wanted = what;
+    photo?.click();
+  }
+  // A picture of a pack or a dish is kept, whole, in the food's own note
+  // (`decisions.md#data`, 2026-10-13, *a food keeps its pictures, and a label can be settled
+  // later*): it is the food's record, and what a better reader is given on another day.
+  type Pic = { url: string; file?: Blob; ref?: string };
+  const picOf = (file: Blob): Pic => ({
+    file,
+    url: typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '',
+  });
+  /// Store the pictures not yet stored, and answer the lines that show them in a note.
+  async function kept(pics: Pic[], word: string): Promise<string> {
+    const lines: string[] = [];
+    for (const pic of pics) {
+      if (!pic.file) continue;
+      const type = pic.file.type || 'image/jpeg';
+      const meta = await ingestFile(new File([pic.file], `${word}.jpg`, { type }));
+      const hash = meta.assets[0]?.replace(/^sha256:/, '');
+      if (hash) lines.push(`![${word}](asset:sha256-${hash})`);
+    }
+    return lines.length ? `\n${lines.join('\n\n')}\n` : '';
+  }
+  function picked() {
+    if (wanted === 'barcode') return readPhoto();
+    const file = photo?.files?.[0];
+    if (photo) photo.value = '';
+    if (!file) return;
+    if (wanted === 'dish') {
+      const r = serving?.made;
+      if (r) void keepDish(r, file);
+      return;
+    }
+    if (!labelling) startLabel();
+    const l = labelling;
+    if (!l) return;
+    l.pictures.push(picOf(file));
+    if (wanted === 'picture') return;
+    if (labelWhy) {
+      labelSaid = `${labelWhy} The picture is kept with this food, so a device that reads labels well can read it later.`;
+      // The assistant may have come up since: the next press finds out.
+      void askReader();
+    } else void readShot(file, 0);
+  }
+  /// Read a picture the food already keeps.
+  async function readKept(pic: Pic) {
+    try {
+      const blob = pic.file ?? (pic.ref ? await (await fetch(assetUrl(pic.ref))).blob() : null);
+      if (blob) await readShot(blob, 0);
+    } catch {
+      labelSaid = 'That picture could not be opened on this device.';
+    }
+  }
+
+  // A label read off a photograph (`decisions.md#agent`, 2026-10-13). The assistant on this
+  // device turns the picture into text and decides no number; `labelText.ts` reads the figures
+  // out of that text into the form; the person checks them against the picture, shown beside
+  // them, and saves. A small copy goes to the reader; the picture itself is kept with the food.
+  let shot = $state<{ file: Blob; turns: number; url: string } | null>(null);
+  let readingLabel = $state(false);
+  let labelSaid = $state('');
+  let labelDoubts = $state<string[]>([]);
+  let labelRead = $state('');
+  /// The figures the last reading put in the form: a second reading takes them out again
+  /// first, so nothing from a picture that was read wrongly stays behind.
+  let readKeys: string[] = [];
+  $effect(() => {
+    if (labelling) return;
+    shot = null;
+    labelSaid = labelRead = '';
+    labelDoubts = [];
+    readKeys = [];
+  });
+  async function readShot(file: Blob, turns: number) {
+    if (readingLabel) return;
+    if (!labelling) startLabel();
+    const l = labelling;
+    if (!l) return;
+    readingLabel = true;
+    labelSaid = labelRead = '';
+    labelDoubts = [];
+    try {
+      const { shrink } = await import('./shot');
+      const url = await shrink(file, turns);
+      if (labelling !== l) return;
+      shot = { file, turns, url };
+      const got = await readLabelPhoto(url.slice(url.indexOf(',') + 1));
+      if (labelling !== l) return;
+      labelRead = got.text;
+      const { form, found, doubts } = readLabel(got.text);
+      for (const k of readKeys) delete l.values[k];
+      readKeys = Object.keys(form.values);
+      if (!found) {
+        labelSaid =
+          'No nutrition table could be read in that picture. Take it closer, upright and in good light, with the table filling the picture, or type the label in.';
+        return;
+      }
+      const { values, ...rest } = form;
+      Object.assign(l, rest);
+      Object.assign(l.values, values);
+      labelDoubts = doubts;
+      labelSaid = `Read by ${got.model}: ${found} of the label's figures. It can misread a digit or a line, so check each one against the packet before you save.`;
+    } catch (e) {
+      labelSaid = String(e).replace(/^Error: /, '');
+    } finally {
+      readingLabel = false;
+    }
+  }
   /// What a scan started from the list had to say, when it found nothing to open.
   let scanned = $state('');
   async function readPhoto() {
@@ -250,6 +383,8 @@
   }
   const startLabel = () =>
     (labelling = {
+      id: '',
+      pictures: [],
       name: /^[\d\s-]+$/.test(q.trim()) ? '' : q.trim(),
       barcode: /^[\d\s-]+$/.test(q.trim()) ? digitsOf(q) : '',
       basis: '100g',
@@ -265,8 +400,11 @@
   const labelValues = $derived((labelling && label.per100(labelling)) ?? {});
   const labelUnit = $derived<AmountUnit>(labelling ? label.unitOf(labelling) : 'g');
   const badCode = $derived(!!labelling?.barcode.trim() && !isBarcode(labelling.barcode));
+  /// A name, and either the energy or a picture to read it from later.
   const labelReady = $derived(
-    !!labelling?.name.trim() && labelValues.kcal !== undefined && !badCode,
+    !!labelling?.name.trim() &&
+      !badCode &&
+      (labelValues.kcal !== undefined || !!labelling?.pictures.length),
   );
   const saveLabel = () =>
     write(async () => {
@@ -275,6 +413,8 @@
       const title = l.name.trim();
       const serving = label.servingOf(l);
       const unit = label.unitOf(l);
+      const pictures = await kept(l.pictures, 'pack');
+      if (l.id) return saveChanged(l, pictures);
       await createNotesUndoable(
         [
           {
@@ -286,7 +426,8 @@
               (l.page
                 ? `\nLooked up at [Open Food Facts](${l.page}) and checked by you. Contains data ` +
                   `from Open Food Facts, available under the Open Database License.\n`
-                : ''),
+                : '') +
+              pictures,
             props: {
               product: 'label',
               ...(l.page ? { source_url: l.page } : {}),
@@ -305,8 +446,119 @@
       const made = products.find((p) => p.title === title);
       if (made) openProduct(made);
     });
+  /// Save a food that is a note already: its figures replace the ones it had, new pictures join
+  /// its text, and what was logged from it before it had figures is filled in.
+  async function saveChanged(l: NonNullable<typeof labelling>, pictures: string) {
+    const serving = label.servingOf(l);
+    const unit = label.unitOf(l);
+    const was = products.find((p) => p.id === l.id);
+    // An emptied line is cleared, not left at what it was.
+    const cleared = Object.fromEntries(Object.keys(was?.per100 ?? {}).map((k) => [k, '']));
+    await setProperties(l.id, {
+      ...cleared,
+      ...labelValues,
+      barcode: l.barcode.trim() ? digitsOf(l.barcode) : '',
+      unit: unit === 'ml' ? 'ml' : '',
+      serving_g: unit === 'g' && serving ? serving : '',
+      serving_ml: unit === 'ml' && serving ? serving : '',
+    });
+    if (pictures) {
+      const note = await getNote(l.id);
+      if (note) await updateBody(l.id, note.body.replace(/\n*$/, '\n') + pictures, note.version);
+    }
+    // The label is saved by now; filling earlier entries in is a second thing, and a failure
+    // there is said without undoing the first.
+    let filled = 0;
+    let unfilled = '';
+    if (was && was.per100.kcal === undefined && labelValues.kcal !== undefined)
+      try {
+        const did = await fillIn(l.id, unit, labelValues);
+        filled = did.filled;
+        if (did.other)
+          unfilled = `${did.other} logged before in ${unit === 'ml' ? 'grams' : 'millilitres'} ${did.other === 1 ? 'was' : 'were'} not filled in, because this food is measured in ${unit === 'ml' ? 'millilitres' : 'grams'}: open each and give its amount again.`;
+      } catch (e) {
+        unfilled = `The label is saved, but what was logged before could not be filled in: ${String(e).replace(/^Error: /, '')}`;
+      }
+    await loadProducts();
+    labelling = null;
+    const made = products.find((p) => p.id === l.id);
+    if (made) openProduct(made);
+    settled = unfilled;
+    if (filled) {
+      settled = `Filled in ${filled} ${filled === 1 ? 'entry' : 'entries'} logged before its label was read. ${unfilled}`;
+      onwrote();
+    }
+  }
+  /// What a person logged of a food before its label was read has an amount and no figures:
+  /// give each its share, now that a hundred of it is known. Only amounts in the food's own
+  /// unit are filled in; a millilitre is never turned into a gram. It looks back 330 days and
+  /// ahead 60, which is as far as one asking of `log_days` reaches.
+  let settled = $state('');
+  async function fillIn(id: string, unit: AmountUnit, per100: Record<string, number>) {
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const today = Date.now();
+    const days = await logDays(
+      view,
+      iso(new Date(today - 330 * 864e5)),
+      iso(new Date(today + 60 * 864e5)),
+      true,
+    );
+    let filled = 0;
+    let other = 0;
+    for (const d of days.days)
+      for (const row of d.rows ?? []) {
+        const had = entryAmount(row.props);
+        if (row.props.source !== `product/${id}` || row.props.kcal !== undefined) continue;
+        if (had.unit !== unit || !had.n) {
+          other += 1;
+          continue;
+        }
+        const share = Object.fromEntries(
+          Object.entries(per100).map(([k, v]) => [k, Math.round((v * (had.n ?? 0)) / 100)]),
+        );
+        await setProperties(row.id, share);
+        filled += 1;
+      }
+    return { filled, other };
+  }
+  /// Open a food's label again: to read it from its pictures, or to put a figure right.
+  async function editLabel(p: Product) {
+    failed = '';
+    let body = '';
+    try {
+      body = (await getNote(p.id))?.body ?? '';
+    } catch {
+      body = '';
+    }
+    const unit = p.unit === 'ml' ? 'ml' : 'g';
+    labelling = {
+      id: p.id,
+      name: p.title,
+      barcode: p.barcode ?? '',
+      basis: unit === 'ml' ? '100ml' : '100g',
+      serving: (unit === 'ml' ? p.serving_ml : p.serving_g) ?? null,
+      servingUnit: unit,
+      energyIn: 'kcal',
+      sodiumAs: 'salt',
+      ingredients: '',
+      values: label.typedFrom(p.per100),
+      page: '',
+      pictures: [...body.matchAll(/asset:(sha256-[0-9a-f]{64})/g)].map((m) => ({
+        ref: `asset:${m[1]}`,
+        url: assetUrl(`asset:${m[1]}`, 'thumb'),
+      })),
+    };
+    portion = null;
+  }
+  /// The food the amount on screen is of, when it is one of the person's own packets.
+  let ofProduct = $state<Product | null>(null);
+  $effect(() => {
+    if (!portion) ofProduct = null;
+  });
   function openProduct(p: Product) {
     failed = '';
+    settled = '';
+    ofProduct = p;
     const unit: AmountUnit = p.unit === 'ml' ? 'ml' : 'g';
     const serving = unit === 'ml' ? p.serving_ml : p.serving_g;
     portion = {
@@ -542,19 +794,6 @@
         await reopen(r.recipe);
         return;
       }
-      if (building) {
-        // An ingredient, not something eaten: it goes in the recipe being put together.
-        building.items.push({
-          title: p.title,
-          grams: p.grams,
-          unit: p.unit,
-          values: valuesAt(p, p.grams),
-          source: p.source,
-        });
-        portion = null;
-        picking = false;
-        return;
-      }
       const props: Record<string, string | number> = {
         [amountKey(p.unit)]: p.grams,
         ...valuesAt(p, p.grams),
@@ -736,6 +975,8 @@
   let fixing = $state<{ word: string; id: string; title: string } | null>(null);
   /// Read the recipes again and show this one as it now is.
   async function reopen(word: string) {
+    // Back from a recipe leads to the recipes, not to the search an ingredient was found in.
+    mode = 'recipes';
     await loadRecipes();
     const r = (recipes ?? []).find((x) => x.recipe === word);
     if (r) openRecipe(r);
@@ -789,60 +1030,42 @@
       await reopen(r.recipe);
     });
 
-  // Putting a recipe together: a name, how many servings it makes, and foods by weight.
-  type Item = {
-    title: string;
-    grams: number;
-    unit: AmountUnit;
-    values: Record<string, number>;
-    source: string;
-  };
-  let building = $state<{
-    name: string;
-    servings: number | string | null;
-    items: Item[];
-  } | null>(null);
+  // Starting a recipe: a name and how many servings it makes. **It is kept from the moment it
+  // has a name** (the owner, 2026-10-14: one being built was lost on leaving the sheet): the
+  // note is written then, and every ingredient, amount and picture after that is saved as it
+  // is given, on the kept recipe's own screen. There is no unsaved recipe to lose.
+  let building = $state<{ name: string; servings: number | string | null } | null>(null);
   /// Choosing an ingredient: the same search and the same amount step as logging a food.
   let picking = $state(false);
-  const makes = $derived(Math.floor(Number(building?.servings ?? 0)));
-  const built = $derived.by(() => {
-    const sum: Record<string, number> = {};
-    for (const i of building?.items ?? [])
-      for (const [k, v] of Object.entries(i.values)) sum[k] = (sum[k] ?? 0) + v;
-    return sum;
-  });
-  const perServing = $derived(
-    makes >= 1
-      ? Object.fromEntries(Object.entries(built).map(([k, v]) => [k, Math.round(v / makes)]))
-      : {},
-  );
-  const recipeReady = $derived(
-    !!building && building.name.trim() !== '' && makes >= 1 && building.items.length > 0,
-  );
-  const saveRecipe = () =>
+  const startRecipe = (then: 'open' | 'pick') =>
     write(async () => {
-      if (!building || !recipeReady) return;
       const b = building;
+      const name = b?.name.trim();
+      if (!b || !name) return;
       const recipe = recipeWord();
-      const name = b.name.trim();
-      const drafts: NoteDraft[] = [
-        // The recipe's own note is an ordinary one: tagged, in the Library, with no `log`.
-        { title: name, tags: [RECIPE], props: { recipe, servings: makes } },
-        ...b.items.map((i) => ({
-          title: i.title,
-          props: {
-            log: def.log,
-            recipe,
-            [amountKey(i.unit)]: i.grams,
-            ...i.values,
-            ...(i.source ? { source: i.source } : {}),
-          },
-        })),
-      ];
-      await createNotesUndoable(drafts, `saved the recipe “${name}”`);
+      const servings = Math.max(1, Math.floor(Number(b.servings)) || 1);
+      // The recipe's own note is an ordinary one: tagged, in the Library, with no `log`.
+      await createNotesUndoable(
+        [{ title: name, tags: [RECIPE], props: { recipe, servings } }],
+        `started the recipe “${name}”`,
+      );
       building = null;
       mode = 'recipes';
       await loadRecipes();
+      const r = (recipes ?? []).find((x) => x.recipe === recipe);
+      if (!r) return;
+      if (then === 'pick') addIngredientTo(r);
+      else openRecipe(r);
+    });
+  /// A picture of the dish, kept in the recipe's own note the moment it is taken.
+  let dishSaid = $state('');
+  const keepDish = (r: Recipe, file: Blob) =>
+    write(async () => {
+      const lines = await kept([picOf(file)], 'dish');
+      const note = await getNote(r.id);
+      if (!lines || !note) return;
+      await updateBody(r.id, note.body.replace(/\n*$/, '\n') + lines, note.version);
+      dishSaid = 'The picture is kept in the recipe’s note.';
     });
 
   // ── typing a food in ───────────────────────────────────────────────────────────────────────────
@@ -904,8 +1127,8 @@
     accept="image/*"
     capture="environment"
     hidden
-    onchange={readPhoto}
-    aria-label="a picture of the barcode"
+    onchange={picked}
+    aria-label="a picture of the packet"
   />
   <button type="button" class="scrim" onclick={onclose} aria-label="close" tabindex="-1"></button>
   <div
@@ -951,6 +1174,25 @@
       <!-- One food, how much of it, and what that comes to. -->
       <section class="portion">
         <h2>{portion.title}</h2>
+        {#if ofProduct}
+          {#if ofProduct.per100.kcal === undefined}
+            <p class="hint" role="status">
+              Its label has not been read yet. What you log of it is kept with its amount and is not
+              counted in the day until the label is filled in; then it is filled in too.
+            </p>
+          {/if}
+          {#if settled}<p class="hint" role="status">{settled}</p>{/if}
+          <button
+            type="button"
+            class="quiet"
+            onclick={() => {
+              const p = ofProduct;
+              if (p) void editLabel($state.snapshot(p) as Product);
+            }}
+          >
+            {ofProduct.per100.kcal === undefined ? 'Fill in its label' : 'Change its label'}
+          </button>
+        {/if}
         <div class="stepper">
           <button
             type="button"
@@ -1133,6 +1375,11 @@
             <button type="button" class="link" onclick={() => addIngredientTo(r)}>
               Add an ingredient
             </button>
+            <button type="button" class="link" onclick={() => pick('dish')} disabled={busy}>
+              Add a picture of the dish
+            </button>
+            {#if dishSaid}<p class="hint" role="status">{dishSaid}</p>{/if}
+            <p class="hint">Saved as you go.</p>
           {/if}
         {/if}
         {#if entry}
@@ -1159,7 +1406,13 @@
         <h2>New recipe</h2>
         <label>
           <span>Name</span>
-          <input class="field" type="text" bind:value={building.name} autocomplete="off" />
+          <input
+            class="field"
+            type="text"
+            bind:value={building.name}
+            onchange={() => startRecipe('open')}
+            autocomplete="off"
+          />
         </label>
         <label>
           <span>Servings it makes</span>
@@ -1172,45 +1425,19 @@
             bind:value={building.servings}
           />
         </label>
-        <ul class="rows">
-          {#each building.items as i, at (at)}
-            <li>
-              <span class="row still">
-                <span class="t">{i.title}</span>
-                <span class="a">{shownAs(i.grams, i.unit)}</span>
-                <span class="v">{show(primary.key, i.values[primary.key] ?? 0).text}</span>
-              </span>
-              <button
-                type="button"
-                class="again"
-                onclick={() => building?.items.splice(at, 1)}
-                aria-label={`take ${i.title} out`}
-              >
-                <Icon name="close" size={18} />
-              </button>
-            </li>
-          {/each}
-        </ul>
-        <button type="button" class="link" onclick={() => ((picking = true), (mode = 'search'))}>
-          Add an ingredient
-        </button>
-        {#if building.items.length && makes >= 1}
-          <p class="comes-to">
-            {#each summary(perServing) as part, i (i)}
-              <span class:lead={i === 0}>{part}</span>
-            {/each}
-          </p>
-          <p class="hint">
-            Per serving: the sum of the ingredients as entered, divided by {makes}.
-          </p>
-          {#each gaps(building.items.length, (k) => building?.items.filter((i) => k in i.values).length ?? 0) as g (g)}
-            <p class="hint">{g}</p>
-          {/each}
-        {/if}
+        <p class="hint">
+          It is saved as soon as it has a name, and each thing you add or change after that is saved
+          as you go.
+        </p>
         <div class="pair">
           <button type="button" class="quiet" onclick={() => (building = null)}>Cancel</button>
-          <button type="button" class="go" onclick={saveRecipe} disabled={busy || !recipeReady}>
-            Save recipe
+          <button
+            type="button"
+            class="go"
+            onclick={() => startRecipe('pick')}
+            disabled={busy || !building.name.trim()}
+          >
+            Add an ingredient
           </button>
         </div>
       </section>
@@ -1249,7 +1476,13 @@
         <h2>From the label</h2>
         <label>
           <span>Name</span>
-          <input class="field" type="text" bind:value={labelling.name} autocomplete="off" />
+          <input
+            class="field"
+            type="text"
+            bind:value={labelling.name}
+            autocomplete="off"
+            readonly={!!labelling.id}
+          />
         </label>
         <label>
           <span>Barcode number (optional)</span>
@@ -1261,7 +1494,7 @@
             autocomplete="off"
           />
         </label>
-        <button type="button" class="quiet" onclick={() => photo?.click()} disabled={reading2}>
+        <button type="button" class="quiet" onclick={() => pick('barcode')} disabled={reading2}>
           {reading2 ? 'Reading…' : 'Photograph the barcode'}
         </button>
         {#if badCode}
@@ -1284,6 +1517,78 @@
           </p>
         {/if}
         {#if lookedUp}<p class="hint" role="status">{lookedUp}</p>{/if}
+        <button type="button" class="quiet" onclick={() => pick('label')} disabled={readingLabel}>
+          {readingLabel
+            ? 'Reading the label…'
+            : shot
+              ? 'Photograph the label again'
+              : 'Photograph the label'}
+        </button>
+        {#if readingLabel}
+          <p class="hint" role="status">
+            The assistant on this device is reading it, which can take a minute.
+          </p>
+        {/if}
+        {#if labelling.pictures.length}
+          <ul class="pics" aria-label="pictures of the pack">
+            {#each labelling.pictures as pic, i (pic)}
+              <li>
+                {#if pic.url}<img src={pic.url} alt={`picture ${i + 1} of the pack`} />{/if}
+                {#if !labelWhy}
+                  <button
+                    type="button"
+                    class="quiet"
+                    onclick={() => readKept(pic)}
+                    disabled={readingLabel}
+                    aria-label={`read the label from picture ${i + 1}`}>Read it</button
+                  >
+                {/if}
+                {#if pic.file}
+                  <button
+                    type="button"
+                    class="quiet"
+                    onclick={() => labelling && labelling.pictures.splice(i, 1)}
+                    aria-label={`do not keep picture ${i + 1}`}>Remove</button
+                  >
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <button type="button" class="quiet" onclick={() => pick('picture')}>
+          Add a picture of the pack
+        </button>
+        <p class="hint">
+          Pictures are kept with this food, at full size, and go into your backup with it.
+          {#if labelValues.kcal === undefined}
+            With a picture and a name you can save it now and fill the figures in later.
+          {/if}
+        </p>
+        {#if shot}
+          <figure class="shot">
+            <img src={shot.url} alt="the label, as photographed" />
+            <button
+              type="button"
+              class="quiet"
+              onclick={() => shot && readShot(shot.file, shot.turns + 1)}
+              disabled={readingLabel}
+            >
+              Turn the picture and read it again
+            </button>
+          </figure>
+        {/if}
+        {#if labelSaid}<p class="hint" role="status">{labelSaid}</p>{/if}
+        {#if labelDoubts.length}
+          <ul class="doubts" aria-label="what does not add up">
+            {#each labelDoubts as d (d)}<li>{d}</li>{/each}
+          </ul>
+        {/if}
+        {#if labelRead}
+          <details class="read">
+            <summary>What was read</summary>
+            <pre>{labelRead}</pre>
+          </details>
+        {/if}
         <fieldset class="basis">
           <legend>The label gives its figures</legend>
           {#each [['100g', 'per 100 g'], ['100ml', 'per 100 ml'], ['serving', 'per serving']] as [v, words] (v)}
@@ -1433,9 +1738,11 @@
       <!-- A packet is the commonest thing to add and was two screens away, behind a line of
            small print at the foot of Search: the owner could not find it on the phone. -->
       <div class="packet" role="group" aria-label="a packaged food">
-        <button type="button" class="quiet" onclick={() => photo?.click()} disabled={reading2}>
+        <button type="button" class="quiet" onclick={() => pick('barcode')} disabled={reading2}>
           {reading2 ? 'Reading…' : 'Scan a barcode'}
         </button>
+        <button type="button" class="quiet" onclick={() => pick('label')}>Photograph a label</button
+        >
         <button type="button" class="quiet" onclick={startLabel}>Type in a label</button>
       </div>
       {#if scanned}<p class="hint">{scanned}</p>{/if}
@@ -1491,7 +1798,11 @@
               <button type="button" class="row" onclick={() => openProduct(p)}>
                 <span class="t">{p.title}</span>
                 <span class="a">Your label · per 100 {p.unit === 'ml' ? 'ml' : 'g'}</span>
-                <span class="v">{show(primary.key, p.per100[primary.key] ?? 0).text}</span>
+                <span class="v">
+                  {p.per100.kcal === undefined
+                    ? 'label not read yet'
+                    : show(primary.key, p.per100[primary.key] ?? 0).text}
+                </span>
               </button>
             </li>
           {/each}
@@ -1544,7 +1855,7 @@
           <button
             type="button"
             class="go wide"
-            onclick={() => (building = { name: '', servings: 1, items: [] })}
+            onclick={() => (building = { name: '', servings: 1 })}
           >
             New recipe
           </button>
@@ -1912,6 +2223,58 @@
     font-size: var(--text-sm);
     font-weight: 400;
   }
+  .pics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .pics li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 6.5rem;
+  }
+  .pics img {
+    width: 100%;
+    height: 6.5rem;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+  .shot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .shot img {
+    max-width: 100%;
+    max-height: 50dvh;
+    align-self: center;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+  }
+  .doubts {
+    margin: 0;
+    padding-left: var(--space-5);
+    color: var(--danger-fg);
+    font-size: var(--text-sm);
+  }
+  .read summary {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .read pre {
+    max-width: 100%;
+    margin: var(--space-2) 0 0;
+    overflow-x: auto;
+    font-size: var(--text-xs);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .packet {
     display: flex;
     flex-wrap: wrap;
@@ -1985,9 +2348,6 @@
     gap: var(--space-3);
     min-height: 2.25rem;
     color: var(--text-muted);
-  }
-  .row.still {
-    cursor: default;
   }
   .grams input::-webkit-outer-spin-button,
   .grams input::-webkit-inner-spin-button {

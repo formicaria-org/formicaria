@@ -93,6 +93,28 @@ pub fn online_agents() -> Vec<String> {
     presence().lock().map(|g| g.clone()).unwrap_or_default()
 }
 
+/// What can read a picture right now: the running model, when its projector is loaded. Said by
+/// the runner with each heartbeat (`VaultAccess::present`), as on the desktop, and cleared when
+/// the model stops, so a label is never handed to a server that has gone.
+fn reader() -> &'static std::sync::Mutex<Option<fm_agent_run::ImageReader>> {
+    static R: std::sync::OnceLock<std::sync::Mutex<Option<fm_agent_run::ImageReader>>> =
+        std::sync::OnceLock::new();
+    R.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// A packet's label read off a photograph (`fm_agent_run::label`): text back, nothing written.
+pub fn read_label(image: &[u8]) -> Result<Value, String> {
+    let reader = reader().lock().ok().and_then(|g| g.clone());
+    let got = fm_agent_run::label::read(reader.as_ref(), image)?;
+    Ok(serde_json::json!({ "text": got.text, "model": got.model }))
+}
+
+/// Whether a label can be read on this phone, asked before anybody takes a picture.
+pub fn label_reader() -> Value {
+    let reader = reader().lock().ok().and_then(|g| g.clone());
+    fm_agent_run::label::ready_json(reader.as_ref())
+}
+
 fn set_present(name: &str, present: bool) {
     if let Ok(mut g) = presence().lock() {
         g.retain(|n| n != name);
@@ -231,7 +253,8 @@ fn remember_choice(agents_dir: &std::path::Path, model: Option<&str>, default_se
 /// device), so an app update must be able to change the catalogue. Cheap and idempotent.
 fn catalogue(agents_dir: &std::path::Path) -> Result<Manifest, String> {
     let path = agents_dir.join("models.toml");
-    std::fs::create_dir_all(agents_dir).map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
+    std::fs::create_dir_all(agents_dir)
+        .map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
     std::fs::write(&path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
     Manifest::read(&path)
 }
@@ -306,15 +329,29 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
                     return;
                 }
                 if let Ok(mut g) = updating().lock() {
-                    *g = Some(json!({ "stage": stage, "done": done, "total": total, "error": null }));
+                    *g = Some(
+                        json!({ "stage": stage, "done": done, "total": total, "error": null }),
+                    );
                 }
             }
         };
         let never = move || !live();
-        let fetched = fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &default, &progress("model"), &never)
-            .and_then(|_| {
-                fm_agent_run::fetch::ensure_mmproj(&models_dir, &manifest, &default, &progress("projector"), &never)
-            });
+        let fetched = fm_agent_run::fetch::ensure_model(
+            &models_dir,
+            &manifest,
+            &default,
+            &progress("model"),
+            &never,
+        )
+        .and_then(|_| {
+            fm_agent_run::fetch::ensure_mmproj(
+                &models_dir,
+                &manifest,
+                &default,
+                &progress("projector"),
+                &never,
+            )
+        });
         if !live() {
             return; // stopped by the person: say nothing, change nothing
         }
@@ -334,7 +371,9 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
                         std::thread::sleep(std::time::Duration::from_millis(100));
                     }
                     if let Err(e) = launch(app, agents_dir) {
-                        log::warn!("study agent: the new model is downloaded but did not start: {e}");
+                        log::warn!(
+                            "study agent: the new model is downloaded but did not start: {e}"
+                        );
                     }
                 }
             }
@@ -422,7 +461,10 @@ impl VaultAccess for DispatchVault {
         self.call("reply", json!({ "id": note, "body": body }))
     }
     fn reply_as(&self, note: &str, body: &str, name: &str, email: &str) -> Result<Value, String> {
-        self.call("reply", json!({ "id": note, "body": body, "authorName": name, "authorEmail": email }))
+        self.call(
+            "reply",
+            json!({ "id": note, "body": body, "authorName": name, "authorEmail": email }),
+        )
     }
     /// **The phone records the same provenance the desktop does.** `Origin` carries what produced
     /// this proposal — the tool, the verbatim question, and the sources it was given — and
@@ -459,7 +501,8 @@ impl VaultAccess for DispatchVault {
         // access model — and there is no paired device on the *inside* of the app to narrow to.
         let path = fm_app::dispatch::blob_path(&self.app, &fm_app::Scope::All, reference)?;
         let bytes = std::fs::read(&path).map_err(|e| format!("read blob {reference}: {e}"))?;
-        let mime = fm_core::ingest::sniff_mime(&path).unwrap_or_else(|| "application/octet-stream".into());
+        let mime =
+            fm_core::ingest::sniff_mime(&path).unwrap_or_else(|| "application/octet-stream".into());
         Ok((bytes, mime))
     }
     // Presence/activity drive the desktop's "working…" wheel via fm-serve's side channel. On mobile
@@ -467,7 +510,11 @@ impl VaultAccess for DispatchVault {
     // follow-up — the agent answers without it (the reply lands and the thread refreshes).
     fn activity(&self, _disc: &str, _stage: &str, _question: &str) {}
     fn activity_done(&self, _disc: &str) {}
-    fn present(&self, _name: &str) {}
+    fn present(&self, _name: &str, sees: Option<&fm_agent_run::ImageReader>) {
+        if let Ok(mut g) = reader().lock() {
+            *g = sees.cloned();
+        }
+    }
 }
 
 /// Start the agent **only if it is enabled** (the persisted on/off setting) and not already running.
@@ -513,7 +560,10 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         .ok_or_else(|| "cannot locate the native-library dir from /proc/self/maps".to_string())?;
     let server_bin = runtime_dir.join(SERVER_LIB);
     if !server_bin.exists() {
-        return Err(format!("no bundled model runtime at {} — build the APK with the runtime staged into jniLibs", server_bin.display()));
+        return Err(format!(
+            "no bundled model runtime at {} — build the APK with the runtime staged into jniLibs",
+            server_bin.display()
+        ));
     }
 
     let models_dir = agents_dir.join("models");
@@ -548,7 +598,9 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             let mb = done / 1_000_000;
             if last_mb.replace(mb) != mb {
                 match total {
-                    Some(t) => log::info!("study agent: fetching {model_name} {mb}/{} MB", t / 1_000_000),
+                    Some(t) => {
+                        log::info!("study agent: fetching {model_name} {mb}/{} MB", t / 1_000_000)
+                    }
                     None => log::info!("study agent: fetching {model_name} {mb} MB"),
                 }
             }
@@ -558,27 +610,39 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         // during a 1.4 GB first-run download left it downloading anyway, on mobile data, for as long
         // as it took. The `.part` survives, so turning it back on resumes rather than restarts.
         let cancelled = || !current(generation);
-        let model_gguf =
-            match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &model_name, &progress, &cancelled) {
-                Ok(p) => p,
-                Err(e) => {
-                    log::info!("study agent: no model yet ({e})");
-                    clear_running(generation);
-                    return;
-                }
-            };
+        let model_gguf = match fm_agent_run::fetch::ensure_model(
+            &models_dir,
+            &manifest,
+            &model_name,
+            &progress,
+            &cancelled,
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                log::info!("study agent: no model yet ({e})");
+                clear_running(generation);
+                return;
+            }
+        };
 
         // The image projector, when the chosen model has one — fetched the same way and by the same
         // function as on the desktop. Best-effort: without it the model starts text-only and says so
         // when asked to read a picture, which is the honest state, not a failed launch.
-        if let Err(e) = fm_agent_run::fetch::ensure_mmproj(&models_dir, &manifest, &model_name, &progress, &cancelled) {
+        if let Err(e) = fm_agent_run::fetch::ensure_mmproj(
+            &models_dir,
+            &manifest,
+            &model_name,
+            &progress,
+            &cancelled,
+        ) {
             log::info!("study agent: no image projector yet ({e}) — starting text-only");
         }
 
         // Reclaim space: delete weights that belong to neither the model in use nor the one on offer
         // (whose download may be half done). What is left behind is an earlier model's, after an
         // accepted update.
-        for gone in fm_agent_run::installed::sweep(&manifest, &models_dir, &[&model_name, &default]) {
+        for gone in fm_agent_run::installed::sweep(&manifest, &models_dir, &[&model_name, &default])
+        {
             log::info!("study agent: removed unused model {}", gone.display());
         }
 
@@ -591,16 +655,17 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         }
 
         let mut cmd = std::process::Command::new(&server_bin);
-        cmd.env("LD_LIBRARY_PATH", &runtime_dir)
-            .arg("-m")
-            .arg(&model_gguf)
-            .args([
-                "--host", "127.0.0.1",
-                "--port", &port.to_string(),
-                "-c", &ctx.to_string(),
-                "-t", &threads.to_string(),
-                "--no-warmup",
-            ]);
+        cmd.env("LD_LIBRARY_PATH", &runtime_dir).arg("-m").arg(&model_gguf).args([
+            "--host",
+            "127.0.0.1",
+            "--port",
+            &port.to_string(),
+            "-c",
+            &ctx.to_string(),
+            "-t",
+            &threads.to_string(),
+            "--no-warmup",
+        ]);
         // The "model dies with its supervisor" backstop (PR_SET_PDEATHSIG) now lives inside
         // SupervisedModel::launch — one shared path for desktop and phone, exercised by fm-agent's CI
         // tests — so it no longer needs repeating here.
@@ -608,10 +673,16 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         // function, shared with the desktop, that puts a projector on the command line.
         let sees = manifest.add_projector(&mut cmd, &model_name, &models_dir);
         let read_prompt = manifest.read_prompt(&model_name);
+        let reads_labels = manifest.reads_labels(&model_name);
         // The projector is loaded into memory beside the weights, so admission must count it.
         let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000)
             + sees.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()).unwrap_or(0);
-        let model = match SupervisedModel::launch(cmd, SystemMonitor, &Need::new(model_bytes, 1_000_000_000), Limits::resident()) {
+        let model = match SupervisedModel::launch(
+            cmd,
+            SystemMonitor,
+            &Need::new(model_bytes, 1_000_000_000),
+            Limits::resident(),
+        ) {
             Ok(m) => m,
             Err(e) => {
                 log::warn!("study agent: model failed to launch: {e}");
@@ -651,18 +722,32 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 log::info!("study agent: transcription runtime not bundled — skipping");
                 None
             } else {
-                match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &whisper_name, &|_, _| {}, &cancelled)
-                {
+                match fm_agent_run::fetch::ensure_model(
+                    &models_dir,
+                    &manifest,
+                    &whisper_name,
+                    &|_, _| {},
+                    &cancelled,
+                ) {
                     Ok(wmodel) => {
                         let wport = port + 1;
                         let mut wcmd = std::process::Command::new(&whisper_bin);
                         wcmd.arg("-m").arg(&wmodel).args([
-                            "--host", "127.0.0.1",
-                            "--port", &wport.to_string(),
-                            "-t", &threads.to_string(),
+                            "--host",
+                            "127.0.0.1",
+                            "--port",
+                            &wport.to_string(),
+                            "-t",
+                            &threads.to_string(),
                         ]);
-                        let wbytes = std::fs::metadata(&wmodel).map(|m| m.len()).unwrap_or(80_000_000);
-                        match SupervisedModel::launch(wcmd, SystemMonitor, &Need::new(wbytes, 300_000_000), Limits::resident()) {
+                        let wbytes =
+                            std::fs::metadata(&wmodel).map(|m| m.len()).unwrap_or(80_000_000);
+                        match SupervisedModel::launch(
+                            wcmd,
+                            SystemMonitor,
+                            &Need::new(wbytes, 300_000_000),
+                            Limits::resident(),
+                        ) {
                             Ok(wm) => {
                                 // Same generation test as the text model: whisper's own download
                                 // is another window an off-toggle can land in, and a stopper
@@ -700,12 +785,13 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             fm: DispatchVault { app },
             model_port: port,
             model: model_name.clone(),
-            searxng_port: None, // no local proxy on a phone…
+            searxng_port: None,             // no local proxy on a phone…
             web_direct: true, // …so /research uses the in-process HTTPS multi-source search (websearch.rs)
             whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
             whisper_model: whisper_name.clone(),
             vision: sees.is_some(),
             read_prompt,
+            reads_labels,
             image_specialist: None,
             max_reply_chars,
             history_budget: 4000,
@@ -716,6 +802,9 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         let stopper = model.stopper();
         serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
         set_present(&model_name, false);
+        if let Ok(mut g) = reader().lock() {
+            *g = None;
+        }
         let _ = model.wait();
         clear_running(generation);
         log::info!("study agent stopped");
