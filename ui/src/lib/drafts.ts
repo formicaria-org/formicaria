@@ -35,3 +35,11 @@ export function dropDraft(name: string): void {
     // Nothing was kept.
   }
 }
+
+/** A keeper for one form: given what the form holds now, it keeps that as the draft — or drops
+ *  the draft when it is back to `initial`, what the form opened on before any draft was put
+ *  back. So opening something to look at it, and changing nothing, leaves no draft behind. */
+export function drafting(name: string, initial: unknown): (now: unknown) => void {
+  const base = JSON.stringify(initial);
+  return (now) => (JSON.stringify(now) === base ? dropDraft(name) : keepDraft(name, now));
+}

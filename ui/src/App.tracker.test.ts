@@ -593,6 +593,17 @@ test('where no model can read a label the picture is kept, and the label is sett
     within(sheet).getByText('Filled in 1 entry logged before its label was read.'),
   ).toBeTruthy();
   expect(within(sheet).queryByText(/Its label has not been read yet/)).toBeNull();
+  // Its label opened again to put a figure right, and left half-way: the change is kept.
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Change its label' }));
+  form = await within(sheet).findByRole('region', { name: 'a packaged food, from its label' });
+  expect(within(form).queryByText(/Carried on from where you left it/)).toBeNull();
+  await fireEvent.input(within(form).getByLabelText('Energy'), { target: { value: '410' } });
+  await fireEvent.click(within(form).getByRole('button', { name: 'Back' }));
+  await fireEvent.click(await within(sheet).findByRole('button', { name: /Oat bar/ }));
+  await fireEvent.click(await within(sheet).findByRole('button', { name: 'Change its label' }));
+  form = await within(sheet).findByRole('region', { name: 'a packaged food, from its label' });
+  expect((within(form).getByLabelText('Energy') as HTMLInputElement).value).toBe('410');
+  expect(within(form).getByText(/Carried on from where you left it/)).toBeTruthy();
 });
 
 test('a packaged food is written down once from its label, and is then one of your foods', async () => {

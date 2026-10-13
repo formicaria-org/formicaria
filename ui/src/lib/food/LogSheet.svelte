@@ -39,7 +39,7 @@
   } from './amount';
   import * as label from './label';
   import Resumed from '../Resumed.svelte';
-  import { draftOf, dropDraft, keepDraft } from '../drafts';
+  import { draftOf, dropDraft, drafting, keepDraft } from '../drafts';
   import { readLabel } from './labelText';
   import {
     createNotesUndoable,
@@ -398,61 +398,74 @@
       looking = false;
     }
   }
-  // A new packet's form is kept on the device until it is saved (`drafts.ts`): the name, the
-  // figures typed, and the pictures taken, which are stored already and named by reference.
+  // The label form is kept on the device until it is saved (`drafts.ts`): the name, the figures
+  // typed, and the pictures taken, which are stored already and named by reference. A new
+  // packet has one draft; a packet being changed has its own, by its note.
   const LABEL = 'label';
+  const draftFor = (id: string) => (id ? `${LABEL}:${id}` : LABEL);
   let labelResumed = $state(false);
   type KeptLabel = Omit<NonNullable<typeof labelling>, 'pictures'> & { pictures: string[] };
+  /// The form as a draft holds it: the pictures this form added, by reference.
+  const asKept = (l: NonNullable<typeof labelling>): KeptLabel => ({
+    ...$state.snapshot(l),
+    pictures: l.pictures.flatMap((p) => (p.fresh && p.ref ? [p.ref] : [])),
+  });
+  /// The form as it opened, before any draft was put back: what is not a change.
+  let labelBase = '';
   $effect(() => {
     const l = labelling;
-    if (!l || l.id) return;
-    const pictures = l.pictures.flatMap((p) => (p.ref ? [p.ref] : []));
-    keepDraft(LABEL, { ...$state.snapshot(l), pictures } as KeptLabel);
+    if (!l) return;
+    const now = asKept(l);
+    if (JSON.stringify(now) === labelBase) dropDraft(draftFor(l.id));
+    else keepDraft(draftFor(l.id), now);
   });
-  const worthKeeping = (d: KeptLabel) =>
-    !!d.name?.trim() ||
-    !!d.pictures?.length ||
-    !!d.ingredients?.trim() ||
-    Object.values(d.values ?? {}).some((v) => v !== '' && v != null);
-  const labelAfresh = () => {
-    dropDraft(LABEL);
-    labelResumed = false;
-    labelling = null;
-    startLabel();
-  };
-  function startLabel() {
-    const was = draftOf<KeptLabel>(LABEL);
-    if (was && !was.id && worthKeeping(was)) {
-      labelling = {
-        ...was,
-        values: was.values ?? {},
-        pictures: (was.pictures ?? []).map((ref) => ({
-          ref,
-          fresh: true,
-          url: assetUrl(ref, 'thumb'),
-        })),
-      };
-      labelResumed = true;
-      return;
-    }
-    labelResumed = false;
-    blankLabel();
+  /// Open the form on `blank`, with the draft kept for it put back over it when there is one.
+  function openLabel(blank: NonNullable<typeof labelling>) {
+    labelBase = JSON.stringify({ ...blank, pictures: [] });
+    const was = draftOf<KeptLabel>(draftFor(blank.id));
+    labelResumed = !!was;
+    labelling = was
+      ? {
+          ...blank,
+          ...was,
+          id: blank.id,
+          values: was.values ?? {},
+          pictures: [
+            ...blank.pictures,
+            ...(was.pictures ?? []).map((ref) => ({
+              ref,
+              fresh: true,
+              url: assetUrl(ref, 'thumb'),
+            })),
+          ],
+        }
+      : blank;
   }
-  const blankLabel = () =>
-    (labelling = {
-      id: '',
-      pictures: [],
-      name: /^[\d\s-]+$/.test(q.trim()) ? '' : q.trim(),
-      barcode: /^[\d\s-]+$/.test(q.trim()) ? digitsOf(q) : '',
-      basis: '100g',
-      serving: null,
-      servingUnit: 'g',
-      energyIn: 'kcal',
-      sodiumAs: 'salt',
-      ingredients: '',
-      values: {},
-      page: '',
-    });
+  function labelAfresh() {
+    const l = labelling;
+    if (!l) return;
+    dropDraft(draftFor(l.id));
+    labelResumed = false;
+    const p = l.id ? products.find((x) => x.id === l.id) : null;
+    labelling = null;
+    if (p) void editLabel(p);
+    else startLabel();
+  }
+  const startLabel = () => openLabel(blankLabel());
+  const blankLabel = (): NonNullable<typeof labelling> => ({
+    id: '',
+    pictures: [],
+    name: /^[\d\s-]+$/.test(q.trim()) ? '' : q.trim(),
+    barcode: /^[\d\s-]+$/.test(q.trim()) ? digitsOf(q) : '',
+    basis: '100g',
+    serving: null,
+    servingUnit: 'g',
+    energyIn: 'kcal',
+    sodiumAs: 'salt',
+    ingredients: '',
+    values: {},
+    page: '',
+  });
   /// The figures per 100 of the food's own unit, or nothing while they cannot be worked out.
   const labelValues = $derived((labelling && label.per100(labelling)) ?? {});
   const labelUnit = $derived<AmountUnit>(labelling ? label.unitOf(labelling) : 'g');
@@ -538,6 +551,8 @@
       } catch (e) {
         unfilled = `The label is saved, but what was logged before could not be filled in: ${String(e).replace(/^Error: /, '')}`;
       }
+    dropDraft(draftFor(l.id));
+    labelResumed = false;
     await loadProducts();
     labelling = null;
     const made = products.find((p) => p.id === l.id);
@@ -590,7 +605,7 @@
       body = '';
     }
     const unit = p.unit === 'ml' ? 'ml' : 'g';
-    labelling = {
+    openLabel({
       id: p.id,
       name: p.title,
       barcode: p.barcode ?? '',
@@ -606,7 +621,7 @@
         ref: `asset:${m[1]}`,
         url: assetUrl(`asset:${m[1]}`, 'thumb'),
       })),
-    };
+    });
     portion = null;
   }
   /// The food the amount on screen is of, when it is one of the person's own packets.
@@ -765,8 +780,56 @@
     }
   }
   onMount(() => {
-    if (entry) void openPortion(entry.title ?? '', entry.props);
+    if (entry) void openPortion(entry.title ?? '', entry.props).then(entryOpened);
   });
+  // An entry being changed keeps what was changed on the device until it is saved
+  // (`drafts.ts`): its amount, its meal, its time, its range.
+  type KeptEntry = {
+    grams: number | null;
+    pct: number | null;
+    chosen: string;
+    at: string;
+    least: number | string | null;
+    most: number | string | null;
+  };
+  const entryHeld = (): KeptEntry => ({
+    grams: portion?.grams ?? null,
+    pct: serving?.pct ?? null,
+    chosen,
+    at,
+    least,
+    most,
+  });
+  const entryDraft = untrack(() => (entry ? `entry:${entry.id}` : ''));
+  let entryStart: KeptEntry | null = null;
+  let entryKeep: ((now: unknown) => void) | null = null;
+  let entryResumed = $state(false);
+  function entryPut(was: KeptEntry) {
+    if (portion && was.grams) portion.grams = was.grams;
+    if (serving && was.pct) serving.pct = was.pct;
+    chosen = was.chosen ?? chosen;
+    at = was.at ?? at;
+    least = was.least ?? null;
+    most = was.most ?? null;
+  }
+  function entryOpened() {
+    if (!entryDraft) return;
+    entryStart = entryHeld();
+    entryKeep = drafting(entryDraft, entryStart);
+    const was = draftOf<KeptEntry>(entryDraft);
+    if (was) {
+      entryPut(was);
+      entryResumed = true;
+    }
+  }
+  $effect(() => {
+    const now = entryHeld();
+    entryKeep?.(now);
+  });
+  function entryAfresh() {
+    if (entryStart) entryPut(entryStart);
+    entryResumed = false;
+  }
   /// While an ingredient is being chosen, a serving of another recipe is not offered as one.
   const offered = $derived((recent ?? []).filter((r) => !picking || whole(r.props[PCT]) === null));
 
@@ -885,6 +948,7 @@
         },
         `changed “${p.title}”`,
       );
+      dropDraft(entryDraft);
       onwrote();
       onclose();
     });
@@ -894,6 +958,7 @@
       if (!entry) return;
       const title = entry.title ?? 'an entry';
       await deleteUndoable(entry.id, title);
+      dropDraft(entryDraft);
       onwrote({ removed: title });
       onclose();
     });
@@ -1012,6 +1077,7 @@
         { [PCT]: s.pct, slot: chosen, ...servingAt(s, s.pct) },
         `changed “${s.title}”`,
       );
+      dropDraft(entryDraft);
       onwrote();
       onclose();
     });
@@ -1253,6 +1319,7 @@
       <!-- One food, how much of it, and what that comes to. -->
       <section class="portion">
         <h2>{portion.title}</h2>
+        {#if entryResumed}<Resumed onafresh={entryAfresh} />{/if}
         {#if ofProduct}
           {#if ofProduct.per100.kcal === undefined}
             <p class="hint" role="status">
@@ -1387,6 +1454,7 @@
       <!-- One recipe, how much of a serving, and what that comes to. -->
       <section class="portion">
         <h2>{serving.title}</h2>
+        {#if entryResumed}<Resumed onafresh={entryAfresh} />{/if}
         <div class="stepper">
           <button type="button" class="round" aria-label="less" onclick={() => lessOrMore(-1)}>
             <Icon name="minus" size={22} />
@@ -1553,7 +1621,7 @@
     {:else if labelling}
       <section class="quick" aria-label="a packaged food, from its label">
         <h2>From the label</h2>
-        {#if labelResumed && !labelling.id}<Resumed onafresh={labelAfresh} />{/if}
+        {#if labelResumed}<Resumed onafresh={labelAfresh} />{/if}
         <label>
           <span>Name</span>
           <input

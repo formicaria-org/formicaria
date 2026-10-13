@@ -7,7 +7,7 @@
   // changing them there, and keeping that session under the same name.
   import Icon from '../Icon.svelte';
   import Resumed from '../Resumed.svelte';
-  import { draftOf, dropDraft, keepDraft } from '../drafts';
+  import { draftOf, dropDraft, drafting } from '../drafts';
   import { createNotesUndoable, deleteNotesUndoable, setPropertiesUndoable } from '../undo.svelte';
   import type { NoteDraft, ObjectMeta, Routine, TotalsDef } from '../types';
 
@@ -39,24 +39,26 @@
   let days = $state<string[]>(routine?.weekdays ?? []);
   let busy = $state(false);
   let failed = $state('');
-  // A new routine's name and days are kept on the device until it is saved (`drafts.ts`).
-  const DRAFT = 'routine';
-  let resumed = $state(false);
+  // The name and days are kept on the device until they are saved (`drafts.ts`): a new
+  // routine's, and a routine's being changed, each under its own name.
   // svelte-ignore state_referenced_locally
-  if (!routine) {
+  const DRAFT = routine ? `routine:${routine.id}` : 'routine';
+  // svelte-ignore state_referenced_locally
+  const opened = { name, days: [...days] };
+  const keep = drafting(DRAFT, opened);
+  let resumed = $state(false);
+  {
     const was = draftOf<{ name: string; days: string[] }>(DRAFT);
-    if (was && (was.name || was.days?.length)) {
+    if (was) {
       name = was.name ?? '';
       days = was.days ?? [];
       resumed = true;
     }
   }
-  $effect(() => {
-    if (!routine) keepDraft(DRAFT, { name, days });
-  });
+  $effect(() => keep({ name, days }));
   const afresh = () => {
-    name = '';
-    days = [];
+    name = opened.name;
+    days = [...opened.days];
     resumed = false;
   };
   const toggle = (d: string) =>
@@ -107,8 +109,8 @@
           ],
           `kept the routine “${title}”`,
         );
-        dropDraft(DRAFT);
       }
+      dropDraft(DRAFT);
       onwrote();
       onclose();
     } catch (e) {
@@ -125,6 +127,7 @@
         [routine.id, ...routine.sets.map((s) => s.id)],
         `removed the routine “${routine.title}”`,
       );
+      dropDraft(DRAFT);
       onwrote();
       onclose();
     } catch (e) {

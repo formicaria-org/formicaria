@@ -18,7 +18,7 @@
   import { planLibrary } from '../ipc';
   import { exercises as cardLibrary, sameName } from './exercises';
   import Resumed from '../Resumed.svelte';
-  import { draftOf, dropDraft, keepDraft } from '../drafts';
+  import { draftOf, dropDraft, drafting } from '../drafts';
   import type {
     ExerciseCard,
     NoteDraft,
@@ -199,10 +199,11 @@
   ];
   let region = $state(untrack(() => String(set?.props.region ?? preset?.region ?? '')));
 
-  // What is being planned is kept on the device until it is written (`drafts.ts`): an exercise
-  // half chosen survives leaving the sheet or closing the app. Changing a set already there, or
-  // starting from an exercise's card, starts from that instead.
-  const DRAFT = untrack(() => `workout:${def.log}`);
+  // What is in this sheet is kept on the device until it is written (`drafts.ts`): an exercise
+  // half planned, or a set half changed, survives leaving the sheet or closing the app. A set
+  // being changed has a draft of its own, by its note. Starting from an exercise's card starts
+  // from the card.
+  const DRAFT = untrack(() => (set ? `workout:${def.log}:${set.id}` : `workout:${def.log}`));
   type Kept = {
     name: string;
     sets: number;
@@ -216,47 +217,50 @@
     region: string;
     picked: boolean;
   };
-  const fresh = untrack(() => !set && !preset);
+  const held = (): Kept => ({
+    name,
+    sets,
+    reps,
+    kg,
+    mode,
+    activity,
+    countsAs,
+    minutes,
+    effort,
+    region,
+    picked,
+  });
+  function put(was: Kept) {
+    name = was.name ?? '';
+    sets = was.sets || 1;
+    reps = was.reps || 0;
+    kg = was.kg || 0;
+    mode = was.mode === 'activity' ? 'activity' : 'sets';
+    activity = was.activity ?? '';
+    countsAs = was.countsAs || 'aerobic';
+    minutes = was.minutes || 0;
+    effort = was.effort || 0;
+    region = was.region ?? '';
+    picked = !!was.picked;
+  }
+  const drafted = untrack(() => !!set || !preset);
+  /// What the sheet opened on, before any draft was put back.
+  const opened = untrack(held);
+  const keep = drafting(DRAFT, opened);
   let resumed = $state(false);
-  if (fresh) {
+  if (drafted) {
     const was = draftOf<Kept>(DRAFT);
-    if (was && (was.name || was.activity || was.reps || was.minutes)) {
-      name = was.name ?? '';
-      sets = was.sets || 1;
-      reps = was.reps || 0;
-      kg = was.kg || 0;
-      mode = was.mode === 'activity' ? 'activity' : 'sets';
-      activity = was.activity ?? '';
-      countsAs = was.countsAs || 'aerobic';
-      minutes = was.minutes || 0;
-      effort = was.effort || 0;
-      region = was.region ?? '';
-      picked = !!was.picked;
+    if (was) {
+      put(was);
       resumed = true;
     }
   }
   $effect(() => {
-    const now: Kept = {
-      name,
-      sets,
-      reps,
-      kg,
-      mode,
-      activity,
-      countsAs,
-      minutes,
-      effort,
-      region,
-      picked,
-    };
-    if (fresh) keepDraft(DRAFT, now);
+    const now = held();
+    if (drafted) keep(now);
   });
   function afresh() {
-    name = activity = region = '';
-    sets = 1;
-    reps = kg = minutes = effort = 0;
-    countsAs = 'aerobic';
-    picked = false;
+    put(opened);
     resumed = false;
   }
 
@@ -338,6 +342,7 @@
         { minutes, effort, counts_as: countsAs },
         `changed ${set.title ?? 'an activity'}`,
       );
+      dropDraft(DRAFT);
       onwrote();
       onclose();
     });
@@ -352,6 +357,7 @@
         { reps, load_g, region, ...(set.props.planned ? {} : { work_g: reps * load_g }) },
         `changed a set of ${set.title ?? 'an exercise'}`,
       );
+      dropDraft(DRAFT);
       onwrote();
       onclose();
     });
@@ -363,6 +369,7 @@
         ? (set.title ?? 'an activity')
         : `set ${whole(set.props.set) ?? ''} of ${set.title ?? 'an exercise'}`;
       await deleteUndoable(set.id, title);
+      dropDraft(DRAFT);
       onwrote({ removed: title });
       onclose();
     });

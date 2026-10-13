@@ -137,6 +137,8 @@ Leaving a form, changing view or closing the app does not throw away what you we
   step: each set, each ingredient, each change is written as you make it.
 - A form you have **not finished** — a label, a food typed in by hand, an exercise being
   planned, a routine being named, a diet or regime you are fine-tuning — is kept on the device.
+  So is a **change you had not saved** to a set, a routine, a packet's label or something you
+  logged.
   Open it again and it says *Carried on from where you left it*, with **Start afresh** beside it.
 
 A kept form is on this device only: it is not in your backup and not on your other devices

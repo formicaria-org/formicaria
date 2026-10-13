@@ -10819,5 +10819,10 @@ depends on being finished: a set that is planned, a diet that is followed, an en
 Writing them early would put half-typed things in the day's totals. A draft is not a note: it is
 in no backup, on no other device, and not undoable. That is the limit, and it is said.
 
+**Extended the same day, at the owner's word, to what already exists**: a set, a routine, a
+packet's label and a logged entry being changed each keep a draft under their own note's id.
+`drafting(name, opened)` keeps one only while the form differs from what it opened on, so
+looking at something leaves nothing behind.
+
 **Read before** adding a form to Food or Fitness: either each step writes a note, or the form
 keeps a draft. Nothing a person typed lives only in a component's memory.

@@ -1416,9 +1416,12 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
 
 - **Per device, and not per notebook.** A draft is in the browser's or the phone app's own
   storage: not in a backup, not on another device, and shared by every notebook opened there.
-- **One draft per form**: a second new label replaces the first's draft once it is typed in.
-- **Changing something that exists is not drafted** (a set, a routine, a packet's label): those
-  start from the note and are lost if left before saving.
+- **One draft per new form**: a second new label replaces the first's draft once it is typed in.
+  Something that exists being changed (a set, a routine, a packet's label, a logged entry) has
+  a draft of its own, by its note, kept only while it differs from the note as it was opened.
+- **A draft of a change does not know the note moved on.** Changed on another device meanwhile,
+  the form still opens on the draft; *Start afresh* shows the note as it is now.
+- **An ingredient's amount being changed inside a recipe is not drafted**: one number.
 - **A label picture taken and never saved stays as an attachment** in the library.
 - **Not seen on a phone**; tested in the suite with a stand-in for the device's storage. A
   browser set to clear its data on closing keeps nothing.

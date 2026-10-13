@@ -5,8 +5,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { draftOf, dropDraft, keepDraft } from './drafts';
 import RoutineSheet from './training/RoutineSheet.svelte';
 import WorkoutSheet from './training/WorkoutSheet.svelte';
-import { reset } from './mock';
-import type { ObjectMeta, TotalsDef } from './types';
+import LogSheet from './food/LogSheet.svelte';
+import { handle, reset, seedTrackerDemo } from './mock';
+import { today } from './units';
+import type { LogDays, ObjectMeta, Routine, TotalsDef, ViewResult } from './types';
 
 const store = new Map<string, string>();
 beforeEach(() => {
@@ -114,9 +116,88 @@ describe('what is typed and not yet saved', () => {
       expect(draftOf<{ name: string }>('workout:training')?.name).toBe('Side plank'),
     );
     first.unmount();
-    // Changing a set that exists never opens on the draft, and never overwrites it.
-    render(WorkoutSheet, { ...props, set: aSet });
+    // A set that exists has a draft of its own: looking at it leaves none…
+    const second = render(WorkoutSheet, { ...props, set: aSet });
     expect(screen.queryByText(/Carried on from where you left it/)).toBeNull();
+    expect(draftOf('workout:training:s1')).toBeNull();
     expect(draftOf<{ name: string }>('workout:training')?.name).toBe('Side plank');
+    // …and changing it and leaving keeps the change, for that set alone.
+    const reps = screen.getAllByRole('spinbutton')[0] as HTMLInputElement;
+    expect(reps.value).toBe('5');
+    await fireEvent.input(reps, { target: { value: '8' } });
+    await waitFor(() => expect(draftOf<{ reps: number }>('workout:training:s1')?.reps).toBe(8));
+    second.unmount();
+    render(WorkoutSheet, { ...props, set: aSet });
+    expect((screen.getAllByRole('spinbutton')[0] as HTMLInputElement).value).toBe('8');
+    await fireEvent.click(screen.getByRole('button', { name: 'Start afresh' }));
+    await waitFor(() =>
+      expect((screen.getAllByRole('spinbutton')[0] as HTMLInputElement).value).toBe('5'),
+    );
+    await waitFor(() => expect(draftOf('workout:training:s1')).toBeNull());
+  });
+
+  it('a routine being changed keeps the change, and one only looked at keeps nothing', async () => {
+    const routine = {
+      id: 'r1',
+      title: 'Leg day',
+      weekdays: ['mon'],
+      sets: [],
+    } as unknown as Routine;
+    const props = {
+      def,
+      routine,
+      sets: [],
+      routines: [routine],
+      onclose: vi.fn(),
+      onwrote: vi.fn(),
+    };
+    const first = render(RoutineSheet, props);
+    await waitFor(() => expect(draftOf('routine:r1')).toBeNull());
+    await fireEvent.click(screen.getByRole('button', { name: 'Thu' }));
+    await waitFor(() =>
+      expect(draftOf<{ days: string[] }>('routine:r1')?.days).toEqual(['mon', 'thu']),
+    );
+    first.unmount();
+    render(RoutineSheet, props);
+    expect(screen.getByRole('button', { name: 'Thu' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText(/Carried on from where you left it/)).toBeTruthy();
+    // Pressed back to what it was, it is no longer a change.
+    await fireEvent.click(screen.getByRole('button', { name: 'Thu' }));
+    await waitFor(() => expect(draftOf('routine:r1')).toBeNull());
+  });
+
+  it('a logged entry being changed keeps its new amount until it is saved', async () => {
+    seedTrackerDemo();
+    const food = (await handle<ViewResult>('run_view', { name: 'Day' })).totals!;
+    const days = await handle<LogDays>('log_days', {
+      view: 'Day',
+      from: today(),
+      to: today(),
+      rows: true,
+    });
+    const entry = (days.days[0].rows ?? []).find((r) => r.props.amount_g !== undefined)!;
+    const props = {
+      view: 'Day',
+      def: food,
+      day: today(),
+      slot: '',
+      entry,
+      onclose: vi.fn(),
+      onwrote: vi.fn(),
+    };
+    const amount = async () =>
+      (await screen.findByLabelText('amount in grams')) as HTMLInputElement;
+    const first = render(LogSheet, props);
+    const was = (await amount()).value;
+    expect(screen.queryByText(/Carried on from where you left it/)).toBeNull();
+    await fireEvent.input(await amount(), { target: { value: '77' } });
+    await waitFor(() => expect(draftOf<{ grams: number }>(`entry:${entry.id}`)?.grams).toBe(77));
+    first.unmount();
+    render(LogSheet, props);
+    expect(await screen.findByText(/Carried on from where you left it/)).toBeTruthy();
+    expect((await amount()).value).toBe('77');
+    await fireEvent.click(screen.getByRole('button', { name: 'Start afresh' }));
+    await waitFor(async () => expect((await amount()).value).toBe(was));
+    await waitFor(() => expect(draftOf(`entry:${entry.id}`)).toBeNull());
   });
 });
