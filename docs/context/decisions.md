@@ -10572,3 +10572,22 @@ run of `desktop` and of `ios` by hand, and it should happen before the next tag.
 is `continue-on-error` so that it can never cost a release, which means a failed run by hand shows
 amber, not red.
 
+## 2026-10-13 — the website is a short first page, and it publishes when it changes `#toolchain`
+
+> Amends *the project has a website…* (same day): "by hand" no longer holds.
+
+The owner, having switched Pages on and looked: *"The page is nice, release it but make the base
+page simple and one can easily go back to it."*
+
+- **The first page is three doors**: get it, what you can do, the manual — and one line on how
+  far it is proven. What was one long page is four; the three longer ones each begin and end
+  with the way back.
+- **The manual's title is the way back**, on the website only. `ci/site-assemble.sh` rewrites it
+  after the book is built, because the same book goes into every release archive, where there is
+  no first page to go back to. It fails if the title it looks for is not there.
+- **A push to `main` that touches the site or the manual publishes**, by a `paths:` filter, so a
+  code push does not. A manual corrected on `main` is corrected on the website the same hour,
+  which "by hand" would have left to memory.
+- Still no script, font, counter or outside request; the pages now share one stylesheet of
+  their own.
+

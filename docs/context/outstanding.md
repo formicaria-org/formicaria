@@ -1178,7 +1178,14 @@ be checked in code were corrected the same day. **Left**:
 5. `assistant.md` gives three different sizes for the phone's model.
 6. Whether a `.view` asking for `search` still draws as a timeline was not checked.
 
-### 2.29 The website — built, not yet switched on (2026-10-13)
+### 2.29 The website — live; the About box is still empty (2026-10-13)
+
+**Update, same day**: the owner switched Pages on and ran the workflow; the site is at
+<https://formicaria-org.github.io/formicaria/>. It now publishes on a push that touches `site/`
+or the manual. Of the steps below only **3, the About box**, is left (description, website and
+topics were still empty when last read). What follows is the entry as first written.
+
+#### As first written: built, not yet switched on
 
 `site/index.html` is an entry page for people who might use the app; `.github/workflows/pages.yml`
 publishes it with the manual beside it under `/manual/`. It is started by hand only, and it has

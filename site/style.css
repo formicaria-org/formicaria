@@ -1,0 +1,162 @@
+:root {
+  --bg: #faf6ee;
+  --panel: #f1e8d8;
+  --line: #d9cbb2;
+  --text: #1f1a12;
+  --soft: #51483a;
+  --link: #9a1b1b;
+  --button: #b01c1c;
+  --button-text: #ffffff;
+  --note-bg: #fbeed5;
+  --note-line: #b7791f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16130e;
+    --panel: #211c15;
+    --line: #3d3528;
+    --text: #ede6d9;
+    --soft: #b9ae9b;
+    --link: #f3a798;
+    --button: #b01c1c;
+    --button-text: #ffffff;
+    --note-bg: #2a2212;
+    --note-line: #d9a441;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+main, header, footer {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+header { padding-top: 1.25rem; }
+header img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+h1 { font-size: 2.1rem; line-height: 1.15; margin: 1.5rem 0 0.25rem; letter-spacing: -0.01em; }
+.lede { font-size: 1.25rem; line-height: 1.45; margin: 0 0 1rem; color: var(--soft); }
+h2 {
+  font-size: 1.45rem;
+  line-height: 1.25;
+  margin: 3rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+h3 { font-size: 1.1rem; line-height: 1.3; margin: 0 0 0.35rem; }
+p { margin: 0 0 1rem; }
+a { color: var(--link); text-underline-offset: 0.15em; }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; border-radius: 0.25rem; }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  background: var(--panel);
+  border-radius: 0.25rem;
+  padding: 0.05em 0.3em;
+  overflow-wrap: anywhere;
+}
+.small { font-size: 0.95rem; color: var(--soft); }
+
+/* Every link that stands by itself is a 44 px target; the few links inside a sentence are not
+   buttons and are left as text. */
+.go, .button, nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.25rem 0;
+}
+.button {
+  padding: 0.5rem 1rem;
+  background: var(--button);
+  color: var(--button-text);
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.button:hover { text-decoration: underline; }
+.button:focus-visible { outline-color: var(--text); }
+nav ul, .links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.5rem;
+}
+nav li, .links li { min-width: 0; max-width: 100%; }
+nav { margin: 0.5rem 0 0; }
+
+.cards {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  /* min(100%, …) lets a card be narrower than 15rem on a 320 px screen instead of overflowing. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+.cards > li {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 1rem 1rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+.cards p { margin-bottom: 0.5rem; }
+.cards .links { margin-top: auto; }
+.note {
+  background: var(--note-bg);
+  border-left: 4px solid var(--note-line);
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.75rem 1rem;
+}
+.note p:last-child { margin-bottom: 0; }
+.status { padding-left: 1.25rem; margin: 0 0 1rem; }
+.status li { margin-bottom: 0.6rem; }
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  padding-bottom: 2.5rem;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 30rem) {
+  body { font-size: 1rem; }
+  h1 { font-size: 1.8rem; }
+  .lede { font-size: 1.125rem; }
+  h2 { font-size: 1.3rem; margin-top: 2.25rem; }
+}
+
+/* The way back: every page but the first starts with it, and so does every page of the manual. */
+.home { display: inline-flex; align-items: center; min-height: 2.75rem; font-weight: 600; text-decoration: none; }
+.home:hover { text-decoration: underline; }
+.top { padding-top: 0.75rem; }
+.top h1 { margin-top: 0.5rem; }
+/* The first page is three doors and little else. */
+.doors { list-style: none; margin: 1.5rem 0; padding: 0; display: grid; gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+.doors a { display: flex; flex-direction: column; justify-content: center; min-height: 4.5rem; height: 100%;
+  padding: 0.75rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--panel);
+  color: var(--text); text-decoration: none; }
+.doors a:hover strong { text-decoration: underline; }
+.doors strong { color: var(--link); font-size: 1.1rem; }
+.doors span { color: var(--soft); font-size: 0.95rem; }
+.doors .main { background: var(--button); border-color: var(--button); }
+.doors .main strong, .doors .main span { color: var(--button-text); }
+h2:first-child { margin-top: 1rem; border-top: 0; padding-top: 0; }

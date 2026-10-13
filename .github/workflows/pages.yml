@@ -1,7 +1,8 @@
 # The website: an entry page for people who might use the app, and the manual beside it.
 #
 # What is published, at https://formicaria-org.github.io/formicaria/ :
-#   /                  site/index.html — one file, no script, nothing fetched from anyone else
+#   /                  site/ — a short first page and three longer ones; no script, nothing
+#                      fetched from anyone else
 #   /formicaria.svg    docs/assets/formicaria.svg, copied here so the drawing has one source
 #   /manual/           the mdBook, exactly as `pixi run docs` builds it
 #
@@ -13,12 +14,21 @@
 # the manual from `docs/book` by itself and does not read `site/`.
 name: pages
 
-# **By hand only.** Whether a push to `main` should also publish is the owner's call, made
-# separately. If it is ever made, give `push` a `paths:` filter
-# (`site/**`, `docs/src/**`, `docs/book.toml`, `docs/assets/formicaria.svg`, this file) so that an
-# ordinary code push does not republish a site that has not changed.
+# **When the site or the manual changes on `main`, and by hand** (the owner, 2026-10-13: *"the
+# page is nice, release it"*). The `paths:` filter is the point: an ordinary code push does not
+# republish a site that has not changed.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/src/**'
+      - 'docs/book.toml'
+      - 'docs/assets/formicaria.svg'
+      - 'ci/site-assemble.sh'
+      - 'ci/docs.sh'
+      - '.github/workflows/pages.yml'
 
 # **Read at the top; write only where publishing happens** — the same shape as `release.yml`. The
 # `build` job needs nothing but the tree. The `deploy` job re-declares the two scopes a Pages
@@ -71,29 +81,10 @@ jobs:
             cp docs/book/user/setup.html "_setup/setup-$os.html"
           done
           FM_DOCS_OS=linux pixi run docs
+      # A script, so it can be rehearsed on a laptop: it copies the pages and the book, makes the
+      # manual's title the way back to the first page, and checks every link from the site's pages.
       - name: Assemble the site
-        run: |
-          set -eu
-          mkdir -p _site/manual
-          cp site/index.html _site/index.html
-          cp docs/assets/formicaria.svg _site/formicaria.svg
-          cp -R docs/book/. _site/manual/
-          cp _setup/setup-macos.html _setup/setup-windows.html _site/manual/user/
-
-          # **Every link on the entry page that stays on this site must name a file that was just
-          # built.** A chapter renamed in `SUMMARY.md` otherwise becomes a dead link on the first
-          # page a newcomer reads, and nothing else would notice: mdBook checks the book's links,
-          # not this page's.
-          bad=0
-          for target in $(grep -oE '(href|src)="[^"#]+' _site/index.html \
-                          | sed -E 's/^(href|src)="//' \
-                          | grep -vE '^[a-z]+:' | sort -u); do
-            if [ ! -s "_site/$target" ]; then
-              echo "pages: site/index.html points at '$target', which was not built" >&2
-              bad=1
-            fi
-          done
-          [ "$bad" -eq 0 ]
+        run: sh ci/site-assemble.sh _site _setup
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
