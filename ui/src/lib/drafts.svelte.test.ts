@@ -26,7 +26,11 @@ afterEach(() => {
 });
 
 const def = { log: 'training', metrics: [], slots: [] } as unknown as TotalsDef;
-const aSet = { id: 's1', title: 'Squat', props: { exercise: 'Squat', reps: 5 } } as unknown as ObjectMeta;
+const aSet = {
+  id: 's1',
+  title: 'Squat',
+  props: { exercise: 'Squat', reps: 5 },
+} as unknown as ObjectMeta;
 
 describe('what is typed and not yet saved', () => {
   it('is kept, read back and dropped by name, and a device that cannot store it still works', () => {
