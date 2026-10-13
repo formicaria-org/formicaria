@@ -47,7 +47,7 @@ jobs:
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
         with:
-          # Pinned for the reason given in docs.yml: the pixi binary's hash is part of the cache key.
+          # Pinned for the reason given in desktop.yml: the pixi binary's hash is part of the cache key.
           pixi-version: v0.72.2
           run-install: true
           cache: true

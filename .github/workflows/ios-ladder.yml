@@ -1,0 +1,393 @@
+# The iOS ladder: the experiments that got an iPhone build working at all, kept to run again.
+#
+# **The device build that is published is not here**: it was rung 5 and is `ios.yml` now, which
+# `release.yml` calls. What stays are the four rungs that are still experiments — compile and
+# generate a project (1), boot in the Simulator (2, 3), reach a server from it (4).
+#
+# iOS rung 1: **does it compile, and does a project generate at all?**
+#
+# Read `docs/context/ios-plan-2026-09-02.md` before firing this. The short version: there is no Mac
+# and no iPhone, so a GitHub macOS runner is the only Mac this project has and the Simulator is the
+# only device it will ever have. That makes every iOS question cost a job, and this is rung 1 of a
+# ladder whose later rungs are not written yet — deliberately, because rung 1 may end the question.
+#
+# **Manual-only, and never on a tag.** `release.yml` is the single named exception to the
+# no-remote-CI standing order (`decisions.md`, 2026-07-18) and fires unattended on every `v*`; an
+# iOS leg there would widen that exception permanently, for a platform that cannot ship. See
+# `decisions.md#track-m`, *an iOS build would contradict the project-local-toolchain ruling*.
+#
+# **Cost — the history, because the numbers taught something even though they no longer apply.**
+# While the repo was private this was one `macos-latest` job billed at 10x Linux. The estimate was
+# $1.50-$3.00 and 25-45 minutes cold; **measured over three runs it was 2.8-7.7 min, ~$0.20-$0.60**
+# — pessimistic by about 5x. Worth keeping: the reflex to call a rung too expensive to try was
+# wrong by an order of magnitude, and the only way to find that out was to run one.
+#
+# **On a public repo, standard-runner minutes are free, `macos-latest` included**, so the dollar
+# figures above are historical (`decisions.md`, *the repo goes public…*, 2026-09-04). What survives
+# the change is everything that was never about money: this is an *experiment* with a
+# stop-and-decide point between rungs, not a gate, so it stays `workflow_dispatch`-only even when
+# it is free. Both steps run even if the first fails (`if: always()`), because the point is to
+# learn as much as possible per job rather than to go green.
+#
+# **Kill criterion, restated without the currency:** if two runs cannot produce a compile, and
+# neither documented workaround for tauri#15066 takes, stop. Record "not until upstream moves" in
+# `decisions.md` and close the question. Free minutes remove the bill, not the reason to decide —
+# an unbounded loop of runs that never resolves the question is the waste, and it always was.
+name: ios ladder
+
+# **One dispatch spends one job.** The rungs are a ladder with a stop-and-decide point between
+# each step. That began as a cost control — pick the rung you are paying for and the other job does
+# not start — and it stays after the minutes became free, because the *deciding* is the point: a
+# ladder that runs every rung on every dispatch is not a ladder, it is a batch, and nobody reads
+# the rung that mattered.
+on:
+  workflow_dispatch:
+    inputs:
+      rung:
+        description: "Which rung to spend a job on"
+        type: choice
+        default: "1"
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+
+# Every rung here compiles, generates a project and packages. None of them writes to the
+# repository, and four of them are `macos-latest` jobs where an inherited write token would be the
+# broadest thing in the workflow for no reason at all.
+permissions:
+  contents: read
+
+# **Keyed by rung, not just by ref.** `cancel-in-progress` is right *within* a rung — a re-dispatch
+# supersedes the previous attempt — but the two rungs are different experiments, and with a shared
+# group, dispatching rung 2 while rung 1 was still running would cancel rung 1 mid-flight: minutes
+# billed, artifact lost. `inputs` is available in `concurrency`.
+concurrency:
+  group: ios-ladder-${{ github.ref }}-${{ inputs.rung }}
+  cancel-in-progress: true
+
+jobs:
+  rung1:
+    if: inputs.rung == '1'
+    name: does it compile, and does a project generate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          # **Pinned, and this is the whole reason the cache ever hits.**
+          # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
+          # binary)**+path+cwd, and passes NO restoreKeys - it is exact-match or a full
+          # miss. Unpinned, every pixi release (roughly fortnightly) rotates that key for
+          # every workflow here at once, so a manually-dispatched job almost never hits.
+          pixi-version: v0.72.2
+          # Both: `cross` carries the iOS rust-std targets (noarch, and the lock already solves them
+          # for osx-arm64, which is what `macos-latest` is); `default` carries pnpm and the Tauri
+          # CLI. A bare `pixi run --` uses `default`, so installing only `cross` would fail at the
+          # first pnpm line.
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      # **Two non-default settings, both of which are cost.**
+      #
+      # `cache-on-failure` defaults to **false**, so a job that fails saves nothing — measured: the
+      # two failed rung-2 runs (91349022694, 91351661719) have no `Post Run Swatinem/rust-cache`
+      # step at all. Every retry therefore recompiled vendored OpenSSL, libgit2 and SQLite for the
+      # iOS triples from scratch. For a rung expected to fail a few times while the *harness* is
+      # debugged, that is exactly backwards: the compile is the expensive part and it is valid
+      # regardless of whether the simulator later booted.
+      #
+      # `shared-key` replaces the automatic per-job key (`add-job-id-key` defaults to true), so
+      # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
+      # per iOS triple building exactly the C that rung 2 needs; without this they never see each
+      # other's work.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: . -> target
+          cache-on-failure: true
+          shared-key: ios
+
+      # ---- Question 1: the C wall. ----------------------------------------------------------
+      # This is the one thing no amount of Linux work can answer. `fm-core --features native-git`
+      # compiles vendored libgit2, vendored OpenSSL and SQLite from source for an Apple target, and
+      # `openssl-src`'s iOS configuration is literally `xcrun -sdk iphoneos cc` — so it needs a real
+      # Xcode and has never been attempted here.
+      #
+      # **`-ios-sim`, not `-ios`.** `macos-latest` is Apple silicon, so the Simulator runs the
+      # `aarch64-apple-ios-sim` triple; the device triple is built too because it is nearly free
+      # once the first one has warmed the cache, and because it is the one a real device would need.
+      # Nothing in this repo can launch either — that is rung 2, and it does not exist yet.
+      - name: fm-core for the Simulator triple
+        id: sim
+        run: pixi run -e cross cargo build --target aarch64-apple-ios-sim -p fm-core --features native-git
+
+      - name: fm-core for the device triple
+        if: always()
+        run: pixi run -e cross cargo build --target aarch64-apple-ios -p fm-core --features native-git
+
+      # `check-cross` already type-checks fm-agent for both iOS triples on Linux, for free. Repeat it
+      # here so a divergence between "type-checks on Linux" and "compiles on a Mac" shows up in the
+      # log rather than being assumed away.
+      - name: the per-OS agent code, on a real Mac
+        if: always()
+        run: pixi run -e cross check-cross
+
+      # ---- Question 2: does Tauri generate an iOS project at all? -----------------------------
+      # `tauri ios init` writes `gen/apple/` — an XcodeGen project.yml, an .xcodeproj, a Podfile.
+      # It has never run for this repo. The known hazard is tauri#15066: under Xcode 26 the link
+      # step fails with `ld: library not found for -lswiftCompatibility56`. That bites `ios build`,
+      # not necessarily `ios init`, and this rung deliberately stops at init — a build is rung 2.
+      #
+      # **`gen/apple` is never committed.** `.gitignore` already forbids the Android equivalent in
+      # terms: it embeds absolute paths, so committing it would be committing this machine. It is
+      # uploaded as an artifact instead, to be read rather than merged.
+      # **Expected hazard, so the log is readable when it happens.** `tauri ios init` runs through
+      # `cargo-mobile2`, which may try `rustup target add` — and this project has no rustup: rust
+      # comes from pixi/conda, which is why the iOS targets are conda packages in `[feature.cross]`.
+      # If it fails there, that is a *toolchain-shape* answer, not a "the port is impossible" answer,
+      # and the fix is to point it at the already-installed targets rather than to install rustup.
+      - name: tauri ios init
+        if: always()
+        working-directory: mobile
+        run: |
+          pixi run -- pnpm -C ../ui install --frozen-lockfile
+          pixi run -- pnpm -C ../ui build
+          pixi run -- pnpm install --frozen-lockfile
+          pixi run -- pnpm exec tauri ios init --verbose
+
+      - name: what was generated
+        if: always()
+        run: |
+          echo "--- mobile/src-tauri/gen ---"
+          ls -la mobile/src-tauri/gen 2>&1 || echo "(no gen/ at all)"
+          echo "--- gen/apple ---"
+          find mobile/src-tauri/gen/apple -maxdepth 2 2>&1 | head -50 || echo "(no gen/apple)"
+          echo "--- toolchain ---"
+          xcodebuild -version 2>&1 || true
+          xcrun --sdk iphonesimulator --show-sdk-version 2>&1 || true
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-rung1
+          path: |
+            mobile/src-tauri/gen/apple
+          if-no-files-found: warn
+          retention-days: 7
+
+  # =========================================================================================
+  # Rung 2: **does it boot?**
+  #
+  # Everything asserted here is in `ci/ios-smoke.sh`, not in this file — the same split
+  # `android-smoke.sh` uses, and for the same reason: a test written as YAML steps cannot be read,
+  # reasoned about or fixed anywhere except inside a billed run.
+  #
+  # **Kill criterion for this rung, written before the money is spent:** a blank screen *and* an
+  # empty pty, after one `simctl spawn <udid> log stream` has been tried, ends the rung. Record
+  # "the Simulator runs it but nothing can be observed" and stop; do not iterate this into a budget.
+  #
+  # Prerequisites cleared before this was written, each of which would have burned a job on its own:
+  #   - `install_logger` has an iOS arm at all (there was no diagnostic channel on iOS until
+  #     2026-09-03 — `decisions.md`, *the iOS diagnostic channel is stderr, not `os_log`*)
+  #   - `ci/bin/rustup` is tracked, so Tauri's `rustup target add` finds our verifying shim on the
+  #     runner. It lived in a gitignored directory and existed on exactly one machine
+  #   - the shell compiles for iOS with default features at all — `build.rs` derives `agent_shell`
+  #     from the feature **and** Android, so `src/agent.rs` (Android-only `native_lib_dir`) is not
+  #     compiled into an iOS build
+  # =========================================================================================
+  # **Rungs 2 and 3 are one job**, because rung 3 *is* rung 2 plus a screenshot sweep over more
+  # device sizes — and the sweep reuses the `.app` this job already built. The build is 360s of a
+  # ~460s job, so a separate rung-3 job that rebuilt would cost more than every other rung together.
+  rung2:
+    if: inputs.rung == '2' || inputs.rung == '3'
+    name: does it boot on a simulator (rung 3 also sweeps sizes)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          # **Pinned, and this is the whole reason the cache ever hits.**
+          # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
+          # binary)**+path+cwd, and passes NO restoreKeys - it is exact-match or a full
+          # miss. Unpinned, every pixi release (roughly fortnightly) rotates that key for
+          # every workflow here at once, so a manually-dispatched job almost never hits.
+          pixi-version: v0.72.2
+          # `default` carries pnpm, the Tauri CLI and libvips (the blank-screen check); `cross`
+          # carries the iOS rust-std targets. Same pair rung 1 used.
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      # **Two non-default settings, both of which are cost.**
+      #
+      # `cache-on-failure` defaults to **false**, so a job that fails saves nothing — measured: the
+      # two failed rung-2 runs (91349022694, 91351661719) have no `Post Run Swatinem/rust-cache`
+      # step at all. Every retry therefore recompiled vendored OpenSSL, libgit2 and SQLite for the
+      # iOS triples from scratch. For a rung expected to fail a few times while the *harness* is
+      # debugged, that is exactly backwards: the compile is the expensive part and it is valid
+      # regardless of whether the simulator later booted.
+      #
+      # `shared-key` replaces the automatic per-job key (`add-job-id-key` defaults to true), so
+      # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
+      # per iOS triple building exactly the C that rung 2 needs; without this they never see each
+      # other's work.
+      # **Both target directories, and the second one is where the iOS app is actually built.**
+      # `mobile/src-tauri/Cargo.toml:6` — "Outside the workspace on purpose" — so `cargo` writes to
+      # `mobile/src-tauri/target`, not `./target`. Measured on run 91415007453: rust-cache reported
+      # `full match: true` and restored in 2s, and the build still took **464 seconds**, because the
+      # hit was on the workspace target the iOS build scarcely touches while vendored OpenSSL,
+      # libgit2 and SQLite were recompiled for the simulator triple from scratch. A cache can report
+      # a perfect hit and save nothing; the thing to check is *which* directory it hit.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            . -> target
+            mobile/src-tauri -> target
+          cache-on-failure: true
+          shared-key: ios
+
+      # The frontend must exist on disk before anything Rust runs: `generate_context!()` panics at
+      # compile time if `frontendDist` (`../../ui/dist`) is missing. `tauri ios build` would run
+      # `beforeBuildCommand` itself, but doing it here keeps the failure legible and separate.
+      # **`-e cross` here too, so one environment does all of it.** The smoke step runs in `cross`
+      # (it is the only environment with the iOS `rust-std` packages), and `node_modules` written by
+      # one environment's pnpm and then used by another's is exactly what cost rung 2 its first job:
+      # the two resolved different pnpm versions, the second re-resolved `@tauri-apps/cli` to the
+      # darwin-x64 build, and the Tauri CLI ran under Rosetta 2 until `brew` refused it. The pins in
+      # `[dependencies]` now make those versions equal — this keeps them the *same install*.
+      # **Cache pnpm's STORE, never node_modules** — the same pattern `cross.yml` documents, and it
+      # was missing here entirely: every iOS dispatch re-fetched the whole JS dependency tree, two
+      # or three `pnpm install`s per job, on a runner billed at 10x Linux.
+      #
+      # pnpm fills node_modules with symlinks into a content-addressable store elsewhere, so
+      # caching node_modules restores dangling links and pnpm then reports "Already up to date"
+      # and repairs nothing. The store is content-addressed, which is why `restore-keys` is safe:
+      # a partial hit means pnpm fetches what is missing and links the rest.
+      #
+      # `-e cross`, because that is the environment every pnpm step in this workflow runs in and a
+      # different environment can resolve a different pnpm with a different store path.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: the frontend
+        run: |
+          pixi run -e cross pnpm -C ui install --frozen-lockfile
+          pixi run -e cross pnpm -C ui build
+          pixi run -e cross pnpm -C mobile install --frozen-lockfile
+
+      # **`-e cross`, exactly as every Rust step in rung 1.** The iOS `rust-std` packages live in
+      # `[feature.cross.dependencies]` and the `default` environment has *none* of them (measured:
+      # zero `apple-ios` entries in its sysroot). A bare `pixi run ios-smoke` would take the default
+      # env, `ci/bin/rustup` would correctly report the targets missing, and `tauri ios init` would
+      # die there — after the checkout, the pixi install and the cache restore had all been paid for.
+      #
+      # `ci/ios-smoke.sh` puts `ci/bin` on PATH itself (the verifying `rustup` shim Tauri's mobile
+      # commands need), so this step needs no environment beyond that.
+      # `FM_IOS_SIZES` is empty for rung 2, so the sweep is inert and rung 2 behaves exactly as it
+      # did when it was proven. Substrings, not identifiers — a device the runner image drops should
+      # cost a skipped size and a note, not a failed job.
+      #
+      # **`iPhone-SE` was here and is deliberately gone.** The first rung-3 dispatch (2026-09-03)
+      # ran 20+ minutes because of it: Xcode 26 still lists an `iPhone-SE-3rd-generation` *device
+      # type*, so `simctl create` succeeded, but no installed iOS 26 runtime pairs with it and
+      # `bootstatus -b` waited without a timeout. The script now resolves sizes against `simctl list
+      # devices available` and bounds every boot, so this list would degrade to a fast skip — but
+      # naming a device the image has not shipped since iOS 26 is asking for a skip, not a
+      # screenshot. **The smallest and largest iPhones actually on the runner** are what the sweep
+      # is for; re-read `simctl list devices available` in a job log before changing them.
+      # **Rung 3 now drives instead of photographing, and costs no extra device.**
+      #
+      # It used to mean "screenshot the welcome screen at two more widths": two extra simulator
+      # boots and installs (~170s each), asserting nothing — which is why it was marked
+      # deliberately unrun. `FM_IOS_SEED` instead writes an identity, a note and an image into the
+      # data container *between the two launches this job already does*, so launch 2 renders real
+      # content on the device already booted. Extra cost: a few file writes.
+      #
+      # And the assertion is automatic: a `fmblob:` image that fails to load fires a resource
+      # error, the WebView bridge forwards it as `web: resource failed to load: …` at ERROR level,
+      # and `launch`'s `formicaria ERROR` grep fails the job. No human looks at a PNG.
+      #
+      # The size sweep is still there and still works — set `FM_IOS_SIZES` by hand if a layout
+      # question ever justifies the boots. It is not worth them by default.
+      - name: boot it, twice
+        run: pixi run -e cross ios-smoke
+        env:
+          FM_IOS_SEED: ${{ inputs.rung == '3' && '1' || '' }}
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-rung${{ inputs.rung }}
+          # The screenshots (including one per swept size), the pty transcripts, the deviation
+          # numbers, the data-container tree and the before/after disk. On a failure this is the
+          # whole observation.
+          path: |
+            target/ios-smoke
+          if-no-files-found: warn
+          retention-days: 7
+
+  # =========================================================================================
+  # Rung 4: **does git work over HTTPS from iOS?**
+  #
+  # Deliberately dispatchable ahead of rung 3, because it is the single result that can end the
+  # port. On Apple targets libgit2 links **SecureTransport**, not the vendored OpenSSL this project
+  # builds, and `add_certs_from_pem` — the whole Android CA workaround — is `cfg`'d off there. The
+  # iOS HTTPS path therefore rests on a claim nothing has ever executed.
+  #
+  # **The cheapest rung by a distance**: no pnpm, no frontend, no `tauri ios init`, no Homebrew, no
+  # `xcodebuild`. Just cargo and one `simctl spawn`, against a warm shared cache.
+  #
+  # **Kill criterion:** the Simulator reaches github.com:443 and libgit2 still cannot talk to it →
+  # stop. That is SecureTransport failing, the iPhone port cannot sync, and no distribution work
+  # should be spent on it. The script prints which layer failed rather than "it did not work".
+  rung4:
+    if: inputs.rung == '4'
+    name: does git work over https from ios
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          # **Pinned, and this is the whole reason the cache ever hits.**
+          # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
+          # binary)**+path+cwd, and passes NO restoreKeys - it is exact-match or a full
+          # miss. Unpinned, every pixi release (roughly fortnightly) rotates that key for
+          # every workflow here at once, so a manually-dispatched job almost never hits.
+          pixi-version: v0.72.2
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: . -> target
+          cache-on-failure: true
+          shared-key: ios
+
+      # `-e cross` because that is the only environment carrying the iOS `rust-std` packages, and
+      # the pins in `[dependencies]` keep its toolchain identical to `default`.
+      - name: probe an https remote from the simulator
+        run: pixi run -e cross ios-https-probe
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-rung4
+          # The cargo build log, the boot log, and the probe's own output — which on a failure is
+          # the whole diagnosis.
+          path: |
+            target/ios-https-probe
+          if-no-files-found: warn
+          retention-days: 7

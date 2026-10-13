@@ -353,9 +353,8 @@ package), `docs` (publish the manual), and **`android`** (build and sign the And
 how a build is tried on a phone before a release).
 
 **The exception is `release`, which fires unattended on a `v*` tag.** Pushing a tag publishes a
-release. It is the one workflow you can start by accident. It builds the desktop archives and the
-iOS app itself and **calls `android`** for the phone app, so the build you tested and the build that
-is published are made by the same steps.
+release. It is the one workflow you can start by accident. It builds nothing itself: it **calls `desktop`, `ios` and `android`**, each of which you can also
+run by hand, so the build you tested and the build that is published are made by the same steps.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli

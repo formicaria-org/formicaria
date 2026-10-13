@@ -1,0 +1,283 @@
+# The desktop app, built and packed for Linux, macOS and Windows: one file, used two ways.
+#
+# - **By `release.yml`, on a `v*` tag** (`workflow_call`). The release has no copy of this job; it
+#   calls this file, so an archive built by hand and the one that is published are made by the
+#   same steps. (`android.yml` and `ios.yml` are the same arrangement for the phones.)
+# - **By hand** (`workflow_dispatch`): "I want the archives from this commit", without a tag and
+#   without building two phone apps. On a branch they are named `dev-<commit>`.
+#
+# **It publishes nothing, either way.** It ends in three artifacts. Publishing is `release.yml`'s
+# `attach` job, and only on a tag.
+#
+# What it makes is an *app*, not a build output: both binaries and the instructions for using
+# them, in one archive named after the platform it actually runs on. It does not re-run the
+# tests: the gate is ci.yml (Linux, every push) and cross.yml (macOS and Windows, by hand).
+name: desktop
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Its own group, never `release-…`: a called workflow that shared its caller's group would cancel it.
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  binaries:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `target` is what a user reads in the filename, so it names the real thing:
+          # the macOS runner is Apple silicon, and "macos-latest" tells nobody whether the
+          # binary will run on their machine.
+          - os: ubuntu-latest
+            target: linux-x86_64
+            archive: tar.gz
+          - os: macos-latest
+            target: macos-arm64
+            archive: tar.gz
+          - os: windows-latest
+            target: windows-x86_64
+            archive: zip
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          # **Pinned, and this is the whole reason the cache ever hits.**
+          # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
+          # binary)**+path+cwd, and passes NO restoreKeys - it is exact-match or a full
+          # miss. Unpinned, every pixi release (roughly fortnightly) rotates that key for
+          # every workflow here at once, so a manually-dispatched job almost never hits.
+          pixi-version: v0.72.2
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: . -> target
+      # `pixi run build` opens with `pnpm -C ui install`, so without this every release re-fetches
+      # the whole JS dependency tree on three runners. The store, not `node_modules` — see the
+      # android job for why.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+      # **The version, before the build rather than after it**, because the binary has to carry
+      # it: the crates are all `0.0.0` and the real version is this tag. `fm-app` reads it through
+      # `option_env!("FM_VERSION")` and falls back to `dev`, so an ordinary local `cargo build`
+      # still compiles with nothing set. Settings shows it — which is how someone with two
+      # unpacked folders can tell which one they are running.
+      - name: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          # Only a dispatch on a *branch* gets the dev- stamp. Under the no-remote-CI standing
+          # order the `v*` push trigger is off, so firing this by hand on a tag is now the only
+          # way to cut a release — and without the ref-type test that path named its archives
+          # `formicaria-dev-<sha>-*` and attached them to a `v*` release. GITHUB_REF_TYPE is
+          # exactly `tag` or `branch`, so it separates the two cases the event name cannot.
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - run: pixi run build
+
+      # Stage the app: both binaries + the instructions. `fm` is NOT optional beside
+      # `fm-serve` — `ensure_repo` installs the `.md` merge driver by pointing git at the
+      # `fm` binary *beside the running one*, and installs nothing when it cannot find one,
+      # so a bundle carrying only fm-serve silently loses the merge driver.
+      - name: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Computed once, in the `version` step above, and baked into the binary there — so the
+          # archive's name and the version the app reports can never disagree.
+          DIR="formicaria-${VERSION}-${{ matrix.target }}"
+
+          # **The top level is what a non-technical user sees, so almost nothing lives there.**
+          # A tester unzipped v0.2.0, met nine entries of which three looked launchable, opened
+          # the `manual` folder, found "many miscellaneous files", and could not tell what to
+          # click. The machinery now lives in `program/`; the top level is a door, a manual, a
+          # readme and your notes.
+          mkdir -p "stage/${DIR}/program"
+          # `agent-serve` rides along: it is the assistant's supervisor, spawned by `fm-serve` from
+          # beside its own binary. Without it in the archive a downloaded copy has no assistant on
+          # any platform — which is exactly what was true until 2026-09-02. The model and the model
+          # runtime are NOT staged: they are per-platform and gigabytes, and are fetched on first
+          # enable after the app has asked.
+          for b in fm-serve fm agent-serve; do
+            if [ -f "target/release/${b}.exe" ]; then
+              cp "target/release/${b}.exe" "stage/${DIR}/program/"
+            else
+              cp "target/release/${b}" "stage/${DIR}/program/"
+            fi
+          done
+          # The model catalogue, beside the binaries: `fm-serve` reads it to know what it *could*
+          # download and what each one costs, and copies it into the tools directory on first use —
+          # the same shape as the phone writing its embedded copy on every start.
+          cp agents/models.toml "stage/${DIR}/program/models.toml"
+          [ -s "stage/${DIR}/program/models.toml" ] \
+            || { echo "stage: the model catalogue did not land" >&2; exit 1; }
+
+          # `fm` moves WITH `fm-serve` and that is not incidental: `ensure_repo` installs the
+          # `.md` merge driver by pointing git at the `fm` beside the running binary, and
+          # installs nothing when it cannot find one. They stay in the same directory forever.
+
+          # **Plain text, not Markdown.** The tester's words: "I would prefer it to be in a
+          # format where I can open it in Notepad as I'm unable to open in MD file format."
+          # Double-clicking a `.md` on Windows offers an app picker; `.txt` opens Notepad. On
+          # Windows it also needs CRLF, because Notepad on older Windows 10 renders LF-only text
+          # as one unbroken line — which is a readme nobody can read.
+          if [ "${{ matrix.target }}" = "windows-x86_64" ]; then
+            sed 's/$/\r/' packaging/README-release.txt > "stage/${DIR}/README.txt"
+          else
+            cp packaging/README-release.txt "stage/${DIR}/README.txt"
+          fi
+
+          # Our licence, plus the notices of everything the binary carries — the ~188 crates,
+          # the npm packages baked into `ui/dist`, and the bundled font families. MIT, Apache-2.0
+          # and OFL all require those to travel with it. Beside the binaries they describe, not
+          # in the user's way.
+          cp LICENSE "stage/${DIR}/program/"
+          # **Copied, not regenerated here.** It used to be regenerated on each runner, which
+          # made the notice host-dependent and made a tag the first place it was ever computed.
+          # Both are now wrong: `ci/third-party.sh` resolves with `--target all`, so the file is
+          # identical on every platform, and `pixi run ci` fails if the committed copy has
+          # drifted (`ci/third-party-check.sh`). So the archive ships the copy a human reviewed,
+          # and generation stays on the gate where a red result is cheap — rather than inside the
+          # one workflow that fires unattended on a tag, on runners where the generator's `pnpm
+          # licenses list` step has never been exercised.
+          cp THIRD-PARTY.md "stage/${DIR}/program/THIRD-PARTY.md"
+          # Assert the artifact, not the exit code: a notice that arrives empty or truncated is
+          # a licence violation that looks like a success. All four sections or nothing.
+          for want in "## Bundled into the user interface" "## Fonts bundled" "## Downloaded at runtime"; do
+            grep -qF "${want}" "stage/${DIR}/program/THIRD-PARTY.md" \
+              || { echo "stage: THIRD-PARTY.md is missing the section '${want}'" >&2; exit 1; }
+          done
+
+          # **The manual ships WITH the app.** `docs.yml` only ever built the book as a link
+          # check and threw the HTML away with the runner — no artifact, no Pages deploy — and
+          # README.md beside it is an install sheet, not documentation. So every release so far
+          # handed the user the whole application and no instructions for using it, with the
+          # ~11,600 words in `docs/src` reachable only by cloning the repo.
+          pixi run docs
+          # Assert the artifact, not the exit code. Two things here fail silently, and both
+          # produce an archive that looks documented until someone opens it:
+          #   1. mdbook can exit 0 having written nothing if `book.toml` or `src/` moves. A
+          #      `manual/` that exists and is empty is worse than no `manual/` at all.
+          #   2. `docs/src` is a TREE (user/, dev/, reference/). A `*.md` glob copies exactly
+          #      SUMMARY.md and introduction.md and drops the other fourteen pages without a
+          #      word — every chapter a user actually needs. Hence `cp -R <dir>/.`, which copies
+          #      contents (and dodges the GNU/BSD disagreement over `-R dir/`), verified by
+          #      `diff -r` against the source tree.
+          #
+          # `diff -r` rather than counting files: it compares structure AND content, needs no
+          # number to keep up to date as chapters are added, and — the reason it is not `find`
+          # — `find` on the Windows runner can resolve to Windows' own `find.exe`, which is a
+          # text search with entirely different semantics. `diff` is unambiguous on all three.
+          mkdir -p "stage/${DIR}/manual/source"
+          cp -R docs/book/. "stage/${DIR}/manual/"
+          cp -R docs/src/.  "stage/${DIR}/manual/source/"
+          # Assert the **staged** entry point, not `docs/book/index.html`. `manual/index.html` is
+          # the path the archive's own README tells the reader to open, so it is the path the build
+          # owes them; checking mdbook's output directory instead asserts the tool one step short of
+          # the artifact, and `cp -R docs/book/. …` over an empty book succeeds silently either way.
+          [ -s "stage/${DIR}/manual/index.html" ] \
+            || { echo "stage: no manual/index.html in the archive — mdbook produced nothing" >&2; exit 1; }
+          diff -r docs/src "stage/${DIR}/manual/source" >/dev/null \
+            || { echo "stage: manual/source does not match docs/src" >&2; exit 1; }
+
+          # **The double-click way in.** Without a launcher a release is a bare console binary:
+          # no browser opens (FM_OPEN unset), the server is never stopped by closing the tab
+          # (FM_AUTO_SHUTDOWN unset), and the notes have nowhere to go. Those three features all
+          # existed already and were simply unreachable from a download, because the only scripts
+          # that set them assume a git checkout. These resolve everything from the archive's own
+          # folder, which is what makes the folder portable.
+          # Pipe-separated because every name now contains a space — the whole point of the
+          # rename — and word-splitting would turn each into two missing files.
+          #
+          # **Each platform also gets its update script.** The vault lives inside this folder, so
+          # a new download starts empty and someone's notes are still in the folder they had
+          # before — which looks exactly like the update destroyed them. The script copies the old
+          # vault in, never the other way, and never deletes. Windows gets the `.bat` and not a
+          # `.vbs`: the launcher is right to be silent, an update is not.
+          case "${{ matrix.target }}" in
+            windows-*) launchers="Start formicaria.vbs|Start formicaria (show messages).bat|Update from an older folder.bat" ;;
+            macos-*)   launchers="Start formicaria.command|Update from an older folder.command" ;;
+            *)         launchers="Start formicaria.sh|Update from an older folder.sh" ;;
+          esac
+          # Names, not just files. "Start formicaria" answers the question a first-time user
+          # actually has; `fm-serve.exe` answered a different one, and `formicaria.vbs` beside
+          # `formicaria.bat` beside `fm-serve.exe` offered three plausible answers at once.
+          IFS='|'
+          for l in $launchers; do
+            cp "packaging/launcher/$l" "stage/${DIR}/$l"
+            # Assert the staged file, the same as the manual above: a missing launcher would not
+            # fail the build, it would ship an archive that no non-technical user can open.
+            [ -s "stage/${DIR}/$l" ] || { echo "stage: launcher $l did not land in the archive" >&2; exit 1; }
+            case "$l" in *.sh|*.command) chmod +x "stage/${DIR}/$l" ;; esac
+          done
+          unset IFS
+
+          # **One obvious door to the manual.** The book is ~50 files and its entry point is only
+          # obvious to someone who already knows it is `index.html` — which is exactly what the
+          # tester could not know. This sits one level up and redirects.
+          cp packaging/launcher/Manual.html "stage/${DIR}/Manual.html"
+          [ -s "stage/${DIR}/Manual.html" ] || { echo "stage: Manual.html did not land" >&2; exit 1; }
+
+          # A ready vault with **one note in it**. Empty was already better than asking a
+          # brand-new user to invent a location before seeing the app — but an empty notebook
+          # still answers none of "what is this, and where do I click". The note does, in about
+          # three hundred words, and says at the end that it can be deleted.
+          #
+          # It lives here rather than being generated by the app because the vault must be a
+          # plain folder of files either way: copying this folder to a USB stick copies the
+          # notes, and that stays true of the first one.
+          mkdir -p "stage/${DIR}/vault/notes"
+          cp -R packaging/welcome/notes/. "stage/${DIR}/vault/notes/"
+
+          # Date it with the build. The file carries a real date so it parses on its own — if this
+          # step ever stops running, the note still works, it is just older. Fail-safe, not silent.
+          # No `sed -i`: its spelling differs on macOS and this runs on three platforms.
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for f in "stage/${DIR}/vault/notes/"*.md; do
+            sed -e "s/^created: .*/created: ${NOW}/" -e "s/^updated: .*/updated: ${NOW}/" "$f" > "$f.tmp"
+            mv "$f.tmp" "$f"
+          done
+          ls "stage/${DIR}/vault/notes/"*.md >/dev/null \
+            || { echo "stage: the welcome note did not land in the vault" >&2; exit 1; }
+
+          echo "DIR=${DIR}" >> "$GITHUB_ENV"
+          ls -la "stage/${DIR}"
+
+      - name: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd stage
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "../${DIR}.zip" "${DIR}" >/dev/null
+          else
+            tar czf "../${DIR}.tar.gz" "${DIR}"
+          fi
+          cd ..
+          ls -la formicaria-*
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.DIR }}
+          if-no-files-found: error
+          path: formicaria-*.${{ matrix.archive }}

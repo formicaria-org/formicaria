@@ -631,7 +631,7 @@ echo "[check] the macOS workflows stay dispatch-only..."
 # take tens of minutes, and answer questions that are situational — "does this still build on a
 # Mac", "does the iOS artifact still package". Firing them on every push would bury the signal
 # from the one gate anybody reads, and neither is a gate: `pixi run ci` is. They stay deliberate.
-for wf in .github/workflows/cross.yml .github/workflows/ios.yml; do
+for wf in .github/workflows/cross.yml .github/workflows/ios.yml .github/workflows/ios-ladder.yml; do
     [ -f "$wf" ] || continue
     if sed -n '/^on:/,/^[a-z]/p' "$wf" | grep -qE '^\s+(push|pull_request):'; then
         echo "  FAIL: $wf fires automatically. It runs on macOS and takes tens of minutes;"
@@ -753,6 +753,27 @@ PY
         echo "        for a job that calls another workflow, every job of that workflow must),"
         echo "        so a phone build that fails costs an asset and never the release itself."
         echo "        See decisions.md, 'every platform is published by the tag'."
+        fail=1
+    fi
+    # **The release builds nothing itself** (2026-10-13): each platform is a workflow a person can
+    # also run by hand, and the release calls it as it is. A build step copied back into
+    # `release.yml` is two builds that drift apart, which is what `ios.yml` rung 5 and the
+    # release's own iOS job had become.
+    for leg in desktop ios android; do
+        if ! grep -q "uses: ./.github/workflows/$leg.yml" .github/workflows/release.yml; then
+            echo "  FAIL: release.yml no longer calls .github/workflows/$leg.yml. Every platform is"
+            echo "        built by its own workflow, and the release reuses it exactly."
+            fail=1
+        fi
+        if ! sed -n '/^on:/,/^[a-z]/p' ".github/workflows/$leg.yml" 2>/dev/null | grep -q 'workflow_dispatch:'; then
+            echo "  FAIL: .github/workflows/$leg.yml can no longer be run by hand."
+            fail=1
+        fi
+    done
+    if grep -qE '^\s+runs-on:.*(macos|windows)' .github/workflows/release.yml \
+        || grep -qE 'pixi run (build|-e (cross|android))' .github/workflows/release.yml; then
+        echo "  FAIL: release.yml compiles something itself. Builds belong in desktop.yml, ios.yml"
+        echo "        and android.yml, which it calls."
         fail=1
     fi
     # And `attach` must still be the only thing that publishes, and only on a tag — so that a
@@ -1628,8 +1649,11 @@ fi
 # staged, they are left copying folders by hand at exactly the moment they believe their work is
 # gone. The base name only — the extension differs per platform.
 for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt' 'Update from an older folder'; do
-    if ! grep -qF "$p" .github/workflows/release.yml; then
-        echo "  FAIL: .github/workflows/release.yml no longer stages $p, but the release still"
+    # The staging lives in `desktop.yml` since 2026-10-13, which `release.yml` calls. Reading the
+    # release file here passed for three of these five after the move, on the strength of the
+    # words in its release notes: a guard satisfied by prose about the thing.
+    if ! grep -qF "$p" .github/workflows/desktop.yml; then
+        echo "  FAIL: .github/workflows/desktop.yml no longer stages $p, but the release still"
         echo "        promises it. Change both, or neither."
         fail=1
     fi
@@ -1862,11 +1886,11 @@ fi
 # staging line still said "agent-serve". A guard satisfied by prose about the thing is a guard that
 # reports on its own documentation.
 echo "[check] the release stages what the assistant looks for beside the binary..."
-release_code=$(grep -av '^[[:space:]]*#' .github/workflows/release.yml)
+release_code=$(grep -av '^[[:space:]]*#' .github/workflows/desktop.yml)
 for p in agent-serve models.toml; do
     if grep -aq "$p" crates/fm-serve/src/agent.rs && ! printf '%s' "$release_code" | grep -aq "$p"; then
         echo "  FAIL: crates/fm-serve/src/agent.rs looks for '$p' beside the running binary, but"
-        echo "        .github/workflows/release.yml never stages it. A downloaded copy would then"
+        echo "        .github/workflows/desktop.yml never stages it. A downloaded copy would then"
         echo "        have no assistant at all, and nothing here would fail. Stage it, or stop"
         echo "        looking for it."
         fail=1
@@ -2111,8 +2135,8 @@ fi
 # failure is guaranteed to be invisible: the note loader is tolerant by design, so a note that does
 # not parse does not error — it disappears, and the newcomer opens an empty notebook. `welcome_note.rs`
 # proves the file parses; this proves the release still puts it where the app will look.
-if ! grep -qF 'packaging/welcome/notes/.' .github/workflows/release.yml; then
-    echo "  FAIL: release.yml no longer stages the welcome note into the vault. A first-time user"
+if ! grep -qF 'packaging/welcome/notes/.' .github/workflows/desktop.yml; then
+    echo "  FAIL: desktop.yml no longer stages the welcome note into the vault. A first-time user"
     echo "        would open an empty notebook with nothing telling them what to do."
     fail=1
 fi
@@ -2125,8 +2149,8 @@ fi
 # door, not an inventory. `program/` is where the machinery went, and a binary copied back to the
 # top level would quietly undo that — with nothing failing, because the launcher would still work
 # on the developer's machine where they never looked at the folder.
-if ! grep -qF 'stage/${DIR}/program/' .github/workflows/release.yml; then
-    echo "  FAIL: release.yml no longer stages the binaries under program/. The archive's top"
+if ! grep -qF 'stage/${DIR}/program/' .github/workflows/desktop.yml; then
+    echo "  FAIL: desktop.yml no longer stages the binaries under program/. The archive's top"
     echo "        level is what a non-technical user sees; keep it a door, not an inventory."
     fail=1
 fi

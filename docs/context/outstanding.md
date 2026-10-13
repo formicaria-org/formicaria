@@ -1207,6 +1207,18 @@ publishes it with the manual beside it under `/manual/`. It is started by hand o
    the entry page only, not from the manual's own sidebar.
 5. The three Pages actions are pinned by commit; `actions/checkout` is `@v7` as everywhere else.
 
+### 2.30 The workflows after the split — prove them before the next tag (2026-10-13)
+
+`release.yml` now calls `desktop.yml`, `ios.yml` and `android.yml` and builds nothing itself
+(`decisions.md`, 2026-10-13). **Nothing has run.** By hand, on `main`, before tagging:
+
+1. Run **desktop**: three artifacts, named `formicaria-dev-<commit>-<platform>`.
+2. Run **ios**: one artifact, `ios-ipa`. Read the job, not the tick: it is `continue-on-error`.
+3. Or run **release** by hand on `main`: it builds every leg and publishes nothing off a tag.
+
+`docs.yml` was deleted the same day: it only built the manual and threw it away, which `ci`
+and `pages` both do. Left: `ci/ios-logs.sh` still defaults to `ios.yml`; the experiments are `ios-ladder.yml`.
+
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
 `deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12
