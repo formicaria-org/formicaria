@@ -20,7 +20,9 @@
 > author; the kill criteria are the author's own. They are honest, so they are kept, and this
 > banner is so nobody reads them as a product brief.
 >
-> *Corrections pass: 2026-09-04.*
+> *Corrections passes: 2026-09-04, and 2026-10-14 (at v0.8.1). The second is marked
+> "2026-10-14" wherever it touched a claim, and its summary is the table* What the plan never
+> foresaw *below.*
 
 **The single, self-contained specification for formicaria. Drafted 2026-07-14; revised 2026-07-15 (browser-first: the native Tauri window was removed and the app now runs in the browser via a local `fm-serve`).** Earlier design docs (BRIEF, PLAN, SPEC, REQUIREMENTS, ADR-001…007) are folded in here and removed — everything needed to implement lives in this one file. The key rationale and prior-art citations that justified each decision are preserved in the **Evidence & prior art** appendix at the end.
 
@@ -31,6 +33,13 @@
 The user (a researcher) wants one local place to keep notes, ideas, meetings, tasks, and the media/artifacts that go with them — with nice-looking inline math and media, minimal footprint, extensibility, and a 10-year lifespan. An earlier design set (11 docs) reasoned carefully but left forks open and made two questionable calls (plain-textarea editor as the *whole* story; a Go binary justified on the wrong grounds). This plan resolves every fork against *current (mid-2026) evidence*: a critical read of how competitor tools lived and died, cross-domain solutions to the hard sub-problems, and a tool-by-tool stack justification. It is meant to be handed to implementation.
 
 **Resolved decisions:** Build it (rich reading, simple writing) · **Rust core + a browser UI served by a local `fm-serve`** (the native Tauri v2 window was built and then *removed* — see the reversal table) · **Markdown is the source of truth**; v1 editor = plain-textarea edit + a rendered read view; **CodeMirror 6 live-preview deferred to v2** · files-as-truth, disposable per-machine SQLite index · external edits allowed (poll, never inotify) · agenda-first deadlines with *derived* urgency (no priority field) · **single-user by default, shareable per vault** (a localhost server, no auth/cloud — sharing is a git remote, not an account; **revised 2026-07-17 when Track C shipped**, where this said "single-user, local-only") · extensibility via 3 layers, **no plugin API**.
+
+> **Three of these have moved again (2026-10-14).** The editor is no longer a textarea beside a
+> read view: there is **one editor that renders as you write** (CodeMirror 6, 2026-10-11), and the
+> text is still the file, byte for byte. "A localhost server, no auth" holds on the machine
+> itself; a second device on the network must **pair** and reaches only the vaults it was paired
+> for. And the app is no longer for one owned machine: it is **released** for Linux, macOS,
+> Windows, Android and iPhone, and updates itself. Each is in the tables below.
 
 ### Key decisions that reversed earlier drafts
 
@@ -45,10 +54,37 @@ An adversarial review of the earlier drafts drove the decisions below. Stated pl
 | 4-weekend kill criterion | **8 weekends** | The researcher-not-web-dev correction stands. |
 | `Store.query()` left undesigned | **Designed** | Typed `Query`/`Filter`/`Predicate` struct; full-text is just another predicate. See Backend architecture. |
 | Rust + Tauri v2 native window | **Overridden → browser UI via local `fm-serve`** (2026-07-15) | The WebKitGTK window never painted reliably (blank/gray; Risk #1). Rather than keep fighting it, the window was removed and the app now runs in the user's real browser, served by a tiny std-only HTTP server (`fm-serve`) fronting the same command functions. The webview's advantages (global hotkey, asset protocol) went with it; none were load-bearing. `fm-app` is now a command *library*. |
+| v1 = textarea + a rendered read view; CM6 live preview "deferred to v2" | **Overridden → one editor that renders as you write** (2026-10-11) | The owner: *"to render a note I have to click away."* CodeMirror 6 draws the Markdown rendered and shows its marks on the cursor's line; the document it holds **is** the file's text, so the byte round-trip the textarea gave for free still holds, and is tested. A rich-text editor that writes the file from its own model was rejected again, for the reason in the table below. The textarea and the switch between the two are gone: there is one editor. |
+| Syncthing carries the vault and its media between machines | **Never built → git carries attachments under a limit, restic the rest** | A vault is a git repository and backing up *is* sync. Attachments under the vault's `git_assets_max` (ceiling 100 MB, no git-lfs) travel in git with the notes; restic snapshots notes and `blobs/` whole. Syncthing is not used anywhere, and Syncthing-Android was discontinued in 2024. |
+| No mobile app; phone access "becomes a server + auth decision" | **Overridden → the app runs on the phone** (2026-07-18, shipped) | One Rust core, in-process on Android, libgit2 where there is no `git` binary; an unsigned iPhone `.ipa` the person signs themselves. |
+| The pixi environment *is* the runtime, on one owned machine | **Overridden → public releases** (2026-09) | A `v*` tag builds five platforms, signs a manifest, and publishes; the app says when a newer version exists, fetches, verifies and installs it, and every release is tested updating itself from the one before on three systems. A downloaded copy needs no pixi. |
+
+### What the plan never foresaw (added 2026-10-14)
+
+None of this is in the design below, because none of it was imagined on 2026-07-14. It is all
+built on the three seams without changing them, which is the claim the plan was written to test.
+
+| Arrived | What it is | What it rests on |
+|---|---|---|
+| **Collaboration** (2026-07-17) | per-vault git remotes, a `.md` merge driver, proposals a person accepts | the file as the atom: two edits to one note merge as text |
+| **An assistant on the device** (2026-07-22) | a local model that answers, researches, transcribes audio and images, and proposes edits | the command surface, as one more caller; insertion-only, never a writer |
+| **The phone** (2026-08) | Android, and an iPhone build | the same `dispatch`, in-process |
+| **Updating itself, and releases** (2026-09) | signed manifest, in-place install, rollback | a new crate (`fm-update`) and a transport route; the core does not know |
+| **Sharing with a nearby device** (2026-09) | a second, TLS listener; pairing; a scope per vault | `Scope` in `fm-app`, enforced at the seam |
+| **Mail and calendars** (2026-10-09) | read-only; a conversation becomes a note; the assistant proposes the meetings | notes, and proposals |
+| **Import from Logseq and Obsidian** | a graph becomes notes; block ids resolve to text | the atom, held against the format that most tempts it |
+| **Papers** | a paper is a note with flat metadata; BibTeX in and out | notes |
+| **Food and fitness** (2026-10-11 on) | a logged item is a note with a reserved `log` property and whole-number values; totals, trends, diets and regimes, recipes, a carried food list of 18,300 foods from five national tables, packaged foods by label, barcode or photograph | `fm-query` gained a tally; everything else is notes and views |
+| **Reminders** (2026-10-13) | an unfinished note said at its own date | a read-only command; the platform does the saying |
+| **A website** (2026-10-13) | one short page and the manual, no script | GitHub Pages; nothing the app depends on |
+
+**The scope widened with it.** The plan says "a researcher's notes". The app is now described,
+truthfully, as *a notebook for research and daily life*. That was not a decision taken once; it
+is what the owner used it for.
 
 ## What it is
 
-A local, browser-based tool (a localhost server + your browser): capture ideas fast, retrieve them years later, see the closest deadline, and keep every figure/deck/paper/recording attached to the thought that produced it. Binaries: `fm` (CLI) and `fm-serve` (the local server); the UI is served to your browser.
+A local, browser-based tool (a localhost server + your browser): capture ideas fast, retrieve them years later, see the closest deadline, and keep every figure/deck/paper/recording attached to the thought that produced it. Binaries: `fm` (CLI) and `fm-serve` (the local server); the UI is served to your browser. *(2026-10-14: also `agent-serve`, the optional assistant's supervisor, and on a phone one app that holds the server's part in-process.)*
 
 **The name.** A formicaria is the apparatus you build so that an emergent structure becomes observable — you provide the medium and the glass, the colony digs the tunnels. Notes accumulate; views reveal the structure that formed. Don't impose the taxonomy — build the glass. The binary is `fm` (not `formica` — that's a countertop; and never `ant` — Apache Ant has owned that command for twenty-five years).
 
@@ -65,10 +101,10 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
 | Cloud / proprietary lock-in, weak offline, lossy export | Notion (CSV-not-MD export, CDN images break), Evernote (ENEX loss), Roam, Tana | **Files-as-truth in open Markdown+YAML.** Nothing to export; offline by construction; "leave anytime" is free. |
 | Plugin / ecosystem rot + plugin security holes | Obsidian (Kanban/Projects/Dataview abandoned; community plugins run **unsandboxed with full filesystem + network access to your entire corpus** — a structural supply-chain attack surface) | **No third-party plugin API.** Extension = modular Rust core + declarative `.view` files + a personal Lua hatch. No external maintainers to abandon you; no unsandboxed attack surface. |
 | Block-granularity → forced DB rewrite | Roam (born in it), Logseq (~3-yr rewrite, split user base) | **Atom = the file, never the block.** No per-bullet ids/timestamps — an invariant, enforced. |
-| Multi-user sync-conflict / CRDT complexity; DB-corruption-by-sync | Anytype (custom CRDT, hard self-host), Joplin (spurious conflict storms — its own docs copy the loser to a Conflicts notebook, so the criticism is volume, not loss; verified 2026-09-07 at joplinapp.org/help/apps/conflict), Trilium (generic sync corrupts its live DB) | Single-user; text syncs via git/Syncthing; **the SQLite index is per-machine and NEVER synced**; conflicts surface as Syncthing `.sync-conflict-*` copies, not silent last-write-wins. |
+| Multi-user sync-conflict / CRDT complexity; DB-corruption-by-sync | Anytype (custom CRDT, hard self-host), Joplin (spurious conflict storms — its own docs copy the loser to a Conflicts notebook, so the criticism is volume, not loss; verified 2026-09-07 at joplinapp.org/help/apps/conflict), Trilium (generic sync corrupts its live DB) | Single-user; text syncs via git/Syncthing; **the SQLite index is per-machine and NEVER synced**; conflicts surface as Syncthing `.sync-conflict-*` copies, not silent last-write-wins. *(2026-10-14: no longer single-user and never Syncthing. Text merges through git and the `.md` driver; what cannot merge is a conflict the app shows and lets a person resolve, for every kind git has. The index is still per-machine and never synced.)* |
 | Metadata with no query layer (inert structure) | Dendron | **Query engine + FTS5 is core.** Every frontmatter property is queryable; the whole point is retrieval. |
 | Scale / perf cliffs | Roam (large graphs), TiddlyWiki (single file), Tana | Disposable index, incremental reindex (<10 s @ 10k), viewport-only render decoration, virtualized lists — all as **CI-enforced perf budgets**. |
-| WYSIWYG ↔ Markdown round-trip loss | Joplin (RTE silently drops formatting) | **Markdown is literal truth. v1 edits raw text in a textarea (byte round-trip is free); the read view renders it. v2's CM6 live-preview decorations are a pure view layer, never mutating the doc.** Byte-identical round-trip, guaranteed by construction + a CI fixture test. |
+| WYSIWYG ↔ Markdown round-trip loss | Joplin (RTE silently drops formatting) | **Markdown is literal truth. v1 edits raw text in a textarea (byte round-trip is free); the read view renders it. v2's CM6 live-preview decorations are a pure view layer, never mutating the doc.** Byte-identical round-trip, guaranteed by construction + a CI fixture test. *(2026-10-14: that v2 is what ships, and the sentence held: the decorations are a view layer, line endings and trailing spaces survive, and a test opens and saves notes untouched.)* |
 | Fragile save mechanism | TiddlyWiki (browser file-write hacks kept breaking) | Atomic temp+rename to real files; git auto-commit for undo. |
 | Abandonment = data death | Athens (dead, proprietary-ish graph), Dendron (survived because files were open) | Open format + local files: the *app* can die without taking the notes. OSS so the community can fork (as Trilium→TriliumNext proved). |
 | Onboarding wall | Emacs/Org, Tana, Capacities, RemNote | Capture box always focused; type and go. No object model or keybinding grammar to learn first. |
@@ -83,6 +119,10 @@ app. See `docs/context/features.md` and `decisions.md#track-m`.)*
 - **No *real-time* collaboration.** Still true, and now for a sharper reason than "single-user": real-time needs per-block ids, and **the atom here is the file** — the one invariant that voids this plan if it changes. Asynchronous collaboration *did* ship (Track C, 2026-07-17): a vault is a git repo, a set of vaults is a set of audiences, and concurrent edits merge through the `.md` driver rather than a CRDT. So the accurate line is: two people can edit one note, minutes apart, and both edits survive; they cannot watch each other's cursor. A genuine limitation, not a bug.
 - **No WYSIWYG / block editor.** Markdown stays canonical; a tree-first editor cannot guarantee lossless round-trip. Rejected to avoid Joplin's fidelity problem.
 - **No live-preview editing surface in v1.** You edit raw Markdown in a textarea; the read view renders it beautifully. Live-preview (CM6 decorations) is a v2 upgrade — deferred because it is the single biggest build risk and adds nothing to *capture* or *retrieval*.
+  > **SUPERSEDED 2026-10-11** (`decisions.md#ui`, *the editor renders as you write*). It was built,
+  > in stages, and is the only editor. The risk was real and was met by keeping the note panel's
+  > own save, slash menu and toolbar and putting one small interface between them and the editor.
+  > The bullet above this one — no WYSIWYG, no block editor — stands exactly as written.
 - **No structural query over note *body*.** Only frontmatter is structured-queryable; the body is full-text only (the same constraint Obsidian Bases shipped deliberately). If you want to filter on something, it goes in frontmatter.
 - **No third-party plugin API — ever.** You have no strangers; you have git and an editor. Obsidian's unsandboxed plugin model is exactly the attack surface a single-user tool never has to open.
 - **No telemetry, ever** — not even opt-in. No accounts, no hosted anything, ~~no AI features in v1 (revisit once the core is boring and stable)~~.
@@ -93,6 +133,16 @@ app. See `docs/context/features.md` and `decisions.md#track-m`.)*
   > **on the user's own device**, there is no account and no API key, notes never leave the machine,
   > it is **off by default**, and it can only reply or propose a change a human accepts — never
   > write to a note itself. *No hosted anything* stands unchanged.
+  >
+  > **What the app sends anywhere, in full, 2026-10-14.** Still no telemetry and no account of
+  > ours. But "offline by construction" needs a list now, because the app can reach out in six
+  > named cases, each one the person's act or switch: (1) **your own git remote**, when you back
+  > up; (2) **the update check**, on by default with one switch, which asks GitHub's release page
+  > which version is newest and sends nothing about you; (3) **the assistant's downloads**, once,
+  > when you turn it on; (4) **the assistant's web search**, when you ask it to research; (5)
+  > **your calendars' addresses and your Gmail**, read-only, if you connect them — the one place a
+  > third party's account appears, and it is yours; (6) **Open Food Facts**, one product's barcode
+  > number, when you press *Look it up*. Nothing else leaves, and nothing is fetched to draw a page.
 - **No app-level encryption.** Full-disk encryption is the OS's job (LUKS); the app does it worse. And **vendor every asset locally — no CDN calls, ever** (a CDN seeing what you load is the exact lock-in failure that broke Notion's images).
   > **One exception, 2026-09-02** (`decisions.md#agent`): the optional assistant's runtime and model
   > weights are **fetched on demand**, from GitHub releases and Hugging Face, into the user's own
@@ -108,9 +158,9 @@ app. See `docs/context/features.md` and `decisions.md#track-m`.)*
 
 ```
  Browser UI     board · agenda/calendar · timeline · activity · discussions · search
-                                                        ← cheap, swappable (a query + a renderer)
+                · totals · trends (2026-10)             ← cheap, swappable (a query + a renderer)
                 (gallery was built and then removed — see the renderer table below)
-      │  transport: fm-serve HTTP /api/<cmd>  (prod)  ·  in-memory mock  (dev/test)
+      │  transport: fm-serve HTTP /api/<cmd>  (desktop)  ·  in-process dispatch (phone)  ·  in-memory mock  (dev/test)
  query engine   filter · sort · generic group-by         ← THE STABLE CORE. Touches no filesystem, ever.
    ── Store seam ─────────────────────────────────────   ← SEAM 1 (compile-time guarded)
       ├─ MemoryStore  (tests, zero I/O)
@@ -122,6 +172,13 @@ app. See `docs/context/features.md` and `decisions.md#track-m`.)*
                                                           `agents/models.toml`), not pinned by pixi — so their provenance is checked by
                                                           us rather than by the package manager. See `decisions.md#agent`.
 ```
+
+**The seams held (2026-10-14).** Every arrival in *What the plan never foresaw* went in above
+the query engine or beside the server, and `fm-query` still cannot open a file. What grew is a
+fourth thing the diagram does not show: **transport routes that are deliberately not commands**
+— the assistant's switch, updating, pairing, calendars and mail, the barcode look-up, reminders,
+reading a label. They live in `fm-serve` and the phone shell because each needs the network, a
+process or the machine, none of which may enter `fm-app`.
 
 **Seam 1 is made structural, not conventional:** the pure crates (`fm-model`, `fm-query`) do not depend on `rusqlite`, `std::fs`, or any path type, so the query engine *cannot* do I/O — it fails to compile if it tries. CI adds belt-and-suspenders greps. This is the insurance policy that turns a future storage swap into a backend change instead of Logseq's three-year rewrite.
 
@@ -151,6 +208,15 @@ The GAE lambda seems to interact badly with inner-loop adaptation. $\lambda = 0.
 - **No `priority` field, ever.** Urgency is computed: `overdue > soon > this-week > later > none`; `hard` breaks ties and is flagged so a fixed deadline never hides behind slipping soft ones.
 - **The soft `due` field is the priority dial** — nudging it forward *is* reprioritizing, so editing `due` is a one-keystroke gesture (`d` to set, `[`/`]` to ±1 day).
 - A meeting is a note with `type: meeting` and a date; it appears in the agenda.
+
+**What was added to the model, and what was not (2026-10-14).** No new kind of object: a paper,
+a meeting from mail, a logged food, a set in a training session, a recipe, a routine, a diet
+being followed, a packaged food — each is a note, told apart by a **reserved property** (`log`,
+`recipe`, `routine`, `product`, `plan`, `profile`) or a tag. Two rules joined the ones above.
+**A quantity is a whole number with its unit in the key** (`kcal`, `protein_mg`, `amount_g`,
+`amount_ml`), so sums are exact and nothing is a float; a millilitre is never turned into a
+gram. **And a number has a source or it is not there**: a food's figures are its table's, a
+label's are the packet's, and what is unknown is left empty and said to be, never estimated.
 
 **The granularity landmine — read before agreeing.** "Atom = the file" is load-bearing and enforced. The trap is "every message should have a timestamp, like a GitHub comment": if *message* = a note (one file), it's safe — frontmatter carries `created`/`updated` natively, and per-entry timestamps come free by making entries *files* (capture writes a new small file; file mtime is entry mtime). But if *message* = a bullet inside a note, you have just specified block granularity — per-bullet ids/timestamps that standard Markdown cannot carry — which is exactly the atom that forced Logseq's three-year rewrite. If you ever want per-bullet ids, per-bullet timestamps, or block-level backlinks: **stop.** That is not a feature request; it changes the atom and voids this plan.
 
@@ -184,7 +250,7 @@ formicaria/                    # the application (Rust workspace + frontend) —
     └── .gitignore              # blobs/, derived/, index.sqlite
 ```
 
-- **Heavy/media files are never git-tracked** (a `.githooks/pre-commit` 5 MB guard enforces it) and live on their own volume.
+- **Heavy/media files are never git-tracked** (a `.githooks/pre-commit` 5 MB guard enforces it) and live on their own volume. *(2026-10-14: true of the **application's** repository, where the hook lives. In a **vault** it was reversed: attachments under `git_assets_max` are tracked, so a photograph taken on the phone reaches the computer with the backup; the ceiling is 100 MB and there is no git-lfs. The `blobs/ … Syncthing-synced` line in the tree above is wrong on both counts.)*
 - **Media absence must never block the tool.** A missing blob is a warning, not an error: every surface (read-view widget, card chip, gallery tile) renders a shared "asset not found" placeholder and keeps working. `verify` reports missing blobs; nothing auto-deletes.
 
 ---
@@ -203,7 +269,7 @@ Efficiency, ease-of-use, open-source, cutting-edge-but-well-used. Licenses vette
 | tauri-plugin-global-shortcut | 2.3.2 | `⌘/Ctrl+Space` always-focused capture from anywhere. | MIT/Apache-2.0 |
 | tauri-plugin-opener | 2.5.4 | OS handoff (`xdg-open`) for non-web-native formats. | MIT/Apache-2.0 |
 | **rusqlite** (`bundled`) | 0.40.1 | Compiles SQLite into the binary (no cgo, no runtime dep); **FTS5 on by default**. | MIT |
-| serde + **serde_yaml_ng** | 1.0.228 / 0.10.0 | Frontmatter. (`serde_yaml` is **deprecated/archived** — do not use.) | MIT/Apache |
+| serde + **serde_yaml_ng** | 1.0.228 / 0.10.0 | Frontmatter. (`serde_yaml` is **deprecated/archived** — do not use.) *(2026-10-14: the fork rests on `unsafe-libyaml`, itself archived; `deny.toml` waives the advisory since 2026-10-12 and replacing the parser is queued. The warning in this cell caught up with its own answer.)* | MIT/Apache |
 | ulid | 2.0.1 | Time-sortable stable ids. | MIT |
 | sha2 | 0.11.0 | sha256 content addressing — verifiable with `sha256sum` forever (chosen over blake3 for universality). | MIT |
 | infer | 0.19.0 | Pure-Rust MIME sniff (no libmagic C dep) — never trust extensions. | MIT |
@@ -227,7 +293,7 @@ Efficiency, ease-of-use, open-source, cutting-edge-but-well-used. Licenses vette
 | **@excalidraw/excalidraw** | 0.18.1 | Freeform canvas as standalone `.excalidraw` JSON assets — **replaces tldraw** (source-available/watermarked; a 10-yr landmine). | v1 | MIT |
 | @atlaskit/pragmatic-drag-and-drop | 2.0.1 | Board/gallery DnD; framework-agnostic. | v1 | Apache-2.0 |
 | @tanstack/svelte-virtual | 3.13.32 | Virtualized gallery grid + long lists. | v1 | MIT |
-| **CodeMirror 6** (`@codemirror/view` etc.) | view 6.43.x | Live-preview *editing surface* — the only editor that keeps the Markdown file itself as literal truth (byte round-trip). | **v2** | MIT |
+| **CodeMirror 6** (`@codemirror/view` etc.) | view 6.43.x | Live-preview *editing surface* — the only editor that keeps the Markdown file itself as literal truth (byte round-trip). | **v2** — *shipped 2026-10-11, the only editor* | MIT |
 | @codemirror/lang-markdown + @lezer/markdown | 6.5.0 / 1.7.1 | GFM + custom math/wikilink Lezer extensions (for the v2 live-preview editor). | **v2** | MIT |
 | MathLive | 0.110.0 | Optional interactive equation-input widget. | **v2** | MIT |
 
@@ -241,7 +307,7 @@ Efficiency, ease-of-use, open-source, cutting-edge-but-well-used. Licenses vette
 | **vipsthumbnail** (libvips) | Image/video thumbnails for the gallery. | LGPL — subprocess sidesteps relink duties; avoids libvips thread-safety issues. |
 | **restic** | Backup: dedup + encryption + integrity + remote. `restic check --read-data` = the bit-rot scrub. | BSD-2 |
 | **git** | History/undo (auto-commit) + text merge on sync. | GPL — via `git2` (linking-exception) or subprocess. |
-| **Syncthing 2.x** | Whole-vault + media sync across your machines; conflicts kept as `.sync-conflict-*` copies. | MPL-2.0 |
+| ~~**Syncthing 2.x**~~ | ~~Whole-vault + media sync across your machines; conflicts kept as `.sync-conflict-*` copies.~~ *Never adopted (2026-10-14): git and restic do this.* | MPL-2.0 |
 | tesseract *(v2)* · ffmpeg *(v2)* | OCR of scanned PDFs; video poster frames. | Apache / LGPL — subprocess only. |
 
 ---
@@ -304,6 +370,13 @@ lint     = "cargo deny check && cargo clippy -- -D warnings"
 seam     = "cargo test -p fm-query"          # the zero-I/O seam suite
 ```
 
+**What the sketch became (2026-10-14).** Four platforms (`linux-64`, `osx-arm64`, `osx-64`,
+`win-64`) and three environments: `default`, `android` (the NDK and a JDK) and `cross` (the iOS
+and other targets' `rust-std`). `pixi run ci` is the single gate. **And the environment is no
+longer the runtime for anyone but a developer**: a released archive carries the server with the
+page inside it, runs with no pixi on the machine, and degrades by name where a tool like
+`pdftotext` is absent.
+
 **Runtime, not just build.** Because pixi pins the subprocess tools, `pixi run serve` (or `pixi shell`) puts the *exact* `pdftotext`/`vipsthumbnail`/`restic` on `PATH` regardless of what apt has — so "search inside every paper" and the bit-rot scrub behave identically on every machine and in CI. For a distributable `.deb`, declare these as Debian runtime deps instead; for the single owned machine that is v1, the pixi environment *is* the runtime.
 
 **Consequences woven into the rest of the plan:**
@@ -321,6 +394,7 @@ Three crates so seam 1 is a compile-time guarantee:
 - **`fm-query`** — pure query engine: `Query`/`Filter`/`Predicate`/`SortKey`, `engine::run`, generic `group()`. No fs, no db.
 - **`fm-core`** — everything with I/O: `Store` trait, `MemoryStore`, `FileStore` (frontmatter + atomic write + SQLite/FTS5 index + reindex), `ingest`, `blob`, `verify` + manifest, `history` (git), `backup` (restic), `view`, `script` (mlua, `#[cfg(feature="lua")]`).
 - Plus **`fm-cli`** (`fm add|reindex|verify|manifest|backup|restore|check`), **`fm-app`** (the command *library* — `commands` + DTOs), and **`fm-serve`** (the HTTP server that fronts those commands to the browser: std-only in its own right, and since 2026-09-02 linking `fm-agent-run` for the optional assistant, which brings a TLS client and archive readers with it — `--no-default-features` is the std-only build the rest of this paragraph describes).
+- **Added since (2026-10-14):** **`fm-fetch`** — the one HTTPS client, shared by the updater, the look-ups and the readers of mail and calendars, so "no HTTP client in `fm-app`" stays checkable; and **`fm-update`** — finding, verifying, installing and undoing a release. Inside `fm-app`, the modules that are not in this plan: `thread`/proposals, `paper`, `import`, `log` and `plan` (the trackers), `packs` (the carried food list, a read-only SQLite file with its own FTS), `product`, `reminders`. `fm-serve` is "std-only" only with every feature off; as released it links TLS, the updater and the assistant.
 - And the **optional assistant**, off by default and excluded by one cargo feature: **`fm-agent`** — pure orchestration (the model and the web sit behind traits), plus the resource watchdog and admission gate that are the **only per-OS `cfg` arms in the workspace**; and **`fm-agent-run`** — the concrete runtime: the `agent-serve` supervisor, the model catalogue (`agents/models.toml`), the checksum-verified downloader and the in-process web search. Neither is on the note path: build without `agent` and the core is byte-identical.
 
 **The seam:**
@@ -350,6 +424,11 @@ lock-free `POST /api/alive` beat — it used to ride this poll, which is why the
 ---
 
 ## Frontend architecture
+
+> **This section describes the editor as it was until 2026-10-11.** The right-hand box in the
+> diagram is what ships; the left-hand one is gone. What carried over unchanged is everything
+> under it: the 500 ms debounce, the atomic write, both staleness guards, and the round-trip
+> invariant, now proven against CodeMirror as the last bullet said it would be.
 
 **Editor & read view (v1) — split, not live-preview.** The single biggest build risk (a CM6 live-preview decoration layer) is deferred to v2. v1 ships two low-risk pieces behind one Markdown-as-truth invariant:
 
@@ -381,8 +460,12 @@ lock-free `POST /api/alive` beat — it used to ride this poll, which is why the
 | **timeline** | all, created desc | a Logseq-style journal grouped by creation day |
 | ~~**gallery**~~ | `type=asset` | ~~grid of thumbnails~~ **Removed.** Built, shipped, then withdrawn: assets are reached from the notes that use them, and a wall of thumbnails detached from their notes answered no question anyone had. The `gallery` *command* survives (`fm-cli` and the asset pickers use it); a `.view` asking for `gallery` renders as a timeline. `list_views` reports it as an error. |
 | **search** | `Text` predicate (FTS5) | full-text results across notes + extracted PDF text |
+| **totals**, **trends** *(2026-10-11)* | a view's log, a span of days | what a day's entries come to against its targets, and one value over weeks. The sums are `fm-query`'s tally; the renderers name no nutrient and no exercise, as the board names no status. |
 
-**Commands** (query engine stays in Rust; the frontend calls **named commands** with simple args — the `Query` struct is built server-side, never sent). The real surface is now ~30 and its authoritative list is the `match` in **`fm_app::dispatch`** (`crates/fm-app/src/dispatch.rs`) — restating it here is how this line went stale. Every frontend reaches it through that one function; `fm-serve` only frames HTTP. (`reindex`/`verify`/`manifest` are CLI-only; reindex also happens implicitly on `FileStore::open`.) `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
+*(2026-10-14: there are also `activity` and `discussions`, and a calendar inside agenda. "Five"
+was the count on the day; the point of the table is the second column, and it has held for nine.)*
+
+**Commands** (query engine stays in Rust; the frontend calls **named commands** with simple args — the `Query` struct is built server-side, never sent). The real surface is now ~30 *(117 on 2026-10-14; `ci/checks.sh` fails when the command reference and the `match` disagree, so the number is checked rather than restated)* and its authoritative list is the `match` in **`fm_app::dispatch`** (`crates/fm-app/src/dispatch.rs`) — restating it here is how this line went stale. Every frontend reaches it through that one function; `fm-serve` only frames HTTP. (`reindex`/`verify`/`manifest` are CLI-only; reindex also happens implicitly on `FileStore::open`.) `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
 
 **Asset resolution + graceful absence:** `asset:sha256-…` → a **`GET /api/blob/<reference>`** URL, streamed from disk with `Range` support and handed straight to the element (so seeking a video costs one range request, not a whole-file download). `resolve_asset` — whole file into memory, wrapped in an object URL — remains only for thumbnails and for a frontend with no HTTP route to stream from. The read view renders by sniffed MIME with **native browser elements** — `<img>`, a scrollable `<iframe>` for PDF, `<video>`/`<audio>` — no JS media libraries. `asset_status` reports `has_blob:false` (not synced yet) → shared `AssetMissing` placeholder; try/catch in the resolver. Nothing crashes. Authoring: drag a file into the editor or type `/` to search-and-insert an asset.
 
@@ -401,7 +484,7 @@ lock-free `POST /api/alive` beat — it used to ride this poll, which is why the
 ## Sync, backup, durability
 
 - **git** for note text (undo + non-overlapping merge). Auto-commit (500 ms→disk, 30 s/blur→commit) buys undo, **not** readable history — accepted. *(Corrected 2026-09-04: the shipped numbers are 500 ms to disk and **5 s to commit, with no blur handler at all**. And since 2026-07-18 `commit_all` stages exactly the paths `put`/`delete` recorded — so a note you are hand-editing in Vim is never swept into a commit mid-sentence, and is also never versioned by the app. **Files are never at risk; commits can lag.** Do not restate that as "history is always safe".)*
-- **Syncthing 2.x** for the whole vault incl. media; genuine conflicts become `.sync-conflict-*` copies (surfaced, not silently lost). **No CRDT** (single user; not worth the cost). **The index is never synced** (Trilium's DB-corruption lesson) — each machine rebuilds it.
+- **Syncthing 2.x** for the whole vault incl. media; genuine conflicts become `.sync-conflict-*` copies (surfaced, not silently lost). **No CRDT** (single user; not worth the cost). **The index is never synced** (Trilium's DB-corruption lesson) — each machine rebuilds it. *(2026-10-14: Syncthing was never built. **Backing up is the sync**: it gets the other side's changes, merges, then sends — one act on every platform, and since 2026-10-11 it happens by itself. Still no CRDT, and the index is still never synced.)*
 - **restic** to an external drive + an rclone/S3 remote (3-2-1). `restic check --read-data` on a schedule = bit-rot scrub. **Test the restore in month one** — an untested backup is not a backup.
 
 ## Cross-domain ideas adopted
@@ -431,7 +514,8 @@ OCI-style signed integrity manifest (bit-rot inventory) · git loose→packed li
 > **Do not read this section as current.** It is dated 2026-07-14 — the day the plan was written —
 > and it is a snapshot of that day, under a heading a reader will reasonably trust. Everything
 > after it has moved: Android and iOS exist, the assistant exists, the gallery does not, and the
-> command surface is 81 rather than "~30".
+> command surface is 81 rather than "~30". *(117 by 2026-10-14, with one editor, public releases
+> and the trackers besides.)*
 >
 > **For what works today, read [`docs/context/features.md`](../docs/context/features.md)** — one
 > row per feature with a status, kept current as part of finishing any piece of work. For what
@@ -475,6 +559,24 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 5. **Cross-store query drift** (FTS5 tokenizer vs substring scan) → pin `unicode61 remove_diacritics 2`; equivalence test catches regressions.
 6. **CM6 live-preview decoration layer (v2 risk).** No turnkey lib; ~1,200–1,800 LOC; highest build risk in the whole project — which is exactly why it is deferred out of v1. When built: one element at a time, each round-trip-tested; stays in 16 ms via viewport-only iteration, `WidgetType.eq()`, incremental reparse, LRU KaTeX cache.
 
+**Risks the plan did not rank, because they did not exist (added 2026-10-14):**
+
+7. **Releases reach a phone before anyone has tried them on one.** The house rule is to test on
+   the phone before tagging; 0.7.0 to 0.8.1 went out at the owner's word without it, each saying
+   so in its notes. The automated suite and a browser at a phone's width are what stood in. This
+   is the largest gap between what is claimed and what is known.
+8. **macOS, Windows and iPhone are built and never used.** They compile, their archives are
+   tested updating themselves, and nobody runs them daily.
+9. **A model's output reaching a number.** The assistant now reads nutrition labels. The answer
+   is structural — the model transcribes, code reads the figures, a person saves — and fitness is
+   a measurement per model, written in the catalogue: the phone's model failed it and is not
+   asked. The risk is the next feature that skips one of those three.
+10. **The YAML parser rests on unmaintained code** (waived advisory, 2026-10-12). Every note
+    passes through it.
+11. **The sum of small additions.** Each of the eleven arrivals above was justified locally.
+    `CLAUDE.md`'s four questions exist because nothing else checks the total against what this
+    document said the tool would not become.
+
 ## Verification (how to prove each slice works end-to-end)
 
 - **S0/S2:** capture a note in the app → confirm a real `.md` file with correct frontmatter appears under `vault/notes/` → edit the same file in Vim → trigger poll/reindex → change is reflected in the app (proves external-edit path). Byte-round-trip CI test: `read → store → read === original bytes` (textarea path).
@@ -492,9 +594,19 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
   compilation and the memory reading are verified — which is exactly the gap this criterion exists
   to make visible rather than comfortable.
 
+- **S8 — a release updates itself (added 2026-10-14).** From the previous release's published
+  archive, with no checkout: the app finds the new version, fetches and verifies it against the
+  signed manifest, installs it in place, runs, and goes back. **Passes on Linux, macOS and Windows
+  on every release**, run by the release itself. On Android the same path has been run by hand.
+- **S9 — the phone, by hand (added 2026-10-14, and mostly unmet).** Install the signed build by
+  cable, open a large note and type, add a photograph, back up, log a meal. This is the criterion
+  risk 7 says has been skipped since 0.7.0.
+
 ## Deferred (v2+)
 
 **CM6 live-preview editing surface** (the decoration layer — the biggest single build risk) · Wikilink *backlinks panel* · ⌘K command palette polish · watched inbox · OCR (tesseract) · pptx/docx extraction (pandoc) · GC (report+quarantine only) · phone/remote access (auth) · MathLive equation editor · semantic search. *(Shipped since this list was written: the month/week calendar, the timeline/journal, search, the properties editor, asset drag/slash authoring, inline PDF/video/audio, one-click backup + git auto-commit, `.view` config files, and the streaming blob route.)*
+
+*(2026-10-14: from the list itself, the **CM6 editing surface** and **phone/remote access** have shipped. Still deferred: the backlinks panel, a watched inbox, OCR through tesseract, pptx/docx extraction, garbage collection of blobs, MathLive, semantic search. What is actually queued now is none of those — it is in [`docs/context/outstanding.md`](../docs/context/outstanding.md): a paper reader with annotations, the assistant settling a photographed label on its own, a model that can read labels on the phone, more national food tables, replacing the YAML parser, and trying each release on a phone.)*
 
 ---
 
@@ -517,6 +629,10 @@ Files-as-truth with a file-level atom is the right call, but it has costs. Accep
 | Filesystem quirks | Case-insensitivity, path length, unicode normalization | Filenames are **display only**; the id is truth; sanitize aggressively |
 | Auto-commit ≠ readable history | Thousands of `auto:` commits; `git log` is noise | Accepted — you bought *undo/crash-safety*, not a narrative. Don't build "commit management" |
 | No *real-time* collaboration, ever | The atom is the file; real-time needs per-block ids | Still a non-goal — but **asynchronous** collaboration shipped (Track C): git remotes, the `.md` merge driver, per-vault audiences. Do not revisit the real-time half |
+| Whole numbers only *(2026-10-14)* | A value is an integer with its unit in the key; `12.5` is reported and never added | Exact sums, no rounding drift; pick the unit small enough (`_mg`, `_ug`) |
+| One note per logged item *(2026-10-14)* | A day of eating is a dozen small files; a training session, one per set | It is why a half-finished session is never lost and why two devices merge a day cleanly. The index makes it cheap; the file count is the price |
+| A draft is not a note *(2026-10-14)* | What is typed into an unfinished form is kept on that device only: not backed up, not on the phone's twin | Said in the form. Anything that should travel is written as a note first, as a recipe now is |
+| What a model can do is measured, per model *(2026-10-14)* | A feature can exist on the computer and be refused on the phone | The refusal names the model and the numbers; the picture is kept so a fitter one can do it later |
 
 ---
 
