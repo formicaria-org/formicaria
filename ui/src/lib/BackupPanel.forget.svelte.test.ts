@@ -8,9 +8,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { backupStatus, forgetVault } = vi.hoisted(() => ({
+const { backupStatus, forgetVault, listVaults } = vi.hoisted(() => ({
   backupStatus: vi.fn(),
   forgetVault: vi.fn(),
+  listVaults: vi.fn(),
 }));
 // Spread the real module and override only these two: the panel pulls in `sync.svelte.ts`, which
 // imports `push` — a hand-listed factory silently drops whatever the import graph also needs, and
@@ -19,6 +20,7 @@ vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   backupStatus,
   forgetVault,
+  listVaults,
 }));
 
 import BackupPanel from './BackupPanel.svelte';
@@ -35,8 +37,14 @@ const vault = (name: string, remote: string | null) => ({
   git_assets_max: null,
 });
 
+/// The vault list as `list_vaults` answers it — the same vaults `backup_status` reports, unless a
+/// test says otherwise.
+const listed = (...names: string[]) =>
+  names.map((name) => ({ name, path: `/home/x/${name}`, supervision: {} }));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  listVaults.mockResolvedValue(listed('vault', 'notes'));
   backupStatus.mockResolvedValue({
     vaults: [vault('vault', 'https://example.org/v.git'), vault('notes', null)],
     git: true,
@@ -121,5 +129,25 @@ describe('removing a vault', () => {
     await fireEvent.click(await screen.findByRole('button', { name: /Yes, remove it/i }));
 
     await waitFor(() => expect(onvaults).toHaveBeenCalled());
+  });
+});
+
+/// **A vault whose folder is gone is still on this screen, and still removable** (2026-10-15).
+/// `backup_status` knows only vaults that opened, so a vault whose folder went to the Trash used to
+/// vanish from here along with the one button that takes it off the list.
+describe('a vault that could not be opened', () => {
+  it('is named with its folder, and can be removed from the list', async () => {
+    listVaults.mockResolvedValue(listed('vault', 'notes', 'gone'));
+    forgetVault.mockResolvedValue({ forgotten: 'gone', path: '/home/x/gone', notes: 0 });
+    render(BackupPanel, {});
+
+    expect(await screen.findByText(/could not be opened/)).toBeTruthy();
+    expect(screen.getByText('/home/x/gone')).toBeTruthy();
+    const buttons = screen.getAllByRole('button', { name: /Remove this vault from the list/ });
+    // One per vault: the two that opened, and the one that did not.
+    expect(buttons).toHaveLength(3);
+    await fireEvent.click(buttons[2]);
+    await fireEvent.click(screen.getByRole('button', { name: 'Yes, remove it' }));
+    await waitFor(() => expect(forgetVault).toHaveBeenCalledWith('gone'));
   });
 });

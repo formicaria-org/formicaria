@@ -92,6 +92,17 @@ impl MultiStore {
         let mut open = Vec::new();
         let mut unopened = Vec::new();
         for (name, path) in vaults {
+            // **A vault whose folder is gone is named, not recreated.** Opening creates `notes/`,
+            // so a folder deleted or moved away came back *empty* on the next start — a vault with
+            // its usual name and nothing in it, which reads exactly like lost notes (found by the
+            // owner, 2026-10-15). Every caller that means to create a vault makes its folder first.
+            if !path.as_ref().exists() {
+                unopened.push((
+                    name.clone(),
+                    format!("its folder is not there ({})", path.as_ref().display()),
+                ));
+                continue;
+            }
             let opened = match cold {
                 ColdStart::Rebuild => FileStore::named(path, name.clone()),
                 ColdStart::TrustIndex => FileStore::named_incremental(path, name.clone()),

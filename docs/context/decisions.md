@@ -111,7 +111,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): ***A vault holds every byte it owns; an import copies its attachments*** (2026-10-15; reverses the same day's hard links — read before letting a blob share storage with a file outside the vault) · ***Gmail is read with the person's own Google client*** (2026-10-09, superseded in part; read before touching `fm-serve/src/mail.rs`, its scope or its `ci/checks.sh` guard) · ***One optional third-party key, and it is a place you added*** (2026-09-12) · *The places to check are a note, not configuration* (2026-09-12; a *private* calendar address is the exception — it is a secret) · ***A snapshot says what it held, and "restic did not say"
+- **`#vault`** (audience/cross-vault): ***A vault whose folder is gone is named, never recreated empty*** (2026-10-15; read before making `open` create anything) · ***A vault holds every byte it owns; an import copies its attachments*** (2026-10-15; reverses the same day's hard links — read before letting a blob share storage with a file outside the vault) · ***Gmail is read with the person's own Google client*** (2026-10-09, superseded in part; read before touching `fm-serve/src/mail.rs`, its scope or its `ci/checks.sh` guard) · ***One optional third-party key, and it is a place you added*** (2026-09-12) · *The places to check are a note, not configuration* (2026-09-12; a *private* calendar address is the exception — it is a secret) · ***A snapshot says what it held, and "restic did not say"
   is its own answer*** (read before touching `backup::backup`'s return, the `--json` parse, or any
   surface that describes a snapshot) · ***A backup surface that cannot say* when *is not a backup
   surface*** (read before adding a field to `backup_status`, or before folding a per-vault restic
@@ -10996,3 +10996,16 @@ settings (*Backup settings…*), and Settings still held actions — the embedde
 
 **Read before** adding a button that *does* something to Settings, or a settings link to the Back
 up menu.
+
+## 2026-10-15 — a vault whose folder is gone is named, never recreated empty `#vault` `#seams`
+
+Found by the owner: they moved a vault's folder to the Trash, and asked whether that removed it from
+the list. It does not — and on the next start, opening the vault **created the folder again,
+empty**, so the app showed a vault with its usual name and no notes: the shape of data loss.
+`MultiStore::open_with` now names a vault whose folder is not there as unopened ("its folder is not
+there (…)"), the existing *named, never dropped* rule, and creates nothing. Every caller that means
+to make a vault creates its folder first (`create_vault`, `import_into_new_vault`, the phone's first
+default, the shells' test fixtures). Settings → Vaults & backup lists such a vault with its folder
+and **Remove this vault from the list…**, which it used to drop along with the vault.
+
+**Read before** making `open` create anything, or listing vaults from `backup_status` alone.

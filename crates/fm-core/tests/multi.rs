@@ -10,6 +10,10 @@ fn two_vaults() -> (tempfile::TempDir, MultiStore) {
     let dir = tempdir().unwrap();
     let personal = dir.path().join("personal");
     let lab = dir.path().join("lab");
+    // Made first, as every real caller does: opening does not create a vault folder that is not
+    // there — it names it as unopened (`a_vault_whose_folder_is_gone_is_named_and_not_recreated`).
+    std::fs::create_dir_all(&personal).unwrap();
+    std::fs::create_dir_all(&lab).unwrap();
     let m = MultiStore::open(&[("personal".into(), &personal), ("lab".into(), &lab)]).unwrap();
     (dir, m)
 }
@@ -174,6 +178,7 @@ fn add_makes_a_vault_live_without_a_restart() {
     let dir = tempdir().unwrap();
     let (personal, lab) = (dir.path().join("personal"), dir.path().join("lab"));
 
+    std::fs::create_dir_all(&personal).unwrap();
     let mut m = MultiStore::open(&[("personal".into(), &personal)]).unwrap();
     let mut mine = Object::new(Kind::Note, "before the lab existed");
     m.put(&mine).unwrap();

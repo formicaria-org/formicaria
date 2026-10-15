@@ -114,6 +114,12 @@
   /// it is now produced. It used to be reported by *both*, refreshed at different moments, so the
   /// two screens could disagree about the same field. Merged here, once, rather than at eighteen
   /// call sites.
+  /// **Vaults in the list that could not be opened** — a folder deleted, moved or unreadable. Not
+  /// in `backup_status`, which only knows vaults that opened, so without this a vault whose folder
+  /// went to the Trash vanished from this screen along with the one button that removes it.
+  const unopened = $derived(
+    status ? (vaultList() ?? []).filter((i) => !status!.vaults.some((v) => v.name === i.name)) : [],
+  );
   const vaults = $derived(
     (status?.vaults ?? []).map((s): PanelVault => {
       const info = vaultList()?.find((v) => v.name === s.name);
@@ -744,6 +750,39 @@
       {:else if v.remote_moved}
         <p class="moved">Someone has sent work you don't have yet.</p>
       {/if}
+    </div>
+  {/each}
+
+  {#each unopened as u (u.name)}
+    <div class="vault">
+      <h3>{labelFor(u.name)}</h3>
+      <p class="error">
+        This vault could not be opened, so its notes are not showing: its folder is missing or
+        cannot be read — <code>{u.path}</code>. If you deleted or moved it, remove it from the list;
+        if it is back where it was, it opens again next time.
+      </p>
+      <div class="forget">
+        {#if confirmForget === u.name}
+          <span class="muted">
+            Remove “{labelFor(u.name)}” from this device's list? Nothing is deleted.
+          </span>
+          <button type="button" onclick={() => doForget(u.name)} disabled={busy}>
+            Yes, remove it
+          </button>
+          <button type="button" onclick={() => (confirmForget = null)} disabled={busy}>
+            Cancel
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="quiet"
+            onclick={() => (confirmForget = u.name)}
+            disabled={busy}
+          >
+            Remove this vault from the list…
+          </button>
+        {/if}
+      </div>
     </div>
   {/each}
 

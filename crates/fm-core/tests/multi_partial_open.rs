@@ -49,3 +49,22 @@ fn all_good_vaults_report_nothing_unopened() {
     assert_eq!(store.names(), vec!["a", "b"]);
     assert!(store.unopened().is_empty(), "the normal case says nothing");
 }
+
+/// **A vault whose folder was deleted is named, not recreated empty.** Opening used to create the
+/// folder again, so the next start showed a vault with its usual name and no notes — the shape of
+/// data loss, for a folder the person had simply moved to the Trash (2026-10-15).
+#[test]
+fn a_vault_whose_folder_is_gone_is_named_and_not_recreated() {
+    let dir = tempfile::tempdir().unwrap();
+    let good = dir.path().join("good");
+    std::fs::create_dir_all(good.join("notes")).unwrap();
+    let gone = dir.path().join("gone");
+
+    let store = MultiStore::open(&[("good".to_string(), good), ("gone".to_string(), gone.clone())])
+        .unwrap();
+
+    assert_eq!(store.names(), vec!["good"]);
+    assert_eq!(store.unopened().len(), 1);
+    assert!(store.unopened()[0].1.contains("not there"), "{:?}", store.unopened());
+    assert!(!gone.exists(), "the folder was not created again");
+}

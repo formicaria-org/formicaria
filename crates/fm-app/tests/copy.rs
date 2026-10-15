@@ -21,6 +21,11 @@ fn two() -> (tempfile::TempDir, MultiStore, Vec<(String, PathBuf)>) {
     let dir = tempfile::tempdir().unwrap();
     let personal = dir.path().join("personal");
     let lab = dir.path().join("lab");
+    // Made first, as every real caller does: opening no longer creates a vault folder that is not
+    // there (`MultiStore::open_with` names it instead).
+    for v in [&personal, &lab] {
+        std::fs::create_dir_all(v).unwrap();
+    }
     let m = MultiStore::open(&[("personal".into(), &personal), ("lab".into(), &lab)]).unwrap();
     let paths = vec![("personal".to_string(), personal), ("lab".to_string(), lab)];
     (dir, m, paths)
