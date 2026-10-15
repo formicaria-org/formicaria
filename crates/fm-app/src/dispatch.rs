@@ -540,6 +540,10 @@ const READ_ONLY: &[&str] = &[
     "proposal_diff",
     "proposal_content",
     "proposal_for",
+    // Writes only the first time a proposal is shown, and bumps from inside its arm then, like
+    // `ping`. Bumping on every call fed a loop (2026-10-15): an open review re-recorded its showing
+    // on each refresh, the bump made the next beat refresh again, and the view flickered every 15 s.
+    "proposal_shown",
     "asset_status",
     "resolve_asset",
     // A `store.get` and a `format!`. Absent from this list, copying a citation bumped the
@@ -1391,6 +1395,7 @@ fn dispatch_inner(
             let mut g = lock()?;
             let wrote = commands::mark_proposal_shown(&mut g.store(scope), &id).map_err(err)?;
             if wrote {
+                app.bump();
                 g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
                 // Only on the first sighting, so this is one commit per proposal and not one per
                 // render — and, like the reject record, it must not depend on the tab outliving it.

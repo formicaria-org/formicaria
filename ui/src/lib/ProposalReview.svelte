@@ -11,6 +11,8 @@
     proposalShown,
   } from './ipc';
   import type { ProposalDiff, ProposalContent } from './types';
+  import { formatStamp, toStamp } from './stamp';
+  import LiveEditor from './editor/LiveEditor.svelte';
 
   // `onaccepted`/`onrejected` let the parent (the Collaboration list) refresh once a proposal is
   // merged or discarded.
@@ -28,15 +30,77 @@
   // rebuilds the branch from the current `main` (through create_proposal), which also RESOLVES a stale
   // conflict — the fix for "it doesn't merge cleanly and I have no way to change it".
   //
-  // This is a DELIBERATELY MINIMAL quick-edit (a plain textarea over the proposed markdown), NOT the
-  // app's primary editor. The powerful in-app editor lives in NotePanel; for a heavier revision, refine
-  // the proposal by replying in the note's discussion (@name /research|/propose) or accept then edit the
-  // note. Kept here so a small tweak/conflict-resolve needs no round-trip. Raw textarea + text-node diff
-  // only (no raw-HTML sink), so an untrusted proposed body can never inject.
+  // **The note's own editor** (`LiveEditor`), since 2026-10-15: the proposed note is drawn finished,
+  // and a line turns into its text where it is clicked — exactly as a note does (the owner: a
+  // proposal "should behave exactly as the current notes"). It was a plain textarea until then. The
+  // editor already draws collaborators' untrusted notes, under the audited no-raw-HTML-sink rule
+  // (`ci/checks.sh`), so a proposed body is no new exposure. The diff below stays text nodes only.
   let proposed = $state<ProposalContent | null>(null);
   let draft = $state('');
   let saving = $state(false);
-  const dirty = $derived(proposed !== null && draft !== proposed.body);
+
+  // The proposal's DETAILS — when and where — shown as fields beside what the note has now, and
+  // editable like the text: a meeting found at the wrong time is corrected here, not rejected and
+  // re-entered. Split day/time exactly as NotePanel's Details do, because a time is optional.
+  let dStart = $state('');
+  let dStartTime = $state('');
+  let dDue = $state('');
+  let dDueTime = $state('');
+  let dLocation = $state('');
+  let dTitle = $state('');
+  const split = (s?: string | null) => {
+    const [day = '', time = ''] = (s ?? '').split('T');
+    return [day, time] as const;
+  };
+  function loadDetails(c: ProposalContent) {
+    [dStart, dStartTime] = split(c.start);
+    [dDue, dDueTime] = split(c.due);
+    dLocation = c.location ?? '';
+    dTitle = c.title;
+  }
+  /** The proposal renames the note — a conversation's "Person — who they are" (2026-10-15). */
+  const renames = $derived(
+    proposed !== null &&
+      !proposed.isNew &&
+      !!proposed.wasTitle &&
+      proposed.title !== proposed.wasTitle,
+  );
+  /** When and where: a proposal that touches neither shows no date fields. */
+  const hasWhen = $derived(
+    proposed !== null && [proposed.start, proposed.due, proposed.location].some(Boolean),
+  );
+  // Only the fields the section shows: a rename alone must not send an empty date, which would clear
+  // the meeting the note already has.
+  const details = $derived({
+    ...(hasWhen
+      ? {
+          start: toStamp(dStart, dStartTime),
+          due: toStamp(dDue, dDueTime),
+          location: dLocation.trim(),
+        }
+      : {}),
+    ...(renames ? { title: dTitle.trim() } : {}),
+  });
+  /** Only a proposal that touches the details gets the section; a text-only one stays as it was. */
+  const hasDetails = $derived(renames || hasWhen);
+  const detailsDirty = $derived(
+    proposed !== null &&
+      ((hasWhen &&
+        (details.start !== (proposed.start ?? '') ||
+          details.due !== (proposed.due ?? '') ||
+          details.location !== (proposed.location ?? ''))) ||
+        (renames && dTitle.trim() !== proposed.title)),
+  );
+  const dirty = $derived(proposed !== null && (draft !== proposed.body || detailsDirty));
+  /** "now: …" under a field whose value would change; nothing when it would not. */
+  function now(
+    was: string | null | undefined,
+    next: string | undefined,
+    stamp: boolean,
+  ): string | null {
+    if (!proposed || proposed.isNew || (was ?? '') === (next ?? '')) return null;
+    return was ? `now: ${stamp ? formatStamp(was) : was}` : 'now: not set';
+  }
 
   // The reviewer's own sentence about what they changed. It is the single most valuable thing this
   // screen can collect — git records *what* changed and can never record *why*, and an edit pair
@@ -71,7 +135,14 @@
   async function persistDraft(): Promise<boolean> {
     if (!proposed) return false;
     try {
-      await createProposal(proposed.host, draft, reason(), kind ?? undefined); // revises this PR's branch from the current note
+      // Revises this PR's branch from the current note; corrected details go over the stored ones.
+      await createProposal(
+        proposed.host,
+        draft,
+        reason(),
+        kind ?? undefined,
+        detailsDirty ? details : undefined,
+      );
       await refetch();
       return true;
     } catch (e) {
@@ -153,15 +224,24 @@
     try {
       diff = await proposalDiff(id);
       proposed = diff.exists ? await proposalContent(id) : null;
-      if (proposed) draft = proposed.body;
+      if (proposed) {
+        draft = proposed.body;
+        loadDetails(proposed);
+      }
     } catch (e) {
       error = String(e);
     }
   }
 
   // Re-fetch whenever the id changes; ignore a stale response if it swaps mid-flight.
+  //
+  // **Through a `$derived`, which passes on only a changed value.** The parent hands `id={p.id}`
+  // from a list item, and every refresh replaces the item with an equal copy; read directly, that
+  // re-ran this effect, blanked the review to "Loading…" and recorded its showing again — the
+  // Collaboration view flickering every 15 s (2026-10-15).
+  const currentId = $derived(id);
   $effect(() => {
-    const which = id;
+    const which = currentId;
     let cancelled = false;
     loading = true;
     error = null;
@@ -175,7 +255,10 @@
         const c = d.exists ? await proposalContent(which) : null;
         if (cancelled) return;
         proposed = c;
-        if (c) draft = c.body;
+        if (c) {
+          draft = c.body;
+          loadDetails(c);
+        }
         loading = false;
         // It is on screen now. Best-effort and idempotent: this is a note ABOUT the review, and a
         // failure to take it must never break the review itself.
@@ -192,12 +275,6 @@
     };
   });
 
-  /** `2026-10-16T15:00` + `2026-10-16T16:00` → "2026-10-16 15:00–16:00"; a day alone stays a day. */
-  function when(start: string, due?: string | null): string {
-    const [d, t] = start.split('T');
-    const end = due && due !== start && due.startsWith(d) ? due.split('T')[1] : undefined;
-    return t ? `${d} ${t}${end ? `–${end}` : ''}` : d;
-  }
   const lines = $derived((diff?.patch ?? '').split('\n'));
 
   // A unified-diff line's role, for colouring. `+++`/`---` are file headers, not adds/deletes.
@@ -224,19 +301,77 @@
     <p class="muted">This proposal was merged into the note; the discussion lives on.</p>
   {:else if diff}
     {#if proposed}
-      {#if proposed.start}
-        <!-- A proposal that dates a note says the date it sets in plain view: accepting a meeting
-             time should never depend on opening the diff. -->
-        <p class="pr-when" data-testid="pr-when">
-          <strong>{proposed.isNew ? 'New meeting' : 'Meeting'}:</strong>
-          {when(proposed.start, proposed.due)}{proposed.location ? ` · ${proposed.location}` : ''}
-        </p>
+      {#if hasDetails}
+        <!-- A proposal that dates a note shows the details it sets as fields, beside what the note
+             has now, and lets them be corrected: accepting a meeting time should never depend on
+             opening the diff, nor a wrong one on rejecting the whole proposal. -->
+        <fieldset class="pr-details" data-testid="pr-details">
+          <legend
+            >{proposed.isNew ? 'New meeting' : 'Details'} — check or correct before accepting</legend
+          >
+          {#if renames}
+            <label class="pr-field">
+              <span>Title</span>
+              <input aria-label="proposed title" bind:value={dTitle} spellcheck="false" />
+              {#if dTitle.trim() !== proposed.wasTitle}
+                <small class="pr-was">now: {proposed.wasTitle}</small>
+              {/if}
+            </label>
+          {/if}
+          {#if hasWhen}
+            <label class="pr-field">
+              <span>Start</span>
+              <span class="pr-when">
+                <input aria-label="proposed start" type="date" bind:value={dStart} />
+                <input
+                  aria-label="proposed start time"
+                  type="time"
+                  bind:value={dStartTime}
+                  disabled={!dStart}
+                />
+              </span>
+              {#if now(proposed.wasStart, details.start, true)}
+                <small class="pr-was">{now(proposed.wasStart, details.start, true)}</small>
+              {/if}
+            </label>
+            <label class="pr-field">
+              <span>Due</span>
+              <span class="pr-when">
+                <input aria-label="proposed due" type="date" bind:value={dDue} />
+                <input
+                  aria-label="proposed due time"
+                  type="time"
+                  bind:value={dDueTime}
+                  disabled={!dDue}
+                />
+              </span>
+              {#if now(proposed.wasDue, details.due, true)}
+                <small class="pr-was">{now(proposed.wasDue, details.due, true)}</small>
+              {/if}
+            </label>
+            <label class="pr-field">
+              <span>Place</span>
+              <input
+                aria-label="proposed place"
+                bind:value={dLocation}
+                placeholder="a room, or a meeting link"
+                spellcheck="false"
+              />
+              {#if now(proposed.wasLocation, details.location, false)}
+                <small class="pr-was">{now(proposed.wasLocation, details.location, false)}</small>
+              {/if}
+            </label>
+          {/if}
+        </fieldset>
       {/if}
       <p class="pr-edit-label">
         Proposed note{proposed.title ? ` for “${proposed.title}”` : ''} — edit it here before accepting:
       </p>
-      <textarea class="pr-edit" bind:value={draft} rows="12" aria-label="proposed note body"
-      ></textarea>
+      <!-- The note's own editor: drawn finished, a line turning into its text where you click —
+           a proposal reads like the note it would become (the owner, 2026-10-15). -->
+      <div class="pr-edit">
+        <LiveEditor bind:value={draft} label="proposed note body" />
+      </div>
       <div class="pr-edit-actions">
         <button class="pr-save" onclick={save} disabled={!dirty || saving || accepting}>
           {saving ? 'Saving…' : 'Save changes'}
@@ -310,8 +445,47 @@
   .review {
     padding: 0.25rem 0 0.5rem;
   }
-  .pr-when {
+  .pr-details {
     margin: 0 0 var(--space-2);
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+  .pr-details legend {
+    font-size: 0.85em;
+    color: var(--muted);
+    padding: 0 0.25rem;
+  }
+  .pr-field {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+    font-size: 0.88em;
+  }
+  .pr-when {
+    display: flex;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .pr-when input[type='date'] {
+    flex: 1;
+    min-width: 0;
+  }
+  .pr-field input {
+    box-sizing: border-box;
+    max-width: 100%;
+    font: inherit;
+    padding: 0.3rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .pr-was {
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
   .pr-edit-label {
@@ -322,15 +496,14 @@
   .pr-edit {
     width: 100%;
     box-sizing: border-box;
-    font: inherit;
-    font-size: 0.88em;
-    line-height: 1.45;
+    min-height: 8rem;
+    max-height: 60dvh;
+    overflow: auto;
     padding: 0.5rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--surface);
     color: var(--text);
-    resize: vertical;
   }
   .pr-edit-actions {
     display: flex;
@@ -422,6 +595,9 @@
     cursor: pointer;
   }
   @media (pointer: coarse) {
+    .pr-field input {
+      min-height: 2.75rem;
+    }
     .pr-why-input {
       min-height: 2.75rem;
     }

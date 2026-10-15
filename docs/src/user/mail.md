@@ -1,8 +1,10 @@
 # Mail (Gmail)
 
 formicaria can read your Gmail and keep a note for each conversation you care about. Invitations
-inside messages become meetings straight away. It reads **only** mail with a label you choose, from a
+inside messages become meetings straight away. It reads **only** conversations with a label you choose, from a
 date you choose, and it can **only read**: Google gives it no way to send, delete or change mail.
+**Label a conversation once and formicaria follows all of it** — the replies you send and receive
+afterwards are read too, even though Gmail does not put the label on them.
 
 ## What it does to your notes
 
@@ -15,7 +17,8 @@ date you choose, and it can **only read**: Google gives it no way to send, delet
 - **An invitation in a message becomes a meeting note**, exactly as if it came from your calendar.
   An updated invitation moves it, and a cancellation tags it `cancelled`. If the same meeting is also
   in your Google Calendar, it stays **one** note.
-- Mail is read every 15 minutes while formicaria is open, up to 200 new messages each time.
+- Mail is read when formicaria opens and then every 5 minutes while it is open, up to 200 new
+  messages each time.
 
 **Where the text goes.** The exchange is part of your notes, so it goes wherever the chosen notebook
 goes. If that notebook is copied online (for example to GitHub), the emails, including what other
@@ -64,8 +67,11 @@ its address to see the names used below.
 ## The assistant finds the meetings
 
 With the study assistant switched on (Settings → Assistant → Study assistant), it reads each conversation once a
-new message arrives, and **proposes** the meetings the exchange fixes. You find the proposals in
-*Collaboration*, and each one says the date, time and place it would set, in plain view.
+new message arrives, works out **where its meeting stands now** — after the last message — and
+**proposes** whatever changed. You find the proposals in
+*Collaboration*. Each one shows the date, time and place it would set as fields, next to what the
+note has now — and you can **correct them before accepting**: a wrong hour or room is fixed there and
+then, not by turning the whole proposal down.
 
 - **The conversation note becomes the first meeting.** Accepting gives it the date, time and place,
   the tag `meeting`, and a short box at the top quoting the sentence the meeting came from. The emails
@@ -73,10 +79,29 @@ new message arrives, and **proposes** the meetings the exchange fixes. You find 
 - **Each further meeting in the same exchange is proposed as its own meeting note**, linked back to
   the conversation. If you reject it, nothing is created.
 - **If a later email moves the meeting**, the assistant proposes moving the conversation note to the
-  new time. A meeting that has already taken place is never moved.
+  new time — even though the old time is still written in the earlier emails above it. A meeting
+  that has already taken place is never moved.
+- **If a later email keeps the time but sends a place** — a room, or a meeting link such as Zoom —
+  the assistant proposes that place for the meeting, and leaves the time as it is. A vaguer word
+  ("online") never replaces a link the meeting already has.
+- **If a later email calls the meeting off** — "I won't be able to make it", "it will not take place"
+  — and no new time is set, the assistant proposes marking it **cancelled**. Nothing is deleted: the
+  meeting stays in the Agenda and the Calendar, struck through, so you can still see what was
+  planned. If a new time is agreed later, it is proposed as a move, and the meeting is on again.
+- **Each conversation gets a proper title, once:** the person you are writing with and who they
+  are to you — "Sara Lodi — Master student, robotics project" — in place of the email subject. It is a
+  proposal like the rest, with a Title field you can correct; the name must appear in the emails, and
+  the description is kept to a few words. A title you gave yourself in the form "Name — …" is left
+  alone.
+- **Each proposal quotes the sentence it came from, with who wrote it and when**, so you can see at
+  a glance whether a time is one you proposed and nobody has answered yet.
+- **It keeps up on its own.** Mail is read as soon as formicaria opens and every 5 minutes after,
+  and the assistant goes through the changed conversations straight away, one after another. A
+  reply reaches Collaboration within about five minutes, with nothing to press.
 - **The model never writes a date itself.** It copies the sentence and the words for the day and
   time; formicaria checks that the sentence really is in the emails and works out the date from the
-  day that message was sent ("giovedì", "domani", "il 28", "16/10", "next Monday at 3pm"). If the
+  day that message was sent ("giovedì", "domani", "il 28", "16/10", "next Monday at 3pm"; "next week
+on Friday" is the Friday of the following week). If the
   words cannot be read exactly, the meeting is left out rather than guessed. A bare hour from 1 to 7
   ("alle 3") is read as the afternoon.
 - **What you reject is not asked again**, and a meeting already in your Agenda (for example, from an

@@ -49,9 +49,12 @@
   /// exactly this reason: an effect that re-ran whenever the note *object* changed fired on every
   /// autosave, which cost a full-corpus `backlinks` read per keystroke and silently closed the
   /// open thread. A feed row's identity and its content are the same object, so this is the first
-  /// place that bug would come back.
+  /// place that bug would come back. And **through a `$derived`**: the prop comes from a list item,
+  /// replaced by an equal copy on every refresh, and read directly that re-ran this effect — the
+  /// thread blinking to "loading" every 15 s, as the open proposal did (2026-10-15).
+  const currentId = $derived(noteId);
   $effect(() => {
-    const id = noteId;
+    const id = currentId;
     let cancelled = false;
     loading = true;
     void ipcThread(id)

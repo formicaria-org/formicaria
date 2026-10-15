@@ -110,6 +110,48 @@ fn a_proposal_against_an_uncommitted_note_commits_it_and_merges_cleanly() {
 }
 
 #[test]
+fn a_backup_between_proposing_and_accepting_keeps_the_proposal_acceptable() {
+    // Regression (the owner's vault, 2026-10-15): a meeting proposed on a just-arrived email, then a
+    // backup forty seconds later. The backup squashed the `auto: snapshot` the proposal was built on
+    // into one `backup:`, so the note read as added on both sides and Accept was refused for good.
+    if !have_git() {
+        return;
+    }
+    let bare = tempfile::tempdir().unwrap();
+    Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = FileStore::open(dir.path()).unwrap();
+    let _seed = commands::capture(&mut store, "seed", "").unwrap();
+    git::commit_all(dir.path(), "auto: seed", &store.written()).unwrap();
+    git::set_remote(dir.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(dir.path(), "backup: first").unwrap();
+
+    // The email's note arrives and is proposed on before its auto-commit fires.
+    let target = commands::capture(&mut store, "the email", "").unwrap().id;
+    let prop = commands::create_proposal(
+        &mut store,
+        dir.path(),
+        &target,
+        "the email, with its meeting",
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .unwrap();
+    // The proposal's own note is auto-committed, then the backup runs.
+    git::commit_all(dir.path(), "auto: the proposal note", &store.written()).unwrap();
+    git::push_squashed(dir.path(), "backup: proposal").unwrap();
+
+    let outcome = commands::accept_proposal(&store, dir.path(), &prop.id).unwrap();
+    assert!(matches!(outcome, git::Accepted::Merged), "expected a clean merge, got {outcome:?}");
+    let merged = show(dir.path(), &format!("HEAD:notes/{target}.md"));
+    assert!(
+        String::from_utf8_lossy(&merged.stdout).contains("with its meeting"),
+        "the accepted change did not land on main"
+    );
+}
+
+#[test]
 fn a_second_proposal_on_the_same_note_refines_the_first_instead_of_stacking() {
     // The living-PR model: `/research` / `/propose` again on a note REFINES its single proposal (same
     // proposal note + branch, new content) rather than opening a second one. This is what lets the

@@ -103,6 +103,12 @@ export interface ProposalContent {
   start?: string | null;
   due?: string | null;
   location?: string | null;
+  /** The same three as the note has them now — what each proposed value would replace. */
+  wasStart?: string | null;
+  wasDue?: string | null;
+  wasLocation?: string | null;
+  /** The note's title now — a proposal that renames a conversation shows what it renames from. */
+  wasTitle?: string | null;
   /** The proposal adds a note that does not exist yet (a meeting found in an email exchange). */
   isNew?: boolean;
 }

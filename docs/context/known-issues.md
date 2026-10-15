@@ -974,7 +974,7 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
 - **The offset is fixed, so it is wrong across a DST change** for a `Z`-timed meeting. Exact for
   Singapore. A `TZID` time is carried as written and its zone named in `ics_time_zone` — a Berlin
   10:00 is shown as 10:00, not converted.
-- **Hourly, while the app is open.** There is no daemon (a ruling). Google's secret feed itself lags
+- **On opening, then every 5 minutes, while the app is open** (an unchanged feed is skipped by its hash). There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.
 - **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.
 - **A one-off meeting deleted in Google is not marked.** Google drops it from the feed rather than
@@ -1015,6 +1015,20 @@ note, invitations made meetings).
   after the message was sent; "giovedì prossimo" is read the same as "giovedì".
 - **"Today" is UTC's day** in the runner (it cannot read the machine's offset). Within a few hours of
   midnight a same-day meeting may be judged past or upcoming by the neighbouring day.
+- **A call-off or a move counts only from an email that arrived since the last read** (2026-10-15,
+  `meetings::plan`). On a first read, or after a change of rules, nothing counts as new: a meeting
+  is then moved only when its old time is gone from the model's answer, and marked cancelled only
+  when the call-off is in the conversation's **last** email and that email fixes no other time.
+- **"Agreed" is not read.** The box names who wrote the sentence and when; whether the other person
+  has answered is for the person to see (the model's own `agreed` was wrong on real mail).
+- **A conversation's title is asked once** (2026-10-15). The role is the model's reading of the
+  emails — plausible, not always exact ("Project partner" for a student); the review's Title field is
+  where it is put right. A conversation with several outside people is titled after one of them.
+- **A place is only what the model reports**, copied exactly from some email of the exchange; a
+  vaguer word never replaces a link. There is no link extractor of our own (`decisions.md`).
+- **Each conversation the label chooses is opened when it changes** (`historyId`), one request per
+  changed conversation per read; a label over thousands of active conversations would make a read
+  slow, not wrong.
 - **A moved further meeting is proposed as a new note.** Only the conversation note's own meeting is
   moved; a linked meeting note whose time changes gets a second proposal, and the old note stays.
 - **The pass's memory is per machine** (`<runtime>/mail-meetings.json`). On another computer the same

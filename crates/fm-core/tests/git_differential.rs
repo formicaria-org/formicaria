@@ -831,6 +831,72 @@ fn a_hand_written_commit_stops_the_squash_on_both_backends() {
     }
 }
 
+/// **A commit an open proposal stands on is a floor too.** Accepting a proposal is a merge whose
+/// base is the commit it branched from; squash that commit away and a note the proposal found
+/// uncommitted reads as added on both sides, so the accept is refused for good (the owner's vault,
+/// 2026-10-15). Both backends must keep it.
+#[test]
+fn a_proposals_base_stops_the_squash_on_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    for backend in ["subprocess", "native"] {
+        let bare = tempdir().unwrap();
+        Command::new("git")
+            .args(["init", "--bare", bare.path().to_str().unwrap()])
+            .output()
+            .unwrap();
+        let w = tempdir().unwrap();
+        fs::create_dir_all(w.path().join("notes")).unwrap();
+        git::ensure_repo(w.path()).unwrap();
+        git::set_identity(w.path(), "Ada", "ada@example.org").unwrap();
+        git::set_remote(w.path(), bare.path().to_str().unwrap()).unwrap();
+        let commit = if backend == "native" { git_native::commit_all } else { git::commit_all };
+        let push = if backend == "native" { git_native::push_squashed } else { git::push_squashed };
+        let note = |i: u32| {
+            let f = w.path().join(format!("notes/{i}.md"));
+            fs::write(&f, format!("{i}\n")).unwrap();
+            f
+        };
+        commit(w.path(), "auto: seed", &[note(0)]).unwrap();
+        push(w.path(), "backup: first").unwrap();
+
+        // auto, the snapshot a proposal branches from, auto, auto.
+        commit(w.path(), "auto: a", &[note(1)]).unwrap();
+        commit(w.path(), "auto: snapshot the note before a proposal", &[note(2)]).unwrap();
+        let base = String::from_utf8(
+            Command::new("git")
+                .arg("-C")
+                .arg(w.path())
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap();
+        let base = base.trim();
+        Command::new("git")
+            .arg("-C")
+            .arg(w.path())
+            .args(["branch", "proposal/p1", base])
+            .output()
+            .unwrap();
+        commit(w.path(), "auto: b", &[note(3)]).unwrap();
+        commit(w.path(), "auto: c", &[note(4)]).unwrap();
+
+        let squashed = push(w.path(), "backup: second").unwrap();
+        assert_eq!(squashed, 2, "{backend}: only the two commits ABOVE the proposal's base");
+        let kept = Command::new("git")
+            .arg("-C")
+            .arg(w.path())
+            .args(["merge-base", "--is-ancestor", base, "HEAD"])
+            .status()
+            .unwrap();
+        assert!(kept.success(), "{backend}: the proposal's base must stay in main's history");
+    }
+}
+
 /// **The trust-store load must not crash, and must actually load.**
 ///
 /// `git_openssl__add_x509_cert` reads `SSL_CTX_get_cert_store(git__ssl_ctx)` after an

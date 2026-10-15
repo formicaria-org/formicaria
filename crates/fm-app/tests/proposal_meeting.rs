@@ -87,12 +87,135 @@ fn a_proposal_can_set_when_and_where_and_a_reviewers_edit_keeps_it() {
 }
 
 #[test]
+fn a_reviewer_can_correct_when_and_where_and_keeps_the_tag() {
+    // The review shows a proposal's details beside the note's current ones and lets the person change
+    // them before accepting. A correction sends only the fields it shows, so it must go OVER the
+    // proposal's stored set — never drop the tag the proposal was made with.
+    if !have_git() {
+        return;
+    }
+    let (dir, mut store, host) = vault_with_a_conversation();
+    let p = dir.path();
+    let props = serde_json::json!({
+        "start": "2026-10-16T15:00", "due": "2026-10-16T15:00", "location": "COM1", "addTags": ["meeting"]
+    });
+    let prop = commands::create_proposal_with(
+        &mut store,
+        p,
+        &host,
+        "the conversation",
+        Some(&props),
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .unwrap();
+
+    let before = commands::proposal_content(&store, p, &prop.id).unwrap().unwrap();
+    assert_eq!(before.was_start, None, "the note has no date yet");
+    assert_eq!(before.was_location, None);
+
+    let fix = serde_json::json!({
+        "start": "2026-10-16T17:00", "due": "2026-10-16T18:00", "location": "https://zoom.us/j/1"
+    });
+    commands::create_proposal_with(
+        &mut store,
+        p,
+        &host,
+        "the conversation",
+        Some(&fix),
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .unwrap();
+    let after = commands::proposal_content(&store, p, &prop.id).unwrap().unwrap();
+    assert_eq!(after.start.as_deref(), Some("2026-10-16T17:00"));
+    assert_eq!(after.due.as_deref(), Some("2026-10-16T18:00"));
+    assert_eq!(after.location.as_deref(), Some("https://zoom.us/j/1"));
+
+    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    let file = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
+    assert!(file.contains("start: 2026-10-16T17:00"), "{file}");
+    assert!(file.contains("- meeting"), "the tag survived the correction: {file}");
+
+    // Once the note has a date, a later proposal shows it as the value it would change from. (The
+    // accept merged on disk; reopen, as the app re-reads after an accept.)
+    let mut store = FileStore::open(p).unwrap();
+    commands::create_proposal_with(
+        &mut store,
+        p,
+        &host,
+        "the conversation, moved",
+        Some(&serde_json::json!({ "start": "2026-10-17T10:00" })),
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .map(|next| {
+        let c = commands::proposal_content(&store, p, &next.id).unwrap().unwrap();
+        assert_eq!(c.was_start.as_deref(), Some("2026-10-16T17:00"));
+        assert_eq!(c.was_location.as_deref(), Some("https://zoom.us/j/1"));
+        assert_eq!(c.start.as_deref(), Some("2026-10-17T10:00"));
+    })
+    .unwrap();
+}
+
+#[test]
+fn a_title_proposed_over_a_waiting_meeting_keeps_the_meeting() {
+    // The title arrives after the meeting was proposed: it revises that proposal, and both land.
+    if !have_git() {
+        return;
+    }
+    let (dir, mut store, host) = vault_with_a_conversation();
+    let p = dir.path();
+    let meeting = serde_json::json!({ "start": "2026-10-16T15:00", "due": "2026-10-16T15:00" });
+    let prop = commands::create_proposal_with(
+        &mut store,
+        p,
+        &host,
+        "the conversation",
+        Some(&meeting),
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .unwrap();
+    commands::create_proposal_with(
+        &mut store,
+        p,
+        &host,
+        "the conversation",
+        Some(&serde_json::json!({ "title": "Maria Rossi — Master student, robotics" })),
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .unwrap();
+    let c = commands::proposal_content(&store, p, &prop.id).unwrap().unwrap();
+    assert_eq!(c.title, "Maria Rossi — Master student, robotics");
+    assert_eq!(c.start.as_deref(), Some("2026-10-16T15:00"), "the meeting is still proposed");
+    assert_ne!(
+        c.was_title.as_deref(),
+        Some(c.title.as_str()),
+        "what it renames from is the note's own"
+    );
+
+    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    let file = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
+    assert!(file.contains("title: Maria Rossi — Master student, robotics"), "{file}");
+    assert!(file.contains("start: 2026-10-16T15:00"), "{file}");
+}
+
+#[test]
 fn a_proposal_may_not_change_anything_outside_the_allowlist() {
     if !have_git() {
         return;
     }
     let (dir, mut store, host) = vault_with_a_conversation();
-    let props = serde_json::json!({ "title": "renamed" });
+    // `title` was the example here until 2026-10-15, when a conversation's title joined the allowlist;
+    // `status` stays outside it.
+    let props = serde_json::json!({ "status": "done" });
     let err = commands::create_proposal_with(
         &mut store,
         dir.path(),
@@ -104,7 +227,7 @@ fn a_proposal_may_not_change_anything_outside_the_allowlist() {
         commands::Record::default(),
     )
     .unwrap_err();
-    assert!(err.to_string().contains("cannot change 'title'"), "{err}");
+    assert!(err.to_string().contains("cannot change 'status'"), "{err}");
 }
 
 #[test]

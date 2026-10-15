@@ -2286,15 +2286,41 @@ fn newest_foreign(vault: &Path, tracked: &str) -> Result<Option<String>, StoreEr
     if !out.status.success() {
         return Err(failed("git log", &out));
     }
+    let held = held_by_proposals(vault, tracked)?;
     // Newest first, which is the order we want: the first foreign commit we meet walking
     // back from HEAD is the floor the squash must not go below.
     for line in String::from_utf8_lossy(&out.stdout).lines() {
         let Some((hash, subject)) = line.split_once(' ') else { continue };
-        if !subject.starts_with("auto:") && !subject.starts_with("backup:") {
+        let ours = subject.starts_with("auto:") || subject.starts_with("backup:");
+        if !ours || held.contains(hash) {
             return Ok(Some(hash.to_string()));
         }
     }
     Ok(None)
+}
+
+/// The unpushed commits an open proposal stands on — every commit reachable from a
+/// `proposal/*` branch and not from `tracked`.
+///
+/// **They are a squash floor too** (2026-10-15). A proposal is a branch off `main`, and
+/// accepting it is a merge whose base is the commit it branched from. Collapse that commit
+/// into a `backup:` and the proposal no longer shares it with `main`: a note the proposal
+/// found uncommitted (the `auto: snapshot` that `create_proposal` writes first) then reads
+/// as *added on both sides*, and the accept is refused for good. Found on the owner's vault:
+/// a meeting proposed on a just-arrived email, a backup forty seconds later, and an accept
+/// that could never merge.
+fn held_by_proposals(
+    vault: &Path,
+    tracked: &str,
+) -> Result<std::collections::HashSet<String>, StoreError> {
+    let out = git(vault)
+        .args(["rev-list", "--glob=refs/heads/proposal/*", &format!("^{tracked}")])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git rev-list", &out));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).lines().map(str::to_string).collect())
 }
 
 /// How many commits `to` has that `from` does not.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { calledOff } from '../lib/calledOff';
   import {
     monthGrid,
     weekOf,
@@ -162,11 +163,12 @@
                       class="event"
                       class:cont-left={bar.continuesLeft}
                       class:cont-right={bar.continuesRight}
+                      class:called-off={calledOff(bar.card)}
                       data-urgency={urgency(bar.card.due)}
                       style="grid-column: {bar.startCol + 1} / {bar.endCol +
                         2}; grid-row: {bar.lane + 1};"
                       onclick={() => onopen(bar.card.id)}
-                      title={bar.card.title ?? bar.card.preview ?? ''}
+                      title={`${bar.card.title ?? bar.card.preview ?? ''}${calledOff(bar.card) ? ' (called off)' : ''}`}
                     >
                       {#if bar.card.hard}<span class="hard" aria-hidden="true">◆</span>{/if}
                       {#if !bar.continuesLeft}<VaultBadge vault={bar.card.vault} dot />{/if}
@@ -584,5 +586,13 @@
     color: var(--due-hard-fg);
     font-size: 0.62rem;
     flex-shrink: 0;
+  }
+  /* A meeting called off keeps its place, struck through (see `lib/calledOff.ts`). */
+  .event.called-off {
+    opacity: 0.55;
+  }
+  .event.called-off .ev-title,
+  .event.called-off .ev-time {
+    text-decoration: line-through;
   }
 </style>

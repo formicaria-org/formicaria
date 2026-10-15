@@ -3,6 +3,8 @@
 // shows the returned diff.
 
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { tick } from 'svelte';
+import { editorText, typeInto } from './editor/testing';
 import { describe, expect, it, vi } from 'vitest';
 import * as mock from './mock';
 import ProposalReview from './ProposalReview.svelte';
@@ -52,15 +54,16 @@ describe('ProposalReview', () => {
     });
 
     render(ProposalReview, { id: prop.id });
-    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    expect(box.value).toContain('the proposed body');
+    const box = await screen.findByLabelText('proposed note body');
+    expect(editorText(box)).toContain('the proposed body');
 
     // Editing enables Save; saving round-trips and reflects the edit (the real backend revises the branch).
-    await fireEvent.input(box, { target: { value: 'my edited body' } });
+    typeInto(box, 'my edited body');
+    await tick();
     await fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
     expect(await screen.findByText(/Saved/)).toBeTruthy();
-    const box2 = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    expect(box2.value).toContain('my edited body');
+    const box2 = await screen.findByLabelText('proposed note body');
+    expect(editorText(box2)).toContain('my edited body');
   });
 
   it('rejects a proposal (two-click) and shows it kept as a declined record', async () => {
@@ -92,11 +95,12 @@ describe('ProposalReview', () => {
     });
 
     render(ProposalReview, { id: prop.id });
-    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    expect(box.value).toContain('the model text');
+    const box = await screen.findByLabelText('proposed note body');
+    expect(editorText(box)).toContain('the model text');
 
     // Edit, then Accept WITHOUT pressing Save — the exact path that lost the correction.
-    await fireEvent.input(box, { target: { value: 'my correction' } });
+    typeInto(box, 'my correction');
+    await tick();
     await fireEvent.click(screen.getByRole('button', { name: /Accept & merge/ }));
     expect(await screen.findByText(/Merged into main/)).toBeTruthy();
 
@@ -113,8 +117,9 @@ describe('ProposalReview', () => {
     });
     render(ProposalReview, { id: prop.id });
 
-    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    await fireEvent.input(box, { target: { value: 'corrected' } });
+    const box = await screen.findByLabelText('proposed note body');
+    typeInto(box, 'corrected');
+    await tick();
 
     // One tap fills the common case; the field stays free prose.
     await fireEvent.click(screen.getByRole('button', { name: '@wrong' }));
@@ -139,8 +144,9 @@ describe('ProposalReview', () => {
     });
     render(ProposalReview, { id: prop.id });
 
-    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    await fireEvent.input(box, { target: { value: 'a one-word typo fix' } });
+    const box = await screen.findByLabelText('proposed note body');
+    typeInto(box, 'a one-word typo fix');
+    await tick();
     // Straight to Save with the reason box untouched: no extra click, no dismissal, no failure.
     await fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
     expect(await screen.findByText(/Saved/)).toBeTruthy();
@@ -196,8 +202,9 @@ describe('ProposalReview', () => {
       body: 'model text',
     });
     render(ProposalReview, { id: prop.id });
-    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    await fireEvent.input(box, { target: { value: 'corrected' } });
+    const box = await screen.findByLabelText('proposed note body');
+    typeInto(box, 'corrected');
+    await tick();
 
     // Single-select: picking a second kind replaces the first rather than adding to it.
     await fireEvent.click(screen.getByRole('button', { name: 'style' }));
@@ -222,8 +229,9 @@ describe('ProposalReview', () => {
       body: 'model text',
     });
     render(ProposalReview, { id: prop.id });
-    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
-    await fireEvent.input(box, { target: { value: 'a typo fix' } });
+    const box = await screen.findByLabelText('proposed note body');
+    typeInto(box, 'a typo fix');
+    await tick();
     await fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
     expect(await screen.findByText(/Saved/)).toBeTruthy();
     const saved = await mock.handle<{ props: Record<string, string> }>('get', { id: prop.id });

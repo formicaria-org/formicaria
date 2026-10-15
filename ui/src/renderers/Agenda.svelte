@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { calledOff } from '../lib/calledOff';
   import { urgency, relativeDue, urgencyLabel, URGENCY_ORDER } from '../lib/urgency';
   import { formatStamp } from '../lib/stamp';
   import VaultBadge from '../lib/VaultBadge.svelte';
@@ -41,7 +42,12 @@
             <span class="section-count">{group.items.length}</span>
           </h3>
           {#each group.items as card (card.id)}
-            <button class="row" data-urgency={urgency(card.due)} onclick={() => onopen(card.id)}>
+            <button
+              class="row"
+              class:called-off={calledOff(card)}
+              data-urgency={urgency(card.due)}
+              onclick={() => onopen(card.id)}
+            >
               <span class="marker" aria-hidden="true"></span>
               <span class="what">
                 <span class="title">{card.title ?? card.preview ?? card.id}</span>
@@ -153,6 +159,15 @@
     color: var(--text);
     font-size: var(--text-sm);
     overflow-wrap: anywhere;
+  }
+  /* A meeting called off stays in its place, struck through: the date reads as the one that did not
+     happen. Its tag chip says so in words too. */
+  .called-off .title,
+  .called-off .date {
+    text-decoration: line-through;
+  }
+  .called-off {
+    opacity: 0.6;
   }
   .tags {
     display: flex;

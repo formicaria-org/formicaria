@@ -27,9 +27,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-/// How often the calendars are read. Google refreshes its secret feed every few hours at best, so
-/// more often than this buys nothing and costs the publisher a request.
-const INTERVAL: Duration = Duration::from_secs(60 * 60);
+/// How often the calendars are read: as often as the mail (2026-10-15; was hourly). Google's secret feed
+/// lags its web page, which is a reason to notice a change as soon as it lands, not to look rarely —
+/// and a feed that has not changed is one download and nothing else (`Feed::seen`).
+const INTERVAL: Duration = Duration::from_secs(5 * 60);
 /// A calendar larger than this is not a personal calendar.
 const LIMIT: usize = 16 * 1024 * 1024;
 
@@ -63,6 +64,11 @@ struct Feed {
     vault: String,
     #[serde(default)]
     last: Option<Value>,
+    /// SHA-256 of the last feed applied, with the day and the offset it was applied on. The same again
+    /// is skipped — no vault write, and no "the vault changed" to every open view every five minutes —
+    /// while a new day still gets its pass (repeats are laid out 60 days ahead of *today*).
+    #[serde(default)]
+    seen: String,
 }
 
 fn path() -> Option<PathBuf> {
@@ -128,28 +134,40 @@ fn pull_all(state: &crate::AppState) {
     let s = load();
     let mut results = Vec::new();
     for f in &s.feeds {
-        let outcome = fm_fetch::get(&f.url, LIMIT)
-            .map_err(|e| e.to_string())
-            .and_then(|bytes| {
-                let args = json!({ "vault": f.vault, "source": f.label, "offset": s.offset });
-                fm_app::dispatch("calendar_sync", &args, &bytes, &state.app, &crate::Desktop)
-                    .map(|o| o.into_bytes())
-            })
-            .and_then(|b| serde_json::from_slice::<Value>(&b).map_err(|e| e.to_string()));
-        let last = match outcome {
-            Ok(mut v) => {
-                v["at"] = json!(now());
-                v
+        let mut seen = f.seen.clone();
+        let outcome = fm_fetch::get(&f.url, LIMIT).map_err(|e| e.to_string()).and_then(|bytes| {
+            let stamp =
+                format!("{}|{}|{}", fm_core::blob::sha256_hex(&bytes), now() / 86_400, s.offset);
+            if stamp == f.seen {
+                return Ok(None);
             }
+            let args = json!({ "vault": f.vault, "source": f.label, "offset": s.offset });
+            let out =
+                fm_app::dispatch("calendar_sync", &args, &bytes, &state.app, &crate::Desktop)?;
+            let v =
+                serde_json::from_slice::<Value>(&out.into_bytes()).map_err(|e| e.to_string())?;
+            seen = stamp;
+            Ok(Some(v))
+        });
+        let last = match outcome {
+            Ok(Some(mut v)) => {
+                v["at"] = json!(now());
+                Some(v)
+            }
+            // Unchanged: the previous report stands; only the time of the check moves.
+            Ok(None) => None,
             // The fetch error names the URL, and the URL is the secret — so only the host is kept.
-            Err(e) => json!({ "at": now(), "error": e.replace(&f.url, &host_of(&f.url)) }),
+            Err(e) => Some(json!({ "at": now(), "error": e.replace(&f.url, &host_of(&f.url)) })),
         };
-        results.push((f.label.clone(), last));
+        results.push((f.label.clone(), last, seen));
     }
     let _ = edit(|cur| {
-        for (label, last) in results {
+        for (label, last, seen) in results {
             if let Some(f) = cur.feeds.iter_mut().find(|f| f.label == label) {
-                f.last = Some(last);
+                if let Some(last) = last {
+                    f.last = Some(last);
+                }
+                f.seen = seen;
             }
         }
         cur.last_checked = now();
@@ -164,11 +182,16 @@ pub fn check_in_background(state: Arc<crate::AppState>) {
     std::thread::spawn(move || {
         // Let the app finish starting first, the same courtesy the updater's check takes.
         std::thread::sleep(Duration::from_secs(8));
+        // Opening the app reads at once, whenever the last read was — as the mail does (2026-10-15).
+        let mut first = true;
         loop {
             let s = load();
-            if !s.feeds.is_empty() && now().saturating_sub(s.last_checked) >= INTERVAL.as_secs() {
+            if !s.feeds.is_empty()
+                && (first || now().saturating_sub(s.last_checked) >= INTERVAL.as_secs())
+            {
                 pull_all(&state);
             }
+            first = false;
             std::thread::sleep(Duration::from_secs(60));
         }
     });
@@ -250,7 +273,7 @@ fn add(req: &Req, state: &crate::AppState) -> Result<(), String> {
         if s.feeds.iter().any(|f| f.label == label) {
             return Err(format!("there is already a calendar called '{label}'"));
         }
-        s.feeds.push(Feed { label, url, vault, last: None });
+        s.feeds.push(Feed { label, url, vault, last: None, seen: String::new() });
         // Read the new one at the next tick rather than waiting out the interval.
         s.last_checked = 0;
         Ok(())
@@ -274,6 +297,7 @@ mod tests {
                 url: secret.into(),
                 vault: "notes".into(),
                 last: Some(json!({ "error": "x" })),
+                seen: String::new(),
             }],
             last_checked: 0,
         };

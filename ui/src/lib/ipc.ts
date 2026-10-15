@@ -554,8 +554,15 @@ export const onlineAgents = () =>
 export const setSupervision = (vault: string, next: { collect?: boolean; publish?: boolean }) =>
   invoke<VaultInfo[]>('set_supervision', { vault, ...next });
 
-export const createProposal = (id: string, body: string, why?: string, kind?: string) =>
-  invoke<ObjectMeta>('create_proposal', { id, body, why, kind });
+/** `props` (optional) corrects the proposal's details — `start`/`due`/`location`/`title` — over the ones it
+ *  was made with; any it does not name are kept. */
+export const createProposal = (
+  id: string,
+  body: string,
+  why?: string,
+  kind?: string,
+  props?: { start?: string; due?: string; location?: string; title?: string },
+) => invoke<ObjectMeta>('create_proposal', { id, body, why, kind, props });
 
 /** Record that a proposal was actually put in front of a person.
  *

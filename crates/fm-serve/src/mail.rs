@@ -17,6 +17,10 @@
 //! # What leaves Gmail, and where it goes
 //!
 //! Only mail with the label the person chose, since the date they chose — never the whole mailbox.
+//! **The label chooses conversations** (2026-10-15): a label sits on each message, and a reply sent or
+//! received after the person labelled the exchange usually carries none, so every message since that
+//! date in a conversation with a labelled message is read. Otherwise the exchange stops at the last
+//! message the person happened to label, and its meeting silently goes stale.
 //! Each conversation becomes one note holding the exchange — senders, recipients, times and text
 //! (`fm_core::mail`; `decisions.md`, *the email exchange lives in the conversation note*) — which is
 //! also what the assistant reads. A calendar invite inside a message becomes a meeting note at once,
@@ -43,7 +47,10 @@ const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
 const GMAIL: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-const INTERVAL: Duration = Duration::from_secs(15 * 60);
+/// Five minutes (2026-10-15; was 15). A quiet mailbox costs one request a read — each conversation is
+/// opened only when its `historyId` moved — so keeping up with an exchange is cheap, and a reply
+/// should not wait a quarter of an hour to reach the Agenda.
+const INTERVAL: Duration = Duration::from_secs(5 * 60);
 /// At most this many new messages per read, so a first read over a busy label cannot occupy the
 /// machine for an hour. The rest come at the next read.
 const PER_READ: usize = 200;
@@ -71,6 +78,9 @@ struct Settings {
     vault: String,
     /// Message ids already read, so each is read once.
     seen: Vec<String>,
+    /// Conversation id -> Gmail's `historyId` for it when last read in full. A conversation whose
+    /// marker has not moved has nothing new, and is not opened again.
+    threads: std::collections::HashMap<String, String>,
     last: Option<Value>,
     last_checked: u64,
     /// Which note format the messages already read were written in. Below [`FORMAT`], `seen` is
@@ -318,6 +328,7 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
     if load().format < FORMAT {
         edit(|s| {
             s.seen.clear();
+            s.threads.clear();
             s.format = FORMAT;
             Ok(())
         })?;
@@ -327,25 +338,42 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
         return Err("not signed in".into());
     }
     let token = access_token(&s)?;
-    let mut ids = Vec::new();
+    // The conversations the label chooses, each with Gmail's change marker.
+    let mut listed: Vec<(String, String)> = Vec::new();
     let mut page = String::new();
     loop {
-        let mut url = format!("{GMAIL}/messages?maxResults=100&q={}", enc(&query(&s)));
+        let mut url = format!("{GMAIL}/threads?maxResults=100&q={}", enc(&query(&s)));
         if !page.is_empty() {
             url.push_str(&format!("&pageToken={}", enc(&page)));
         }
         let v = get_json(&url, &token)?;
-        for m in v["messages"].as_array().into_iter().flatten() {
-            if let Some(id) = m["id"].as_str() {
-                if !s.seen.iter().any(|x| x == id) {
-                    ids.push(id.to_string());
-                }
+        for t in v["threads"].as_array().into_iter().flatten() {
+            if let (Some(id), Some(h)) = (t["id"].as_str(), t["historyId"].as_str()) {
+                listed.push((id.to_string(), h.to_string()));
             }
         }
         match v["nextPageToken"].as_str() {
-            Some(p) if ids.len() < PER_READ => page = p.to_string(),
-            _ => break,
+            Some(p) => page = p.to_string(),
+            None => break,
         }
+    }
+    // Open only the conversations that moved, and take every message in them not yet read.
+    let since = since_ms(&s.since);
+    let mut ids = Vec::new();
+    let mut done: Vec<(String, String)> = Vec::new();
+    for (t, h) in &listed {
+        if s.threads.get(t) == Some(h) {
+            continue;
+        }
+        if ids.len() >= PER_READ {
+            break;
+        }
+        let v = get_json(&format!("{GMAIL}/threads/{}?format=minimal", enc(t)), &token)?;
+        let new = unread_in_thread(&v, &s.seen, since);
+        if ids.len() + new.len() <= PER_READ {
+            done.push((t.clone(), h.clone()));
+        }
+        ids.extend(new);
     }
     ids.truncate(PER_READ);
     let waiting = ids.len();
@@ -373,11 +401,48 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
     // Marked read only after the notes are written, so a failure part-way re-reads rather than loses.
     edit(|cur| {
         cur.seen.extend(ids.iter().cloned());
+        cur.threads.extend(done.iter().cloned());
         Ok(())
     })?;
     report["at"] = json!(now());
     report["waiting"] = json!(waiting);
     Ok(report)
+}
+
+/// The messages of one conversation (`threads.get`, `format=minimal`) still to read: not read before,
+/// not older than `since`, and not a draft, spam or in the bin. Oldest first, as Gmail lists them.
+fn unread_in_thread(thread: &Value, seen: &[String], since: u64) -> Vec<String> {
+    thread["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|m| {
+            let labels: Vec<&str> =
+                m["labelIds"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+            let at = m["internalDate"].as_str().and_then(|d| d.parse::<u64>().ok()).unwrap_or(0);
+            at >= since && !labels.iter().any(|l| matches!(*l, "DRAFT" | "SPAM" | "TRASH"))
+        })
+        .filter_map(|m| m["id"].as_str())
+        .filter(|id| !seen.iter().any(|x| x == id))
+        .map(str::to_string)
+        .collect()
+}
+
+/// `YYYY-MM-DD` → milliseconds since 1970 at that day's start (UTC); 0 when unset or unreadable, which
+/// reads everything — the same as Gmail's search with no `after:`.
+fn since_ms(day: &str) -> u64 {
+    let mut it = day.get(..10).unwrap_or("").split('-').map(|p| p.parse::<i64>().ok());
+    let (Some(Some(y)), Some(Some(m)), Some(Some(d))) = (it.next(), it.next(), it.next()) else {
+        return 0;
+    };
+    // Days from civil (Howard Hinnant's algorithm).
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    u64::try_from(days * 86_400_000).unwrap_or(0)
 }
 
 fn read_all(state: &crate::AppState) {
@@ -399,13 +464,18 @@ fn read_all(state: &crate::AppState) {
 pub fn check_in_background(state: Arc<crate::AppState>) {
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(12));
+        // **Opening the app reads at once**, whenever the last read was: the person opened it to see
+        // where things stand, and a read due "in fourteen minutes" made them press Read now (the
+        // owner, 2026-10-15: "I do not like that every time you need to trigger this manually").
+        let mut first = true;
         loop {
             let s = load();
             if !s.refresh_token.is_empty()
-                && now().saturating_sub(s.last_checked) >= INTERVAL.as_secs()
+                && (first || now().saturating_sub(s.last_checked) >= INTERVAL.as_secs())
             {
                 read_all(&state);
             }
+            first = false;
             std::thread::sleep(Duration::from_secs(60));
         }
     });
@@ -554,6 +624,7 @@ fn setup(req: &Req, state: &crate::AppState) -> Result<(), String> {
         // A changed label or start date is a different set of mail: read it again from the beginning.
         if s.label != req.label.trim() || s.since != since {
             s.seen.clear();
+            s.threads.clear();
             s.last_checked = 0;
         }
         s.label = req.label.trim().to_string();
@@ -626,6 +697,35 @@ mod tests {
             challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFrnWM9I"),
             "Z4Upx6wF0J5DH9June48DfC9Spcw8d7iSwHwDkValCA"
         );
+    }
+
+    /// The owner's case (2026-10-15): the exchange was labelled on 2 Oct, and both of today's
+    /// messages — the student's and the reply — carry no label. They are read all the same.
+    #[test]
+    fn every_message_of_a_labelled_conversation_is_read_not_only_the_labelled_ones() {
+        let thread = json!({ "messages": [
+            { "id": "a", "internalDate": "1790000000000", "labelIds": ["formicaria", "INBOX"] },
+            { "id": "b", "internalDate": "1790000100000", "labelIds": ["formicaria", "SENT"] },
+            { "id": "c", "internalDate": "1792050000000", "labelIds": ["INBOX"] },
+            { "id": "d", "internalDate": "1792054000000", "labelIds": ["SENT"] },
+            { "id": "e", "internalDate": "1792055000000", "labelIds": ["DRAFT"] },
+            { "id": "f", "internalDate": "1700000000000", "labelIds": ["formicaria"] },
+        ]});
+        let seen = vec!["a".to_string(), "b".to_string()];
+        let since = since_ms("2026-09-25");
+        assert_eq!(
+            unread_in_thread(&thread, &seen, since),
+            ["c", "d"],
+            "not the draft, nor before since"
+        );
+    }
+
+    #[test]
+    fn the_start_date_is_read_as_that_days_start() {
+        assert_eq!(since_ms("1970-01-02"), 86_400_000);
+        assert_eq!(since_ms("2026-09-25"), 1_790_294_400_000);
+        assert_eq!(since_ms(""), 0, "unset reads everything");
+        assert_eq!(since_ms("soon"), 0);
     }
 
     #[test]

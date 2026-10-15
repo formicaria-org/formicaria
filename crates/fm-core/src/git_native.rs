@@ -1464,15 +1464,29 @@ fn newest_foreign(repo: &Repository, tracked: git2::Oid) -> Result<Option<git2::
     // Newest first, matching `git log`: the first foreign commit met walking back from HEAD is
     // the floor the squash must not go below.
     walk.set_sorting(git2::Sort::TOPOLOGICAL).map_err(map)?;
+    let held = held_by_proposals(repo, tracked)?;
     for oid in walk {
         let oid = oid.map_err(map)?;
         let commit = repo.find_commit(oid).map_err(map)?;
         let subject = commit.summary().ok().flatten().unwrap_or("");
-        if !subject.starts_with("auto:") && !subject.starts_with("backup:") {
+        let ours = subject.starts_with("auto:") || subject.starts_with("backup:");
+        if !ours || held.contains(&oid) {
             return Ok(Some(oid));
         }
     }
     Ok(None)
+}
+
+/// Mirrors [`crate::git::held_by_proposals`]: the unpushed commits an open proposal stands on,
+/// which the squash must keep so that the proposal still shares its base with `main`.
+fn held_by_proposals(
+    repo: &Repository,
+    tracked: git2::Oid,
+) -> Result<std::collections::HashSet<git2::Oid>, StoreError> {
+    let mut walk = repo.revwalk().map_err(map)?;
+    walk.push_glob("refs/heads/proposal/*").map_err(map)?;
+    walk.hide(tracked).map_err(map)?;
+    walk.map(|oid| oid.map_err(map)).collect()
 }
 
 /// Mirrors [`crate::git::push_squashed`]: collapse the not-yet-pushed `auto:` window into one

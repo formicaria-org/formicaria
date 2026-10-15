@@ -13,7 +13,8 @@ to do anything after the first step.
 2. In formicaria, open **Settings → Connections → Calendars**. Give it a short name such as `work`, paste the
    address, choose which notebook the meetings go into, and press **Add calendar**.
 
-The calendar is read straight away, and then every hour while formicaria is open.
+The calendar is read when formicaria opens and then every 5 minutes while it is open. A calendar
+that has not changed costs one download and touches nothing.
 
 ## What it does to your notes
 

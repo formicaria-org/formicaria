@@ -26,6 +26,7 @@
     ondrop,
     onblur,
     onlink,
+    label = 'note body (Markdown)',
   }: {
     value?: string;
     oninput?: () => void;
@@ -36,6 +37,8 @@
     onblur?: () => void;
     /** A link drawn finished was pressed once: follow it. */
     onlink?: (href: string) => void;
+    /** What the editor is called to assistive technology — a note, or a proposed note under review. */
+    label?: string;
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
@@ -56,7 +59,7 @@
           EditorView.lineWrapping,
           livePreview,
           EditorView.contentAttributes.of({
-            'aria-label': 'note body (Markdown)',
+            'aria-label': label,
             spellcheck: 'false',
           }),
           EditorView.updateListener.of((u) => {

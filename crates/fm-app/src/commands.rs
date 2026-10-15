@@ -892,7 +892,8 @@ fn apply_props(obj: &mut Object, props: &serde_json::Value) -> Result<(), StoreE
     let Some(map) = props.as_object() else { return Ok(()) };
     for (k, v) in map {
         match k.as_str() {
-            "start" | "due" | "location" | "meeting_of" => {
+            // `title`: a conversation's "Person — who they are" (`fm_agent::titles`, 2026-10-15).
+            "start" | "due" | "location" | "meeting_of" | "title" => {
                 apply_property(obj, k, v.as_str().unwrap_or_default())?;
             }
             "addTags" => {
@@ -901,6 +902,12 @@ fn apply_props(obj: &mut Object, props: &serde_json::Value) -> Result<(), StoreE
                         obj.tags.push(t.to_string());
                     }
                 }
+            }
+            // A meeting moved after it was called off is on again (`cancelled` lifted).
+            "removeTags" => {
+                let gone: Vec<&str> =
+                    v.as_array().into_iter().flatten().filter_map(|t| t.as_str()).collect();
+                obj.tags.retain(|t| !gone.contains(&t.as_str()));
             }
             other => {
                 return Err(StoreError::Io(format!("a proposal cannot change '{other}'")));
@@ -968,7 +975,15 @@ pub fn create_proposal_with(
         PropertyValue::Text(t) => serde_json::from_str::<serde_json::Value>(&t).ok(),
         _ => None,
     });
-    let props_now = props.cloned().or(stored_props);
+    // A revision's props go OVER the stored ones, key by key: a reviewer correcting a meeting's time
+    // sends `start`/`due`/`location` and must not drop the `addTags` the proposal was made with.
+    let props_now = match (stored_props, props) {
+        (Some(serde_json::Value::Object(mut kept)), Some(serde_json::Value::Object(new))) => {
+            kept.extend(new.clone());
+            Some(serde_json::Value::Object(kept))
+        }
+        (stored, new) => new.cloned().or(stored),
+    };
     if let Some(p) = &props_now {
         apply_props(&mut obj, p)?;
     }
@@ -1317,6 +1332,17 @@ pub struct ProposalContent {
     pub start: Option<String>,
     pub due: Option<String>,
     pub location: Option<String>,
+    /// The same three as the note has them now, so the review can show what each would change from.
+    /// `None` for a proposed new note, and for a field the note does not have.
+    #[serde(rename = "wasStart")]
+    pub was_start: Option<String>,
+    #[serde(rename = "wasDue")]
+    pub was_due: Option<String>,
+    #[serde(rename = "wasLocation")]
+    pub was_location: Option<String>,
+    /// The note's title now — so a proposal that renames it shows what it renames from.
+    #[serde(rename = "wasTitle")]
+    pub was_title: Option<String>,
     /// The proposal adds a note that does not exist yet (a meeting found in an email exchange).
     #[serde(rename = "isNew")]
     pub is_new: bool,
@@ -1368,7 +1394,8 @@ pub fn proposal_content(
         })
         .unwrap_or_else(|| "note".into());
     let is_new = host.parse::<Id>().ok().is_some_and(|h| matches!(store.get(h), Ok(None)));
-    let location = match proposed.get(MEETING_LOCATION) {
+    let current = host.parse::<Id>().ok().and_then(|h| store.get(h).ok().flatten());
+    let location_of = |o: &Object| match o.get(MEETING_LOCATION) {
         PropertyValue::Text(t) if !t.is_empty() => Some(t),
         _ => None,
     };
@@ -1377,7 +1404,11 @@ pub fn proposal_content(
         title,
         start: proposed.start.map(|s| s.to_string()),
         due: proposed.due.map(|s| s.to_string()),
-        location,
+        location: location_of(&proposed),
+        was_start: current.as_ref().and_then(|c| c.start.map(|s| s.to_string())),
+        was_due: current.as_ref().and_then(|c| c.due.map(|s| s.to_string())),
+        was_location: current.as_ref().and_then(location_of),
+        was_title: current.as_ref().and_then(|c| c.title.clone()),
         is_new,
         body: proposed.body,
     }))
@@ -2700,6 +2731,8 @@ pub struct MailConversation {
     pub last: String,
     /// The meeting the conversation note already stands for, if any.
     pub start: Option<String>,
+    /// Where it is (`location`), so a later email sending a link for the same time can be told apart.
+    pub location: Option<String>,
 }
 
 /// Every email conversation and the meeting starts already in the vault.
@@ -2711,21 +2744,38 @@ pub struct MailConversations {
     pub taken: Vec<String>,
     /// For each conversation id, the starts of meeting notes linked to it with `meeting_of`.
     pub linked: HashMap<String, Vec<String>>,
+    /// The mailbox owner, as the emails name them: the participant in the most conversations (at
+    /// least two). A title names the *other* person, so it must know who that is not.
+    pub me: Option<String>,
 }
 
 pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreError> {
     let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
     let rows = store.query(&q)?.rows;
-    let mut out =
-        MailConversations { conversations: Vec::new(), taken: Vec::new(), linked: HashMap::new() };
+    let mut out = MailConversations {
+        conversations: Vec::new(),
+        taken: Vec::new(),
+        linked: HashMap::new(),
+        me: None,
+    };
+    let mut seen_in: HashMap<String, usize> = HashMap::new();
     for o in &rows {
         let start = o.start.map(|s| s.to_string());
         if matches!(o.get(fm_core::mail::GMAIL_THREAD), PropertyValue::Text(t) if !t.is_empty()) {
+            if let PropertyValue::List(people) = o.get(fm_core::mail::PARTICIPANTS) {
+                for p in people {
+                    *seen_in.entry(p.display()).or_default() += 1;
+                }
+            }
             out.conversations.push(MailConversation {
                 id: o.id.to_string(),
                 title: o.title.clone().unwrap_or_default(),
                 last: o.get(fm_core::mail::MAIL_LAST).display(),
                 start: start.clone(),
+                location: match o.get(MEETING_LOCATION) {
+                    PropertyValue::Text(t) if !t.is_empty() => Some(t),
+                    _ => None,
+                },
             });
         }
         if let (true, Some(st)) = (o.tags.iter().any(|t| t == "meeting"), &start) {
@@ -2737,6 +2787,11 @@ pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreE
             }
         }
     }
+    out.me = seen_in
+        .into_iter()
+        .filter(|(_, n)| *n >= 2)
+        .max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
+        .map(|(p, _)| p);
     Ok(out)
 }
 
