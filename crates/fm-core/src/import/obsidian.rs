@@ -34,7 +34,7 @@ pub fn parse(text: &str, title: &str) -> Page {
     page.body = body.trim_matches('\n').to_string();
     super::scan_wikilinks(&page.body.clone(), &mut page.links);
     super::scan_hashtags(&page.body.clone(), &mut page.tags);
-    super::scan_local_images(&page.body.clone(), &mut page.attachments);
+    super::scan_local_files(&page.body.clone(), &mut page.attachments);
     page.finish();
     page
 }

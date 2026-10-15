@@ -22,7 +22,7 @@ survives (the value of "we tried X, then Y" is the whole chain). Prune only exac
 The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
 heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 
-- **`#seams`** (the compile-time invariants): ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
+- **`#seams`** (the compile-time invariants): ***Search reads a note's tags and properties*** (2026-10-15; read before changing `searchable_text` or `INDEX_SCHEMA`) · ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
   ***The vault lock is not held across a subprocess or a revwalk*** (read before adding a `dispatch`
   arm that shells out or walks git) · ***`Kind` is the second predicate that reaches SQL***
   (read before adding a pushdown — and before assuming `perf.rs` can see your change) ·
@@ -111,7 +111,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): ***Gmail is read with the person's own Google client*** (2026-10-09, superseded in part; read before touching `fm-serve/src/mail.rs`, its scope or its `ci/checks.sh` guard) · ***One optional third-party key, and it is a place you added*** (2026-09-12) · *The places to check are a note, not configuration* (2026-09-12; a *private* calendar address is the exception — it is a secret) · ***A snapshot says what it held, and "restic did not say"
+- **`#vault`** (audience/cross-vault): ***A vault holds every byte it owns; an import copies its attachments*** (2026-10-15; reverses the same day's hard links — read before letting a blob share storage with a file outside the vault) · ***Gmail is read with the person's own Google client*** (2026-10-09, superseded in part; read before touching `fm-serve/src/mail.rs`, its scope or its `ci/checks.sh` guard) · ***One optional third-party key, and it is a place you added*** (2026-09-12) · *The places to check are a note, not configuration* (2026-09-12; a *private* calendar address is the exception — it is a secret) · ***A snapshot says what it held, and "restic did not say"
   is its own answer*** (read before touching `backup::backup`'s return, the `--json` parse, or any
   surface that describes a snapshot) · ***A backup surface that cannot say* when *is not a backup
   surface*** (read before adding a field to `backup_status`, or before folding a per-vault restic
@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***A food keeps its pictures, and a label can be settled later*** (2026-10-13; read before shrinking a kept picture, estimating an unread packet, or converting an amount to fill an entry in) · ***Italy's table is carried on its own terms, read off its pages; Singapore's is not collected by a robot*** (2026-10-13; read before collecting a table from a website, before treating a licence as leave to crawl, or before storing CREA's carbohydrate) · ***The food list gains the Swiss table, and every table's own-language names are searched*** (2026-10-13; read before adding a table, translating a food's name, or treating a food in one table as the same food in another) · ***A label is typed as it is printed: per 100 g, per 100 ml or per serving; kcal or kJ; salt or sodium*** (2026-10-13; read before assuming a packaged food is per 100 g, treating a millilitre as a gram, or adding a unit to the label form) · ***How an exercise is done is its source's own words; a protocol with a name is offered by its name*** (2026-10-12; read before rewording a carried exercise, carrying a picture, adding a video that is not a known body's, or offering a training goal no body defines) · ***Recipes from outside are carried word for word, with their source's own figures*** (2026-10-12; read before adding a recipe collection, converting a carried recipe's units, or computing its values) · ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***An import can replace an earlier one, links to pages that do not exist become tags, and the person sets the rules for attachments*** (2026-10-15; read before touching the importer's options, `write_import`, or the import form) · ***A food keeps its pictures, and a label can be settled later*** (2026-10-13; read before shrinking a kept picture, estimating an unread packet, or converting an amount to fill an entry in) · ***Italy's table is carried on its own terms, read off its pages; Singapore's is not collected by a robot*** (2026-10-13; read before collecting a table from a website, before treating a licence as leave to crawl, or before storing CREA's carbohydrate) · ***The food list gains the Swiss table, and every table's own-language names are searched*** (2026-10-13; read before adding a table, translating a food's name, or treating a food in one table as the same food in another) · ***A label is typed as it is printed: per 100 g, per 100 ml or per serving; kcal or kJ; salt or sodium*** (2026-10-13; read before assuming a packaged food is per 100 g, treating a millilitre as a gram, or adding a unit to the label form) · ***How an exercise is done is its source's own words; a protocol with a name is offered by its name*** (2026-10-12; read before rewording a carried exercise, carrying a picture, adding a video that is not a known body's, or offering a training goal no body defines) · ***Recipes from outside are carried word for word, with their source's own figures*** (2026-10-12; read before adding a recipe collection, converting a carried recipe's units, or computing its values) · ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -223,6 +223,9 @@ and a block's `SCHEDULED:`/`DEADLINE:` stays text. Only a **page-level** propert
 field. Lifting one bullet's date to the note would manufacture exactly the second-class item that
 ruling rejects.
 
+> **SUPERSEDED in part (2026-10-15)** — an import may now *replace* an earlier one, never
+> overwriting an edited note; see *an import can replace an earlier one…* `#data`.
+
 **Add-only, and that is a safety decision rather than a limitation.** Each note carries
 `source_key` (its path in the source) and `source_library`, so a re-import recognises what it
 already did — and **skips it**, never rewrites it. `refuse_if_stale` compares the *indexed* mtime,
@@ -241,6 +244,10 @@ counted as a link it reported every multi-word tag as dangling, and would have r
 `[[Projects/Roadmap]]`, so a page registers under its path as well as its name or every
 folder-qualified link dangles. (4) One `git log` for the whole source, never one per file — a spawn
 per page is precisely the `papers-plan.md` B5 mistake.
+
+> **SUPERSEDED (2026-10-15)** — a link to a page with no file now becomes a **tag** on the
+> note that makes it; see *an import can replace an earlier one, links to pages that do not
+> exist become tags…* `#data`.
 
 **Dangling links stay as text.** A page that exists only as a reference is normal in Logseq. A stub
 note is a `Kind::Note`, so hundreds of empty ones would appear in every board, agenda, timeline and
@@ -10826,3 +10833,99 @@ looking at something leaves nothing behind.
 
 **Read before** adding a form to Food or Fitness: either each step writes a note, or the form
 keeps a draft. Nothing a person typed lives only in a component's memory.
+
+## 2026-10-15 — an import can replace an earlier one, links to pages that do not exist become tags, and the person sets the rules for attachments `#data` `#vault`
+
+Partly reverses *An import converts; adoption renders* (2026-09-02): its **add-only** paragraph and
+its **dangling links stay as text** paragraph. Everything else in it stands — above all, **the
+source folder is only ever read.** Measured first: `logseq-import-plan-2026-10-14.md` has the
+harness and the PhD graph's baseline (41% of links resolved, no non-image file imported, 43% of
+notes showing Logseq syntax).
+
+**1. A link to a page with no file becomes a tag on the note that makes it** (owner, choosing
+between text, tags and stub notes). In Logseq, `[[Grace Hopper]]` or `item-type:: [[journalArticle]]`
+is how a person finds every paper by an author or of a kind; as plain text it was neither visible
+nor findable. A tag is exactly that grouping with **no new note**, so the reason stubs were refused
+(hundreds of empty cards in every view) still holds and stubs stay an opt-in. The body keeps the
+words, without the brackets. A link that *names a day* with no journal file stays plain text: a
+tag per date would be noise, and the note's own date is the timeline's business.
+
+**2. Attachments: the person decides what comes over, and nothing is copied twice.** The import
+form states the attachments by kind and size, and offers *all of them* (the default — nothing is
+skipped unless the person says so) or *leave out files larger than N MB* and/or *leave out these
+kinds*. A left-out file is still **named** in the note, with why it is not there, so nothing goes
+missing silently. > **SUPERSEDED the same day (2026-10-15)** — the hard-link half of this point is reversed: an
+> attachment is always **copied**. See *a vault holds every byte it owns* `#vault`.
+
+Where the vault and the graph are on one disk, an attachment enters the blob
+store as a **hard link**: no second copy, and the graph keeps its file. Where they are not, it is
+copied, and the preview says which will happen. **Rejected: moving the files** (the owner's first
+words were "move rather than duplicate", for disk space). A move breaks the read-only promise and
+the *no data loss, always a way back* bar: an import that fails halfway would leave the graph
+with files missing. A hard link costs the same zero bytes and breaks neither. The trap it carries,
+named: editing a linked file in place in the *old* graph changes the blob too, which the blob scrub
+then reports as damaged; Logseq does not edit its assets in place, so this is a warning in the
+manual, not a guard. Blobs were already outside git (`blobs/` is gitignored; `git_assets_max`
+decides what travels), so none of this changes what a backup sends.
+
+**3. An import can replace an earlier one, and the same graph is not imported twice by
+accident.** *Replace* rewrites, in place and under the same id, every earlier imported note **the
+person has not edited since** — so links into them keep working — adds what is new, and **keeps
+every edited note as it is**, counted and named in the summary. "Not edited" is decided by an
+`import_hash` the importer writes on each note: the hash of what it wrote. A note whose content
+still hashes to it is untouched. A note from before this change has no `import_hash`; it counts as
+unedited only if its `updated` is still the source file's modification time the import stamped,
+which is the safe direction: any doubt keeps the note. The whole replace is one commit, so it is
+undone as one. **Duplicates:** before importing, the preview looks for this graph's pages in every
+vault (by `source_key`, the same one-pass scan *add-only* used) and, when a vault already holds most
+of them, says so and offers to update that vault instead of making another.
+
+**Why the add-only reasoning no longer forbids this.** It was right that `refuse_if_stale` cannot
+see an in-app edit, so a blind update would overwrite one. The `import_hash` sees exactly that, per
+note, without git — and the rule that follows from it never overwrites what the person wrote.
+
+**Read before** touching `import.rs`'s `Options`, `write_import`, or the import form: an attachment
+rule must keep naming what it left out; *replace* must never write a note whose `import_hash` does
+not match; and the source folder is opened read-only.
+
+## 2026-10-15 — search reads a note's tags and properties, not only its title and body `#seams` `#data`
+
+`Object::searchable_text` was the title and the body. Every property — a paper's authors and venue,
+an imported Logseq page's `item-type::`, a food's brand — and every tag was invisible to search.
+Measured on the owner's PhD graph: 12% of searches for a page's own rarest words missed it, almost
+all of them words held in properties. The owner: "we should be able to search over properties and
+tags".
+
+**Decision.** `searchable_text` now carries, after the title and body, the tags and the **values**
+of the custom properties (`extra`), each as its human label (`PropertyValue::display`). **Values,
+not keys**: a search for *authors* should not return every paper. Reserved bookkeeping keys an
+importer or the app writes for itself (`source_key`, `source_library`, `import_hash`, and the
+thread/proposal keys) are left out — they are paths and hashes, not words anyone searches for.
+
+**Consequence.** `INDEX_SCHEMA` is bumped, so every vault's index is rebuilt once on next open;
+the index is disposable by design and the rebuild is the existing cold-start path. Because the
+change is in `fm-model`, the pure engine's `Text` predicate and the FTS5 index stay the same
+function of the note, and `MemoryStore`/`FileStore` stay equivalent (tested). A search hit whose
+matching word is in a property shows the note's usual preview; showing *where* it matched is not
+part of this.
+
+## 2026-10-15 — a vault holds every byte it owns; an import copies its attachments `#vault` `#data`
+
+Reverses the hard-link half of *an import can replace an earlier one…* (same day). The owner:
+*"We cannot have part of a vault outside the vault."* A hard-linked blob sits inside `blobs/` by
+path, but its bytes are one file with the graph's: a program that saves over the graph's copy
+changes the vault's, and the vault's integrity then depends on a folder it does not own. That is a
+vault that is partly outside itself.
+
+**Decision.** An import **copies** every attachment it brings over, always, on every OS. There is
+no linking, so there is no "linked or copied" for the preview to state; it states the space the
+attachments take, by kind, and the person's rules (leave out by size or kind) remain the way to
+spend less of it. Moving files out of the graph stays rejected for the reasons already written
+(the source is only ever read; an interrupted move loses files).
+
+**Consequence.** `BlobStore::put_file_linked`, `ingest_file_linked`, `import::same_disk` and the
+`linked` fields of the preview and the report are removed, not left unused. The space an import
+needs is the size of what it brings, which the preview shows before the button is pressed.
+
+**Read before** adding any way for a blob to share storage with a file outside its vault (a link,
+a reflink presented as independent, a pointer to an external path): it is this ruling's subject.

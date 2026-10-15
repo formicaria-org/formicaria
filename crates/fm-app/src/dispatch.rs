@@ -22,7 +22,7 @@ use crate::scope::Scope;
 use crate::vaults::{self, VaultConfig};
 use fm_core::{backup, git, vcs, ColdStart, MultiStore, Reindex, Scoped, Store};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -1927,7 +1927,15 @@ fn dispatch_inner(
                 let g = lock()?;
                 destination_problem(&g, app, scope, &vault, &name, &path)
             };
-            json(import_check(&s("source"), problem))
+            let (mut check, keys) = import_check(&s("source"), problem);
+            // **Has this graph been imported already?** Asked only of a folder that is a graph,
+            // and in one pass over the notes (`commands::imported_into`), so a person about to
+            // make a second copy is told where the first one is.
+            if check.format.is_some() && !keys.is_empty() {
+                let mut g = lock()?;
+                check.previous = commands::imported_into(&g.store(scope), &keys).map_err(err)?;
+            }
+            json(check)
         }
         // **A fourth way a vault gets filled**, beside create/clone/restore — and the only one
         // that *converts* rather than moving bytes. See `run_import` for where the lock is.
@@ -1965,7 +1973,7 @@ fn dispatch_inner(
             &s("vault"),
             &s("name"),
             &resolve_path(&s("name"), &s("path"))?,
-            args.get("stubs").and_then(Value::as_bool).unwrap_or(false),
+            import_options(args),
         )?),
         // **Stop showing me this vault.** The fourth verb the vault list needed: three commands
         // brought a vault into being (`create_vault`, `clone_vault`, `restore_vault`) and none took
@@ -3571,6 +3579,45 @@ struct ImportCheck {
     /// user fixes one thing and gets a different refusal. `None` means it can be imported.
     problem: Option<String>,
     ok: bool,
+    /// The attachments by kind, largest first — what the person chooses to leave out from.
+    kinds: Vec<AttachmentKind>,
+    drawings: usize,
+    /// Vaults that already hold most of this graph's pages from an earlier import.
+    previous: Vec<commands::PreviousImport>,
+}
+
+#[derive(serde::Serialize)]
+struct AttachmentKind {
+    kind: String,
+    count: usize,
+    bytes: u64,
+}
+
+/// `run_import`'s arguments as importer options: `stubs`, `replace`, and the attachment rules —
+/// `maxMb` (a number, or absent for no limit) and `skipKinds` (extensions).
+fn import_options(args: &Value) -> fm_core::import::Options {
+    let flag = |k: &str| args.get(k).and_then(Value::as_bool).unwrap_or(false);
+    fm_core::import::Options {
+        create_stubs: flag("stubs"),
+        replace: flag("replace"),
+        attachments: fm_core::import::AttachmentRules {
+            max_bytes: args
+                .get("maxMb")
+                .and_then(Value::as_f64)
+                .filter(|mb| *mb > 0.0)
+                .map(|mb| (mb * 1_000_000.0) as u64),
+            skip_kinds: args
+                .get("skipKinds")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(|k| k.trim_start_matches('.').to_ascii_lowercase())
+                        .collect()
+                })
+                .unwrap_or_default(),
+        },
+    }
 }
 
 /// Why the destination cannot receive an import, if it cannot.
@@ -3590,13 +3637,15 @@ fn destination_problem(
     (!check.ok).then(|| refusal(&check, name))
 }
 
-fn import_check(source: &str, destination: Option<String>) -> ImportCheck {
+fn import_check(source: &str, destination: Option<String>) -> (ImportCheck, HashSet<String>) {
     // The walk happens with the guard released — see the arm. A source path can be anything a
     // person typed, including `/`, so this must never run while holding the vault mutex.
-    let scan = fm_core::import::scan(&PathBuf::from(vaults::expand_home(source)));
+    let source = PathBuf::from(vaults::expand_home(source));
+    let scan = fm_core::import::scan(&source);
     let problem = scan.problems.first().cloned().or(destination);
     let ok = problem.is_none() && scan.ok();
-    ImportCheck {
+    let keys: HashSet<String> = scan.keys.iter().cloned().collect();
+    let check = ImportCheck {
         format: scan.format.map(|f| f.as_str().to_string()),
         label: scan.format.map(|f| f.label().to_string()),
         pages: scan.pages,
@@ -3610,7 +3659,15 @@ fn import_check(source: &str, destination: Option<String>) -> ImportCheck {
             .collect(),
         problem,
         ok,
-    }
+        kinds: scan
+            .kinds
+            .into_iter()
+            .map(|(kind, count, bytes)| AttachmentKind { kind, count, bytes })
+            .collect(),
+        drawings: scan.drawings,
+        previous: Vec::new(),
+    };
+    (check, keys)
 }
 
 /// Convert a Logseq graph or an Obsidian vault into notes.
@@ -3633,10 +3690,9 @@ fn run_import(
     vault: &str,
     name: &str,
     path: &str,
-    stubs: bool,
+    opts: fm_core::import::Options,
 ) -> Result<commands::ImportReport, String> {
     let source = PathBuf::from(vaults::expand_home(source));
-    let opts = fm_core::import::Options { create_stubs: stubs };
 
     if vault.is_empty() {
         return import_into_new_vault(app, scope, &source, name, path, opts);

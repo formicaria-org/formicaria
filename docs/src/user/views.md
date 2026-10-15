@@ -80,8 +80,8 @@ Two more are real views but are **not** in the sidebar, and that is deliberate:
 
   ![Settings open over the Board, listing Open Board, Open Agenda, Open Timeline,
   Open Activity, Open Collaboration and Open Discussions under a filter box](../images/settings.png)
-- **Search** — full-text search across every note (and the extracted text of
-  ingested PDFs). Reached by typing into the **search box** at the top of the
+- **Search** — full-text search across every note — its title, its text, its tags and the
+  values of its properties (an author, a venue) — and the extracted text of ingested PDFs. Reached by typing into the **search box** at the top of the
   sidebar, never from the list: clicking an empty search view produces a blank pane,
   so there is nothing to click.
 

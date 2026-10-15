@@ -44,8 +44,8 @@ here. See the [frontmatter schema](./frontmatter.md).
 
 ### FTS
 
-Full-text search. formicaria keeps a SQLite FTS5 index of every note's text — including text
-extracted from PDFs — so search is fast at any vault size. The index is **disposable**: it is
+Full-text search. formicaria keeps a SQLite FTS5 index of every note's text — its title, body,
+tags and property values, and text extracted from PDFs — so search is fast at any vault size. The index is **disposable**: it is
 rebuilt from the Markdown files, never backed up, and never synced.
 
 ### Merge driver

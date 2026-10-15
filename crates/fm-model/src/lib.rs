@@ -180,15 +180,42 @@ impl Object {
         }
     }
 
-    /// Text visible to full-text search: title + body. Extracted asset text
-    /// (pdftotext output) is appended here by the indexer in a later slice.
+    /// Text visible to full-text search: the title, the body, the tags, and the **values** of the
+    /// custom properties (`decisions.md#seams`, 2026-10-15). Values, not keys — a search for
+    /// "authors" should not return every paper — and not the keys in [`UNSEARCHED_KEYS`], which
+    /// hold paths, hashes and ids that nobody types into a search box.
+    ///
+    /// The pure engine's `Text` predicate and the FTS5 index both read this, so the two stores
+    /// stay one function of the note. Changing it means bumping `INDEX_SCHEMA` in `fm-core`.
     pub fn searchable_text(&self) -> String {
-        match &self.title {
-            Some(t) => format!("{t}\n{}", self.body),
-            None => self.body.clone(),
+        let mut s = String::with_capacity(self.body.len() + 64);
+        if let Some(t) = &self.title {
+            s.push_str(t);
+            s.push('\n');
         }
+        s.push_str(&self.body);
+        for t in &self.tags {
+            s.push('\n');
+            s.push_str(t);
+        }
+        for (k, v) in &self.extra {
+            if v.is_null() || UNSEARCHED_KEYS.contains(&k.as_str()) {
+                continue;
+            }
+            let text = v.display();
+            if !text.is_empty() {
+                s.push('\n');
+                s.push_str(&text);
+            }
+        }
+        s
     }
 }
+
+/// Custom-property keys whose values are bookkeeping, not words: an importer's source path and
+/// content hash, and the thread/proposal pointers. Left out of [`Object::searchable_text`].
+pub const UNSEARCHED_KEYS: &[&str] =
+    &["source_key", "source_library", "import_hash", "thread_of", "reply_to", "proposes", "base"];
 
 fn opt_text(o: &Option<String>) -> PropertyValue {
     o.clone().map(PropertyValue::Text).unwrap_or(PropertyValue::Null)

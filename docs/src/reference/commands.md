@@ -134,8 +134,8 @@ change itself lives on that git branch. Nothing here writes to `main`.
 
 | Command          | Args                         | Returns                | Notes |
 |------------------|------------------------------|------------------------|-------|
-| `check_import`   | `source`, `path`, `vault`, `name` | `ImportCheck`     | what is there and what would happen. Asked on every keystroke while someone types a folder, so it is a pure read |
-| `run_import`     | `source`, `path`, `vault`, `name`, `stubs` | `ImportResult` | convert a Logseq or Obsidian folder into notes |
+| `check_import`   | `source`, `path`, `vault`, `name` | `ImportCheck`     | what is there and what would happen — attachments by kind, whether they will be linked or copied, and which vaults already hold this folder. Asked on every keystroke while someone types a folder, so it is a pure read |
+| `run_import`     | `source`, `path`, `vault`, `name`, `stubs`, `replace`, `maxMb`, `skipKinds` | `ImportResult` | convert a Logseq or Obsidian folder into notes. `replace` rewrites an earlier import's notes except those edited or deleted since; `maxMb`/`skipKinds` leave attachments out (each still named in its note) |
 | `calendar_sync`  | `vault`, `source`, `offset`; **body** = iCalendar text | `CalendarReport` | your own calendar into a vault: new meetings become notes, a newer `SEQUENCE` moves one, a cancellation tags it. No model, no network — `fm-serve` reads the private address and hands the bytes in |
 | `mail_sync`      | `vault`, `offset`; **body** = JSON array of Gmail messages (`format=full`) | `MailReport` | Gmail into a vault: one note per conversation (subject, last sender, when — never the text), and every invite read exactly as `calendar_sync` reads a calendar. No model, no network — `fm-serve` reads Gmail with a `gmail.readonly` token and hands the messages in |
 | `mail_conversations` | — | `MailConversations` | read-only: every email conversation (id, title, when its latest message arrived, its current `start`), the starts already on the agenda, and the meeting notes linked to each conversation — what the assistant's meeting pass reads |

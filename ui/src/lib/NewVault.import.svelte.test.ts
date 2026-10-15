@@ -44,6 +44,12 @@ const scan = (over: Partial<Record<string, unknown>> = {}) => ({
   leftBehind: [],
   problem: null,
   ok: true,
+  kinds: [
+    { kind: 'bag', count: 16, bytes: 1_900_000_000 },
+    { kind: 'png', count: 600, bytes: 300_000_000 },
+  ],
+  drawings: 0,
+  previous: [],
   ...over,
 });
 
@@ -64,6 +70,13 @@ const report = (over: Partial<Record<string, unknown>> = {}) => ({
   warnings: [],
   recorded: true,
   vault: 'notes',
+  leftOut: 0,
+  leftOutNames: [],
+  tagsFromLinks: 3,
+  drawings: 0,
+  replaced: 0,
+  keptEdited: 0,
+  keptEditedNames: [],
   ...over,
 });
 
@@ -123,16 +136,18 @@ describe('importing another app’s notes', () => {
     await fireEvent.click(screen.getByRole('button', { name: /import notes/i }));
 
     await waitFor(() => expect(runImport).toHaveBeenCalled());
-    // `vault` empty is what asks the server for a new one; `stubs` false is the safe default.
-    const [source, vault, , , stubs] = runImport.mock.calls[0];
+    // `vault` empty is what asks the server for a new one; `stubs` false is the safe default; and
+    // by default nothing is replaced and every attachment comes over.
+    const [source, vault, , , stubs, rules] = runImport.mock.calls[0];
     expect(source).toBe('~/graph');
     expect(vault).toBe('');
     expect(stubs).toBe(false);
+    expect(rules).toEqual({ replace: false });
 
     expect(await screen.findByText(/Imported from Logseq/i)).toBeTruthy();
     expect(screen.getByText(/210 links between notes now work/)).toBeTruthy();
     // The bad news is reported too, or it is not a report.
-    expect(screen.getByText(/left as plain text/)).toBeTruthy();
+    expect(screen.getByText(/now a tag on the note that made it/)).toBeTruthy();
     expect(screen.getByText(/undone in one step/)).toBeTruthy();
   });
 
@@ -166,5 +181,58 @@ describe('importing another app’s notes', () => {
     checkImport.mockResolvedValue(scan({ pages: 30_000 }));
     await intoImportMode();
     expect(await screen.findByText(/That is a lot of notes/)).toBeTruthy();
+  });
+});
+
+describe('importing a folder again, and choosing what comes over', () => {
+  /** `decisions.md#data`, 2026-10-15: the same graph is not imported twice by accident. */
+  it('names the vault that already holds this folder and offers to update it instead', async () => {
+    checkImport.mockResolvedValue(scan({ previous: [{ vault: 'personal', pages: 150, of: 160 }] }));
+    runImport.mockResolvedValue(
+      report({
+        vault: 'personal',
+        replaced: 149,
+        keptEdited: 1,
+        keptEditedNames: ['Reading list'],
+      }),
+    );
+    await intoImportMode();
+    expect(await screen.findByText(/already imported into/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: /update personal instead/i }));
+    // Updating means replacing, and the switch says so where the person can see and undo it.
+    expect(
+      (screen.getByLabelText(/replace what an earlier import/i) as HTMLInputElement).checked,
+    ).toBe(true);
+    await fireEvent.click(screen.getByRole('button', { name: /import notes/i }));
+    await waitFor(() => expect(runImport).toHaveBeenCalled());
+    const [, vault, , , , rules] = runImport.mock.calls[0];
+    expect(vault).toBe('personal');
+    expect(rules).toEqual({ replace: true });
+    // What was kept is named, so the person knows their edits are safe.
+    expect(
+      await screen.findByText(/149 notes from the earlier import were brought up to date/),
+    ).toBeTruthy();
+    expect(screen.getByText(/kept as you left them: Reading list/)).toBeTruthy();
+  });
+
+  it('lets the person leave out a kind of attachment and anything over a size', async () => {
+    runImport.mockResolvedValue(report({ leftOut: 16, leftOutNames: ['run_1.bag'] }));
+    await intoImportMode();
+    // The kinds are shown with their sizes, so the choice is an informed one.
+    await fireEvent.click(await screen.findByLabelText(/leave some out/i));
+    expect(screen.getByText(/Leave out \.bag — 16 files, 1\.9 GB/)).toBeTruthy();
+    await fireEvent.click(screen.getByLabelText(/Leave out \.bag/));
+    await fireEvent.input(screen.getByLabelText(/larger than/i), { target: { value: '100' } });
+    await fireEvent.click(screen.getByRole('button', { name: /import notes/i }));
+    await waitFor(() => expect(runImport).toHaveBeenCalled());
+    expect(runImport.mock.calls[0][5]).toEqual({ replace: false, maxMb: 100, skipKinds: ['bag'] });
+    expect(await screen.findByText(/16 attachments were left out, as you asked/)).toBeTruthy();
+  });
+
+  /** `decisions.md#vault`, 2026-10-15: a vault holds every byte it owns — attachments are copied,
+   *  and the space that takes is stated before the button is pressed. */
+  it('says attachments are copied, and how much space they take, before importing', async () => {
+    await intoImportMode();
+    expect(await screen.findByText(/copied into the vault — up to 2\.4 MB/)).toBeTruthy();
   });
 });

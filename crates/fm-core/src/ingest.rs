@@ -42,12 +42,24 @@ pub fn ingest_file(vault: &Path, src: &Path) -> Result<Ingested, StoreError> {
 pub fn ingest_file_named(vault: &Path, src: &Path, filename: &str) -> Result<Ingested, StoreError> {
     let store = BlobStore::new(vault);
     let Stored { hash, deduped } = store.put_file(src)?;
+    describe(&store, src, hash, deduped, filename)
+}
+
+/// MIME and searchable text for a blob just stored from `src`.
+fn describe(
+    store: &BlobStore,
+    src: &Path,
+    hash: String,
+    deduped: bool,
+    filename: &str,
+) -> Result<Ingested, StoreError> {
     let blob = store.path_for(&hash);
 
     // Sniff by content, never the extension. SVG (which infer misreads/misses)
-    // wins over the magic-byte guess; otherwise fall back to infer.
-    let sniffed = std::fs::read(src)
-        .ok()
+    // wins over the magic-byte guess; otherwise fall back to infer. **Only the head is read**:
+    // `sniff_svg` looks at the first KiB, and reading the whole file to get it put a 500 MB
+    // recording into memory just to say it was not an SVG.
+    let sniffed = read_head(src, 1024)
         .and_then(|b| sniff_svg(&b).map(str::to_string))
         .or_else(|| infer::get_from_path(src).ok().flatten().map(|t| t.mime_type().to_string()));
     let text = extract_text(&blob, sniffed.as_deref());
@@ -97,12 +109,26 @@ fn sniff_svg(bytes: &[u8]) -> Option<&'static str> {
     String::from_utf8_lossy(head).to_ascii_lowercase().contains("<svg").then_some("image/svg+xml")
 }
 
+/// The first `n` bytes of a file, or fewer if it is shorter.
+fn read_head(path: &Path, n: usize) -> Option<Vec<u8>> {
+    use std::io::Read;
+    let mut buf = Vec::with_capacity(n);
+    std::fs::File::open(path).ok()?.take(n as u64).read_to_end(&mut buf).ok()?;
+    Some(buf)
+}
+
+/// The largest file read whole as text. Past this a "text" file is a log or a dataset, not
+/// something a note should carry as its body — and an unrecognised binary (a ROS bag has no
+/// signature `infer` knows) was read whole only to fail as UTF-8.
+const MAX_TEXT_BYTES: u64 = 8 * 1024 * 1024;
+
 fn extract_text(blob: &Path, mime: Option<&str>) -> Option<String> {
+    let small = || blob.metadata().map(|m| m.len() <= MAX_TEXT_BYTES).unwrap_or(false);
     let text = match mime {
         Some("application/pdf") => pdftotext(blob)?,
-        Some(m) if m.starts_with("text/") => std::fs::read_to_string(blob).ok()?,
-        // No known magic signature → maybe plain text; read iff valid UTF-8.
-        None => std::fs::read_to_string(blob).ok()?,
+        // Text, or no known magic signature (maybe plain text): read iff valid UTF-8 and not huge.
+        Some(m) if m.starts_with("text/") && small() => std::fs::read_to_string(blob).ok()?,
+        None if small() => std::fs::read_to_string(blob).ok()?,
         // A known binary (image, audio, video, …) has no extractable text.
         _ => return None,
     };

@@ -1860,6 +1860,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         leftBehind: format === 'obsidian' ? [{ kind: 'canvas', count: 1 }] : [],
         problem,
         ok: problem === null,
+        kinds: format
+          ? [
+              { kind: 'bag', count: 2, bytes: 1_900_000 },
+              { kind: 'png', count: 1, bytes: 500_000 },
+            ]
+          : [],
+        drawings: format === 'logseq' ? 1 : 0,
+        // A path with "again" in it stands in for a graph imported before.
+        previous:
+          format && /again/i.test(source) && mockVaults.length
+            ? [{ vault: mockVaults[0].name, pages: 16, of: 16 }]
+            : [],
       };
       return check satisfies ImportCheck as T;
     }
@@ -1881,6 +1893,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         warnings: [],
         recorded: true,
         vault: String(args.vault || args.name || 'notes'),
+        leftOut: Array.isArray(args.skipKinds) ? args.skipKinds.length : 0,
+        leftOutNames: Array.isArray(args.skipKinds) ? ['run_1.bag'] : [],
+        tagsFromLinks: 2,
+        drawings: 1,
+        replaced: args.replace ? 15 : 0,
+        keptEdited: args.replace ? 1 : 0,
+        keptEditedNames: args.replace ? ['Reading notes'] : [],
       };
       return report satisfies ImportReport as T;
     }

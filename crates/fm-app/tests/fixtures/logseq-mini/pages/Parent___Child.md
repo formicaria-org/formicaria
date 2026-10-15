@@ -1,0 +1,1 @@
+- A namespaced child page about pangolins, linked from [[Gamma Alias]].

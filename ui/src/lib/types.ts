@@ -465,6 +465,36 @@ export interface ImportCheck {
   /** One sentence, the most disqualifying first. Null means it can be imported. */
   problem: string | null;
   ok: boolean;
+  /** The attachments by kind (extension), largest first — what the person may leave out. */
+  kinds: AttachmentKind[];
+  /** Excalidraw drawings, which become whiteboard notes. */
+  drawings: number;
+  /** Vaults that already hold most of this folder's pages, from an earlier import. */
+  previous: PreviousImport[];
+}
+
+export interface AttachmentKind {
+  kind: string;
+  count: number;
+  bytes: number;
+}
+
+export interface PreviousImport {
+  vault: string;
+  /** How many of the folder's pages it holds, of how many. */
+  pages: number;
+  of: number;
+}
+
+/** The person's rules for an import (`decisions.md#data`, 2026-10-15). Absent = add only, and
+ *  bring every attachment. */
+export interface ImportRules {
+  /** Rewrite what an earlier import wrote, except notes edited or deleted since. */
+  replace?: boolean;
+  /** Leave out attachments larger than this many MB. */
+  maxMb?: number | null;
+  /** Leave out attachments with these extensions. */
+  skipKinds?: string[];
 }
 
 /** What an import actually did. Every number is reported, including the ones that are not
@@ -488,6 +518,18 @@ export interface ImportReport {
   /** Whether it all went into history as one entry — which is what makes it undoable as one. */
   recorded: boolean;
   vault: string;
+  /** Attachments the rules left out — each still named where a note mentions it. */
+  leftOut: number;
+  leftOutNames: string[];
+  /** Links to pages with no file of their own, now tags. */
+  tagsFromLinks: number;
+  /** Excalidraw drawings, now whiteboard notes. */
+  drawings: number;
+  /** On a replace: earlier notes rewritten, and earlier notes kept because they were edited or
+   *  deleted since. */
+  replaced: number;
+  keptEdited: number;
+  keptEditedNames: string[];
 }
 
 /** The renderer a `.view` draws through — the same set the built-in nav offers. */

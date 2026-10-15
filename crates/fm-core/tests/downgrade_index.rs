@@ -74,7 +74,7 @@ fn an_index_from_a_newer_version_is_rebuilt_rather_than_reused() {
 
     let db = Connection::open(&index).unwrap();
     let v: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(v, 2, "the index is ours again, stamped with our own schema");
+    assert_eq!(v, 3, "the index is ours again, stamped with our own schema (`INDEX_SCHEMA`)");
     let leftover: i64 = db
         .query_row(
             "SELECT count(*) FROM pragma_table_info('objects') WHERE name = 'a_future_column'",

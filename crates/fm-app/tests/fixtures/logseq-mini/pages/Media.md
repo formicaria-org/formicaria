@@ -1,0 +1,11 @@
+- An image: ![pic one](../assets/pic_1.png)
+- A sized image: ![pic two](../assets/pic_2.png){:height 100, :width 200}
+- A path with parentheses: ![shot](../assets/shot(1)_1.png)
+- A path with spaces and a percent escape: ![spaced](../assets/my%20scan_1.png)
+- A slide deck: [deck.pdf](../assets/deck_1.pdf)
+- An archive: [data.zip](../assets/data_1.zip)
+- A label with brackets: [[Draft]_notes.pdf](../assets/[Draft]_notes_1.pdf)
+- Somebody else's image: ![web](https://example.org/x.png)
+- A video: {{video https://www.youtube.com/watch?v=dQw4w9WgXcQ}}
+- A drawing: {{renderer :drawio, 1700000000000.svg}}
+- A query: {{query (and [[fixture]] "quokkas")}}

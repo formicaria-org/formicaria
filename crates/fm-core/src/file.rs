@@ -28,6 +28,8 @@ use std::path::{Path, PathBuf};
 /// migration had been forgotten:
 ///   - **1** — `objects` gains `fts_rowid`.
 ///   - **2** — `objects` gains `kind`, so `candidates` can narrow a planning view in SQL.
+///   - **3** — `searchable_text` carries tags and property values (`decisions.md#seams`,
+///     2026-10-15). No column changes, so no migration: the bump alone forces the one rebuild.
 ///
 /// **Bump this whenever the index's meaning changes** — the `objects`/`fts` columns, the pinned
 /// tokenizer, or what `Object::searchable_text()` returns. [`FileStore::open_incremental`] trusts
@@ -46,7 +48,7 @@ use std::path::{Path, PathBuf};
 /// mode of writing it too early (marking an index complete that is not) cannot arise at all.
 ///
 /// 1 — `objects` gains `fts_rowid`, so deletes seek instead of scanning.
-const INDEX_SCHEMA: i64 = 2;
+const INDEX_SCHEMA: i64 = 3;
 
 pub struct FileStore {
     notes: PathBuf,

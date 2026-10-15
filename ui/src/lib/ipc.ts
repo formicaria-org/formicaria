@@ -10,6 +10,7 @@ import type {
   GitAuth,
   ImportCheck,
   ImportReport,
+  ImportRules,
   KeptNote,
   LastCommit,
   DiscussionSummary,
@@ -1016,7 +1017,8 @@ export const runImport = (
   name: string,
   path: string,
   stubs: boolean,
-) => invoke<ImportReport>('run_import', { source, vault, name, path, stubs });
+  rules: ImportRules = {},
+) => invoke<ImportReport>('run_import', { source, vault, name, path, stubs, ...rules });
 
 /** Clone a collaborator's vault and register it. The identity is **required**, not a
  *  courtesy: a shared vault is exactly where committing as the placeholder would attribute

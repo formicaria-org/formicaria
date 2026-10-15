@@ -134,11 +134,16 @@ fn a_bracketed_hashtag_is_a_tag_and_never_a_link() {
     assert!(page.tags.contains(&"deep learning".to_string()));
     assert!(page.links.is_empty(), "a tag was counted as a link: {:?}", page.links);
 
-    // And even when a page by that name exists, the tag passes through untouched.
+    // And even when a page by that name exists, it stays a tag — written as Logseq shows it,
+    // without the brackets, never as a link.
     let id = new_id();
     let g = graph_with(&[("deep learning", id)]);
     let mut s = Rewritten::default();
-    assert_eq!(rewrite("tagged #[[deep learning]]", &g, &mut s), "tagged #[[deep learning]]");
+    assert_eq!(rewrite("tagged #[[deep learning]]", &g, &mut s), "tagged #deep learning");
+    assert_eq!(
+        rewrite("see #[[Meeting with #[[Ada]]]] now", &g, &mut s),
+        "see #Meeting with #Ada now"
+    );
     assert_eq!(s.links_resolved, 0);
     assert!(s.dangling.is_empty());
 }
@@ -180,15 +185,116 @@ fn a_link_resolves_regardless_of_case() {
     assert_eq!(rewrite("[[target page]]", &g, &mut s), format!("[target page](note:{id})"));
 }
 
-/// A page that exists only as a reference is normal in Logseq. Left verbatim and **counted** —
-/// inventing a note for each would put an empty card in every board, agenda, timeline and feed.
+/// A page that exists only as a reference is normal in Logseq. It becomes a **tag** on the note,
+/// its words stay in the text without the brackets, and it is **counted** — and no note is
+/// invented for it, which would put an empty card in every board, agenda, timeline and feed
+/// (`decisions.md#data`, 2026-10-15).
 #[test]
-fn a_dangling_link_is_left_alone_and_counted() {
+fn a_link_to_a_page_with_no_file_becomes_a_tag_and_plain_words() {
     let g = Graph::default();
     let mut s = Rewritten::default();
-    assert_eq!(rewrite("[[Nowhere]]", &g, &mut s), "[[Nowhere]]");
-    assert_eq!(s.dangling, vec!["Nowhere".to_string()]);
+    assert_eq!(rewrite("by [[Grace Hopper]] et al.", &g, &mut s), "by Grace Hopper et al.");
+    assert_eq!(s.dangling, vec!["Grace Hopper".to_string()]);
+    assert_eq!(s.tags, vec!["Grace Hopper".to_string()]);
     assert_eq!(s.links_resolved, 0);
+}
+
+/// A day with no journal file stays words: a tag per date would be noise.
+#[test]
+fn a_link_to_a_day_with_no_journal_is_words_and_no_tag() {
+    let g = Graph::default();
+    let mut s = Rewritten::default();
+    assert_eq!(rewrite("on [[Nov 30th, 2012]]", &g, &mut s), "on Nov 30th, 2012");
+    assert_eq!(rewrite("and [[2012-11-30]]", &g, &mut s), "and 2012-11-30");
+    assert!(s.tags.is_empty(), "{:?}", s.tags);
+}
+
+/// What Logseq writes that this app cannot run is shown as what it said — never with braces.
+#[test]
+fn a_macro_never_leaves_its_braces_behind() {
+    let g = Graph::default();
+    let mut s = Rewritten::default();
+    let video = rewrite("{{video https://www.youtube.com/watch?v=abc}}", &g, &mut s);
+    assert_eq!(video, "[YouTube video](https://www.youtube.com/watch?v=abc)");
+    let zotero = rewrite(r#"{{zotero-imported-file ABCD, "Paper - 2020.pdf"}}"#, &g, &mut s);
+    assert_eq!(zotero, "Paper - 2020.pdf (a Zotero attachment, kept in Zotero)");
+    let query = rewrite(r#"{{query (and [[x]] "y")}}"#, &g, &mut s);
+    assert_eq!(query, r#"`query (and [[x]] "y")`"#);
+    assert!(!rewrite("{{cloze hidden}}", &g, &mut s).contains("{{"));
+}
+
+/// A label holding brackets and a path holding parentheses are one link each — and the label's
+/// bracket does not start a wikilink that swallows the lines after it.
+#[test]
+fn brackets_in_a_label_and_parentheses_in_a_path_stay_one_link() {
+    let mut g = Graph::default();
+    let a = Asset { hash: "ab".repeat(32), filename: "x".into() };
+    g.add_asset("../assets/[Draft]_notes_1.pdf", a.clone());
+    g.add_asset("../assets/shot(1)_1.png", a);
+    let mut s = Rewritten::default();
+    let body =
+        "- [[Draft]_notes.pdf](../assets/[Draft]_notes_1.pdf)\n- ![shot](../assets/shot(1)_1.png)";
+    let out = rewrite(body, &g, &mut s);
+    let h = "ab".repeat(32);
+    assert_eq!(
+        out,
+        format!("- [\\[Draft\\]_notes.pdf](asset:sha256-{h})\n- ![shot](asset:sha256-{h})")
+    );
+    assert!(s.dangling.is_empty(), "{:?}", s.dangling);
+}
+
+/// Logseq's image sizing is not text; a page fragment rides along to the blob; a file the rules
+/// left out is named, with why; a file that is not in the graph is named, without a dead path.
+#[test]
+fn sizing_fragments_left_out_and_missing_files() {
+    let mut g = Graph::default();
+    let h = "cd".repeat(32);
+    g.add_asset("../assets/pic.png", Asset { hash: h.clone(), filename: "pic.png".into() });
+    g.add_asset("../assets/deck.pdf", Asset { hash: h.clone(), filename: "deck.pdf".into() });
+    g.leave_out("../assets/run.bag", "left out of the import: .bag files were not brought over");
+    let mut s = Rewritten::default();
+    let r = |t: &str, s: &mut Rewritten| rewrite(t, &g, s);
+    assert_eq!(
+        r("![p](../assets/pic.png){:height 10, :width 20} after", &mut s),
+        format!("![p](asset:sha256-{h}) after")
+    );
+    assert_eq!(
+        r("[p. 2](../assets/deck.pdf#page=2)", &mut s),
+        format!("[p. 2](asset:sha256-{h}#page=2)")
+    );
+    assert_eq!(
+        r("[run.bag](../assets/run.bag)", &mut s),
+        "run.bag (left out of the import: .bag files were not brought over)"
+    );
+    assert_eq!(r("[gone.pdf](../assets/gone.pdf)", &mut s), "gone.pdf (not in the graph)");
+    assert_eq!(
+        r("[web](https://x.org/a.pdf) [z](zotero://select/1)", &mut s),
+        "[web](https://x.org/a.pdf) [z](zotero://select/1)"
+    );
+}
+
+/// The importer's own hash sees an edit to anything a person can change — and nothing else.
+#[test]
+fn the_import_hash_sees_an_edit_and_only_an_edit() {
+    let mut o = fm_model::Object::new(fm_model::Kind::Note, "body".to_string());
+    o.title = Some("t".into());
+    o.extra.insert("authors".into(), fm_model::PropertyValue::Text("A".into()));
+    let h = content_hash(&o);
+    o.extra.insert(IMPORT_HASH.into(), fm_model::PropertyValue::Text(h.clone()));
+    assert_eq!(content_hash(&o), h, "the hash does not hash itself");
+    o.updated += time::Duration::days(1);
+    assert!(unedited(&o, &o.clone()), "a date the app keeps is not an edit");
+    for edit in [
+        |o: &mut fm_model::Object| o.body.push_str(" more"),
+        |o: &mut fm_model::Object| o.tags.push("new".into()),
+        |o: &mut fm_model::Object| {
+            o.extra.insert("authors".into(), fm_model::PropertyValue::Text("B".into()));
+        },
+    ] {
+        let mut e = o.clone();
+        edit(&mut e);
+        assert!(!unedited(&e, &o), "an edit must be seen");
+    }
 }
 
 #[test]
@@ -381,8 +487,9 @@ fn a_logseq_graph_becomes_notes_with_resolved_links_and_a_stored_attachment() {
 
     // The block reference resolved to the words that block says, across two files.
     assert!(deep.body.contains("ship it"), "block ref not inlined: {}", deep.body);
-    // And a page nobody defined stayed put rather than becoming an empty note.
-    assert!(deep.body.contains("[[Nowhere At All]]"));
+    // And a page nobody defined became a tag and its words, not an empty note.
+    assert!(deep.body.contains("Nowhere At All") && !deep.body.contains("[[Nowhere At All]]"));
+    assert!(deep.tags.contains(&"Nowhere At All".to_string()), "{:?}", deep.tags);
     assert_eq!(out.report.stubs_created, 0);
 
     // The attachment is a blob reference, and the blob is really in the store.
@@ -516,8 +623,13 @@ fn stubs_are_created_only_when_asked_for() {
     let vault = tempdir().unwrap();
     logseq_graph(src.path());
 
-    let out =
-        convert(src.path(), vault.path(), &HashMap::new(), Options { create_stubs: true }).unwrap();
+    let out = convert(
+        src.path(),
+        vault.path(),
+        &HashMap::new(),
+        Options { create_stubs: true, ..Default::default() },
+    )
+    .unwrap();
     assert!(out.report.stubs_created > 0);
     let stub = out.notes.iter().find(|n| n.title.as_deref() == Some("Nowhere At All")).unwrap();
     assert!(stub.tags.contains(&"imported-stub".to_string()));
@@ -563,4 +675,58 @@ fn fingerprint(root: &Path) -> Vec<(String, Vec<u8>)> {
         .collect();
     out.sort();
     out
+}
+
+/// LaTeX is full of `{{`; only `{{word …}}` on one line is a macro. Taking the next `}}` wherever
+/// it was swallowed whole stretches of a real note, links and images included, into one span.
+#[test]
+fn latex_braces_are_not_a_macro() {
+    let mut g = Graph::default();
+    let id = new_id();
+    g.add_page("Target", id);
+    let mut s = Rewritten::default();
+    let body = "$$\\frac{{a}}{b}$$ then [[Target]]\nand }} later";
+    let out = rewrite(body, &g, &mut s);
+    assert!(out.contains(&format!("[Target](note:{id})")), "{out}");
+    assert!(out.starts_with("$$\\frac{{a}}{b}$$"), "{out}");
+}
+
+/// Logseq page names hold what Obsidian treats as syntax: a `|`, a nested `[[…]]`, a lone `[`.
+#[test]
+fn a_logseq_page_name_may_hold_a_pipe_a_nested_link_or_a_bracket() {
+    let mut g = Graph::default();
+    let (a, b, c) = (new_id(), new_id(), new_id());
+    g.add_page("Paper | Publisher Reader View", a);
+    g.add_page("Contact #[[Ada]] about it", b);
+    g.add_page("Notes on [Draft]Ideas", c);
+    let mut s = Rewritten::default();
+    for (link, id) in [
+        ("[[Paper | Publisher Reader View]]", a),
+        ("[[Contact #[[Ada]] about it]]", b),
+        ("[[Notes on [Draft]Ideas]]", c),
+    ] {
+        let out = rewrite(link, &g, &mut s);
+        assert!(out.contains(&format!("(note:{id})")), "{link} → {out}");
+    }
+}
+
+/// A referenced block's words are converted too — and blocks that reference each other end.
+#[test]
+fn an_inlined_block_is_converted_and_a_cycle_ends() {
+    let mut g = Graph::default();
+    let (page, target) = (new_id(), new_id());
+    g.add_page("Target", target);
+    g.add_block(
+        "aaaaaaaa-0000-4000-8000-000000000001",
+        "see [[Target]] and ((bbbbbbbb-0000-4000-8000-000000000002))",
+        page,
+    );
+    g.add_block(
+        "bbbbbbbb-0000-4000-8000-000000000002",
+        "back to ((aaaaaaaa-0000-4000-8000-000000000001))",
+        page,
+    );
+    let mut s = Rewritten::default();
+    let out = rewrite("((aaaaaaaa-0000-4000-8000-000000000001))", &g, &mut s);
+    assert!(out.starts_with(&format!("see [Target](note:{target}) and back to see")), "{out}");
 }

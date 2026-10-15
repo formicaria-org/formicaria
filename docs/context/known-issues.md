@@ -1507,6 +1507,22 @@ Built in 0.7.7 (`reminders.rs`, `ui/src/lib/reminders.svelte.ts`, `Reminders.kt`
 - **A repeated note** (`weekdays`) is not reminded of: only `start` and `due`.
 - **iOS**: the line in the app only, untested like everything else there.
 
+## Importing a Logseq graph — what is still open (2026-10-15)
+
+The fixes F1–F13 landed the same day; on the owner's 1,181-page graph every judged check of the
+conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
+
+- **Logseq whiteboards (`whiteboards/*.edn`, tldraw) and PDF highlight sidecars (`assets/*.edn`)
+  are left behind**, counted in the preview. Excalidraw drawings do come over, as whiteboard notes.
+- **A `{{query}}` is shown as code, not run**, and any macro this app has no meaning for likewise.
+- **An import needs the disk space of what it brings** — attachments are always copied
+  (`decisions.md#vault`, 2026-10-15). Leaving out by size or kind is the only way to spend less.
+- **The scanners do not skip code and math** the way the rewrite does: a link written inside a code
+  block is still *collected* (its file may be ingested), though it is never rewritten.
+- **A search hit on a property shows the usual preview**, not where the word matched.
+- **Measured on one real graph only** — Logseq, `:file/name-format :triple-lowbar`. An older
+  `:legacy` name format or a non-default journal title format is handled in code but unmeasured.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).

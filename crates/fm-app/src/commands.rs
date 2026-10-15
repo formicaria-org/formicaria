@@ -8,7 +8,7 @@ use fm_core::{apply_property, import, ingest, BlobStore, Manifest, Store, StoreE
 use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Op, Predicate, Query, SortKey};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -2050,6 +2050,40 @@ pub fn existing_sources(store: &dyn Store) -> Result<HashMap<String, Id>, StoreE
         .collect())
 }
 
+/// A vault holding most of a graph's pages from an earlier import.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct PreviousImport {
+    pub vault: String,
+    /// How many of the graph's pages it holds, and how many the graph has.
+    pub pages: usize,
+    pub of: usize,
+}
+
+/// Which vaults already hold this graph — by the `source_key`s an import of it writes, in one pass
+/// over every note. A vault counts when it holds at least half the graph's pages: a few shared
+/// paths (`pages/contents.md`) are a coincidence, half a graph is not.
+pub fn imported_into(
+    store: &dyn Store,
+    keys: &HashSet<String>,
+) -> Result<Vec<PreviousImport>, StoreError> {
+    let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
+    let mut per: HashMap<String, usize> = HashMap::new();
+    for o in &store.query(&q)?.rows {
+        if let PropertyValue::Text(k) = o.get(import::SOURCE_KEY) {
+            if keys.contains(&k) {
+                *per.entry(o.vault.clone()).or_default() += 1;
+            }
+        }
+    }
+    let mut out: Vec<PreviousImport> = per
+        .into_iter()
+        .filter(|(_, n)| n * 2 >= keys.len())
+        .map(|(vault, pages)| PreviousImport { vault, pages, of: keys.len() })
+        .collect();
+    out.sort_by(|a, b| b.pages.cmp(&a.pages).then(a.vault.cmp(&b.vault)));
+    Ok(out)
+}
+
 /// Write a converted graph into a vault.
 ///
 /// Split from [`fm_core::import::convert`] on purpose, and the split is the whole performance
@@ -2069,11 +2103,32 @@ pub fn write_import(
 ) -> Result<ImportReport, StoreError> {
     let mut report = converted.report;
 
+    // **One asset note per blob, however many imports.** A re-import finds every attachment
+    // already stored (`deduped`), and writing its asset note again put a second card behind the
+    // same file each time. One query, up front, for the blobs this vault already describes.
+    let mut described: HashSet<String> = {
+        let q = Query {
+            filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])),
+            ..Default::default()
+        };
+        store
+            .query(&q)?
+            .rows
+            .iter()
+            .flat_map(|o| o.assets.iter().map(|a| a.trim_start_matches("sha256:").to_string()))
+            .collect()
+    };
+
     // Attachments first, so a note that references one is never written before the asset note it
     // points at exists. `asset_note` is reused rather than reimplemented: it is what gives an
     // attachment its MIME, its extracted text, its thumbnail and — for a PDF — the DOI printed on
     // its first page. A second copy of that would drift.
     for ing in &converted.attachments {
+        // Also within this run: two files in a graph can hold the same bytes, and one blob gets
+        // one note.
+        if !described.insert(ing.hash.clone()) {
+            continue;
+        }
         if let Err(e) = asset_note(store, vault, vault_name, ing) {
             report.warnings.push(format!(
                 "{} was stored but its note could not be written ({e})",
@@ -2084,6 +2139,26 @@ pub fn write_import(
 
     for mut note in converted.notes {
         note.vault = vault_name.to_string();
+        // **A replace never writes over the person's work** (`decisions.md#data`, 2026-10-15). An
+        // earlier note is rewritten only if it is still exactly what that import wrote; one they
+        // edited is kept as it is, and one they deleted stays deleted.
+        if converted.replacing.contains(&note.id) {
+            match store.get(note.id)? {
+                Some(current) if import::unedited(&current, &note) => {
+                    report.notes_replaced += 1;
+                }
+                current => {
+                    report.notes_kept_edited += 1;
+                    if report.kept_edited_names.len() < 12 {
+                        let title = current.as_ref().and_then(|c| c.title.clone());
+                        report
+                            .kept_edited_names
+                            .push(title.or(note.title.clone()).unwrap_or_else(|| "a note".into()));
+                    }
+                    continue;
+                }
+            }
+        }
         if let Err(e) = store.put(&note) {
             // One unwritable note must not abandon the other four thousand half-written. Collect
             // it and keep going; the report is what tells the truth about the total.
@@ -2125,6 +2200,18 @@ pub struct ImportReport {
     /// undoable as one. False is not a failure of the import: the notes are on disk either way.
     pub recorded: bool,
     pub vault: String,
+    #[serde(rename = "leftOut")]
+    pub left_out: usize,
+    #[serde(rename = "leftOutNames")]
+    pub left_out_names: Vec<String>,
+    #[serde(rename = "tagsFromLinks")]
+    pub tags_from_links: usize,
+    pub drawings: usize,
+    pub replaced: usize,
+    #[serde(rename = "keptEdited")]
+    pub kept_edited: usize,
+    #[serde(rename = "keptEditedNames")]
+    pub kept_edited_names: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -2156,6 +2243,13 @@ impl From<import::Report> for ImportReport {
             warnings: r.warnings,
             recorded: r.committed,
             vault: String::new(),
+            left_out: r.attachments_left_out,
+            left_out_names: r.left_out_names,
+            tags_from_links: r.tags_from_links,
+            drawings: r.drawings,
+            replaced: r.notes_replaced,
+            kept_edited: r.notes_kept_edited,
+            kept_edited_names: r.kept_edited_names,
         }
     }
 }

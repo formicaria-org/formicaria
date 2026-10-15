@@ -102,6 +102,14 @@
   /** An existing vault's name, or '' for the new one this form describes. */
   let intoVault = $state('');
   let stubs = $state(false);
+  /** Into an existing vault: rewrite what an earlier import of this folder wrote — never a note
+   *  edited or deleted since (`decisions.md#data`, 2026-10-15). */
+  let replace = $state(false);
+  /** Which attachments come over: all of them (the default), or all but what the rules below
+   *  leave out. */
+  let attachmentRule = $state<'all' | 'some'>('all');
+  let maxMb = $state<number | null>(null);
+  let skipKinds = $state<string[]>([]);
   let importCheck = $state<ImportCheck | null>(null);
   let scanning = $state(false);
   let report = $state<ImportReport | null>(null);
@@ -182,6 +190,16 @@
   // already decided. Only the *new vault* destination needs a name and a path.
   const importingIntoNew = $derived(mode === 'import' && intoVault === '');
 
+  /** Bring this folder up to date in the vault that already holds it, rather than make a copy. */
+  function useEarlier(vault: string) {
+    intoVault = vault;
+    replace = true;
+  }
+
+  function toggleKind(kind: string, leaveOut: boolean) {
+    skipKinds = leaveOut ? [...skipKinds, kind] : skipKinds.filter((k) => k !== kind);
+  }
+
   const described = $derived(describe(check));
   // The SERVER owns this. Never `described.blocking.length === 0` — that would be the
   // browser holding a second opinion, which is how a button enables and then fails.
@@ -230,7 +248,10 @@
         // The report is the point of the whole exercise — what arrived, what did not, and what
         // was renamed — so it is shown rather than swallowed by the dialog closing. `oncreated`
         // fires when the user dismisses it.
-        report = await runImport(source, intoVault, name, path, stubs);
+        report = await runImport(source, intoVault, name, path, stubs, {
+          replace: intoVault !== '' && replace,
+          ...(attachmentRule === 'some' ? { maxMb, skipKinds } : {}),
+        });
         return;
       }
       oncreated(
@@ -259,6 +280,7 @@
   /** Bytes as something a person reads, for the "and N attachments" line. */
   function mb(bytes: number): string {
     if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))} KB`;
+    if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
     return `${(bytes / 1_000_000).toFixed(bytes < 10_000_000 ? 1 : 0)} MB`;
   }
 </script>
@@ -284,6 +306,20 @@
         {#if report.blocks}
           <li class="good">{report.blocks} block references were replaced by what they said.</li>
         {/if}
+        {#if report.replaced}
+          <li class="good">
+            {report.replaced} notes from the earlier import were brought up to date.
+          </li>
+        {/if}
+        {#if report.keptEdited}
+          <li class="note">
+            {report.keptEdited}
+            {report.keptEdited === 1 ? 'note' : 'notes'} you had changed or deleted since were kept as
+            you left them{#if report.keptEditedNames.length}: {report.keptEditedNames.join(
+                ', ',
+              )}{/if}.
+          </li>
+        {/if}
         {#if report.alreadyImported}
           <li class="note">
             {report.alreadyImported} were imported before and were left untouched — nothing you have edited
@@ -291,9 +327,25 @@
           </li>
         {/if}
         {#if report.dangling}
-          <li class="warn">
-            {report.dangling} links point at pages that had no file, so they were left as plain text{#if report.danglingNames.length}:
+          <li class="note">
+            {report.dangling} links point at pages that had no file of their own. Each is now a tag on
+            the note that made it, so you can still find everything that names it{#if report.danglingNames.length}:
               {report.danglingNames.join(', ')}{/if}.
+          </li>
+        {/if}
+        {#if report.leftOut}
+          <li class="note">
+            {report.leftOut}
+            {report.leftOut === 1 ? 'attachment was' : 'attachments were'} left out, as you asked{#if report.leftOutNames.length}
+              ({report.leftOutNames.join(', ')}){/if}. Each is still named where a note mentions it.
+          </li>
+        {/if}
+        {#if report.drawings}
+          <li class="good">
+            {report.drawings}
+            {report.drawings === 1
+              ? 'drawing became a whiteboard note'
+              : 'drawings became whiteboard notes'}.
           </li>
         {/if}
         {#if report.stubs}
@@ -412,15 +464,66 @@
           </label>
         {/if}
 
+        {#if intoVault !== ''}
+          <label class="check">
+            <input type="checkbox" bind:checked={replace} disabled={busy} />
+            <span>Replace what an earlier import of this folder wrote</span>
+            <small>
+              Brings those notes up to date from the folder. A note you have changed or deleted
+              since stays exactly as you left it. Left off, notes imported before are not touched
+              and only new pages are added.
+            </small>
+          </label>
+        {/if}
+
         <label class="check">
           <input type="checkbox" bind:checked={stubs} disabled={busy} />
           <span>Make a note for pages that are only linked to</span>
           <small>
             Off by default. In Logseq a page exists as soon as something links to it, so a graph
             usually has many with no content — and every one would appear in your board, calendar
-            and timeline. Left off, those links stay as plain text.
+            and timeline. Left off, each such link becomes a tag on the note that makes it.
           </small>
         </label>
+
+        {#if importCheck?.ok && importCheck.kinds.length}
+          <fieldset class="rules" disabled={busy}>
+            <legend>Attachments</legend>
+            <label class="check">
+              <input type="radio" bind:group={attachmentRule} value="all" />
+              <span>Bring all of them</span>
+            </label>
+            <label class="check">
+              <input type="radio" bind:group={attachmentRule} value="some" />
+              <span>Leave some out</span>
+            </label>
+            {#if attachmentRule === 'some'}
+              <label>
+                <span>Leave out files larger than (MB)</span>
+                <input type="number" min="0" step="any" bind:value={maxMb} placeholder="no limit" />
+              </label>
+              <div class="kinds">
+                {#each importCheck.kinds as k (k.kind)}
+                  <label class="check">
+                    <input
+                      type="checkbox"
+                      checked={skipKinds.includes(k.kind)}
+                      onchange={(e) => toggleKind(k.kind, e.currentTarget.checked)}
+                    />
+                    <span
+                      >Leave out .{k.kind} — {k.count}
+                      {k.count === 1 ? 'file' : 'files'}, {mb(k.bytes)}</span
+                    >
+                  </label>
+                {/each}
+              </div>
+            {/if}
+            <small>
+              Anything left out is still named in the note that mentions it, with the reason. Only
+              files a note actually links to are brought over.
+            </small>
+          </fieldset>
+        {/if}
       {/if}
 
       {#if !(mode === 'import' && intoVault !== '')}
@@ -589,6 +692,37 @@
                   : 'notes'}){/if}{#if importCheck.attachments}, and {importCheck.attachments} attachments
                 — {mb(importCheck.attachmentBytes)}{/if}.
             </li>
+            {#each importCheck.previous as p (p.vault)}
+              {#if p.vault !== intoVault}
+                <li class="warn">
+                  This folder was already imported into <strong>{p.vault}</strong> ({p.pages} of {p.of}
+                  pages). Importing it again {intoVault === ''
+                    ? 'into a new vault'
+                    : `into ${intoVault}`} makes a second copy.
+                  <button type="button" class="inline" onclick={() => useEarlier(p.vault)}
+                    >Update {p.vault} instead</button
+                  >
+                </li>
+              {:else if !replace}
+                <li class="note">
+                  {p.vault} already holds {p.pages} of these pages. They will be left as they are and
+                  only new pages added — tick Replace to bring them up to date.
+                </li>
+              {/if}
+            {/each}
+            {#if importCheck.drawings}
+              <li class="good">
+                {importCheck.drawings} Excalidraw {importCheck.drawings === 1
+                  ? 'drawing'
+                  : 'drawings'} will become whiteboard notes.
+              </li>
+            {/if}
+            {#if importCheck.attachments}
+              <li class="note">
+                Attachments are copied into the vault — up to {mb(importCheck.attachmentBytes)} of disk
+                space, less whatever you leave out under Attachments (by size or by kind).
+              </li>
+            {/if}
             {#if importCheck.pages + importCheck.journals > 2000}
               <li class="warn">
                 That is a lot of notes. The app will be busy while it works, and lists this long are
@@ -835,6 +969,44 @@
   }
   .check small {
     grid-column: 2;
+  }
+  /* The attachment rules: a group of the same controls, framed so they read as one choice. */
+  .rules {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    min-width: 0;
+  }
+  .rules legend {
+    padding: 0 4px;
+    font-weight: 600;
+  }
+  /* A graph can hold many kinds of file; the list scrolls rather than pushing the button away. */
+  .kinds {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+  .kinds span {
+    overflow-wrap: anywhere;
+  }
+  /* An action inside a sentence: reads as a link, is a button. */
+  button.inline {
+    display: inline;
+    padding: 0;
+    margin-left: 4px;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
   select {
     padding: 8px 10px;

@@ -412,6 +412,13 @@ third-party-check = { cmd = "sh ci/third-party-check.sh" }
 # Regenerate the manual's screenshots from a throwaway demo vault. NOT in `ci`: it needs a
 # browser and a running server, and the pictures only change when the UI does.
 shots = { cmd = "sh ci/shots.sh" }
+# **Does a real Logseq graph survive the import?** (`docs/context/logseq-import-plan-2026-10-14.md`.)
+# NOT in `ci`: the graph is the owner's own and never enters this repo — point FM_IMPORT_CORPUS at
+# it. Writes `target/import-corpus/{scorecard.json,report.md}` and leaves the imported vault there
+# for `import-render`, which opens its notes in a real browser and writes a contact sheet. The
+# public half of the same harness (the mini-graph) runs in `test` like any other test.
+import-corpus = { cmd = "systemd-run --user --scope -q -p MemoryMax=4G cargo test -p fm-app --test import_corpus a_private_corpus -- --ignored --nocapture" }
+import-render = { cmd = "sh ci/import-render.sh" }
 # The food list the app carries (`decisions.md#toolchain` and `#data`, 2026-10-11): built from
 # Ciqual (France) and BLS (Germany), with USDA as the fallback, each input pinned by checksum, into
 # `target/packs/foods.sqlite` and — compressed — into `crates/fm-app/packs/`, which is committed.

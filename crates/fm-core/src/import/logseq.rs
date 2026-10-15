@@ -32,7 +32,17 @@ const DONE_MARKERS: &[&str] = &["DONE", "CANCELED", "CANCELLED"];
 
 /// Logseq bookkeeping with no meaning here, which would only be noise in a note body. `id` is
 /// dropped as a *property* but captured first — it is what a `((ref))` points at.
-const DROPPED_PROPS: &[&str] = &["id", "collapsed", "heading", "logseq.order-list-type"];
+const DROPPED_PROPS: &[&str] = &[
+    "id",
+    "collapsed",
+    "heading",
+    "logseq.order-list-type",
+    // A PDF highlight's bookkeeping. `hl-page` is not here: it becomes a link to that page.
+    "ls-type",
+    "hl-color",
+    "hl-stamp",
+    "hl-type",
+];
 
 /// Parse one Logseq `.md` file.
 ///
@@ -104,6 +114,17 @@ pub fn parse(text: &str, title: &str) -> Page {
 
         // A `key:: value` line belongs to the block above it whether or not it wears a bullet.
         if let Some((key, value)) = split_property(content) {
+            // `hl-page:: 3` under a highlight: the highlight links to that page of the PDF the
+            // page's `file::` names — the `[p. N](…#page=N)` form the reader opens at a page.
+            if key == "hl-page" {
+                if let (Some(at), Some(file)) = (current_block, page.highlight_file.as_deref()) {
+                    let n = value.trim();
+                    if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) {
+                        out[at].push_str(&format!(" [p. {n}]({file}#page={n})"));
+                    }
+                }
+                continue;
+            }
             let own = "  ".repeat(current_depth);
             if let Some(line) = block_property(&mut page, &out, current_block, key, value, &own) {
                 collect_inline(&mut page, value);
@@ -158,20 +179,49 @@ fn apply_page_property(page: &mut Page, key: &str, value: &str) {
         // what that means" — splitting on spaces is what silently turned `Machine Learning` into
         // two unrelated tags, and it is exactly an imported keyword that suffers.
         "tags" => page.tags.extend(split_list(value)),
-        "alias" => page.aliases.extend(split_list(value)),
+        // Used to resolve links **and** kept on the note, so its other names stay visible and
+        // searchable.
+        "alias" => {
+            page.aliases.extend(split_list(value));
+            page.props.insert(key.to_string(), crate::frontmatter::scalar_property(value));
+        }
         "status" => page.status = Some(value.to_string()),
         // The one date lift that IS permitted: a page-level deadline is a property of the note,
-        // not of some bullet inside it.
-        "deadline" | "due" => page.due = super::parse_date_value(value),
-        "scheduled" | "start" => page.start = super::parse_date_value(value),
+        // not of some bullet inside it. A value that is not a date we can read is **kept as a
+        // property** — dropping it lost the only copy.
+        "deadline" | "due" => match super::parse_date_value(value) {
+            Some(d) => page.due = Some(d),
+            None => keep(page, key, value),
+        },
+        "scheduled" | "start" => match super::parse_date_value(value) {
+            Some(d) => page.start = Some(d),
+            None => keep(page, key, value),
+        },
         // A page that states its own creation date is telling us something truer than the file's
-        // mtime — which, after a sync or a checkout, is the day the file was copied.
-        "created" | "date" => page.created = super::parse_timestamp_value(value),
+        // mtime — which, after a sync or a checkout, is the day the file was copied. **`date::`
+        // is not that**: on a Zotero page it is the paper's publication date, and lifting it made
+        // a 2012 paper's note look written in 2012 — or, unparsed, dropped it. It stays a property.
+        "created" => match super::parse_timestamp_value(value) {
+            Some(t) => page.created = Some(t),
+            None => keep(page, key, value),
+        },
         k if DROPPED_PROPS.contains(&k) => {}
         k => {
-            page.props.insert(k.to_string(), crate::frontmatter::scalar_property(value));
+            // `file:: [x.pdf](../assets/x.pdf)` on a highlights page names the PDF its `hl-page`
+            // blocks point into.
+            if k == "file" {
+                page.highlight_file = super::first_link_target(value).map(str::to_string);
+            }
+            keep(page, k, value);
         }
     }
+}
+
+/// A page property kept as a note field. Its links and files are recorded like the body's, so
+/// pass two can resolve them — a `file::` naming a PDF brings the PDF.
+fn keep(page: &mut Page, key: &str, value: &str) {
+    collect_inline(page, value);
+    page.props.insert(key.to_string(), crate::frontmatter::scalar_property(value));
 }
 
 /// A property *inside* a block. `id::` is captured (a `((ref))` points at it) then dropped, and
@@ -255,7 +305,8 @@ fn collect_inline(page: &mut Page, s: &str) {
     super::scan_wikilinks(s, &mut page.links);
     super::scan_block_refs(s, &mut page.block_refs);
     super::scan_hashtags(s, &mut page.tags);
-    super::scan_local_images(s, &mut page.attachments);
+    super::scan_local_files(s, &mut page.attachments);
+    super::scan_macro_files(s, &mut page.attachments);
 }
 
 // ── small helpers ───────────────────────────────────────────────────────────────

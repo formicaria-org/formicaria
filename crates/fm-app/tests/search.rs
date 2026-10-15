@@ -48,3 +48,32 @@ fn recent_returns_every_note_newest_created_first() {
     // Newest of all, so it would head the feed if it were included at all.
     assert!(feed.iter().all(|m| m.kind != "asset"), "the asset leaked into the feed");
 }
+
+/// `decisions.md#seams`, 2026-10-15: a note's tags and the values of its properties are found by
+/// search, over the FTS5 index — and the bookkeeping an importer writes is not.
+#[test]
+fn search_reads_tags_and_property_values_but_not_bookkeeping() {
+    use fm_model::PropertyValue;
+    let dir = tempdir().unwrap();
+    let mut store = FileStore::open(dir.path()).unwrap();
+    let mut paper = Object::new(Kind::Note, "a body that names nobody");
+    paper.title = Some("A paper".into());
+    paper.tags = vec!["Ada Lovelace".into()];
+    paper.extra.insert("authors".into(), PropertyValue::Text("Grace Hopper".into()));
+    paper.extra.insert(
+        "venue".into(),
+        PropertyValue::List(vec![PropertyValue::Text("Cognitive Neuroscience".into())]),
+    );
+    paper.extra.insert("source_key".into(), PropertyValue::Text("pages/zzsourcepath.md".into()));
+    store.put(&paper).unwrap();
+
+    for q in ["hopper", "lovelace", "neuroscience"] {
+        let hits = commands::search(&store, q).unwrap();
+        assert_eq!(hits.len(), 1, "{q} should find the paper by its tag or property");
+    }
+    assert!(commands::search(&store, "authors").unwrap().is_empty(), "a key is not a value");
+    assert!(
+        commands::search(&store, "zzsourcepath").unwrap().is_empty(),
+        "an importer's source path is bookkeeping, not text"
+    );
+}
