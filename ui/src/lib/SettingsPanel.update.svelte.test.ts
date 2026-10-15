@@ -274,7 +274,7 @@ describe('SettingsPanel — getting a newer version', () => {
     const nav = container.querySelector('nav.jump')!;
     const names = [...nav.querySelectorAll('.cat-name')].map((b) => b.textContent);
     expect(names).toEqual(
-      expect.arrayContaining(['Look', 'Keyboard', 'Notes & backup', 'About & updates']),
+      expect.arrayContaining(['Look', 'Keyboard', 'Vaults & backup', 'About & updates']),
     );
     expect(nav.textContent).toMatch(/System · One view/);
     const section = (title: RegExp) =>

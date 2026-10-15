@@ -6,7 +6,7 @@ tiers. **Back up** does the light one by default; the heavy one is a box you tic
 | | What it carries | Where |
 |---|---|---|
 | **Notes** (default) | your notes, views, themes, `manifest.json` — plain text, with history | git → your remote |
-| **Snapshot** (tick to include) | your notes **and** `blobs/`: images, PDFs, video — no history | restic |
+| **Snapshot** (*Take a snapshot*) | your notes **and** `blobs/`: images, PDFs, video — no history | restic |
 
 The split is not an accident. Your notes are small, plain, and mergeable, so git
 carries them anywhere for free. Your media is heavy and is deliberately kept out
@@ -47,13 +47,14 @@ which carries attachments of any size and has none of these problems.
 
 ## Setting up (once)
 
-Open **Settings → Notes & backup → Vaults** — or press **Back up** and choose **Backup settings…**,
-which lands there — and paste your vault's git remote under that vault, for example
-`git@github.com:you/notes.git`. That is the only setup the light tier needs. Everything about a
-vault is in that one block: its folder, where it is sent, its snapshot, which attachments travel
-with it, when it was last saved, and removing it from the list. (The **Back up** button opens a
-short menu — *Back up notes*, *Get their changes*, *Backup settings…* — so nothing is sent by
-pressing it once.)
+Open **Settings → Vaults & backup** and paste your vault's git remote under that vault, for
+example `git@github.com:you/notes.git`. That is the only setup the light tier needs. Everything
+about a vault is set there and only there, in one block: its folder, where it is sent, its snapshot
+repo, which attachments travel with it, when it was last saved, and removing it from the list.
+
+The **Back up** button is for doing, not setting up: it opens a short menu — *Back up notes*, *Get
+their changes*, and *Take a snapshot* once a vault has a snapshot repo — so nothing is sent by
+pressing it once.
 
 Your vault is its **own git repository**, independent of the app's source: its
 remote is yours to choose and has nothing to do with where formicaria's code
@@ -77,7 +78,7 @@ repository, with an expiry date.
 gets the changes from your other devices and sends yours: the same thing the **Back up** button
 does. It never does it while you are typing, and never for a vault you have not backed up once
 yourself. If two devices changed the same sentence, it says which notes to look at, exactly as
-after a backup you pressed. **Settings → Notes & backup** has the switch if you would rather press.
+after a backup you pressed. **Settings → Vaults & backup** has the switch if you would rather press.
 It works while the app is open; a device that is closed sends when you next open it.
 
 Press **Back up**, then **Back up notes** — that is the whole action. It saves anything
@@ -106,7 +107,8 @@ backed up would destroy the only copy of it.
 
 ## Including attachments (restic)
 
-Tick the snapshot box to also send this vault's **notes and attachments** to a
+Give a vault a backup repo in **Settings → Vaults & backup**, then choose **Back up → Take a
+snapshot** to send its **notes and attachments** to a
 [restic](https://restic.net) repository: dedup, encryption, integrity, and
 off-site remotes, none of which formicaria reimplements.
 
@@ -174,10 +176,10 @@ pixi global install restic
 phone's attachments have only the copy on the phone until they reach a computer.
 Notes are unaffected: the phone pushes them with git like everything else.
 
-**A snapshot can run on its own.** If no vault has a git remote yet but restic is set up, tick
-the snapshot box and **Back up** will take the snapshot — and since a snapshot carries the notes
-directory as well as `blobs/`, that is a real backup of everything, not a half one. (Until
-2026-09-04 the button stayed greyed out in exactly this case, which was a bug.)
+**A snapshot does not need git.** *Take a snapshot* runs whether or not a vault has a git
+remote — and since a snapshot carries the notes directory as well as `blobs/`, that is a real
+backup of everything, not a half one. Each vault gets its own line in the result: what went in,
+where it went, or why it could not be taken.
 
 A vault can also be brought *back* from a snapshot inside the app — **New vault →
 Restore a backup** — and not only from the command line below.

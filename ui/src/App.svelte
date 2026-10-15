@@ -72,6 +72,7 @@
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
   import { labelFor, setVaults, vaultList } from './lib/vaults.svelte';
+  import { takeSnapshots } from './lib/snapshot';
   import type {
     ObjectMeta,
     VaultInfo,
@@ -794,10 +795,12 @@
     // surface: typing "timeline" should land on a timeline without knowing that a window is the
     // thing that holds one. Opening a window already on the right view is strictly less work.
     ...paletteTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
+    // **An action, so it opens the actions** (`decisions.md#ui`, 2026-10-15): the Back up menu. The
+    // settings are not repeated here — Settings is the gear.
     {
       group: 'Vault',
-      label: 'Backup settings',
-      run: onBackup,
+      label: 'Back up…',
+      run: () => (backupMenuOpen = true),
       command: 'backup' as keys.Command,
     },
     {
@@ -853,7 +856,7 @@
         if (workspace.panes[focused]) closePane(workspace.panes[focused].id);
         break;
       case 'backup':
-        onBackup();
+        backupMenuOpen = true;
         break;
       case 'undo':
         void runUndo('undo');
@@ -1092,7 +1095,15 @@
   // Pull only: this is the chip's press. Sending happens through Back up, pressed by a person or
   // by `autoBackup` below.
   async function getTheirChanges() {
-    const targets = movedVaults;
+    // **Every vault with a remote, when none is known to have moved.** It pulled only the vaults the
+    // last status check flagged, so pressing it with nothing flagged did nothing at all — and the
+    // backup panel's per-vault button, which always fetched, left Settings with the rest of the
+    // actions (`decisions.md#ui`, 2026-10-15). Asking git is fine here: someone pressed a button.
+    const targets = movedVaults.length
+      ? movedVaults
+      : await backupStatus()
+          .then((st) => st.vaults.filter((v) => !!v.remote).map((v) => v.name))
+          .catch(() => []);
     movedVaults = [];
     for (const v of targets) {
       const phase = await pullVault(v, refresh);
@@ -2070,10 +2081,10 @@
     }
   }
 
-  // **Backup settings are Settings** (`decisions.md#ui`, 2026-10-15): where each vault is sent, its
-  // snapshot, what it carries and when it was last saved live in Settings → Notes & backup →
-  // Vaults, beside the vault's other settings. Everything that used to open the Back up window —
-  // the menu, the quiet chip, the shortcut, the actions list — lands there.
+  // **Where a vault's backup state is shown** (`decisions.md#ui`, 2026-10-15): Settings → Vaults &
+  // backup. Only the *quiet* chip comes here — it reports an absence, and that category is where
+  // the causes (no destination, a stuck merge, nothing written) are told apart. The Back up menu
+  // and the shortcut are actions and do not link to settings.
   function onBackup() {
     openSettings('vaults');
   }
@@ -2162,14 +2173,14 @@
         parts.push(
           `${localSaved.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
             `${localSaved.length === 1 ? 'has' : 'have'} no destination yet — saved here, but ` +
-            `nowhere to send. Add one in backup options.`,
+            `nowhere to send. Add one in Settings → Vaults & backup.`,
         );
       }
       if (localQuiet.length) {
         parts.push(
           `${localQuiet.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
             `${localQuiet.length === 1 ? 'has' : 'have'} nothing new to save, and nowhere to ` +
-            `send it to. Add one in backup options.`,
+            `send it to. Add one in Settings → Vaults & backup.`,
         );
       }
       if (failed.length || conflicted.length) {
@@ -2177,7 +2188,7 @@
         // wrong place to explain a merge conflict.
         parts.push(
           `${[...failed, ...conflicted].map((v) => `“${labelFor(v)}”`).join(', ')} need you: ` +
-            `open backup options for detail.`,
+            `see Settings → Vaults & backup for detail.`,
         );
       }
       if (failed.length || conflicted.length) {
@@ -2209,8 +2220,9 @@
   /// **What the Back up button opens.** Every choice that used to hide behind a chevron beside it,
   /// promoted to the button itself on 2026-09-09 — see the markup for why.
   ///
-  /// Short on purpose: everything not here is either rarer, or needs a screen of its own to be
-  /// honest about, and both of those are *Backup settings…*, which opens Settings at Vaults.
+  /// **Actions only** (`decisions.md#ui`, 2026-10-15). How each vault is backed up — where it is
+  /// sent, its snapshot repo, which attachments travel — is a setting, and lives in Settings →
+  /// Vaults & backup and nowhere else; this menu does not link there, so there is one way in.
   ///
   /// **The second lines are the point.** "What does backing up actually do?" was the question the
   /// old button could not answer from the screen, and it is the reason this is a menu rather than
@@ -2226,12 +2238,38 @@
       note: 'bring down what the other device sent, without sending',
       run: getTheirChanges,
     },
-    {
-      label: 'Backup settings…',
-      note: 'where each vault is sent, snapshots, attachments',
-      run: onBackup,
-    },
+    // Only where some vault has a snapshot repo: an action that could only answer "set one up
+    // first" is a settings question, and that is asked in Settings.
+    ...((vaultList() ?? []).some((v) => !!v.restic_repo)
+      ? [
+          {
+            label: 'Take a snapshot',
+            note: 'notes and attachments, encrypted, to each vault’s backup repo',
+            run: takeSnapshot,
+          },
+        ]
+      : []),
   ] as { label: string; note: string; run: () => void }[]);
+
+  /// **A snapshot is an action, so it is here** — it used to be a tick box and a button inside the
+  /// backup panel, which is a section of Settings now. One line per vault, the failures named.
+  async function takeSnapshot() {
+    if (savingLabel) return;
+    savingLabel = 'Taking a snapshot…';
+    error = null;
+    try {
+      const lines = await takeSnapshots(labelFor);
+      const text = lines.map((l) => l.text).join(' ');
+      if (!lines.length)
+        notice = 'No vault has a backup repo. Set one in Settings → Vaults & backup.';
+      else if (lines.every((l) => l.ok)) notice = text;
+      else report(text);
+    } catch (e) {
+      report(`Snapshot failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      savingLabel = null;
+    }
+  }
 </script>
 
 <svelte:window onkeydown={onGlobalKey} onpopstate={onNavPop} />

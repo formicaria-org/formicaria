@@ -227,9 +227,10 @@ def main():
         # Selected by `aria-label`, which is the app's own contract with assistive tech and is
         # therefore the attribute least likely to be restyled out from under this script.
         show(ws, "board")
-        # Backup settings live in Settings → Notes & backup → Vaults (`decisions.md#ui`, 2026-10-15).
-        click(ws, 'button[aria-label="back up"]', 1.5)
-        click_text(ws, "Backup settings", 3.0)
+        # A vault's backup settings are a Settings category of their own (`decisions.md#ui`,
+        # 2026-10-15); the Back up button holds actions only.
+        click(ws, 'button[aria-label="settings"]', 2.0)
+        click_text(ws, "Vaults & backup", 3.0)
         shot(ws, "backup", W, H)
 
         show(ws, "board")

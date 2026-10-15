@@ -23,23 +23,19 @@
   // named, not skipped in silence.
   import { onMount, type Snippet } from 'svelte';
   import {
-    backup,
     backupStatus,
     lastCommits,
     backupLatest,
-    commit,
     forgetVault,
     recoverableVaults,
     createVault,
     gitAuth,
-    pull,
     setGitCredential,
     setGitRemote,
     setResticPassword,
     setResticRepo,
   } from './ipc';
-  import { plainError, syncFor, syncVault } from './sync.svelte';
-  import { conflictLabels } from './conflictLabel';
+  import { plainError, syncFor } from './sync.svelte';
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
   import type { VaultInfo, Recoverable } from './types';
@@ -49,17 +45,10 @@
   /// re-described a vault it had no special knowledge of.
   type PanelVault = VaultStatus & Pick<VaultInfo, 'identity' | 'git_assets_max' | 'restic_repo'>;
   import { labelFor, refreshVaults, vaultList } from './vaults.svelte';
-  import type {
-    BackupRun,
-    BackupStatus,
-    GitAuth,
-    LastCommit,
-    LatestBackup,
-    VaultStatus,
-  } from './types';
+  import type { BackupStatus, GitAuth, LastCommit, LatestBackup, VaultStatus } from './types';
 
   // **Not a window any more** (`decisions.md#ui`, 2026-10-15): this is the backup half of
-  // Settings → Notes & backup → Vaults, drawn inside that section. Settings owns the heading, the
+  // Settings → Vaults & backup, drawn inside that category's section. Settings owns the heading, the
   // *New vault…* button and closing; `vaultRows` is Settings' own per-vault rows (name, folder,
   // attachment limit, consent), drawn at the top of each vault's block so a vault is one block.
   /// `onvaults` fires whenever this panel changes **which vaults exist** — a removal or a recovery.
@@ -68,8 +57,6 @@
   /// relaunched. On a phone that is a long time, and it is what turned one mistaken removal into
   /// "my notes are gone" (2026-09-08).
   let { onvaults, vaultRows }: { onvaults?: () => void; vaultRows?: Snippet<[string]> } = $props();
-
-  type Step = { text: string; ok: boolean };
 
   let status = $state<BackupStatus | null>(null);
   // Per vault, keyed by name — a shared draft would put your lab remote in your
@@ -113,10 +100,7 @@
   // a secret lives, and losing any of them loses the backups it unlocks.
   let passwordDraft = $state('');
   let passwordSaved = $state(false);
-  let heavy = $state(false);
   let busy = $state(false);
-  let steps = $state<Step[]>([]);
-  let verdict = $state<string | null>(null);
   let error = $state<string | null>(null);
 
   // Git is a capability this machine may simply not have. Without it every vault reads
@@ -141,31 +125,9 @@
       };
     }),
   );
-  // Tickable if *anyone* can take media. Vaults without a restic repo are not a reason to
-  // grey out the ones that have one — they are a reason to say their media stayed put.
-  const anyRestic = $derived(vaults.some((v) => v.restic_ready));
   // "restic isn't installed" and "you haven't given this vault a repo" are different
   // problems with different fixes, so never say one when you mean the other.
   const noRestic = $derived(!!status && !status.restic);
-  // Something to push somewhere. A vault with no remote isn't a failure, it just has
-  // nowhere to go yet.
-  const anyRemote = $derived(vaults.some((v) => !!v.remote));
-  /// **Either tier is enough to press the button** (2026-09-04). This used to require a git
-  /// remote, so a machine set up for snapshots alone — restic installed, a repo, a password —
-  /// had a tick box that ticked and a Back up button that never enabled. The panel was made to
-  /// *say* so, which was honesty rather than a fix; this is the fix.
-  ///
-  /// The two tiers were already independent inside `run()`: a vault with no remote gets its own
-  /// step line and the media loop never depended on the git loop. Only the gate assumed one.
-  /// **And since 2026-09-09, git alone is enough — a remote is not required.**
-  ///
-  /// Backing up is two things: writing history here, and sending it somewhere. The gate demanded
-  /// the second, so a vault with nowhere to send had a Back up button that would not press. That
-  /// was survivable only while the toolbar had its own button that did the work regardless; with
-  /// the toolbar now opening this panel instead, the same gate would mean a vault with no remote
-  /// could not be backed up from the interface at all. `run()` has always handled that vault —
-  /// it commits and reports `local`, which is a state and not a failure.
-  const canRun = $derived(!busy && ((!noGit && vaults.length > 0) || (heavy && anyRestic)));
   // Only the people git has never met get asked, and only about the vault they are
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
@@ -209,7 +171,6 @@
   /// press is the one in the toolbar.
   const OFFER_OVER = 24_000_000;
   const leaves = (r: string) => (r === 'remote' ? 'leaves this machine' : 'stays on this machine');
-  const left = (r: string) => (r === 'remote' ? 'off this machine' : 'still on this machine');
   // **What the git tier actually carries, per vault.** Not a decoration: this panel used to say
   // "media is not included" flatly, which is false for any vault with a `git_assets_max` — its
   // blobs at or under the limit are `git add -f`'d into the same commit and pushed with the
@@ -225,33 +186,6 @@
   const carries = (v: PanelVault) => {
     const max = effectiveMax(v);
     return max ? `notes, and attachments up to ${humanSize(max)}` : 'notes only';
-  };
-  // **What a snapshot actually held**, in place of the fixed phrase this panel printed for as
-  // long as `backup` answered nothing at all: "notes and attachments", over every vault —
-  // including the ordinary one that has no attachments yet. `outstanding.md` §2.10's last
-  // residue, and the level below "last backed up at": that one says *when*, this says *what*.
-  //
-  // `contents: null` is restic having written the snapshot and not described it. The line then
-  // names what went in and stops, because printing zeros a reader cannot tell from an empty
-  // vault is the overstatement in the other direction.
-  const held = (r: BackupRun) => {
-    const dirs: string[] = [];
-    if (r.notes_dir) dirs.push(`${r.notes_dir}/`);
-    if (r.blobs) dirs.push('blobs/');
-    // Both absent is refused by `backup` before it runs — there would be nothing to snapshot —
-    // so this fallback should never reach a screen. It is here because a blank where a
-    // directory name belongs reads as a bug in the panel rather than in the answer.
-    const what = dirs.join(' + ') || 'nothing this vault owns';
-    if (!r.contents) return `${what}, contents not reported`;
-    const c = r.contents;
-    const files = c.files_new + c.files_changed + c.files_unmodified;
-    const fresh = c.files_new + c.files_changed;
-    // "Nothing changed" is worth saying plainly: a snapshot that added no bytes is the healthy
-    // steady state, not a failure, and a panel that only ever reports numbers makes it look like
-    // one.
-    return fresh
-      ? `${what}, ${files} file(s), ${fresh} new or changed, ${humanSize(c.bytes_added)} added`
-      : `${what}, ${files} file(s), nothing changed since the last one`;
   };
   // The password is the app's now, and the environment variable is the override rather than the
   // mechanism. Naming `RESTIC_PASSWORD` as *the* thing that is missing sent people to a launcher
@@ -444,213 +378,6 @@
     } catch (e) {
       error = msg(e);
     }
-  }
-
-  // Bring their work home **without sending yours**. This used to be kept apart from Back up on
-  // the grounds that sending and getting are different intentions and a button doing both would be
-  // unpredictable. That argument was reversed on 2026-09-09 (`decisions.md`): Back up now gets
-  // their changes first, because the ordering was a decision the app was making the user get right
-  // — *"better avoid a push before a pull"*. What survives here is the narrower intention, which is
-  // still real: see what the other device did, and decide, without publishing anything of your own.
-  // Commit first for the same reason `run()` does — the 5s auto-commit is best-effort, and git will
-  // not merge over uncommitted edits.
-  async function bringDown(v: PanelVault) {
-    if (busy) return;
-    busy = true;
-    steps = [];
-    verdict = null;
-    error = null;
-    try {
-      // Commit first (git will not merge over uncommitted edits) — but an unfinished merge must
-      // stop us here rather than fall into a pull that will only refuse, with git's wording
-      // instead of ours.
-      //
-      // **Keyed on the conflicts, not on `committed`.** Until 2026-09-07 a mid-merge commit
-      // committed nothing, so `!committed` was a reliable proxy for "mid-merge". It is not any
-      // more: `commit_all` now commits every path except the conflicted ones, so the ordinary
-      // outcome here is `committed: true` **with** notes still stuck — and the old test would
-      // have sailed past into a pull that refuses. What blocks a *sync* is the unfinished merge
-      // itself, which is exactly what `conflicts` reports.
-      const c = await commit(`auto: ${new Date().toISOString()}`, v.name).catch(() => null);
-      const blocked = !!c && c.conflicts.length > 0;
-      if (blocked) {
-        // Not an early return: `busy = false` lives after this block, not in a `finally`,
-        // so returning here would leave the panel frozen.
-        steps.push({
-          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${(await conflictLabels(c!.conflicts)).join(', ')}. Everything else here is being saved to history as usual, but this vault cannot sync with the other device until ${c!.conflicts.length === 1 ? 'it is' : 'they are'} settled — see “Needs resolution” in the Collaboration view, which says what to do for each one.`,
-          ok: false,
-        });
-      }
-      const r = blocked ? { merged: 0, conflicts: [], kept: [] } : await pull(v.name);
-      if (blocked) {
-        // nothing further to report; the line above is the answer
-      } else if (r.conflicts.length) {
-        steps.push({
-          text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${(await conflictLabels(r.conflicts)).join(', ')}. See “Needs resolution” in the Collaboration view: some are resolved by editing the note, and some only by choosing a side.`,
-          ok: false,
-        });
-      } else if (r.merged) {
-        steps.push({
-          text: `Brought in ${r.merged} change${r.merged === 1 ? '' : 's'}${of(v)} — combined cleanly.`,
-          ok: true,
-        });
-      } else {
-        steps.push({ text: `Already up to date${of(v)}.`, ok: true });
-      }
-      // **Said whichever way the pull went**, and outside the else-if chain on purpose: a note the
-      // app brought back is a decision it made for you, and it must not be the thing that gets
-      // dropped because some other branch reported first.
-      if (r.kept.length) {
-        steps.push({
-          text:
-            `Kept ${r.kept.length} note${r.kept.length === 1 ? '' : 's'}${of(v)} the other device had deleted: ` +
-            `${(await conflictLabels(r.kept)).join(', ')}. There was no text to merge, and leaving it ` +
-            `unsettled would have stopped this vault committing anything at all. If the deletion was ` +
-            `deliberate, delete ${r.kept.length === 1 ? 'it' : 'them'} again here.`,
-          ok: true,
-        });
-      }
-    } catch (e) {
-      steps.push({ text: `Could not get their changes${of(v)}: ${msg(e)}`, ok: false });
-    }
-    await load();
-    busy = false;
-  }
-
-  async function run() {
-    if (!status || busy) return;
-    busy = true;
-    steps = [];
-    verdict = null;
-    error = null;
-    const now = new Date().toISOString();
-    const off: string[] = [];
-    const stuck: string[] = [];
-    const mediaOff: string[] = [];
-    const noMedia: string[] = [];
-
-    // Every vault gets its own commit + push, and its own line in the report. A vault
-    // that fails must not cancel the others — and must not be quietly folded into a
-    // cheerful summary either.
-    for (const v of vaults) {
-      // **A vault with no remote is still backed up — into its own history.** This used to `continue`
-      // before committing, so pressing Back up did nothing at all for such a vault and said only
-      // that it could not leave. `syncVault` commits it and comes back `local`, which is a state and
-      // not a failure, and the report below says which of the two things actually happened.
-      const reach = v.remote ? reachOf(v.remote) : 'unset';
-      // `syncVault` is commit → push, and — if the remote moved while you were writing —
-      // pull, merge, push once more. That last part is the difference between this button
-      // working and this button telling you "the remote has changes you don't have — pull
-      // first, then back up" and making you do it by hand. Exactly one retry: a loop is how
-      // a rejected push becomes an invisible one.
-      const phase = await syncVault(v.name, `backup: ${now}`, undefined);
-      const s = syncFor(v.name);
-      if (s.merged > 0) {
-        steps.push({ text: `Brought down ${s.merged} change(s)${of(v)} first.`, ok: true });
-      }
-      // **Nowhere to send is asked first, and answered from what we already know.** `syncVault` can
-      // only infer it — from a send that failed — while this panel *knows*, because `backup_status`
-      // read the destination off the config. Deciding it here also means a send that somehow
-      // reported success for a vault with no destination cannot make the panel announce notes sent
-      // to nowhere, which is the one thing it exists never to say.
-      //
-      // **Two sentences below, because they are two different facts and only one of them is a
-      // claim.** "saved here" asserts that something was committed; saying it when nothing was is
-      // the failure reported on the phone (2026-09-08), where a vault with nothing new announced a
-      // save in the same breath as the quiet chip said it had been silent for 38 days. `committed`
-      // is the answer, carried out of the save step for this exact purpose.
-      if (!v.remote || phase === 'local') {
-        steps.push({
-          text: s.committed
-            ? `“${labelFor(v.name)}” saved here, but nowhere to send. Add a destination below.`
-            : `“${labelFor(v.name)}” has nothing new to save, and nowhere to send it to. Add a destination below.`,
-          ok: false,
-        });
-        stuck.push(v.name);
-      } else if (phase === 'synced') {
-        steps.push({
-          text: `Notes${of(v)} sent to ${shortDest(v.remote ?? '')} — ${left(reach)}.`,
-          ok: true,
-        });
-        (reach === 'remote' ? off : stuck).push(v.name);
-      } else if (phase === 'conflicts') {
-        // Deliberately not pushed. Those notes hold both versions in their bodies, and
-        // publishing conflict markers as content is worse than not publishing.
-        steps.push({
-          text:
-            `Notes${of(v)} NOT sent — ${s.conflicts.length} note(s) came back with ` +
-            `conflicting edits and need you first: ${(await conflictLabels(s.conflicts)).join(', ')}`,
-          ok: false,
-        });
-        stuck.push(v.name);
-      } else {
-        steps.push({ text: `Notes${of(v)} NOT sent: ${plainError(msg(s.error))}`, ok: false });
-        stuck.push(v.name);
-      }
-    }
-
-    // The media tier, per vault and for the same reason git is: a restic repo is per
-    // repository, so each vault either has one or its media has nowhere to go. Back up
-    // the ones that can and **name the ones that can't** — silently skipping them is the
-    // failure this panel exists to prevent. Independent of the git tier: a failed push
-    // must not cancel a snapshot.
-    if (heavy) {
-      for (const v of vaults) {
-        if (!v.restic_ready) {
-          noMedia.push(v.name);
-          steps.push({
-            text: v.restic_repo
-              ? `Snapshot${of(v)} NOT taken — ${noPassword}.`
-              : `Snapshot${of(v)} NOT taken — no backup repo configured for it.`,
-            ok: false,
-          });
-          continue;
-        }
-        const reach = reachOf(v.restic_repo);
-        try {
-          const run = await backup(v.name);
-          steps.push({
-            text: `Snapshot${of(v)} — ${held(run)} → ${shortDest(v.restic_repo ?? '')} — ${left(reach)}.`,
-            ok: true,
-          });
-          if (reach === 'remote') mediaOff.push(v.name);
-        } catch (e) {
-          steps.push({ text: `Snapshot${of(v)} failed: ${msg(e)}`, ok: false });
-          noMedia.push(v.name);
-        }
-      }
-    }
-
-    // Name the vaults that did not make it, on both tiers. "Your notes are backed up"
-    // while one vault sat still is the one sentence this panel must never say. And the
-    // failures are not all one cause — a vault reaches `noMedia` from a missing repo, a
-    // missing password *or* a restic error, so the verdict names the outcome and lets the
-    // step above it give the reason.
-    // **A tier that never ran has no verdict.** With no remote anywhere, every vault lands in
-    // `stuck` and the git sentence would report a failure where there was no attempt — and
-    // "your notes are still on this machine" is flatly wrong when the snapshot tier just sent
-    // them somewhere, because a snapshot carries the notes directory as well as `blobs/`.
-    const gitRan = !noGit && vaults.some((v) => !!v.remote);
-    verdict =
-      (!gitRan
-        ? 'No vault has anywhere to send to, so nothing was sent.'
-        : stuck.length === 0
-          ? 'Your notes are off this machine.'
-          : off.length === 0
-            ? 'Your notes are still on this machine.'
-            : `Notes off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
-      ' ' +
-      (!heavy
-        ? 'No snapshot was taken.'
-        : noMedia.length === 0
-          ? mediaOff.length
-            ? 'Your snapshot is off this machine.'
-            : 'Your snapshot was taken, but is still on this machine.'
-          : mediaOff.length === 0
-            ? `No snapshot was taken (${noMedia.join(', ')}).`
-            : `Snapshot off this machine: ${mediaOff.join(', ')}. Not taken: ${noMedia.join(', ')}.`);
-    await load();
-    busy = false;
   }
 </script>
 
@@ -901,69 +628,67 @@
         </label>
       {/if}
 
-      {#if steps.length === 0}
-        <ul class="promise">
-          <li>
-            {#if reachOf(v.remote) === 'unset'}
-              <strong>Nowhere to send yet</strong> — these notes cannot leave this device.
-            {:else}
-              Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
-              <span class="muted">Carries {carries(v)}.</span>
-              <!-- **`0` and `null` are different facts and used to render identically.**
+      <ul class="promise">
+        <li>
+          {#if reachOf(v.remote) === 'unset'}
+            <strong>Nowhere to send yet</strong> — these notes cannot leave this device.
+          {:else}
+            Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
+            <span class="muted">Carries {carries(v)}.</span>
+            <!-- **`0` and `null` are different facts and used to render identically.**
                      `{#if v.unpushed}` is falsy for zero, so "everything is pushed" and "this has
                      never been pushed" both rendered as nothing at all — the panel simply went
                      quiet, which reads as the reassuring one. They are the opposite states.
                      `null` means git could not say (no remote, never pushed, or offline — a
                      sleeping laptop is not an error), so it stays silent deliberately; zero is a
                      positive answer and now says so. -->
-              {#if v.unpushed === 0}
-                <span class="muted">Everything here has been sent.</span>
-              {:else if v.unpushed}
-                <span class="muted"
-                  >{v.unpushed} change{v.unpushed === 1 ? '' : 's'} not sent yet.</span
-                >
-              {/if}
-              {#if v.identity}
-                <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
-              {/if}
-              <!-- **How much this is about to send.** The attachment rule selects every file at
+            {#if v.unpushed === 0}
+              <span class="muted">Everything here has been sent.</span>
+            {:else if v.unpushed}
+              <span class="muted"
+                >{v.unpushed} change{v.unpushed === 1 ? '' : 's'} not sent yet.</span
+              >
+            {/if}
+            {#if v.identity}
+              <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
+            {/if}
+            <!-- **How much this is about to send.** The attachment rule selects every file at
                    or under the limit, not a diff against what has already gone — so a device that
                    has been collecting photos and never sent one has its whole backlog waiting the
                    first time it can send them. A phone has no other way to find that out: its logs
                    are unreadable, and a push that dies part-way says only that it died. Stated as a
                    size because that is the number that explains a failure. -->
-              {#if v.assets_pending_bytes > OFFER_OVER}
-                <span class="muted"
-                  >That is more than one go over a phone connection reliably finishes, so it will be <strong
-                    >sent in steps</strong
-                  > — slower, and each step that finishes is kept, so stopping part-way loses nothing.</span
-                >
-              {/if}
-              {#if v.assets_pending > 0}
-                <span class="muted"
-                  >Carrying {v.assets_pending} attachment{v.assets_pending === 1 ? '' : 's'} —
-                  {humanSize(v.assets_pending_bytes)} in all. A large first batch over a phone connection
-                  can drop part-way; raising <strong>Send attachments under</strong> a step at a time
-                  in Settings sends them in smaller groups.</span
-                >
-              {/if}
+            {#if v.assets_pending_bytes > OFFER_OVER}
+              <span class="muted"
+                >That is more than one go over a phone connection reliably finishes, so it will be <strong
+                  >sent in steps</strong
+                > — slower, and each step that finishes is kept, so stopping part-way loses nothing.</span
+              >
             {/if}
-          </li>
-          <!-- **When this vault last saved anything** — stated for every vault, remote or not,
+            {#if v.assets_pending > 0}
+              <span class="muted"
+                >Carrying {v.assets_pending} attachment{v.assets_pending === 1 ? '' : 's'} —
+                {humanSize(v.assets_pending_bytes)} in all. A large first batch over a phone connection
+                can drop part-way; raising <strong>Send attachments under</strong> a step at a time in
+                Settings sends them in smaller groups.</span
+              >
+            {/if}
+          {/if}
+        </li>
+        <!-- **When this vault last saved anything** — stated for every vault, remote or not,
                  because it is the one fact that is true independently of everything above it. A
                  vault whose commits are blocked has a remote, an identity and a plausible unpushed
                  count; what it does not have is a recent save, and until now no screen said so.
                  Its own `<li>`, outside the remote branch, for exactly that reason: it must still
                  be there when there is no remote to talk about. -->
-          <li>
-            {#if savedAt(v.name) === null}
-              <strong>Nothing saved here yet</strong> — this vault has no history at all.
-            {:else}
-              Last saved <strong>{saved(savedAt(v.name)!)}</strong>.
-            {/if}
-          </li>
-        </ul>
-      {/if}
+        <li>
+          {#if savedAt(v.name) === null}
+            <strong>Nothing saved here yet</strong> — this vault has no history at all.
+          {:else}
+            Last saved <strong>{saved(savedAt(v.name)!)}</strong>.
+          {/if}
+        </li>
+      </ul>
 
       <!-- **Stop showing me this vault.** Deliberately last, small, and worded as what it is:
              unregistering, not deleting. The notes stay on disk and the message says how many and
@@ -1019,14 +744,6 @@
       {:else if v.remote_moved}
         <p class="moved">Someone has sent work you don't have yet.</p>
       {/if}
-
-      {#if v.remote}
-        <div class="vault-actions">
-          <button onclick={() => bringDown(v)} disabled={busy} class:primary={v.remote_moved}>
-            {busy ? 'Working…' : 'Get their changes'}
-          </button>
-        </div>
-      {/if}
     </div>
   {/each}
 
@@ -1056,117 +773,43 @@
     </section>
   {/if}
 
-  {#if steps.length === 0}
-    <ul class="promise">
-      <li>
-        {#if !heavy}
-          <!-- Per vault, because what git carries is per vault. A flat "media is not
+  <!-- **What a backup carries, said here; doing it is the Back up menu's** (`decisions.md#ui`,
+       2026-10-15). This used to end in a snapshot tick box and a Back up button — an action inside
+       Settings, and a second way to do what the menu does. -->
+  <ul class="promise">
+    <li>
+      <!-- Per vault, because what git carries is per vault. A flat "media is not
                  included" was wrong for any vault with an attachment limit — and wrong in the
                  dangerous direction, telling someone their attachments stayed home while they
                  were being pushed into permanent shared history. -->
-          {#each vaults as v (v.name)}
-            <div>
-              {#if effectiveMax(v)}
-                Attachments{of(v)} over {humanSize(effectiveMax(v) ?? 0)} are
-                <strong>not included</strong> — smaller ones travel with the notes.
-              {:else}
-                Attachments{of(v)} in <code>blobs/</code> (images, PDFs, video) are
-                <strong>not included</strong>.
-              {/if}
-            </div>
-          {/each}
-        {:else}
-          {#each vaults as v (v.name)}
-            {#if v.restic_ready}
-              <div>
-                Snapshot{of(v)} — this vault's notes and attachments →
-                <strong>{shortDest(v.restic_repo ?? '')}</strong> —
-                {leaves(reachOf(v.restic_repo))}.
-              </div>
-            {:else}
-              <div>
-                Snapshot{of(v)} <strong>will not run</strong> —
-                {v.restic_repo ? noPassword : 'no backup repo for it'}.
-              </div>
-            {/if}
-          {/each}
-        {/if}
-      </li>
-    </ul>
-  {:else}
-    <ul class="steps">
-      {#each steps as s, i (i)}
-        <li class:bad={!s.ok}>{s.text}</li>
+      {#each vaults as v (v.name)}
+        <div>
+          {#if effectiveMax(v)}
+            Attachments{of(v)} over {humanSize(effectiveMax(v) ?? 0)} are
+            <strong>not included</strong> — smaller ones travel with the notes.
+          {:else}
+            Attachments{of(v)} in <code>blobs/</code> (images, PDFs, video) are
+            <strong>not included</strong>.
+          {/if}
+        </div>
       {/each}
-    </ul>
-    {#if verdict}<p class="verdict">{verdict}</p>{/if}
-  {/if}
-
-  <label class="heavy" class:disabled={!anyRestic}>
-    <input type="checkbox" bind:checked={heavy} disabled={busy || !anyRestic} />
-    <span>
-      <!-- **"Media" was never what this tier does.** The snapshot is the notes directory
-             *and* `blobs/`, which is why a restore returns a working vault and not a pile of
-             images — and why calling it "media" left people believing their notes were in git
-             alone. It is still opt-in and still the heavy half; it is just not media-only. -->
-      Include an encrypted snapshot — notes and attachments, via restic
-      {#if noRestic}
-        <span class="muted">
-          (unavailable: restic isn't installed on this machine — the snapshot is an optional
-          feature, and your notes don't need it)
-        </span>
-      {:else if status && !anyRestic}
-        <!-- Both halves of what this used to say were stale: it sent people to edit the vault
-               list for a repo the field above sets, and to restart for a password that takes
-               effect the moment it is saved. Name the field, not the file. -->
-        <span class="muted">
-          (unavailable: {vaults.some((v) => !!v.restic_repo)
-            ? 'set a backup password above'
-            : 'give a vault a backup repo above, and set a password'})
-        </span>
-      {:else if plural && vaults.some((v) => !v.restic_ready)}
-        <span class="muted">
-          (only the vaults with a restic repo of their own: {vaults
-            .filter((v) => v.restic_ready)
-            .map((v) => v.name)
-            .join(', ')})
-        </span>
-      {/if}
-    </span>
-  </label>
+      {#each vaults as v (v.name)}
+        {#if v.restic_repo}
+          {#if v.restic_ready}
+            <div>
+              Snapshot{of(v)} (<em>Take a snapshot</em> in Back up) — this vault's notes and
+              attachments → <strong>{shortDest(v.restic_repo ?? '')}</strong> —
+              {leaves(reachOf(v.restic_repo))}.
+            </div>
+          {:else}
+            <div>Snapshot{of(v)} <strong>will not run</strong> — {noPassword}.</div>
+          {/if}
+        {/if}
+      {/each}
+    </li>
+  </ul>
 
   {#if error}<p class="error">{error}</p>{/if}
-
-  <!-- **A disabled button has to say why it is disabled.** `canRun` needs a git remote, so a
-         machine set up for snapshots alone — restic installed, a repo, a password — offered a
-         tick box that ticked and a Back up button that never enabled, with nothing on screen
-         explaining it. Saying so is not the fix; running the snapshot tier on its own is, and
-         that is queued rather than smuggled in here. Until then the panel is at least honest
-         about its own refusal. -->
-  {#if status && !canRun && !busy}
-    <p class="why">
-      {#if !noGit && !anyRemote && anyRestic && !heavy}
-        No vault has a git remote yet, so there is nothing to push — but this machine can take a
-        snapshot. Tick the box above to run that tier on its own.
-      {:else if !noGit && !anyRemote}
-        Back up needs a git remote to send notes to, and no vault has one yet — set one above.
-      {:else if noGit && !anyRestic}
-        This machine has neither git nor a configured snapshot repository, so there is nowhere for
-        anything to go.
-      {:else if noGit}
-        Git is not installed, so notes cannot be pushed. Tick the box above to take a snapshot
-        instead — that tier carries the notes as well as the attachments.
-      {/if}
-    </p>
-  {/if}
-
-  <div class="actions">
-    <button class="primary" onclick={run} disabled={!canRun}>
-      {busy
-        ? 'Backing up…'
-        : `Back up ${plural ? 'every vault' : 'notes'}${heavy ? ' + snapshot' : ''}`}
-    </button>
-  </div>
 </div>
 
 <style>
@@ -1262,10 +905,6 @@
     padding-bottom: var(--space-2);
     border-bottom: 1px solid var(--border);
   }
-  .vault-actions {
-    display: flex;
-    justify-content: flex-end;
-  }
   .row input {
     flex: 1;
     min-width: 0;
@@ -1287,41 +926,15 @@
     font-size: var(--text-sm);
     color: var(--text);
   }
-  .promise li,
-  .steps li {
+  .promise li {
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
     background: var(--accent-subtle);
     line-height: 1.5;
   }
-  .steps li {
-    background: var(--ok-bg);
-    color: var(--ok-fg);
-  }
-  .steps li.bad {
-    background: var(--danger-bg);
-    color: var(--danger-fg);
-  }
-  .verdict {
-    margin: 0;
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--text);
-  }
   .muted {
     color: var(--text-muted);
     font-weight: 400;
-  }
-  .heavy {
-    display: flex;
-    gap: var(--space-2);
-    align-items: flex-start;
-    font-size: var(--text-sm);
-    color: var(--text);
-    line-height: 1.5;
-  }
-  .heavy.disabled {
-    color: var(--text-muted);
   }
   code {
     font-family: var(--font-mono);
@@ -1335,11 +948,6 @@
     color: var(--danger-fg);
     font-size: var(--text-sm);
   }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-  }
   button {
     padding: var(--space-2) var(--space-4);
     border: 1px solid var(--border);
@@ -1348,11 +956,6 @@
     color: var(--text);
     font-size: var(--text-sm);
     cursor: pointer;
-  }
-  button.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
   }
   button:disabled {
     opacity: 0.5;

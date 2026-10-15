@@ -121,7 +121,7 @@ Object.defineProperties(HTMLDivElement.prototype, {
 });
 
 /// **jsdom ships no `Element.scrollIntoView`** (every browser has it). Settings scrolls to the
-/// section a link asked for — *Backup settings…* lands on Vaults — and in jsdom that call threw an
+/// section a link asked for — the quiet-vault chip lands on Vaults — and in jsdom that call threw an
 /// unhandled error that failed the run. A no-op: there is no layout here to scroll.
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function () {};

@@ -583,7 +583,7 @@
         cat = where;
         opened = true;
         // After the category is drawn: scrolling to an element that is still hidden does nothing,
-        // which is how *Backup settings…* landed on the category but not on Vaults.
+        // which is how a link landed on the category but not on Vaults.
         void tick().then(() =>
           requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })),
         );
@@ -605,7 +605,7 @@
     // The backup half of Vaults asks git about every vault's remote, which is a network call per
     // vault — so it is mounted the first time its category is shown or a search could reach it,
     // never merely because Settings opened (`decisions.md#ui`, 2026-10-15).
-    if (!backupMounted && !actionsMode && (showing === 'notes' || query.trim())) {
+    if (!backupMounted && !actionsMode && (showing === 'vaults' || query.trim())) {
       backupMounted = true;
     }
     let hits = 0;
@@ -647,7 +647,7 @@
     look: `${theme.charAt(0).toUpperCase()}${theme.slice(1)} · ${
       layout === 'tiled' ? 'Tiled' : 'One view'
     }`,
-    notes: `${vaults.length} vault${vaults.length === 1 ? '' : 's'} · backs up by itself ${
+    vaults: `${vaults.length} vault${vaults.length === 1 ? '' : 's'} · backs up by itself ${
       autoBackup ? 'on' : 'off'
     }`,
     assistant: agentOn === null ? undefined : agentOn ? 'On' : 'Off',
@@ -1600,10 +1600,10 @@
         {/if}
       </section>
 
-      <!-- **Vaults first in Notes & backup** (`decisions.md#ui`, 2026-10-15): it is what the category
-           is mostly about, and where *Backup settings…* sends you. -->
+      <!-- **Vaults & backup, a category of its own** (`decisions.md#ui`, 2026-10-15): everything about
+           a vault is set here and nowhere else. -->
       <section
-        data-cat="notes"
+        data-cat="vaults"
         data-words="backup back up sync send attachments vault vaults automatic new vault create import logseq obsidian join restore remote address token password restic snapshot remove forget"
       >
         <div class="vaults-head" id="vaults">

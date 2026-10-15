@@ -10,7 +10,7 @@ it into notes of its own.
 ## Doing it
 
 1. Open **New vault…**: it is at the end of the vault menu in the left panel (the one that says
-   which vaults are shown), and at the top of **Settings → Notes & backup → Vaults**.
+   which vaults are shown), and at the top of **Settings → Vaults & backup**.
 2. Pick **Import from another app**.
 3. Type the folder your graph or vault lives in — for example `~/Documents/my-logseq-graph`.
 4. formicaria looks at it and tells you what it found: how many pages, how many daily notes, how

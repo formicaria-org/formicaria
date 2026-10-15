@@ -1,4 +1,4 @@
-// **A vault is set up in one place: Settings → Notes & backup → Vaults** (`decisions.md#ui`,
+// **A vault is set up in one place: Settings → Vaults & backup** (`decisions.md#ui`,
 // 2026-10-15). It used to be two windows — Settings held a vault's name, folder and attachment
 // limit, the Back up panel its address, token and snapshot — and *New vault…* sat in the second's
 // corner. Three things are pinned here:
@@ -27,7 +27,7 @@ beforeEach(() => {
   backupStatus.mockClear();
 });
 
-function panel(category: 'notes' | 'look', onnewvault = () => {}) {
+function panel(category: 'vaults' | 'look', onnewvault = () => {}) {
   return render(SettingsPanel, {
     onclose: () => {},
     onnewvault,
@@ -44,7 +44,7 @@ function panel(category: 'notes' | 'look', onnewvault = () => {}) {
 
 describe('Settings → Vaults is the one home of a vault', () => {
   it('draws each vault as one block holding its settings and where it is sent', async () => {
-    panel('notes');
+    panel('vaults');
     // Wait for the backup half: one "where it is sent" field per vault.
     const remotes = await screen.findAllByPlaceholderText('git@github.com:you/notes.git');
     const limits = screen.getAllByLabelText(/largest attachment to send/i);
@@ -59,20 +59,20 @@ describe('Settings → Vaults is the one home of a vault', () => {
 
   it('offers New vault… beside the list of vaults', async () => {
     const onnewvault = vi.fn();
-    panel('notes', onnewvault);
+    panel('vaults', onnewvault);
     await fireEvent.click(await screen.findByRole('button', { name: 'New vault…' }));
     expect(onnewvault).toHaveBeenCalledOnce();
   });
 
-  it('asks nothing about backups until Notes & backup is opened', async () => {
+  it('asks nothing about backups until Vaults & backup is opened', async () => {
     panel('look');
     // Let the panel settle on the category it opened at.
     await screen.findAllByText(/look/i);
     expect(backupStatus).not.toHaveBeenCalled();
   });
 
-  it('reads backup state once Notes & backup is shown', async () => {
-    panel('notes');
+  it('reads backup state once Vaults & backup is shown', async () => {
+    panel('vaults');
     await waitFor(() => expect(backupStatus).toHaveBeenCalled());
   });
 });

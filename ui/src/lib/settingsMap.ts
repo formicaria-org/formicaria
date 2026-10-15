@@ -8,7 +8,10 @@
 export const CATEGORIES = [
   { id: 'look', label: 'Look' },
   { id: 'keyboard', label: 'Keyboard' },
-  { id: 'notes', label: 'Notes & backup' },
+  // **A vault's settings have a category of their own** (`decisions.md#ui`, 2026-10-15): where it
+  // lives, where it is sent, its snapshot, which attachments travel, making and removing vaults.
+  { id: 'vaults', label: 'Vaults & backup' },
+  { id: 'notes', label: 'Food & reminders' },
   { id: 'assistant', label: 'Assistant' },
   { id: 'connections', label: 'Connections' },
   { id: 'about', label: 'About & updates' },

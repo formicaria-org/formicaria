@@ -8,12 +8,14 @@ describe('how Settings is divided', () => {
     expect(CATEGORIES.map((c) => c.id)).toEqual([
       'look',
       'keyboard',
+      'vaults',
       'notes',
       'assistant',
       'connections',
       'about',
     ]);
-    expect(labelOf('notes')).toBe('Notes & backup');
+    expect(labelOf('vaults')).toBe('Vaults & backup');
+    expect(labelOf('notes')).toBe('Food & reminders');
     expect(isCat('about')).toBe(true);
     expect(isCat('actions')).toBe(false);
   });

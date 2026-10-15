@@ -76,7 +76,7 @@ yours, in one gesture — see [Backup & versioning](./backup.md).
 ## Attachments
 
 Photos, recordings and files you attach on the phone travel with your notes, up to the size limit
-that vault sets — **Settings → Notes & backup → Vaults**, *Send attachments under*. A large backlog is sent in steps
+that vault sets — **Settings → Vaults & backup**, *Send attachments under*. A large backlog is sent in steps
 automatically, and a single file over the limit stays on the phone rather than blocking everything
 behind it.
 
