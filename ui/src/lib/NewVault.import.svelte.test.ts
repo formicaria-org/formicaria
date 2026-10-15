@@ -236,3 +236,17 @@ describe('importing a folder again, and choosing what comes over', () => {
     expect(await screen.findByText(/copied into the vault — up to 2\.4 MB/)).toBeTruthy();
   });
 });
+
+describe('what an import that skipped pages says', () => {
+  it('says how to bring skipped pages up to date, and lists left-out files readably', async () => {
+    runImport.mockResolvedValue(
+      report({ notes: 0, alreadyImported: 1182, leftOut: 14, leftOutNames: ['a.bag', 'b.bag'] }),
+    );
+    await intoImportMode();
+    await fireEvent.click(screen.getByRole('button', { name: /import notes/i }));
+    expect(await screen.findByText(/were imported into this vault before/)).toBeTruthy();
+    expect(screen.getByText(/To bring them up to date/)).toBeTruthy();
+    // A space before the list, and a sign that the list is a sample when it is one.
+    expect(screen.getByText(/left out, as you asked \(a\.bag, b\.bag, …\)\./)).toBeTruthy();
+  });
+});

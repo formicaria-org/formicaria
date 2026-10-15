@@ -2037,12 +2037,18 @@ pub fn asset_note(
 /// top-level `Kind` down to SQL — a `Predicate::Prop` on `source_key` falls through to loading and
 /// parsing every note. Asking that once per imported page is quadratic, and a graph has thousands
 /// of pages; asking it once is a single scan the vault already does for every board.
-pub fn existing_sources(store: &dyn Store) -> Result<HashMap<String, Id>, StoreError> {
+///
+/// **In `vault` only.** The store a command holds is every vault this caller can see, and asking it
+/// without a vault answered for all of them: a graph imported into one vault made an import into
+/// another skip every page as "imported before" — and a *replace* would have rewritten notes under
+/// the ids of the other vault's copies (found by the owner, 2026-10-15).
+pub fn existing_sources(store: &dyn Store, vault: &str) -> Result<HashMap<String, Id>, StoreError> {
     let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
     Ok(store
         .query(&q)?
         .rows
         .iter()
+        .filter(|o| o.vault == vault)
         .filter_map(|o| match o.get(import::SOURCE_KEY) {
             PropertyValue::Text(key) if !key.is_empty() => Some((key, o.id)),
             _ => None,

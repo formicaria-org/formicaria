@@ -272,3 +272,31 @@ fn the_preview_lists_attachments_by_kind() {
     assert_eq!(check["drawings"], 1);
     assert_eq!(check["previous"], json!([]), "nothing imported yet");
 }
+
+/// **"Imported before" means imported into *this* vault.** With the same graph imported into a
+/// second vault, an import into the first skipped every page, because the check looked across
+/// every vault; a replace would have rewritten notes under the other vault's ids (2026-10-15).
+#[test]
+fn an_import_into_one_vault_does_not_see_another_vaults_copy() {
+    let work = tempfile::tempdir().unwrap();
+    let app = new_app(work.path());
+    // One copy in a vault of its own…
+    import(&app, &mini(), "", &work.path().join("first"), json!({}));
+    // …and an empty second vault, imported into as an existing vault.
+    call(
+        &app,
+        "create_vault",
+        json!({ "name": "second", "path": work.path().join("second").to_string_lossy() }),
+    )
+    .unwrap();
+    let report = import(&app, &mini(), "second", Path::new(""), json!({ "replace": true }));
+    assert_eq!(report["alreadyImported"], 0, "{report}");
+    assert_eq!(report["replaced"], 0, "{report}");
+    assert_eq!(report["notes"], 11, "every page arrives in the second vault: {report}");
+    drop(app);
+    // And the first vault's notes are untouched by the second import.
+    let first = fm_core::FileStore::open(work.path().join("first")).unwrap();
+    use fm_core::Store;
+    let n = first.candidates(&fm_query::Filter::new()).unwrap().0.len();
+    assert!(n >= 11, "the first vault still has its notes ({n})");
+}

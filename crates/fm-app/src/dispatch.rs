@@ -3705,7 +3705,7 @@ fn run_import(
         let mut g = app.lock()?;
         let cfg = g.config(scope, vault)?;
         let st = g.store(scope);
-        let existing = commands::existing_sources(&st).map_err(err)?;
+        let existing = commands::existing_sources(&st, &cfg.name).map_err(err)?;
         (cfg, existing)
     };
 

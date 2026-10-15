@@ -322,8 +322,9 @@
         {/if}
         {#if report.alreadyImported}
           <li class="note">
-            {report.alreadyImported} were imported before and were left untouched — nothing you have edited
-            here was overwritten.
+            {report.alreadyImported} were imported into this vault before and were left untouched — nothing
+            you have edited here was overwritten. To bring them up to date, import again with
+            <strong>Replace what an earlier import of this folder wrote</strong> ticked.
           </li>
         {/if}
         {#if report.dangling}
@@ -336,8 +337,10 @@
         {#if report.leftOut}
           <li class="note">
             {report.leftOut}
-            {report.leftOut === 1 ? 'attachment was' : 'attachments were'} left out, as you asked{#if report.leftOutNames.length}
-              ({report.leftOutNames.join(', ')}){/if}. Each is still named where a note mentions it.
+            {report.leftOut === 1 ? 'attachment was' : 'attachments were'} left out, as you asked{#if report.leftOutNames.length}{' '}({report.leftOutNames.join(
+                ', ',
+              )}{report.leftOut > report.leftOutNames.length ? ', …' : ''}){/if}. Each is still
+            named where a note mentions it.
           </li>
         {/if}
         {#if report.drawings}
