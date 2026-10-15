@@ -76,3 +76,29 @@ describe('Settings → Vaults is the one home of a vault', () => {
     await waitFor(() => expect(backupStatus).toHaveBeenCalled());
   });
 });
+
+/// **Moving a vault's folder from where its folder is shown** (`decisions.md#vault`, 2026-10-15).
+describe('moving a vault to another folder', () => {
+  it('checks the folder as it is typed, then moves it and says from where', async () => {
+    panel('vaults');
+    const [first] = await screen.findAllByRole('button', { name: 'Move to another folder…' });
+    await fireEvent.click(first);
+    const field = screen.getByLabelText(/new folder for/i);
+
+    // A refusal is the server's sentence, and Move stays off.
+    await fireEvent.input(field, { target: { value: 'relative/path' } });
+    expect(await screen.findByText(/give the whole path/)).toBeTruthy();
+    const move = screen.getByRole('button', { name: 'Move' }) as HTMLButtonElement;
+    expect(move.disabled).toBe(true);
+
+    await fireEvent.input(field, { target: { value: '/home/you/elsewhere' } });
+    // What will move, and the promise that a failure leaves it where it is.
+    expect(await screen.findByText(/will move to/)).toBeTruthy();
+    expect(screen.getByText(/if anything fails, it stays where it is/)).toBeTruthy();
+    await waitFor(() => expect(move.disabled).toBe(false));
+    await fireEvent.click(move);
+
+    expect(await screen.findByText(/Moved from/)).toBeTruthy();
+    expect(await screen.findByText('/home/you/elsewhere')).toBeTruthy();
+  });
+});

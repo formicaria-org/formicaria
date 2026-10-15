@@ -302,6 +302,36 @@ export const templates = () => invoke<ObjectMeta[]>('templates');
  *  by mistake, and to a fresh install over an existing folder. Empty on a desktop. */
 export const recoverableVaults = () => invoke<Recoverable[]>('recoverable_vaults', {});
 
+/** What moving a vault's folder there would do, or why it cannot — asked as the folder is typed
+ *  (`decisions.md#vault`, 2026-10-15). The server owns `ok`, exactly as with `check_path`. */
+export interface MoveCheck {
+  ok: boolean;
+  problem: string | null;
+  from?: string;
+  to?: string;
+  files?: number;
+  bytes?: number;
+}
+export const checkMoveVault = (vault: string, path: string) =>
+  invoke<MoveCheck>('check_move_vault', { vault, path });
+
+/** Move a vault's folder, keeping its name, its place in the list (the default stays the default)
+ *  and its settings. On one disk a rename; across disks a copy checked byte for byte before the old
+ *  folder is removed. A failure leaves the vault where it was. */
+export interface Moved {
+  vault: string;
+  from: string;
+  to: string;
+  copied: boolean;
+  files: number;
+  bytes: number;
+  oldRemoved: boolean;
+  note: string | null;
+  vaults: VaultInfo[];
+}
+export const moveVault = (vault: string, path: string) =>
+  invoke<Moved>('move_vault', { vault, path });
+
 export const forgetVault = (name: string) =>
   invoke<{
     forgotten: string;

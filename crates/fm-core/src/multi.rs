@@ -132,6 +132,14 @@ impl MultiStore {
         self.vaults.push(store);
     }
 
+    /// Put a vault back into the live set **at `index`** — where it was before it was taken out
+    /// to be moved (`move_vault`). Not [`Self::add`], which appends: the first vault is the
+    /// default for every new note, so a vault returning from a move must return to its place.
+    pub fn insert(&mut self, index: usize, store: FileStore) {
+        let at = index.min(self.vaults.len());
+        self.vaults.insert(at, store);
+    }
+
     /// Drop a vault from the live set — the counterpart of [`Self::add`], for a vault the user has
     /// asked to stop seeing. Returns whether it was there.
     ///

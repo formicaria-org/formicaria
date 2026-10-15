@@ -540,6 +540,10 @@ const REMOTE_DENIED: &[&str] = &[
     // directory's contents into a vault. Neither question is "which audience am I in".
     "/api/check_import",
     "/api/run_import",
+    // Moving a vault's folder: a host filesystem path in, the host's files moved — the
+    // `check_import` reasons, and an irreversible-looking change made from a guest device.
+    "/api/check_move_vault",
+    "/api/move_vault",
     "/api/create_vault",
     "/api/clone_vault",
     "/api/restore_vault",

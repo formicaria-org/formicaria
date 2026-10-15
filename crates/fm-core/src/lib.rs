@@ -31,7 +31,8 @@ pub use verify::{verify, Report, Severity};
 pub mod acquire; // the one step every way of getting a vault from elsewhere shares
 pub mod backup;
 pub mod git;
-// Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes.
+pub mod relocate; // moving a vault's folder: one rename, or a verified copy
+                  // Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes.
 pub mod import;
 // A published calendar -> event records; converts too, and for the same reason sits beside `import`
 // rather than in the agent: the events half must work with the assistant off.

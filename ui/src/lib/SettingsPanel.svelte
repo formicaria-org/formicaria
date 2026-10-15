@@ -37,6 +37,8 @@
   import {
     config as fetchConfig,
     setGitAssetsMax,
+    checkMoveVault,
+    moveVault,
     setSupervision,
     agentStatus,
     agentModels,
@@ -572,6 +574,50 @@
   /** What a link asked for (`section`), honoured once its section exists. */
   let landed = false;
   let backupMounted = $state(false);
+
+  // ── moving a vault's folder (`decisions.md#vault`, 2026-10-15) ──────────────────────────────
+  /** Which vault's move form is open, if any — one at a time. */
+  let moving = $state<string | null>(null);
+  let moveTo = $state('');
+  let moveCheck = $state<import('./ipc').MoveCheck | null>(null);
+  let moveBusy = $state(false);
+  let moveError = $state<string | null>(null);
+  let moved = $state<import('./ipc').Moved | null>(null);
+  /** Not where vaults live in formicaria's own storage (a phone), and not from a paired device:
+   *  there is no folder of the person's to choose. The server refuses both anyway. */
+  const canMove = $derived(!isRemote() && !!cfg && cfg.vault_root === null);
+  let moveTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const [v, to] = [moving, moveTo];
+    clearTimeout(moveTimer);
+    moveCheck = null;
+    if (!v || !to.trim()) return;
+    moveTimer = setTimeout(async () => {
+      moveCheck = await checkMoveVault(v, to).catch((e) => ({ ok: false, problem: reason(e) }));
+    }, 300);
+    return () => clearTimeout(moveTimer);
+  });
+  function startMove(name: string) {
+    moving = name;
+    moveTo = '';
+    moveError = null;
+    moved = null;
+  }
+  async function doMove() {
+    if (!moving || !moveCheck?.ok || moveBusy) return;
+    moveBusy = true;
+    moveError = null;
+    try {
+      moved = await moveVault(moving, moveTo);
+      moving = null;
+      await refreshVaults();
+      onvaults?.();
+    } catch (e) {
+      moveError = reason(e);
+    } finally {
+      moveBusy = false;
+    }
+  }
   function applyView() {
     const el = panelEl;
     if (!el) return;
@@ -891,6 +937,52 @@
     <!-- Been on the wire since `list_vaults` existed and rendered nowhere until now.
                  "Which folder is this actually?" had no answer inside the app. -->
     <p class="path"><code>{v.path}</code></p>
+    {#if moved?.vault === v.name}
+      <p class="muted small" role="status">
+        Moved from <code>{moved.from}</code> — {moved.files} files, {humanSize(
+          moved.bytes,
+        )}{moved.copied
+          ? ', copied and checked file by file'
+          : ''}.{#if moved.note}{' '}{moved.note}{/if}
+      </p>
+    {/if}
+    {#if canMove}
+      {#if moving === v.name}
+        <div class="move">
+          <label class="line">
+            <span>Move it to</span>
+            <input
+              bind:value={moveTo}
+              placeholder={`~/notes/${v.name}`}
+              autocomplete="off"
+              spellcheck="false"
+              autocapitalize="off"
+              aria-label={`new folder for ${labelFor(v.name)}`}
+              disabled={moveBusy}
+            />
+          </label>
+          {#if moveCheck?.ok}
+            <p class="muted small">
+              {moveCheck.files} files, {humanSize(moveCheck.bytes ?? 0)}, will move to
+              <code>{moveCheck.to}</code>. Its name, its place in the list and its settings stay. On
+              the same disk this is instant; on another, every file is copied and checked before the
+              old folder is removed — if anything fails, it stays where it is.
+            </p>
+          {:else if moveCheck?.problem}
+            <p class="warn">{moveCheck.problem}</p>
+          {/if}
+          {#if moveError}<p class="assets-error">{moveError}</p>{/if}
+          <div class="line">
+            <button onclick={() => void doMove()} disabled={!moveCheck?.ok || moveBusy}>
+              {moveBusy ? 'Moving…' : 'Move'}
+            </button>
+            <button class="link" onclick={() => (moving = null)} disabled={moveBusy}>Cancel</button>
+          </div>
+        </div>
+      {:else}
+        <button class="link" onclick={() => startMove(v.name)}>Move to another folder…</button>
+      {/if}
+    {/if}
     <!-- **The one vault setting that is editable here**, because it is the one that
                  decides what a backup carries — and "what does Back up actually send?" is the
                  question this whole panel exists to answer. It is written into the vault's own
@@ -3088,5 +3180,18 @@
     border-radius: var(--radius-2, 6px);
     font-size: 0.85rem;
     cursor: pointer;
+  }
+  /* The move form sits under the folder it moves, framed as one step. */
+  .move {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+  }
+  .move input {
+    flex: 1;
+    min-width: 0;
   }
 </style>

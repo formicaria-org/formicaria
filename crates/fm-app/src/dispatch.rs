@@ -590,6 +590,8 @@ const READ_ONLY: &[&str] = &[
     // list it would bump the generation each time and tell every connected client the vault had
     // changed — the `paper_bibtex` lesson, on a faster trigger.
     "check_import",
+    // Asked per keystroke while a new folder is typed; it changes nothing.
+    "check_move_vault",
     "config",
     "probe_remote",
     "git_auth",
@@ -1982,6 +1984,10 @@ fn dispatch_inner(
         // sees the UI that is not a papercut, it is permanent (owner, 2026-07-31: "creates only
         // confusion").
         "forget_vault" => json(forget_vault(app, scope, &s("name"))?),
+        // **Moving a vault's folder** (`decisions.md#vault`, 2026-10-15): asked on every keystroke
+        // while the new folder is typed, then done. Host-only — see `fm-serve`'s deny list.
+        "check_move_vault" => json(check_move_vault(app, scope, &s("vault"), &s("path"))?),
+        "move_vault" => json(move_vault(app, scope, &s("vault"), &s("path"))?),
         // What this installation is actually configured as — the answer to "what am I
         // operating with?". Read-only by construction and by necessity: `vaults::save` is
         // append-only and never rewrites an existing entry, so a settings screen that offered
@@ -2609,6 +2615,30 @@ impl Vaults {
     }
 
     /// Drop a vault from the live set. Both halves again, for the same reason.
+    /// Take a vault's store out of the live set, **keeping its entry in the list** — the first
+    /// half of a move (`move_vault`). Its files can then move with nothing writing to them: a
+    /// write routed to it fails loudly instead of landing in a copy about to be left behind.
+    fn detach(&mut self, name: &str) -> bool {
+        self.all.remove(name)
+    }
+
+    /// Put a vault's store back, at `path`, **in its place**: the list entry keeps its position,
+    /// and the store goes where that position says among the vaults that are open — the first
+    /// vault is the default for new notes, and a move must not change which one that is.
+    fn reattach(&mut self, name: &str, path: PathBuf, store: fm_core::FileStore) {
+        let open = self.all.names().iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        let index = self
+            .list
+            .iter()
+            .take_while(|c| c.name != name)
+            .filter(|c| open.contains(&c.name))
+            .count();
+        if let Some(c) = self.list.iter_mut().find(|c| c.name == name) {
+            c.path = path;
+        }
+        self.all.insert(index, store);
+    }
+
     fn remove(&mut self, name: &str) -> bool {
         let had = self.all.remove(name);
         let before = self.list.len();
@@ -3891,6 +3921,200 @@ fn forget_vault(app: &App, scope: &Scope, name: &str) -> Result<serde_json::Valu
         "path": cfg.path.to_string_lossy(),
         "notes": notes,
         "remote": remote,
+        "vaults": scoped_infos(&g, scope),
+    }))
+}
+
+/// Where vault `name` would move to, if it may — the one rule `check_move_vault` and `move_vault`
+/// share, so the form and the move can never disagree about what is allowed.
+fn move_target(
+    g: &Vaults,
+    app: &App,
+    scope: &Scope,
+    name: &str,
+    path: &str,
+) -> Result<(VaultConfig, PathBuf), String> {
+    if vaults::vault_root().is_some() {
+        return Err("vaults on this device live in formicaria's own storage, so there is no \
+                    folder to move one to"
+            .into());
+    }
+    let cfg = g
+        .configs()
+        .into_iter()
+        .filter(|c| scope.allows(&c.name))
+        .find(|c| c.name == name)
+        .ok_or_else(|| format!("no vault named '{name}'"))?;
+    if app.config.is_none() || !app.config_writable {
+        return Err("the vault list on disk isn't something we can safely write — fix it first, \
+                    then try again"
+            .into());
+    }
+    let raw = path.trim();
+    if raw.is_empty() {
+        return Err("type the folder to move it to".into());
+    }
+    let to = PathBuf::from(vaults::expand_home(raw));
+    if !to.is_absolute() {
+        return Err("give the whole path, starting with / — or ~ for your home folder".into());
+    }
+    let to = vaults::absolute(&to);
+    let from = vaults::absolute(&cfg.path);
+    if !from.is_dir() {
+        return Err(format!(
+            "its folder is not there ({}), so there is nothing to move — remove it from the list",
+            from.display()
+        ));
+    }
+    if to == from {
+        return Err("it is already there".into());
+    }
+    if to.starts_with(&from) {
+        return Err("a vault cannot be moved into a folder inside itself".into());
+    }
+    for other in g.configs().iter().filter(|c| c.name != name) {
+        let o = vaults::absolute(&other.path);
+        if to.starts_with(&o) || o.starts_with(&to) {
+            return Err(format!(
+                "that folder overlaps the '{}' vault ({}) — choose one apart from every vault",
+                other.name,
+                o.display()
+            ));
+        }
+    }
+    if to.exists() {
+        if !to.is_dir() {
+            return Err(format!("there is a file at {}, not a folder", to.display()));
+        }
+        let empty = std::fs::read_dir(&to).map(|mut d| d.next().is_none()).unwrap_or(false);
+        if !empty {
+            return Err(format!(
+                "{} already has files in it — choose an empty or a new folder",
+                to.display()
+            ));
+        }
+    }
+    Ok((cfg, to))
+}
+
+/// What moving a vault there would do, or why it cannot — asked as the folder is typed.
+fn check_move_vault(
+    app: &App,
+    scope: &Scope,
+    name: &str,
+    path: &str,
+) -> Result<serde_json::Value, String> {
+    let found = {
+        let g = app.lock()?;
+        move_target(&g, app, scope, name, path)
+    };
+    Ok(match found {
+        Ok((cfg, to)) => {
+            // Counted with the guard released: a vault can be gigabytes of attachments.
+            let (files, bytes) = fm_core::relocate::size(&cfg.path).unwrap_or((0, 0));
+            serde_json::json!({ "ok": true, "problem": null, "from": cfg.path.to_string_lossy(),
+                                "to": to.to_string_lossy(), "files": files, "bytes": bytes })
+        }
+        Err(problem) => serde_json::json!({ "ok": false, "problem": problem }),
+    })
+}
+
+/// Move vault `name`'s folder to `path`, keeping its name, its place in the list and its settings
+/// (`decisions.md#vault`, 2026-10-15).
+///
+/// **The order is the guarantee.** (1) The vault leaves the live set, so nothing writes to it while
+/// its files move. (2) The files move: one `rename`, or a copy verified byte for byte
+/// (`fm_core::relocate`) — on failure the original is untouched and reopened where it was. (3) Only
+/// then does the vault list get the new path; if that cannot be saved the move is undone. (4) Only
+/// then is the old folder of a copy removed. The guard is held only around (1) and (3), never
+/// across a copy that may take minutes.
+fn move_vault(
+    app: &App,
+    scope: &Scope,
+    name: &str,
+    path: &str,
+) -> Result<serde_json::Value, String> {
+    let (cfg, to, list) = {
+        let mut g = app.lock()?;
+        let (cfg, to) = move_target(&g, app, scope, name, path)?;
+        let list = app.config.clone().ok_or("there is nowhere to save the vault list")?;
+        // An `FM_VAULT`-only vault is written into the file first, as `forget_vault` does, so
+        // `set_path` below has an entry to change. Only then: a list that already has it is not
+        // rewritten for nothing.
+        if !vaults::on_disk(name, &list) {
+            vaults::save(&g.configs(), &list).map_err(|e| {
+                format!("the vault list could not be saved: {e} — nothing was moved")
+            })?;
+        }
+        g.detach(name);
+        (cfg, to, list)
+    };
+    let from = cfg.path.clone();
+    let reopen = |at: &Path| -> Result<(), String> {
+        let store = fm_core::FileStore::named(at, name)
+            .map_err(|e| format!("'{name}' could not be opened at {}: {e}", at.display()))?;
+        app.lock()?.reattach(name, at.to_path_buf(), store);
+        Ok(())
+    };
+
+    let moved = match fm_core::relocate::move_tree(&from, &to, fm_core::relocate::Mode::Auto) {
+        Ok(m) => m,
+        Err(e) => {
+            reopen(&from)?;
+            return Err(format!("{e} — nothing was moved; the vault is where it was"));
+        }
+    };
+
+    if let Err(e) = vaults::set_path(name, &to, &list) {
+        // The list still names the old folder, so the files go back there.
+        let undone = if moved.copied {
+            std::fs::remove_dir_all(&to).is_ok()
+        } else {
+            std::fs::rename(&to, &from).is_ok()
+        };
+        if undone {
+            reopen(&from)?;
+            return Err(format!(
+                "the vault list could not be saved ({e}), so the move was undone — the vault is \
+                 where it was"
+            ));
+        }
+        reopen(&to)?;
+        return Err(format!(
+            "the files are now at {}, but the vault list could not be saved ({e}): it will not be \
+             found after a restart. Move the folder back to {} to put it where the list expects it",
+            to.display(),
+            from.display()
+        ));
+    }
+    reopen(&to)?;
+
+    // Last: the old folder of a verified copy. A failure here loses nothing — every file is in
+    // the new place — so it is said, not raised.
+    let (old_removed, note) = if moved.copied {
+        match fm_core::relocate::remove_source(&from) {
+            Ok(()) => (true, None),
+            Err(e) => (
+                false,
+                Some(format!(
+                    "the old folder could not be removed ({e}); everything is in the new place, so \
+                     it can be deleted"
+                )),
+            ),
+        }
+    } else {
+        (true, None)
+    };
+    let g = app.lock()?;
+    Ok(serde_json::json!({
+        "vault": name,
+        "from": from.to_string_lossy(),
+        "to": to.to_string_lossy(),
+        "copied": moved.copied,
+        "files": moved.files,
+        "bytes": moved.bytes,
+        "oldRemoved": old_removed,
+        "note": note,
         "vaults": scoped_infos(&g, scope),
     }))
 }

@@ -1237,6 +1237,46 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'recoverable_vaults':
       return mockRecoverable as T;
+    // Mirrors the server's rules closely enough to develop the form against: an empty folder or a
+    // new one, never inside the vault, never somewhere another vault is.
+    case 'check_move_vault':
+    case 'move_vault': {
+      const name = String(args.vault ?? '');
+      const to = String(args.path ?? '').trim();
+      const v = mockVaults.find((x) => x.name === name);
+      const problem = !v
+        ? `no vault named '${name}'`
+        : !to
+          ? 'type the folder to move it to'
+          : !to.startsWith('/') && !to.startsWith('~')
+            ? 'give the whole path, starting with / — or ~ for your home folder'
+            : to === v.path
+              ? 'it is already there'
+              : to.startsWith(v.path + '/')
+                ? 'a vault cannot be moved into a folder inside itself'
+                : null;
+      if (cmd === 'check_move_vault') {
+        return (
+          problem
+            ? { ok: false, problem }
+            : { ok: true, problem: null, from: v!.path, to, files: 42, bytes: 3_200_000 }
+        ) as T;
+      }
+      if (problem) throw new Error(problem);
+      const from = v!.path;
+      v!.path = to;
+      return {
+        vault: name,
+        from,
+        to,
+        copied: false,
+        files: 42,
+        bytes: 3_200_000,
+        oldRemoved: true,
+        note: null,
+        vaults: mockVaults,
+      } as T;
+    }
     case 'forget_vault': {
       // Mirrors the server: unregister, never delete. `notes` is what is being left behind.
       const name = String(args.name);

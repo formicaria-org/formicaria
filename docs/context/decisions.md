@@ -111,7 +111,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): ***A vault whose folder is gone is named, never recreated empty*** (2026-10-15; read before making `open` create anything) · ***A vault holds every byte it owns; an import copies its attachments*** (2026-10-15; reverses the same day's hard links — read before letting a blob share storage with a file outside the vault) · ***Gmail is read with the person's own Google client*** (2026-10-09, superseded in part; read before touching `fm-serve/src/mail.rs`, its scope or its `ci/checks.sh` guard) · ***One optional third-party key, and it is a place you added*** (2026-09-12) · *The places to check are a note, not configuration* (2026-09-12; a *private* calendar address is the exception — it is a secret) · ***A snapshot says what it held, and "restic did not say"
+- **`#vault`** (audience/cross-vault): ***A vault can be moved to another folder from inside the app*** (2026-10-15; read before changing how a vault's path is stored or anything that removes a vault folder) · ***A vault whose folder is gone is named, never recreated empty*** (2026-10-15; read before making `open` create anything) · ***A vault holds every byte it owns; an import copies its attachments*** (2026-10-15; reverses the same day's hard links — read before letting a blob share storage with a file outside the vault) · ***Gmail is read with the person's own Google client*** (2026-10-09, superseded in part; read before touching `fm-serve/src/mail.rs`, its scope or its `ci/checks.sh` guard) · ***One optional third-party key, and it is a place you added*** (2026-09-12) · *The places to check are a note, not configuration* (2026-09-12; a *private* calendar address is the exception — it is a secret) · ***A snapshot says what it held, and "restic did not say"
   is its own answer*** (read before touching `backup::backup`'s return, the `--json` parse, or any
   surface that describes a snapshot) · ***A backup surface that cannot say* when *is not a backup
   surface*** (read before adding a field to `backup_status`, or before folding a per-vault restic
@@ -11009,3 +11009,35 @@ default, the shells' test fixtures). Settings → Vaults & backup lists such a v
 and **Remove this vault from the list…**, which it used to drop along with the vault.
 
 **Read before** making `open` create anything, or listing vaults from `backup_status` alone.
+
+## 2026-10-15 — a vault can be moved to another folder from inside the app `#vault` `#data`
+
+The owner wants the main vault out of the source checkout, and noted that moving the folder by hand
+loses it: the app finds a vault by the path in its list. Removing it and adding it back from the new
+place works but **moves it to the end of the list** — and the first vault is the default, where
+every new note lands — and drops what only the list holds (the snapshot repo).
+
+**Decision.** *Move to another folder…* on each vault in Settings → Vaults & backup
+(`check_move_vault` as you type, `move_vault` to do it). It keeps the vault's name, its **place in
+the list**, its snapshot repo, and everything inside the folder (git history and remote, attachment
+rules, blobs); the index is rebuilt from the files. Host-only, and not offered where vaults live in
+formicaria's own storage (the phone), where there is no folder to choose.
+
+**The two guarantees** (*no data loss, and always a way back*), each with its mechanism and test:
+- **No data loss.** The vault leaves the live set before its files move, so nothing writes to it
+  mid-move (an edit would otherwise land in the old copy and be lost, not merged). On one disk the
+  move is a single `rename` — the vault is at one place or the other, never half. Across disks
+  (`EXDEV`) every file is copied and **re-read and compared by SHA-256** before anything else
+  changes; a failure removes the partial copy and leaves the original untouched and in use.
+- **Always a way back.** The list is switched to the new path only after the files are verified,
+  and the old folder is removed only after that; if the list cannot be saved, the move is undone
+  (renamed back, or the copy removed) and the vault reopens where it was. Moving it back is the same
+  action, and the result names the old place.
+
+**Rejected:** holding the app lock across a cross-disk copy (a long copy would freeze every tab —
+`papers-plan.md` B5); a symlink left at the old path (a vault partly outside itself, the 2026-10-15
+ruling); keeping the old folder after a verified copy as a backup (the owner asked for a move, and
+the disk is short — the verification is the safety, and git history plus any snapshot are the
+backup).
+
+**Read before** changing how a vault's path is stored, or anything that removes a vault folder.

@@ -267,6 +267,41 @@ pub fn set_restic(name: &str, repo: Option<&str>, to: &Path) -> Result<(), Strin
     write_atomic(to, out.as_bytes())
 }
 
+/// Whether the vault list on disk has an entry named `name`. A vault can be live without one: an
+/// `FM_VAULT`-only vault exists until something writes the file.
+pub fn on_disk(name: &str, to: &Path) -> bool {
+    std::fs::read_to_string(to)
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v.get("vaults")?.as_array().cloned())
+        .is_some_and(|a| a.iter().any(|e| e.get("name").and_then(Value::as_str) == Some(name)))
+}
+
+/// Point vault `name` at `path`, **in place** — same entry, same position, every other field kept.
+/// `move_vault`'s half of the vault list (`decisions.md#vault`, 2026-10-15). `save` cannot do it:
+/// it appends only, and skips a name already on disk.
+pub fn set_path(name: &str, path: &Path, to: &Path) -> Result<(), String> {
+    let text = std::fs::read_to_string(to)
+        .map_err(|e| format!("{} could not be read: {e}", to.display()))?;
+    let mut root: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("{} is not valid JSON ({e}) — fix it first", to.display()))?;
+    let entry = root
+        .as_object_mut()
+        .and_then(|o| o.get_mut("vaults"))
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| format!("{}'s \"vaults\" is not an array — fix it first", to.display()))?
+        .iter_mut()
+        .find(|e| e.get("name").and_then(Value::as_str) == Some(name))
+        .ok_or_else(|| format!("no vault named '{name}' in {}", to.display()))?;
+    let obj = entry
+        .as_object_mut()
+        .ok_or_else(|| format!("the '{name}' entry in {} is not an object", to.display()))?;
+    obj.insert("path".into(), json!(path.to_string_lossy()));
+    let mut out = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    out.push('\n');
+    write_atomic(to, out.as_bytes())
+}
+
 /// Temp file in the **same directory** + rename: atomic on one filesystem, so a crash
 /// leaves the old list or the new one, never a truncated one. The same discipline as
 /// `FileStore::write_atomic`, for the same reason.

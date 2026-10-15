@@ -75,3 +75,22 @@ Key properties of the format:
   open; delete it any time. It must never be synced between machines.
 
 See [Frontmatter schema](../reference/frontmatter.md) for the full field list.
+
+## Moving a vault to another folder
+
+formicaria finds a vault by the folder it remembers, so a vault folder moved with a file manager is
+reported as *could not be opened* rather than found. Move it from inside the app instead:
+**Settings → Vaults & backup**, then **Move to another folder…** under the vault, and type where it
+should go — a new folder, or an empty one.
+
+As you type, it says how much will move, or why it cannot go there (a folder that already has files
+in it, a folder inside the vault, or one that overlaps another vault). The vault keeps its name,
+its **place in the list** — so the first vault stays the one new notes go to — and its settings,
+including where it is sent and its snapshot repo; its history and attachments move with it.
+
+- **On the same disk** the move is instant: the folder is simply renamed.
+- **Onto another disk** every file is copied, then read back and compared with the original before
+  the old folder is removed. If anything fails, the copy is removed and the vault stays where it
+  was, working as before.
+
+Not on a phone, where vaults live in formicaria's own storage and there is no folder to choose.
