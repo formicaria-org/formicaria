@@ -123,6 +123,8 @@ fn a_backup_between_proposing_and_accepting_keeps_the_proposal_acceptable() {
     let mut store = FileStore::open(dir.path()).unwrap();
     let _seed = commands::capture(&mut store, "seed", "").unwrap();
     git::commit_all(dir.path(), "auto: seed", &store.written()).unwrap();
+    // A remote wants a name and email; the gate's machine has none of its own.
+    git::set_identity(dir.path(), "Ada", "ada@example.org").unwrap();
     git::set_remote(dir.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(dir.path(), "backup: first").unwrap();
 
