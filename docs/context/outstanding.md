@@ -905,6 +905,10 @@ the on-device model only for prose, and the person's only act is answering a pro
   meetings skipped.
 - **Released in v0.6.0.**
 
+**2026-10-15:** the pass now tracks where a meeting stands (moves, places, call-offs), follows a
+labelled conversation's every message, reads on opening and every 5 minutes, and proposes a
+"Person — who they are" title (`sessions/2026-10-15-meetings-that-track-the-conversation-0.8.2.md`).
+
 Next, roughly in order:
 1. **A deleted one-off meeting is not marked.** Google drops it from the feed rather than marking it
    cancelled, and only repeating series mark their missing dates (`calendar::reconcile`). Apply the

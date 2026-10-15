@@ -69,12 +69,11 @@ afterwards is how a project stops being what it said it was, one reasonable step
   Publishing is the owner's local step. *(This constraint holds for every repo on
   the owner's machine; the durable home is the global `~/.claude/CLAUDE.md`, which a
   remote session cannot edit — so it is restated here per-repo.)*
-- **Test on the phone before tagging a release** (owner's requirement since v0.6.2 broke window
-  switching on the phone). Local signing may be unavailable; the route that always works is
-  the **`android`** workflow run by hand on `main` (the same file `release.yml` calls, without the
-  desktop and iOS builds) → its signed `android-apk` artifact → check the certificate →
-  `adb install -r` by cable. **`pixi run -e android phone-test` does all of that in one step** once
-  the owner has stored its token (`sh ci/phone-test-setup.sh`). Details: `docs/context/known-issues.md`,
-  *Signing a phone build locally*.
+- **A release does not wait for a phone test** (owner, 2026-10-15: *"it takes a lot … the ci will
+  do its work"*; `decisions.md#toolchain`, reversing the rule kept since v0.6.2). The order is docs →
+  local gate → version commit → GitHub's gate green → annotated tag. A phone test is still there
+  when wanted — the **`android`** workflow by hand on `main`, or `pixi run -e android phone-test`
+  with its token (`sh ci/phone-test-setup.sh`); details in `docs/context/known-issues.md`,
+  *Signing a phone build locally* — but nothing requires it.
 - In this environment, shell commands need `dangerouslyDisableSandbox: true`
   (sandboxed Bash hits a seccomp/`setgroups` error).
