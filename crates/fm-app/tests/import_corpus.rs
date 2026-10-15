@@ -300,3 +300,31 @@ fn an_import_into_one_vault_does_not_see_another_vaults_copy() {
     let n = first.candidates(&fm_query::Filter::new()).unwrap().0.len();
     assert!(n >= 11, "the first vault still has its notes ({n})");
 }
+
+/// **An import that writes no notes brings no files.** Re-running an add-only import over pages
+/// already imported copied every attachment again and wrote a card per file (2026-10-15).
+#[test]
+fn an_import_that_adds_nothing_copies_nothing() {
+    use fm_core::Store;
+    let work = tempfile::tempdir().unwrap();
+    let vault = work.path().join("vault");
+    let app = new_app(work.path());
+    import(&app, &mini(), "", &vault, json!({}));
+    drop(app);
+    let count = || {
+        fm_core::FileStore::open(&vault)
+            .unwrap()
+            .candidates(&fm_query::Filter::new())
+            .unwrap()
+            .0
+            .len()
+    };
+    let before = count();
+    let app = reopen_app("imported", &vault);
+    let report = import(&app, &mini(), "imported", &vault, json!({}));
+    drop(app);
+    assert_eq!(report["notes"], 0, "{report}");
+    assert_eq!(report["attachments"], 0, "{report}");
+    assert_eq!(report["deduped"], 0, "nothing was even looked at: {report}");
+    assert_eq!(count(), before, "no new cards");
+}

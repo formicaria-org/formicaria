@@ -1479,6 +1479,12 @@ pub fn convert(
     let mut seen: HashSet<PathBuf> = HashSet::new();
     let mut left_out: BTreeSet<String> = BTreeSet::new();
     for item in &parsed {
+        // **Only for pages this import will write.** A page skipped as imported before needs none
+        // of its files, and copying them anyway put a whole graph's attachments — and a card for
+        // each — into a vault that received no notes at all (found by the owner, 2026-10-15).
+        if existing.contains_key(&item.source_key) && !opts.replace {
+            continue;
+        }
         // Every spelling reaches here: `![](../assets/x.png)` and `[x.pdf](../assets/x.pdf)` from
         // `attachments`, files a macro names, and `![[x.png]]`, which the wikilink scanner recorded
         // as a link because only the graph can tell a page from a file.
