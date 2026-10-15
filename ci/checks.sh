@@ -2072,7 +2072,9 @@ if grep -ranE '^\s*(max-)?height:[^;]*[0-9]vh' ui/src --include='*.svelte' >/dev
 fi
 
 echo "[check] every overlay panel has somewhere to scroll..."
-for f in ui/src/lib/BackupPanel.svelte ui/src/lib/SettingsPanel.svelte \
+# `BackupPanel` left this list on 2026-10-15: it is no longer an overlay but a section drawn inside
+# Settings (`decisions.md#ui`), whose own scroll surface is the one checked here.
+for f in ui/src/lib/SettingsPanel.svelte \
          ui/src/lib/HelpPanel.svelte ui/src/lib/SkippedPanel.svelte; do
     [ -f "$f" ] || continue
     if ! grep -qaE '^\s*overflow(-y)?:\s*(auto|scroll)' "$f"; then

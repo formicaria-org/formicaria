@@ -20,7 +20,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const panel = () => render(BackupPanel, { onclose: () => {} } as never);
+const panel = () => render(BackupPanel, {});
 
 describe('BackupPanel — why the notes did not go', () => {
   it('shows the reason a push failed, without needing you to press its own button first', async () => {
@@ -47,7 +47,7 @@ describe('BackupPanel — why the notes did not go', () => {
     });
 
     panel();
-    await screen.findByRole('heading', { name: /back ?up/i });
+    await screen.findByRole('group', { name: /back up/i });
     expect(screen.queryByText(/Notes did not go/)).toBeNull();
   });
 });

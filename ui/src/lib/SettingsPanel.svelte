@@ -16,7 +16,7 @@
   // Cheap on purpose. `config` shells out to nothing, unlike `backup_status`, which runs
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
   import { autoBackupOn, setAutoBackup } from './autoBackup';
@@ -33,6 +33,7 @@
   import TrackersSection from './TrackersSection.svelte';
   import RemindersSection from './RemindersSection.svelte';
   import MailSection from './MailSection.svelte';
+  import BackupPanel from './BackupPanel.svelte';
   import {
     config as fetchConfig,
     setGitAssetsMax,
@@ -104,7 +105,8 @@
   // vault. That is why it is allowed to live here without making Settings a form.
   let {
     onclose,
-    onbackup,
+    onnewvault,
+    onvaults,
     layout,
     onlayout,
     columns,
@@ -119,7 +121,10 @@
     onkeyschanged,
   }: {
     onclose: () => void;
-    onbackup: () => void;
+    /** Opens the new-vault form — create, join, restore or import. */
+    onnewvault: () => void;
+    /** Told when the set of vaults changed here (one removed, one taken back). */
+    onvaults?: () => void;
     layout: 'single' | 'tiled';
     onlayout: (l: 'single' | 'tiled') => void;
     /** `auto` tracks the number of open views; a number pins the grid width. */
@@ -566,6 +571,7 @@
   }
   /** What a link asked for (`section`), honoured once its section exists. */
   let landed = false;
+  let backupMounted = $state(false);
   function applyView() {
     const el = panelEl;
     if (!el) return;
@@ -576,7 +582,11 @@
         landed = true;
         cat = where;
         opened = true;
-        queueMicrotask(() => target.scrollIntoView({ block: 'start' }));
+        // After the category is drawn: scrolling to an element that is still hidden does nothing,
+        // which is how *Backup settings…* landed on the category but not on Vaults.
+        void tick().then(() =>
+          requestAnimationFrame(() => target.scrollIntoView({ block: 'start' })),
+        );
       }
     }
     const secs = [...el.querySelectorAll<HTMLElement>('section, p.group[data-cat]')].flatMap(
@@ -592,6 +602,12 @@
     // The chosen category may not be here (yet: the assistant's section arrives with its answer;
     // or at all, on a copy without it). Show the first that is, and keep the choice.
     const showing = have.has(cat) ? cat : (now[0] ?? cat);
+    // The backup half of Vaults asks git about every vault's remote, which is a network call per
+    // vault — so it is mounted the first time its category is shown or a search could reach it,
+    // never merely because Settings opened (`decisions.md#ui`, 2026-10-15).
+    if (!backupMounted && !actionsMode && (showing === 'notes' || query.trim())) {
+      backupMounted = true;
+    }
     let hits = 0;
     for (const { sec, place, heading } of secs) {
       const show = sectionShown({
@@ -853,6 +869,116 @@
     if (e.key === 'Escape') onclose();
   }
 </script>
+
+{#snippet vaultRow(name: string)}
+  {@const v = vaults.find((x) => x.name === name)}
+  {#if v}
+    <div class="line">
+      <strong>{labelFor(v.name)}</strong>
+      <!-- **The name too, wherever it differs from the label** — and only here, because this
+                   screen is the one that answers "what am I operating with?". Everywhere else the
+                   label is right: it is what two devices agree on. But the *name* is the identity —
+                   the argument every command takes, and on a phone the address a vault is created
+                   at (`resolve_path`) — so routing every surface through `labelFor` (2026-09-08)
+                   left the one string needed to add a vault back displayed nowhere at all. The
+                   owner hit exactly that within the hour: Settings said `formicarium-vault`, the
+                   new-vault form wanted `notes`, and nothing on screen connected them. -->
+      {#if labelFor(v.name) !== v.name}
+        <span class="muted small">name: {v.name}</span>
+      {/if}
+      {#if v.default}<span class="tag">default</span>{/if}
+    </div>
+    <!-- Been on the wire since `list_vaults` existed and rendered nowhere until now.
+                 "Which folder is this actually?" had no answer inside the app. -->
+    <p class="path"><code>{v.path}</code></p>
+    <!-- **The one vault setting that is editable here**, because it is the one that
+                 decides what a backup carries — and "what does Back up actually send?" is the
+                 question this whole panel exists to answer. It is written into the vault's own
+                 `vault.json`, so the rule travels with the vault instead of being one browser's
+                 opinion about everyone's shared history. -->
+    <label class="line assets">
+      <span>Send attachments under</span>
+      <input
+        type="text"
+        inputmode="text"
+        placeholder="off"
+        value={v.git_assets_max ? humanSize(v.git_assets_max) : ''}
+        onchange={(e) => setAssetMax(v.name, (e.currentTarget as HTMLInputElement).value)}
+        aria-label={`largest attachment to send for ${labelFor(v.name)}`}
+      />
+    </label>
+    <p class="muted small">
+      {#if v.git_assets_max}
+        Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed with your notes.
+        Anything larger stays on this device — git history is permanent, so a large file committed once
+        is in every clone forever.
+      {:else}
+        Empty means <strong>notes only</strong> — the default. Attachments stay in the vault and
+        travel only via restic. The most you can send this way is
+        {humanSize(GIT_ASSETS_CEILING)} per file.
+      {/if}
+    </p>
+    <!-- **The ceiling, said where the number is chosen.** There is no git-lfs here, so an
+                 attachment in git is permanent history that every clone pays for again. Two
+                 different sentences, because they are two different situations: between the
+                 warning line and the ceiling the setting *works* and the cost is worth naming;
+                 above the ceiling the app is declining to do what the file asks, and hiding that
+                 would be the dishonest half of a clamp. The second is reachable only from a
+                 `vault.json` written by a hand, another machine, or a version with no ceiling —
+                 the field itself refuses those, through `assetError` below. -->
+    {#if v.git_assets_max && v.git_assets_max > GIT_ASSETS_CEILING}
+      <p class="warn">
+        This vault asks for {humanSize(v.git_assets_max)}, which is more than will ever be sent:
+        attachments over {humanSize(GIT_ASSETS_CEILING)} are left out, because most hosts refuse a file
+        that size and the push would fail after the commit was made. Edit
+        <code>vault.json</code> to agree, or leave the heavy ones to the backup snapshot.
+      </p>
+    {:else if v.git_assets_max && v.git_assets_max > GIT_ASSETS_WARN}
+      <p class="warn">
+        That is large for git. Files this size are kept forever, downloaded again by every clone,
+        and cannot be taken back without rewriting history other people have already pulled — and
+        many hosts warn above {humanSize(GIT_ASSETS_WARN)}. The backup snapshot carries attachments
+        of any size without any of that.
+      </p>
+    {/if}
+    <!-- Two questions, deliberately not one. The record is this person's own corrections in
+                 their own vault, so keeping it needs no ceremony; publishing it relicenses content
+                 and cannot be undone, so it is asked separately and never assumed. Lives in
+                 `vault.json` beside the attachment rule, for the same reason: it decides what may
+                 leave, so the vault settles it rather than whichever device is loosest. -->
+    <label class="line consent">
+      <input
+        type="checkbox"
+        checked={v.supervision.collect}
+        onchange={(e) =>
+          setConsent(v.name, { collect: (e.currentTarget as HTMLInputElement).checked })}
+      />
+      <span>Keep a record of what you change in AI suggestions</span>
+    </label>
+    <label class="line consent">
+      <input
+        type="checkbox"
+        checked={v.supervision.publish}
+        onchange={(e) =>
+          setConsent(v.name, { publish: (e.currentTarget as HTMLInputElement).checked })}
+      />
+      <span>Allow that record to be shared openly</span>
+    </label>
+    <p class="muted small">
+      {#if v.supervision.collect}
+        Kept in this vault, with your notes. Nothing is sent anywhere on its own.
+        {#if v.supervision.publish}
+          Records made from now on are marked as shareable — sharing itself is still a separate,
+          deliberate step, and it cannot be taken back once taken.
+        {:else}
+          Sharing is off, so nothing here can be published.
+        {/if}
+      {:else}
+        Off — nothing is recorded about what you change.
+      {/if}
+    </p>
+  {/if}
+{/snippet}
 
 <svelte:window onkeydown={(e) => (capturing ? capture(e) : onkeydown(e))} />
 
@@ -1474,28 +1600,18 @@
         {/if}
       </section>
 
-      <!-- Food and training: a switch for this device, and the food list. Not offered to a paired
-           device — the list is the host's disk, and what it shows is its own choice. -->
-      {#if !isRemote()}
-        <div
-          class="cat"
-          data-cat="notes"
-          data-words="food meals calories nutrition diet training workout exercise tracker"
-        >
-          <TrackersSection />
-        </div>
-      {/if}
-
-      <!-- Reminders: a switch for this device. -->
-      <div class="cat" data-cat="notes" data-words="reminders notifications alerts deadline event">
-        <RemindersSection />
-      </div>
-
+      <!-- **Vaults first in Notes & backup** (`decisions.md#ui`, 2026-10-15): it is what the category
+           is mostly about, and where *Backup settings…* sends you. -->
       <section
         data-cat="notes"
-        data-words="backup back up sync send attachments vault vaults automatic"
+        data-words="backup back up sync send attachments vault vaults automatic new vault create import logseq obsidian join restore remote address token password restic snapshot remove forget"
       >
-        <h3>Vaults <span class="count">{vaults.length}</span></h3>
+        <div class="vaults-head" id="vaults">
+          <h3>Vaults <span class="count">{vaults.length}</span></h3>
+          {#if !isRemote()}
+            <button class="new-vault" onclick={onnewvault}>New vault…</button>
+          {/if}
+        </div>
         <!-- **Backing up by itself.** On unless turned off, per device, and it says beside the
              switch what it does and when: an automatic thing a person cannot see described is one
              they did not agree to. Not offered to a paired device, which may not back up at all. -->
@@ -1522,135 +1638,40 @@
             </li>
           </ul>
         {/if}
-        {#each vaults as v (v.name)}
-          <div class="vault">
-            <div class="line">
-              <strong>{labelFor(v.name)}</strong>
-              <!-- **The name too, wherever it differs from the label** — and only here, because this
-                   screen is the one that answers "what am I operating with?". Everywhere else the
-                   label is right: it is what two devices agree on. But the *name* is the identity —
-                   the argument every command takes, and on a phone the address a vault is created
-                   at (`resolve_path`) — so routing every surface through `labelFor` (2026-09-08)
-                   left the one string needed to add a vault back displayed nowhere at all. The
-                   owner hit exactly that within the hour: Settings said `formicarium-vault`, the
-                   new-vault form wanted `notes`, and nothing on screen connected them. -->
-              {#if labelFor(v.name) !== v.name}
-                <span class="muted small">name: {v.name}</span>
-              {/if}
-              {#if v.default}<span class="tag">default</span>{/if}
-            </div>
-            <!-- Been on the wire since `list_vaults` existed and rendered nowhere until now.
-                 "Which folder is this actually?" had no answer inside the app. -->
-            <p class="path"><code>{v.path}</code></p>
-            <!-- **The one vault setting that is editable here**, because it is the one that
-                 decides what a backup carries — and "what does Back up actually send?" is the
-                 question this whole panel exists to answer. It is written into the vault's own
-                 `vault.json`, so the rule travels with the vault instead of being one browser's
-                 opinion about everyone's shared history. -->
-            <label class="line assets">
-              <span>Send attachments under</span>
-              <input
-                type="text"
-                inputmode="text"
-                placeholder="off"
-                value={v.git_assets_max ? humanSize(v.git_assets_max) : ''}
-                onchange={(e) => setAssetMax(v.name, (e.currentTarget as HTMLInputElement).value)}
-                aria-label={`largest attachment to send for ${labelFor(v.name)}`}
-              />
-            </label>
-            <p class="muted small">
-              {#if v.git_assets_max}
-                Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed with
-                your notes. Anything larger stays on this device — git history is permanent, so a large
-                file committed once is in every clone forever.
-              {:else}
-                Empty means <strong>notes only</strong> — the default. Attachments stay in the vault
-                and travel only via restic. The most you can send this way is
-                {humanSize(GIT_ASSETS_CEILING)} per file.
-              {/if}
-            </p>
-            <!-- **The ceiling, said where the number is chosen.** There is no git-lfs here, so an
-                 attachment in git is permanent history that every clone pays for again. Two
-                 different sentences, because they are two different situations: between the
-                 warning line and the ceiling the setting *works* and the cost is worth naming;
-                 above the ceiling the app is declining to do what the file asks, and hiding that
-                 would be the dishonest half of a clamp. The second is reachable only from a
-                 `vault.json` written by a hand, another machine, or a version with no ceiling —
-                 the field itself refuses those, through `assetError` below. -->
-            {#if v.git_assets_max && v.git_assets_max > GIT_ASSETS_CEILING}
-              <p class="warn">
-                This vault asks for {humanSize(v.git_assets_max)}, which is more than will ever be
-                sent: attachments over {humanSize(GIT_ASSETS_CEILING)} are left out, because most hosts
-                refuse a file that size and the push would fail after the commit was made. Edit
-                <code>vault.json</code> to agree, or leave the heavy ones to the backup snapshot.
-              </p>
-            {:else if v.git_assets_max && v.git_assets_max > GIT_ASSETS_WARN}
-              <p class="warn">
-                That is large for git. Files this size are kept forever, downloaded again by every
-                clone, and cannot be taken back without rewriting history other people have already
-                pulled — and many hosts warn above {humanSize(GIT_ASSETS_WARN)}. The backup snapshot
-                carries attachments of any size without any of that.
-              </p>
-            {/if}
-            <!-- Two questions, deliberately not one. The record is this person's own corrections in
-                 their own vault, so keeping it needs no ceremony; publishing it relicenses content
-                 and cannot be undone, so it is asked separately and never assumed. Lives in
-                 `vault.json` beside the attachment rule, for the same reason: it decides what may
-                 leave, so the vault settles it rather than whichever device is loosest. -->
-            <label class="line consent">
-              <input
-                type="checkbox"
-                checked={v.supervision.collect}
-                onchange={(e) =>
-                  setConsent(v.name, { collect: (e.currentTarget as HTMLInputElement).checked })}
-              />
-              <span>Keep a record of what you change in AI suggestions</span>
-            </label>
-            <label class="line consent">
-              <input
-                type="checkbox"
-                checked={v.supervision.publish}
-                onchange={(e) =>
-                  setConsent(v.name, { publish: (e.currentTarget as HTMLInputElement).checked })}
-              />
-              <span>Allow that record to be shared openly</span>
-            </label>
-            <p class="muted small">
-              {#if v.supervision.collect}
-                Kept in this vault, with your notes. Nothing is sent anywhere on its own.
-                {#if v.supervision.publish}
-                  Records made from now on are marked as shareable — sharing itself is still a
-                  separate, deliberate step, and it cannot be taken back once taken.
-                {:else}
-                  Sharing is off, so nothing here can be published.
-                {/if}
-              {:else}
-                Off — nothing is recorded about what you change.
-              {/if}
-            </p>
-            <p class="muted">
-              restic:
-              {#if resticFor(v.name)}
-                <code>{resticFor(v.name)}</code>
-              {:else}
-                <span class="none">not configured</span> — its attachments stay on this machine. Set
-                a backup repo for it in <strong>Backup</strong>.
-              {/if}
-            </p>
-          </div>
-        {/each}
+        <!-- **One block per vault, with everything about it** (`decisions.md#ui`, 2026-10-15): these
+             rows, then — once this category has been shown — where it is sent, its snapshot, and
+             removing it, all drawn by the backup half below. A paired device has no backup half. -->
+        {#if backupMounted && !isRemote()}
+          <BackupPanel vaultRows={vaultRow} {onvaults} />
+        {:else}
+          {#each vaults as v (v.name)}
+            <div class="vault">{@render vaultRow(v.name)}</div>
+          {/each}
+        {/if}
         {#if assetError}
           <p class="assets-error">{assetError}</p>
         {/if}
         {#if consentError}
           <p class="assets-error">{consentError}</p>
         {/if}
-        <p class="muted">
-          Remotes and committer identity live in
-          <button class="link" onclick={onbackup}>Back up</button>, which is also where they are
-          editable. They are not repeated here because reading them runs a network call per vault.
-        </p>
       </section>
+
+      <!-- Food and training: a switch for this device, and the food list. Not offered to a paired
+           device — the list is the host's disk, and what it shows is its own choice. -->
+      {#if !isRemote()}
+        <div
+          class="cat"
+          data-cat="notes"
+          data-words="food meals calories nutrition diet training workout exercise tracker"
+        >
+          <TrackersSection />
+        </div>
+      {/if}
+
+      <!-- Reminders: a switch for this device. -->
+      <div class="cat" data-cat="notes" data-words="reminders notifications alerts deadline event">
+        <RemindersSection />
+      </div>
 
       <section data-cat="about" data-words="update updates upgrade version release about">
         <h3>This machine</h3>
@@ -3050,5 +3071,22 @@
       width: auto;
       font-size: var(--text-xs);
     }
+  }
+  /* The Vaults heading carries the one way in to making a vault, where the vaults are listed. */
+  .vaults-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .new-vault {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 4px 10px;
+    border-radius: var(--radius-2, 6px);
+    font-size: 0.85rem;
+    cursor: pointer;
   }
 </style>

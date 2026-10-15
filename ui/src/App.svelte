@@ -565,7 +565,6 @@
     reloadTemplates(); // the "New from …" actions live here — a note tagged since load may be one
   }
   let settingsOpen = $state(false);
-  let backupOpen = $state(false);
   let newVaultOpen = $state(false);
   // Kept as state rather than read off the last ping, because the panel has to survive
   // the beat that follows opening it — and because a note staying broken must not make
@@ -797,7 +796,7 @@
     ...paletteTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
     {
       group: 'Vault',
-      label: 'Back up the vault',
+      label: 'Backup settings',
       run: onBackup,
       command: 'backup' as keys.Command,
     },
@@ -854,7 +853,7 @@
         if (workspace.panes[focused]) closePane(workspace.panes[focused].id);
         break;
       case 'backup':
-        backupOpen = true;
+        onBackup();
         break;
       case 'undo':
         void runUndo('undo');
@@ -2071,11 +2070,12 @@
     }
   }
 
-  // Backing up is a conversation, not a fire-and-forget: the panel owns setting
-  // the remote, choosing whether media rides along, and reporting what actually
-  // left the machine.
+  // **Backup settings are Settings** (`decisions.md#ui`, 2026-10-15): where each vault is sent, its
+  // snapshot, what it carries and when it was last saved live in Settings → Notes & backup →
+  // Vaults, beside the vault's other settings. Everything that used to open the Back up window —
+  // the menu, the quiet chip, the shortcut, the actions list — lands there.
   function onBackup() {
-    backupOpen = true;
+    openSettings('vaults');
   }
 
   let backupMenuOpen = $state(false);
@@ -2088,7 +2088,6 @@
   // sites — the list is what a reviewer checks.
   const LAYERS: [string, () => boolean, () => void][] = [
     ['settings', () => settingsOpen, () => (settingsOpen = false)],
-    ['backup', () => backupOpen, () => (backupOpen = false)],
     ['backup-menu', () => backupMenuOpen, () => (backupMenuOpen = false)],
     ['new-vault', () => newVaultOpen, () => (newVaultOpen = false)],
     ['skipped', () => skippedOpen, () => (skippedOpen = false)],
@@ -2211,7 +2210,7 @@
   /// promoted to the button itself on 2026-09-09 — see the markup for why.
   ///
   /// Short on purpose: everything not here is either rarer, or needs a screen of its own to be
-  /// honest about, and both of those are what *Backup options…* is.
+  /// honest about, and both of those are *Backup settings…*, which opens Settings at Vaults.
   ///
   /// **The second lines are the point.** "What does backing up actually do?" was the question the
   /// old button could not answer from the screen, and it is the reason this is a menu rather than
@@ -2228,14 +2227,9 @@
       run: getTheirChanges,
     },
     {
-      label: 'Backup options…',
-      note: 'media, destinations, per-vault detail',
+      label: 'Backup settings…',
+      note: 'where each vault is sent, snapshots, attachments',
       run: onBackup,
-    },
-    {
-      label: 'Attachment settings…',
-      note: 'which files travel with your notes',
-      run: () => openSettings(),
     },
   ] as { label: string; note: string; run: () => void }[]);
 </script>
@@ -2623,6 +2617,24 @@
                   </button>
                 </li>
               {/each}
+              <!-- **Where the vaults are listed, a way to make another** (`decisions.md#ui`,
+                   2026-10-15). It closes the menu: unlike the ticks above, it is one action. -->
+              {#if !isRemote()}
+                <li class="menu-sep" role="separator"></li>
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => {
+                      vaultMenuOpen = false;
+                      newVaultOpen = true;
+                    }}
+                  >
+                    <span class="tick" aria-hidden="true"></span>
+                    New vault…
+                  </button>
+                </li>
+              {/if}
             </ul>
           {/if}
         </div>
@@ -3056,10 +3068,11 @@
             userTheme = sel;
             themeRefused = '';
           }}
-          onbackup={() => {
+          onnewvault={() => {
             settingsOpen = false;
-            backupOpen = true;
+            newVaultOpen = true;
           }}
+          onvaults={() => void loadVaults()}
         />
       {/await}
     {/if}
@@ -3110,19 +3123,6 @@
             await loadDemoted();
             await loadKept();
             await refresh();
-          }}
-        />
-      {/await}
-    {/if}
-
-    {#if backupOpen}
-      {#await import('./lib/BackupPanel.svelte') then { default: BackupPanel }}
-        <BackupPanel
-          onclose={() => (backupOpen = false)}
-          onvaults={() => void loadVaults()}
-          onnewvault={() => {
-            backupOpen = false;
-            newVaultOpen = true;
           }}
         />
       {/await}

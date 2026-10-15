@@ -12,7 +12,7 @@ The split is not an accident. Your notes are small, plain, and mergeable, so git
 carries them anywhere for free. Your media is heavy and is deliberately kept out
 of git (`blobs/` is in the vault's `.gitignore`), which is what keeps the notes
 repo small and clonable forever — but it also means **pushing your notes does not
-back up your media**. The panel says so every time, and tells you afterwards
+back up your media**. The Vaults section says so every time, and tells you afterwards
 exactly what left the machine.
 
 Neither tier is a copy of the other, and neither is a copy of the whole folder.
@@ -47,10 +47,13 @@ which carries attachments of any size and has none of these problems.
 
 ## Setting up (once)
 
-Press **Back up** and choose **Backup options…**, and paste your vault's git
-remote there — for example `git@github.com:you/notes.git`. That is the only setup the light tier
-needs. (The button opens a short menu — *Back up notes*, *Get their changes*, *Backup options…*,
-*Attachment settings…* — so nothing is sent by pressing it once.)
+Open **Settings → Notes & backup → Vaults** — or press **Back up** and choose **Backup settings…**,
+which lands there — and paste your vault's git remote under that vault, for example
+`git@github.com:you/notes.git`. That is the only setup the light tier needs. Everything about a
+vault is in that one block: its folder, where it is sent, its snapshot, which attachments travel
+with it, when it was last saved, and removing it from the list. (The **Back up** button opens a
+short menu — *Back up notes*, *Get their changes*, *Backup settings…* — so nothing is sent by
+pressing it once.)
 
 Your vault is its **own git repository**, independent of the app's source: its
 remote is yours to choose and has nothing to do with where formicaria's code
@@ -84,7 +87,7 @@ merge turns up genuine conflicts it stops, names the notes, and does *not* push 
 conflict markers as content would be worse than not publishing). It reports what happened
 either way — including whether your remote is genuinely off this
 machine. (A remote can be a local path or a `file://` URL, which is a fine way to
-back up to an external drive but does not survive the drive; the panel labels that
+back up to an external drive but does not survive the drive; the Vaults section labels that
 honestly rather than calling it backed up.)
 
 **Your remote gets one commit per backup — of the app's own churn.** Auto-commit
@@ -138,10 +141,10 @@ for knowing the password; the file is a convenience, the password is the key.
 
 ### When did this last work?
 
-![The Back up panel: the vault's git remote, what the snapshot tier would carry, and the
-button](../images/backup.png)
+![Settings, Vaults: the vault's git remote, what the snapshot tier would carry, and the
+Back up button](../images/backup.png)
 
-Under each repository, the panel now says when that vault's last snapshot was taken. It is
+Under each repository, the Vaults section says when that vault's last snapshot was taken. It is
 three different answers and they mean different things:
 
 - **Last snapshot: `<date>`** — the repository was read and this is the newest formicaria snapshot
@@ -149,10 +152,10 @@ three different answers and they mean different things:
 - **Never backed up** — the repository opened fine and has no formicaria snapshot in it at all.
   Configured is not the same as done, and this is the state worth noticing.
 - **Last snapshot: unknown — `<reason>`** — this computer could not ask: no restic, no password,
-  or a repository it could not open. That is different from "never", and the panel will not say
+  or a repository it could not open. That is different from "never", and the Vaults section will not say
   one when it means the other.
 
-It is read when you open the panel rather than continuously, because asking restic means running
+It is read when you open the Vaults section rather than continuously, because asking restic means running
 it — and for a repository that is not on this machine, reaching across the network.
 
 If **restic** is not installed on this computer, the fields do not appear and the

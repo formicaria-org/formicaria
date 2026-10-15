@@ -21,7 +21,7 @@
   // that into one "Back up" that silently meant the first vault is exactly the
   // overstatement this panel exists to prevent — hence a vault with no restic repo is
   // named, not skipped in silence.
-  import { onMount } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import {
     backup,
     backupStatus,
@@ -58,20 +58,16 @@
     VaultStatus,
   } from './types';
 
-  // `onnewvault` because this panel is already "a list, not a form" — the one surface in
-  // the app that is *about the set of vaults*, which makes it where you add one. (The
-  // sidebar is search-first with New note / New board; those are note gestures, and a
-  // vault is not a note.)
+  // **Not a window any more** (`decisions.md#ui`, 2026-10-15): this is the backup half of
+  // Settings → Notes & backup → Vaults, drawn inside that section. Settings owns the heading, the
+  // *New vault…* button and closing; `vaultRows` is Settings' own per-vault rows (name, folder,
+  // attachment limit, consent), drawn at the top of each vault's block so a vault is one block.
   /// `onvaults` fires whenever this panel changes **which vaults exist** — a removal or a recovery.
   /// Without it nothing refetched `list_vaults`, so after a removal the vault filter, the "Create
   /// in" picker and the label registry all still described the world before it, until the app was
   /// relaunched. On a phone that is a long time, and it is what turned one mistaken removal into
   /// "my notes are gone" (2026-09-08).
-  let {
-    onclose,
-    onnewvault,
-    onvaults,
-  }: { onclose: () => void; onnewvault: () => void; onvaults?: () => void } = $props();
+  let { onvaults, vaultRows }: { onvaults?: () => void; vaultRows?: Snippet<[string]> } = $props();
 
   type Step = { text: string; ok: boolean };
 
@@ -658,536 +654,518 @@
   }
 </script>
 
-<svelte:window
-  onkeydown={(e) => {
-    if (e.key === 'Escape' && !busy) onclose();
-  }}
-/>
-
-<div class="backup-overlay">
-  <button class="backup-backdrop" aria-label="close backup" onclick={() => !busy && onclose()}
-  ></button>
-  <div class="panel" role="dialog" aria-label="back up">
-    <div class="panel-head">
-      <h2>Back up</h2>
-      <button class="new-vault" onclick={onnewvault} disabled={busy}>New vault…</button>
-    </div>
-
-    {#if noGit}
-      <!-- Say what is actually wrong. Every vault below reports no remote and no identity,
+<div class="panel" role="group" aria-label="back up">
+  {#if noGit}
+    <!-- Say what is actually wrong. Every vault below reports no remote and no identity,
            which reads as "unconfigured" — but nothing here can work until git exists, and
            inviting someone to type a remote into it would be a lie. The notebook itself is
            unaffected, and that is worth saying in the same breath. -->
-      <p class="error">
-        <strong>git isn't installed on this machine.</strong> Your notes are safe — they're Markdown files
-        on disk and the app works normally — but nothing on this panel can run without git: no history,
-        no backup, no sharing. Install git and reopen.
-      </p>
-    {/if}
+    <p class="error">
+      <strong>git isn't installed on this machine.</strong> Your notes are safe — they're Markdown files
+      on disk and the app works normally — but nothing on this panel can run without git: no history,
+      no backup, no sharing. Install git and reopen.
+    </p>
+  {/if}
 
-    {#if !noRestic && status && !status.restic_password_set && vaults.some((v) => !!v.restic_repo)}
-      <!-- **Per machine, so asked once** — one password unlocks every repository here. Shown only
+  {#if !noRestic && status && !status.restic_password_set && vaults.some((v) => !!v.restic_repo)}
+    <!-- **Per machine, so asked once** — one password unlocks every repository here. Shown only
            once a vault actually has a repo to unlock: asking for a password before there is
            anything it opens is a form with no purpose, and the repo field below is where this
            journey starts. -->
-      <div class="vault">
-        <div class="identity">
-          <p class="why">
-            Your snapshots are encrypted, and they need a password. Choose one now — it is kept in a
-            file on this machine only, readable by nobody else, and never written into the vault
-            list.
-          </p>
-          <div class="row">
-            <input
-              type="password"
-              bind:value={passwordDraft}
-              onkeydown={(e) => e.key === 'Enter' && void savePassword()}
-              placeholder="a password you can find again"
-              autocomplete="off"
-              spellcheck="false"
-              disabled={busy}
-            />
-            <button onclick={() => void savePassword()} disabled={busy || !passwordDraft.trim()}>
-              Save password
-            </button>
-          </div>
-          <!-- The one warning that is not optional. Restic cannot open a repository whose password
+    <div class="vault">
+      <div class="identity">
+        <p class="why">
+          Your snapshots are encrypted, and they need a password. Choose one now — it is kept in a
+          file on this machine only, readable by nobody else, and never written into the vault list.
+        </p>
+        <div class="row">
+          <input
+            type="password"
+            bind:value={passwordDraft}
+            onkeydown={(e) => e.key === 'Enter' && void savePassword()}
+            placeholder="a password you can find again"
+            autocomplete="off"
+            spellcheck="false"
+            disabled={busy}
+          />
+          <button onclick={() => void savePassword()} disabled={busy || !passwordDraft.trim()}>
+            Save password
+          </button>
+        </div>
+        <!-- The one warning that is not optional. Restic cannot open a repository whose password
                is gone — there is no reset and nobody to ask. Said here because this is the only
                moment it is actionable. -->
-          <p class="why">
-            <strong>Write it down somewhere safe.</strong> If this password is lost, the backups it protects
-            cannot be opened again — not by us, not by anyone. Your notes themselves are unaffected: they
-            are plain files, and they travel with git.
-          </p>
-        </div>
+        <p class="why">
+          <strong>Write it down somewhere safe.</strong> If this password is lost, the backups it protects
+          cannot be opened again — not by us, not by anyone. Your notes themselves are unaffected: they
+          are plain files, and they travel with git.
+        </p>
       </div>
-    {:else if passwordSaved && !noRestic}
-      <div class="vault"><p class="why">✓ Backup password saved.</p></div>
-    {/if}
+    </div>
+  {:else if passwordSaved && !noRestic}
+    <div class="vault"><p class="why">✓ Backup password saved.</p></div>
+  {/if}
 
-    <!-- One block per vault: each is its own repo, its own remote, its own audience.
+  <!-- One block per vault: each is its own repo, its own remote, its own audience.
          A single-vault install is a list of one and reads exactly as it always did. -->
-    {#each vaults as v (v.name)}
-      <div class="vault">
-        <!-- The repository name, matching the badge and the filter chips. `v.name` remains the
+  {#each vaults as v (v.name)}
+    <div class="vault">
+      <!-- The repository name, matching the badge and the filter chips. `v.name` remains the
              identity every command here takes. -->
-        {#if plural}<h3>{labelFor(v.name)}</h3>{/if}
+      {#if vaultRows}{@render vaultRows(v.name)}{:else if plural}<h3>{labelFor(v.name)}</h3>{/if}
 
-        <label class="remote">
-          <span
-            >{plural
-              ? `Where the ${v.name} vault's notes are copied to`
-              : 'Where your notes are copied to'}</span
-          >
-          <div class="row">
-            <input
-              bind:value={remoteDrafts[v.name]}
-              onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
-              placeholder="git@github.com:you/notes.git"
-              spellcheck="false"
-              disabled={busy}
-            />
-            <!-- Two "Save" buttons sit in every vault block now (a git remote and a backup repo),
+      <label class="remote">
+        <span
+          >{plural
+            ? `Where the ${v.name} vault's notes are copied to`
+            : 'Where your notes are copied to'}</span
+        >
+        <div class="row">
+          <input
+            bind:value={remoteDrafts[v.name]}
+            onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
+            placeholder="git@github.com:you/notes.git"
+            spellcheck="false"
+            disabled={busy}
+          />
+          <!-- Two "Save" buttons sit in every vault block now (a git remote and a backup repo),
                  and in a multi-vault panel that is a screenful of identically-named controls. The
                  accessible name says which one this is; the visible label stays "Save", and
                  contains it, so the two never disagree. -->
-            <button
-              onclick={() => saveRemote(v)}
-              disabled={!canSaveRemote(v)}
-              aria-label={`Save where the ${v.name} vault's notes are copied to`}>Save</button
-            >
-          </div>
-        </label>
+          <button
+            onclick={() => saveRemote(v)}
+            disabled={!canSaveRemote(v)}
+            aria-label={`Save where the ${v.name} vault's notes are copied to`}>Save</button
+          >
+        </div>
+      </label>
 
-        {#if needsIdentity(v)}
-          <!-- Asked once, at the only moment it matters: pushing is when your notes
+      {#if needsIdentity(v)}
+        <!-- Asked once, at the only moment it matters: pushing is when your notes
                start carrying your name to someone else, and git history is permanent.
                Per vault, because a vault is an audience — the name on a lab repo need
                not be the one on your personal notes. Anyone who has ever configured git
                never sees this. -->
-          <div class="identity">
-            <p class="why">
-              Every change you send is signed with a name. Yours isn't set{plural
-                ? ` for ${v.name}`
-                : ''} — without it, your collaborators can't tell who changed what.
-            </p>
-            <div class="row">
-              <input
-                bind:value={nameDrafts[v.name]}
-                onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
-                placeholder="Your name"
-                spellcheck="false"
-                disabled={busy}
-              />
-              <input
-                bind:value={emailDrafts[v.name]}
-                onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
-                placeholder="you@example.org"
-                spellcheck="false"
-                disabled={busy}
-              />
-            </div>
+        <div class="identity">
+          <p class="why">
+            Every change you send is signed with a name. Yours isn't set{plural
+              ? ` for ${v.name}`
+              : ''} — without it, your collaborators can't tell who changed what.
+          </p>
+          <div class="row">
+            <input
+              bind:value={nameDrafts[v.name]}
+              onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
+              placeholder="Your name"
+              spellcheck="false"
+              disabled={busy}
+            />
+            <input
+              bind:value={emailDrafts[v.name]}
+              onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
+              placeholder="you@example.org"
+              spellcheck="false"
+              disabled={busy}
+            />
           </div>
-        {/if}
+        </div>
+      {/if}
 
-        <!-- `|| authSaved` so the confirmation is actually seen: storing the token flips
+      <!-- `|| authSaved` so the confirmation is actually seen: storing the token flips
              `have_credential`, which makes `needsToken` false and would otherwise take the whole
              block — including the ✓ — off screen in the same frame. -->
-        {#if needsToken(v) || authRejected(v) || authSaved[v.name]}
-          <!-- The credential, asked for where it is actually needed. The clone form has had this
+      {#if needsToken(v) || authRejected(v) || authSaved[v.name]}
+        <!-- The credential, asked for where it is actually needed. The clone form has had this
                field all along; a vault created *here* and later pointed at a private HTTPS repo
                had no way to reach it, so Back up failed at the push with nothing to do about it.
                Same shape as the identity block above: shown only while it is unanswered, and
                gone the moment the machine has what it needs. -->
-          <div class="identity">
-            {#if authSaved[v.name]}
-              <p class="why">✓ Saved. Back up will use it from now on.</p>
-            {:else}
-              <!-- Only the wording varies. The input below is the whole point of the block, and
+        <div class="identity">
+          {#if authSaved[v.name]}
+            <p class="why">✓ Saved. Back up will use it from now on.</p>
+          {:else}
+            <!-- Only the wording varies. The input below is the whole point of the block, and
                    putting the rejected case in a branch of its own once left it explaining the
                    problem with no box to fix it in — the same shape as the bug being fixed. -->
-              <p class="why">
-                {#if authRejected(v) && !needsToken(v)}
-                  The token stored for this repo was refused. Paste a new one to replace it — an
-                  access token can expire, be revoked, or have been created without the
-                  <code>repo</code> scope this needs.
-                {:else if auth[v.name]?.storage === 'app'}
-                  This repo is reached over HTTPS, which needs an access token. There is no
-                  system-wide git configuration on this device, so formicaria keeps it in its own
-                  private storage.
-                {:else}
-                  This repo is reached over HTTPS, which needs an access token. It goes to git's own
-                  credential helper — the terminal and every other tool get it too, and formicaria
-                  keeps nothing.
-                {/if}
-              </p>
-              <div class="row">
-                <input
-                  type="password"
-                  bind:value={tokenDrafts[v.name]}
-                  onkeydown={(e) => e.key === 'Enter' && void saveToken(v)}
-                  placeholder="github_pat_…"
-                  autocomplete="off"
-                  spellcheck="false"
-                  autocapitalize="off"
-                  disabled={busy}
-                />
-                <button
-                  onclick={() => void saveToken(v)}
-                  disabled={busy || !tokenDrafts[v.name]?.trim()}
-                >
-                  Save token
-                </button>
-              </div>
-              <!-- The advice that actually limits a leak, in the same words the clone form uses.
+            <p class="why">
+              {#if authRejected(v) && !needsToken(v)}
+                The token stored for this repo was refused. Paste a new one to replace it — an
+                access token can expire, be revoked, or have been created without the
+                <code>repo</code> scope this needs.
+              {:else if auth[v.name]?.storage === 'app'}
+                This repo is reached over HTTPS, which needs an access token. There is no
+                system-wide git configuration on this device, so formicaria keeps it in its own
+                private storage.
+              {:else}
+                This repo is reached over HTTPS, which needs an access token. It goes to git's own
+                credential helper — the terminal and every other tool get it too, and formicaria
+                keeps nothing.
+              {/if}
+            </p>
+            <div class="row">
+              <input
+                type="password"
+                bind:value={tokenDrafts[v.name]}
+                onkeydown={(e) => e.key === 'Enter' && void saveToken(v)}
+                placeholder="github_pat_…"
+                autocomplete="off"
+                spellcheck="false"
+                autocapitalize="off"
+                disabled={busy}
+              />
+              <button
+                onclick={() => void saveToken(v)}
+                disabled={busy || !tokenDrafts[v.name]?.trim()}
+              >
+                Save token
+              </button>
+            </div>
+            <!-- The advice that actually limits a leak, in the same words the clone form uses.
                    A token is a *bearer* credential: it is not tied to a device, so scope and
                    expiry are the only things that bound the damage. -->
+            <p class="why">
+              Use a <strong>fine-grained</strong> token limited to this one repository, with contents
+              read/write and an expiry date. Anyone who has the token can use it from anywhere, so a narrow
+              one is the protection.
+            </p>
+            {#if auth[v.name]?.helper?.plaintext}
               <p class="why">
-                Use a <strong>fine-grained</strong> token limited to this one repository, with contents
-                read/write and an expiry date. Anyone who has the token can use it from anywhere, so a
-                narrow one is the protection.
+                Heads up: git on this machine uses the <code
+                  >{auth[v.name]?.helper?.configured}</code
+                >
+                helper, which keeps credentials as <strong>plain text</strong> on disk. That is where
+                this token will go.
               </p>
-              {#if auth[v.name]?.helper?.plaintext}
-                <p class="why">
-                  Heads up: git on this machine uses the <code
-                    >{auth[v.name]?.helper?.configured}</code
-                  >
-                  helper, which keeps credentials as <strong>plain text</strong> on disk. That is where
-                  this token will go.
-                </p>
-              {/if}
             {/if}
-          </div>
-        {/if}
+          {/if}
+        </div>
+      {/if}
 
-        {#if !noRestic}
-          <!-- Where this vault's *snapshot* goes. Separate field from the git remote because they
+      {#if !noRestic}
+        <!-- Where this vault's *snapshot* goes. Separate field from the git remote because they
                are separate destinations with separate reasons: git carries text and keeps history,
                restic carries the whole of this vault's data and keeps none. Hidden entirely where
                restic is not installed — the capability line below already says why, and a field
                that configures a tool the machine does not have is a form that cannot be
                completed. -->
-          <label class="remote">
-            <span>{plural ? `The ${v.name} vault's` : "Your vault's"} backup repo</span>
-            <div class="row">
-              <input
-                bind:value={resticDrafts[v.name]}
-                onkeydown={(e) => e.key === 'Enter' && void saveRestic(v)}
-                placeholder="/backup/{v.name}  ·  sftp:you@host:/backup  ·  s3:…"
-                spellcheck="false"
-                disabled={busy}
-              />
-              <button
-                onclick={() => void saveRestic(v)}
-                disabled={busy || (resticDrafts[v.name] ?? '') === (v.restic_repo ?? '')}
-                aria-label={`Save the ${v.name} backup repo`}
-              >
-                Save
-              </button>
-            </div>
-            <!-- Say what clearing does, since an empty field is how you say "nowhere". -->
-            <small class="why">
-              {#if v.restic_repo}
-                This vault's notes and attachments are snapshotted here, encrypted — not the other
-                files at the vault root, and not its git history. Clear the field and save to stop —
-                nothing already backed up is removed.
-              {:else}
-                Empty means this vault's attachments stay on this machine. Notes are unaffected:
-                they travel with git.
-              {/if}
-            </small>
-            <!-- **"When did this last work?"** — placed right under the repository it is about,
+        <label class="remote">
+          <span>{plural ? `The ${v.name} vault's` : "Your vault's"} backup repo</span>
+          <div class="row">
+            <input
+              bind:value={resticDrafts[v.name]}
+              onkeydown={(e) => e.key === 'Enter' && void saveRestic(v)}
+              placeholder="/backup/{v.name}  ·  sftp:you@host:/backup  ·  s3:…"
+              spellcheck="false"
+              disabled={busy}
+            />
+            <button
+              onclick={() => void saveRestic(v)}
+              disabled={busy || (resticDrafts[v.name] ?? '') === (v.restic_repo ?? '')}
+              aria-label={`Save the ${v.name} backup repo`}
+            >
+              Save
+            </button>
+          </div>
+          <!-- Say what clearing does, since an empty field is how you say "nowhere". -->
+          <small class="why">
+            {#if v.restic_repo}
+              This vault's notes and attachments are snapshotted here, encrypted — not the other
+              files at the vault root, and not its git history. Clear the field and save to stop —
+              nothing already backed up is removed.
+            {:else}
+              Empty means this vault's attachments stay on this machine. Notes are unaffected: they
+              travel with git.
+            {/if}
+          </small>
+          <!-- **"When did this last work?"** — placed right under the repository it is about,
                  because that is where somebody is deciding whether to trust it. Three states, kept
                  apart on purpose: a real snapshot, a repository that opened and has never been
                  written to, and a machine that cannot tell you. The middle one is the one that
                  should worry a reader, so it says so plainly rather than going quiet. -->
-            {#if v.restic_repo && latest[v.name]}
-              {@const l = latest[v.name]}
-              <small class="why last-backup">
-                {#if l?.unavailable}
-                  Last snapshot: unknown — {l.unavailable}.
-                {:else if l?.time}
-                  Last snapshot: <strong>{when(l.time)}</strong>.
-                  {#if l.paths.length}
-                    It covered {l.paths.length} path{l.paths.length === 1 ? '' : 's'}.
-                  {/if}
-                {:else}
-                  <strong>Never backed up.</strong> This repository is configured and has no formicaria
-                  snapshot in it yet — pressing Back up below is what changes that.
+          {#if v.restic_repo && latest[v.name]}
+            {@const l = latest[v.name]}
+            <small class="why last-backup">
+              {#if l?.unavailable}
+                Last snapshot: unknown — {l.unavailable}.
+              {:else if l?.time}
+                Last snapshot: <strong>{when(l.time)}</strong>.
+                {#if l.paths.length}
+                  It covered {l.paths.length} path{l.paths.length === 1 ? '' : 's'}.
                 {/if}
-              </small>
-            {/if}
-          </label>
-        {/if}
-
-        {#if steps.length === 0}
-          <ul class="promise">
-            <li>
-              {#if reachOf(v.remote) === 'unset'}
-                <strong>Nowhere to send yet</strong> — these notes cannot leave this device.
               {:else}
-                Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
-                <span class="muted">Carries {carries(v)}.</span>
-                <!-- **`0` and `null` are different facts and used to render identically.**
+                <strong>Never backed up.</strong> This repository is configured and has no formicaria
+                snapshot in it yet — pressing Back up below is what changes that.
+              {/if}
+            </small>
+          {/if}
+        </label>
+      {/if}
+
+      {#if steps.length === 0}
+        <ul class="promise">
+          <li>
+            {#if reachOf(v.remote) === 'unset'}
+              <strong>Nowhere to send yet</strong> — these notes cannot leave this device.
+            {:else}
+              Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
+              <span class="muted">Carries {carries(v)}.</span>
+              <!-- **`0` and `null` are different facts and used to render identically.**
                      `{#if v.unpushed}` is falsy for zero, so "everything is pushed" and "this has
                      never been pushed" both rendered as nothing at all — the panel simply went
                      quiet, which reads as the reassuring one. They are the opposite states.
                      `null` means git could not say (no remote, never pushed, or offline — a
                      sleeping laptop is not an error), so it stays silent deliberately; zero is a
                      positive answer and now says so. -->
-                {#if v.unpushed === 0}
-                  <span class="muted">Everything here has been sent.</span>
-                {:else if v.unpushed}
-                  <span class="muted"
-                    >{v.unpushed} change{v.unpushed === 1 ? '' : 's'} not sent yet.</span
-                  >
-                {/if}
-                {#if v.identity}
-                  <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
-                {/if}
-                <!-- **How much this is about to send.** The attachment rule selects every file at
+              {#if v.unpushed === 0}
+                <span class="muted">Everything here has been sent.</span>
+              {:else if v.unpushed}
+                <span class="muted"
+                  >{v.unpushed} change{v.unpushed === 1 ? '' : 's'} not sent yet.</span
+                >
+              {/if}
+              {#if v.identity}
+                <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
+              {/if}
+              <!-- **How much this is about to send.** The attachment rule selects every file at
                    or under the limit, not a diff against what has already gone — so a device that
                    has been collecting photos and never sent one has its whole backlog waiting the
                    first time it can send them. A phone has no other way to find that out: its logs
                    are unreadable, and a push that dies part-way says only that it died. Stated as a
                    size because that is the number that explains a failure. -->
-                {#if v.assets_pending_bytes > OFFER_OVER}
-                  <span class="muted"
-                    >That is more than one go over a phone connection reliably finishes, so it will
-                    be <strong>sent in steps</strong> — slower, and each step that finishes is kept, so
-                    stopping part-way loses nothing.</span
-                  >
-                {/if}
-                {#if v.assets_pending > 0}
-                  <span class="muted"
-                    >Carrying {v.assets_pending} attachment{v.assets_pending === 1 ? '' : 's'} —
-                    {humanSize(v.assets_pending_bytes)} in all. A large first batch over a phone connection
-                    can drop part-way; raising <strong>Send attachments under</strong> a step at a time
-                    in Settings sends them in smaller groups.</span
-                  >
-                {/if}
+              {#if v.assets_pending_bytes > OFFER_OVER}
+                <span class="muted"
+                  >That is more than one go over a phone connection reliably finishes, so it will be <strong
+                    >sent in steps</strong
+                  > — slower, and each step that finishes is kept, so stopping part-way loses nothing.</span
+                >
               {/if}
-            </li>
-            <!-- **When this vault last saved anything** — stated for every vault, remote or not,
+              {#if v.assets_pending > 0}
+                <span class="muted"
+                  >Carrying {v.assets_pending} attachment{v.assets_pending === 1 ? '' : 's'} —
+                  {humanSize(v.assets_pending_bytes)} in all. A large first batch over a phone connection
+                  can drop part-way; raising <strong>Send attachments under</strong> a step at a time
+                  in Settings sends them in smaller groups.</span
+                >
+              {/if}
+            {/if}
+          </li>
+          <!-- **When this vault last saved anything** — stated for every vault, remote or not,
                  because it is the one fact that is true independently of everything above it. A
                  vault whose commits are blocked has a remote, an identity and a plausible unpushed
                  count; what it does not have is a recent save, and until now no screen said so.
                  Its own `<li>`, outside the remote branch, for exactly that reason: it must still
                  be there when there is no remote to talk about. -->
-            <li>
-              {#if savedAt(v.name) === null}
-                <strong>Nothing saved here yet</strong> — this vault has no history at all.
-              {:else}
-                Last saved <strong>{saved(savedAt(v.name)!)}</strong>.
-              {/if}
-            </li>
-          </ul>
-        {/if}
+          <li>
+            {#if savedAt(v.name) === null}
+              <strong>Nothing saved here yet</strong> — this vault has no history at all.
+            {:else}
+              Last saved <strong>{saved(savedAt(v.name)!)}</strong>.
+            {/if}
+          </li>
+        </ul>
+      {/if}
 
-        <!-- **Stop showing me this vault.** Deliberately last, small, and worded as what it is:
+      <!-- **Stop showing me this vault.** Deliberately last, small, and worded as what it is:
              unregistering, not deleting. The notes stay on disk and the message says how many and
              where — "forget" and "destroy" are different verbs and only one is reversible. This
              exists because three commands could create a vault and none could remove one, so the
              empty default the phone auto-creates was unremovable from inside the app. -->
-        <div class="forget">
-          {#if forgetNote && confirmForget !== v.name}
-            <p class="forget-note">{forgetNote}</p>
-          {/if}
-          {#if confirmForget === v.name}
-            <span class="muted">
-              Remove “{labelFor(v.name)}” from this device's list? Its files stay where they are.
-            </span>
-            <button type="button" onclick={() => doForget(v.name)} disabled={busy}>
-              Yes, remove it
-            </button>
-            <button type="button" onclick={() => (confirmForget = null)} disabled={busy}>
-              Cancel
-            </button>
-          {:else}
-            <button
-              type="button"
-              class="quiet"
-              onclick={() => (confirmForget = v.name)}
-              disabled={busy}
-            >
-              Remove this vault from the list…
-            </button>
-          {/if}
-        </div>
+      <div class="forget">
+        {#if forgetNote && confirmForget !== v.name}
+          <p class="forget-note">{forgetNote}</p>
+        {/if}
+        {#if confirmForget === v.name}
+          <span class="muted">
+            Remove “{labelFor(v.name)}” from this device's list? Its files stay where they are.
+          </span>
+          <button type="button" onclick={() => doForget(v.name)} disabled={busy}>
+            Yes, remove it
+          </button>
+          <button type="button" onclick={() => (confirmForget = null)} disabled={busy}>
+            Cancel
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="quiet"
+            onclick={() => (confirmForget = v.name)}
+            disabled={busy}
+          >
+            Remove this vault from the list…
+          </button>
+        {/if}
+      </div>
 
-        {#if v.conflicts.length}
-          <!-- The one state a user must be told about by name: these notes have both
+      {#if v.conflicts.length}
+        <!-- The one state a user must be told about by name: these notes have both
                versions in them and are waiting for a person. The merge driver keeps the
                markers in the body, so each still opens in the editor. -->
-          <p class="error">
-            {v.conflicts.length} note{v.conflicts.length === 1 ? '' : 's'} still need you:
-            {v.conflicts.join(', ')}. Resolve them in “Needs resolution” (Collaboration) — a note
-            deleted on one device and edited on the other has no text to merge, so it needs you to
-            pick a side.
-          </p>
-        {:else if syncFor(v.name).phase === 'failed' && syncFor(v.name).error}
-          <!-- **Read out of the sync store, not out of `steps`.** `steps` is this panel's report
+        <p class="error">
+          {v.conflicts.length} note{v.conflicts.length === 1 ? '' : 's'} still need you:
+          {v.conflicts.join(', ')}. Resolve them in “Needs resolution” (Collaboration) — a note
+          deleted on one device and edited on the other has no text to merge, so it needs you to
+          pick a side.
+        </p>
+      {:else if syncFor(v.name).phase === 'failed' && syncFor(v.name).error}
+        <!-- **Read out of the sync store, not out of `steps`.** `steps` is this panel's report
                of the run you just watched; it is empty on every fresh open, so a failure from a
                previous run — or from the auto-commit loop, or from the toolbar's get-changes chip —
                would leave this screen blank with the reason sitting unread. Reported from the phone,
                2026-09-08: three saves that had not left the device, a vault named as needing
                attention, and no way to find out why. -->
-          <p class="error">
-            Notes did not go: {plainError(syncFor(v.name).error ?? '')}
-          </p>
-        {:else if v.remote_moved}
-          <p class="moved">Someone has sent work you don't have yet.</p>
-        {/if}
+        <p class="error">
+          Notes did not go: {plainError(syncFor(v.name).error ?? '')}
+        </p>
+      {:else if v.remote_moved}
+        <p class="moved">Someone has sent work you don't have yet.</p>
+      {/if}
 
-        {#if v.remote}
-          <div class="vault-actions">
-            <button onclick={() => bringDown(v)} disabled={busy} class:primary={v.remote_moved}>
-              {busy ? 'Working…' : 'Get their changes'}
-            </button>
-          </div>
-        {/if}
-      </div>
-    {/each}
+      {#if v.remote}
+        <div class="vault-actions">
+          <button onclick={() => bringDown(v)} disabled={busy} class:primary={v.remote_moved}>
+            {busy ? 'Working…' : 'Get their changes'}
+          </button>
+        </div>
+      {/if}
+    </div>
+  {/each}
 
-    {#if recoveredNote}
-      <p class="forget-note">{recoveredNote}</p>
-    {/if}
+  {#if recoveredNote}
+    <p class="forget-note">{recoveredNote}</p>
+  {/if}
 
-    {#if recoverable.length}
-      <!-- Deliberately right after the vaults, next to the button that removes them, and worded as
+  {#if recoverable.length}
+    <!-- Deliberately right after the vaults, next to the button that removes them, and worded as
            what it is: folders already on this device, not a remote to fetch from. The note count is
            the field that answers the question actually being asked — never "which folder" but
            "which one has my work in it", since two folder names tell you nothing. -->
-      <section class="recoverable">
-        <h3>On this device, not in your list</h3>
-        <p class="muted small">
-          Removing a vault never deletes anything, so anything taken off the list by mistake is
-          here.
-        </p>
-        {#each recoverable as r (r.path)}
-          <div class="line">
-            <strong>{r.name}</strong>
-            <span class="muted">{r.notes} note{r.notes === 1 ? '' : 's'}</span>
-            <button type="button" onclick={() => void takeBack(r)} disabled={busy}>
-              Add it back
-            </button>
-          </div>
-        {/each}
-      </section>
-    {/if}
+    <section class="recoverable">
+      <h3>On this device, not in your list</h3>
+      <p class="muted small">
+        Removing a vault never deletes anything, so anything taken off the list by mistake is here.
+      </p>
+      {#each recoverable as r (r.path)}
+        <div class="line">
+          <strong>{r.name}</strong>
+          <span class="muted">{r.notes} note{r.notes === 1 ? '' : 's'}</span>
+          <button type="button" onclick={() => void takeBack(r)} disabled={busy}>
+            Add it back
+          </button>
+        </div>
+      {/each}
+    </section>
+  {/if}
 
-    {#if steps.length === 0}
-      <ul class="promise">
-        <li>
-          {#if !heavy}
-            <!-- Per vault, because what git carries is per vault. A flat "media is not
+  {#if steps.length === 0}
+    <ul class="promise">
+      <li>
+        {#if !heavy}
+          <!-- Per vault, because what git carries is per vault. A flat "media is not
                  included" was wrong for any vault with an attachment limit — and wrong in the
                  dangerous direction, telling someone their attachments stayed home while they
                  were being pushed into permanent shared history. -->
-            {#each vaults as v (v.name)}
-              <div>
-                {#if effectiveMax(v)}
-                  Attachments{of(v)} over {humanSize(effectiveMax(v) ?? 0)} are
-                  <strong>not included</strong> — smaller ones travel with the notes.
-                {:else}
-                  Attachments{of(v)} in <code>blobs/</code> (images, PDFs, video) are
-                  <strong>not included</strong>.
-                {/if}
-              </div>
-            {/each}
-          {:else}
-            {#each vaults as v (v.name)}
-              {#if v.restic_ready}
-                <div>
-                  Snapshot{of(v)} — this vault's notes and attachments →
-                  <strong>{shortDest(v.restic_repo ?? '')}</strong> —
-                  {leaves(reachOf(v.restic_repo))}.
-                </div>
+          {#each vaults as v (v.name)}
+            <div>
+              {#if effectiveMax(v)}
+                Attachments{of(v)} over {humanSize(effectiveMax(v) ?? 0)} are
+                <strong>not included</strong> — smaller ones travel with the notes.
               {:else}
-                <div>
-                  Snapshot{of(v)} <strong>will not run</strong> —
-                  {v.restic_repo ? noPassword : 'no backup repo for it'}.
-                </div>
+                Attachments{of(v)} in <code>blobs/</code> (images, PDFs, video) are
+                <strong>not included</strong>.
               {/if}
-            {/each}
-          {/if}
-        </li>
-      </ul>
-    {:else}
-      <ul class="steps">
-        {#each steps as s, i (i)}
-          <li class:bad={!s.ok}>{s.text}</li>
-        {/each}
-      </ul>
-      {#if verdict}<p class="verdict">{verdict}</p>{/if}
-    {/if}
+            </div>
+          {/each}
+        {:else}
+          {#each vaults as v (v.name)}
+            {#if v.restic_ready}
+              <div>
+                Snapshot{of(v)} — this vault's notes and attachments →
+                <strong>{shortDest(v.restic_repo ?? '')}</strong> —
+                {leaves(reachOf(v.restic_repo))}.
+              </div>
+            {:else}
+              <div>
+                Snapshot{of(v)} <strong>will not run</strong> —
+                {v.restic_repo ? noPassword : 'no backup repo for it'}.
+              </div>
+            {/if}
+          {/each}
+        {/if}
+      </li>
+    </ul>
+  {:else}
+    <ul class="steps">
+      {#each steps as s, i (i)}
+        <li class:bad={!s.ok}>{s.text}</li>
+      {/each}
+    </ul>
+    {#if verdict}<p class="verdict">{verdict}</p>{/if}
+  {/if}
 
-    <label class="heavy" class:disabled={!anyRestic}>
-      <input type="checkbox" bind:checked={heavy} disabled={busy || !anyRestic} />
-      <span>
-        <!-- **"Media" was never what this tier does.** The snapshot is the notes directory
+  <label class="heavy" class:disabled={!anyRestic}>
+    <input type="checkbox" bind:checked={heavy} disabled={busy || !anyRestic} />
+    <span>
+      <!-- **"Media" was never what this tier does.** The snapshot is the notes directory
              *and* `blobs/`, which is why a restore returns a working vault and not a pile of
              images — and why calling it "media" left people believing their notes were in git
              alone. It is still opt-in and still the heavy half; it is just not media-only. -->
-        Include an encrypted snapshot — notes and attachments, via restic
-        {#if noRestic}
-          <span class="muted">
-            (unavailable: restic isn't installed on this machine — the snapshot is an optional
-            feature, and your notes don't need it)
-          </span>
-        {:else if status && !anyRestic}
-          <!-- Both halves of what this used to say were stale: it sent people to edit the vault
+      Include an encrypted snapshot — notes and attachments, via restic
+      {#if noRestic}
+        <span class="muted">
+          (unavailable: restic isn't installed on this machine — the snapshot is an optional
+          feature, and your notes don't need it)
+        </span>
+      {:else if status && !anyRestic}
+        <!-- Both halves of what this used to say were stale: it sent people to edit the vault
                list for a repo the field above sets, and to restart for a password that takes
                effect the moment it is saved. Name the field, not the file. -->
-          <span class="muted">
-            (unavailable: {vaults.some((v) => !!v.restic_repo)
-              ? 'set a backup password above'
-              : 'give a vault a backup repo above, and set a password'})
-          </span>
-        {:else if plural && vaults.some((v) => !v.restic_ready)}
-          <span class="muted">
-            (only the vaults with a restic repo of their own: {vaults
-              .filter((v) => v.restic_ready)
-              .map((v) => v.name)
-              .join(', ')})
-          </span>
-        {/if}
-      </span>
-    </label>
+        <span class="muted">
+          (unavailable: {vaults.some((v) => !!v.restic_repo)
+            ? 'set a backup password above'
+            : 'give a vault a backup repo above, and set a password'})
+        </span>
+      {:else if plural && vaults.some((v) => !v.restic_ready)}
+        <span class="muted">
+          (only the vaults with a restic repo of their own: {vaults
+            .filter((v) => v.restic_ready)
+            .map((v) => v.name)
+            .join(', ')})
+        </span>
+      {/if}
+    </span>
+  </label>
 
-    {#if error}<p class="error">{error}</p>{/if}
+  {#if error}<p class="error">{error}</p>{/if}
 
-    <!-- **A disabled button has to say why it is disabled.** `canRun` needs a git remote, so a
+  <!-- **A disabled button has to say why it is disabled.** `canRun` needs a git remote, so a
          machine set up for snapshots alone — restic installed, a repo, a password — offered a
          tick box that ticked and a Back up button that never enabled, with nothing on screen
          explaining it. Saying so is not the fix; running the snapshot tier on its own is, and
          that is queued rather than smuggled in here. Until then the panel is at least honest
          about its own refusal. -->
-    {#if status && !canRun && !busy}
-      <p class="why">
-        {#if !noGit && !anyRemote && anyRestic && !heavy}
-          No vault has a git remote yet, so there is nothing to push — but this machine can take a
-          snapshot. Tick the box above to run that tier on its own.
-        {:else if !noGit && !anyRemote}
-          Back up needs a git remote to send notes to, and no vault has one yet — set one above.
-        {:else if noGit && !anyRestic}
-          This machine has neither git nor a configured snapshot repository, so there is nowhere for
-          anything to go.
-        {:else if noGit}
-          Git is not installed, so notes cannot be pushed. Tick the box above to take a snapshot
-          instead — that tier carries the notes as well as the attachments.
-        {/if}
-      </p>
-    {/if}
+  {#if status && !canRun && !busy}
+    <p class="why">
+      {#if !noGit && !anyRemote && anyRestic && !heavy}
+        No vault has a git remote yet, so there is nothing to push — but this machine can take a
+        snapshot. Tick the box above to run that tier on its own.
+      {:else if !noGit && !anyRemote}
+        Back up needs a git remote to send notes to, and no vault has one yet — set one above.
+      {:else if noGit && !anyRestic}
+        This machine has neither git nor a configured snapshot repository, so there is nowhere for
+        anything to go.
+      {:else if noGit}
+        Git is not installed, so notes cannot be pushed. Tick the box above to take a snapshot
+        instead — that tier carries the notes as well as the attachments.
+      {/if}
+    </p>
+  {/if}
 
-    <div class="actions">
-      <button onclick={onclose} disabled={busy}>Close</button>
-      <button class="primary" onclick={run} disabled={!canRun}>
-        {busy
-          ? 'Backing up…'
-          : `Back up ${plural ? 'every vault' : 'notes'}${heavy ? ' + snapshot' : ''}`}
-      </button>
-    </div>
+  <div class="actions">
+    <button class="primary" onclick={run} disabled={!canRun}>
+      {busy
+        ? 'Backing up…'
+        : `Back up ${plural ? 'every vault' : 'notes'}${heavy ? ' + snapshot' : ''}`}
+    </button>
   </div>
 </div>
 
@@ -1229,83 +1207,13 @@
     cursor: default;
   }
 
-  .panel-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .new-vault {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--fg);
-    padding: 4px 10px;
-    border-radius: var(--radius-2, 6px);
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-
-  .backup-overlay {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    /* `border-box` + an explicit `100dvh`, so the panel below can simply say
-       `max-height: 100%` and inherit the arithmetic instead of restating it.
-       Longhands, never the `padding` shorthand: a narrower rule added later would reset all
-       four sides and silently discard the insets, which is the mistake `ci/checks.sh`
-       already guards against on `.topbar`. */
-    box-sizing: border-box;
-    height: var(--app-h);
-    padding-top: calc(var(--overlay-inset) + var(--safe-top));
-    padding-bottom: var(--safe-bottom);
-    z-index: 80;
-  }
-  /* The navigation-bar floor, on the overlay so the panel's *box* clears the bar and not just
-     its last row. `--bar-floor` rather than a fourth hand-copied `3.25rem`. */
-  @media (pointer: coarse) {
-    .backup-overlay {
-      padding-bottom: max(var(--safe-bottom), var(--bar-floor));
-    }
-  }
-  .backup-backdrop {
-    position: fixed;
-    inset: 0;
-    border: none;
-    background: rgb(0 0 0 / 0.45);
-    cursor: default;
-  }
-  /* **One scroll surface, and it is this one.** With two vaults registered, or with the
-     restic-password block open, this panel is taller than a phone screen — and it used to
-     have no `max-height` and no `overflow` at all, so Close and the Back up button simply
-     fell off the bottom with nothing to scroll them into view. Resist the temptation to
-     scroll an inner body under a pinned head instead: `UnrecordedPanel` shipped that shape
-     and a finger landing on the inner region moved the inner region while the panel stayed
-     put, which made everything below it unreachable in a different way. */
+  /* A section of Settings now, not a window: it flows in Settings' own scroll surface, which
+     already owns the viewport arithmetic this used to restate. */
   .panel {
-    position: relative;
-    width: min(34rem, 92vw);
-    /* `100%` of the overlay's content box, which is already the visible viewport less the
-       top offset and both window insets. */
-    max-height: 100%;
-    overflow-y: auto;
-    /* Don't chain the drag to the shell when this hits its end. */
-    overscroll-behavior: contain;
-    box-sizing: border-box;
-    padding: var(--space-5);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    background: var(--surface-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-  }
-  h2 {
-    margin: 0;
-    font-size: var(--text-md);
-    color: var(--text);
+    min-width: 0;
   }
   .remote {
     display: flex;

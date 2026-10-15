@@ -19,7 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const panel = () => render(BackupPanel, { onclose: () => {} } as never);
+const panel = () => render(BackupPanel, {});
 
 describe('BackupPanel — vaults on this device that are not in the list', () => {
   it('offers the folder back, and says how much is in it', async () => {
@@ -42,7 +42,7 @@ describe('BackupPanel — vaults on this device that are not in the list', () =>
     // that is always on screen is a section nobody reads.
     panel();
     // Anchored on something that must render, so this cannot pass before the panel has loaded.
-    await screen.findByRole('heading', { name: /back ?up/i });
+    await screen.findByRole('group', { name: /back up/i });
     expect(screen.queryByText('On this device, not in your list')).toBeNull();
   });
 });

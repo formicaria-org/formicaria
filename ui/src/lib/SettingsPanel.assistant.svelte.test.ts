@@ -36,7 +36,7 @@ vi.mock('./ipc', async (importOriginal) => ({
 function panel() {
   return render(SettingsPanel, {
     onclose: () => {},
-    onbackup: () => {},
+    onnewvault: () => {},
     layout: 'auto',
     onlayout: () => {},
     columns: 2,

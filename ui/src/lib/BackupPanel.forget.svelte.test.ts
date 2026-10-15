@@ -53,7 +53,7 @@ describe('removing a vault', () => {
       remote: null,
       vaults: [],
     });
-    render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
+    render(BackupPanel, {});
 
     // One click arms it; it must not remove on the first click, in a list of several vaults.
     const [first] = await screen.findAllByRole('button', {
@@ -79,7 +79,7 @@ describe('removing a vault', () => {
       remote: 'https://example.org/v.git',
       vaults: [],
     });
-    render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
+    render(BackupPanel, {});
     const [first] = await screen.findAllByRole('button', {
       name: /Remove this vault from the list/i,
     });
@@ -95,7 +95,7 @@ describe('removing a vault', () => {
   });
 
   it('can be cancelled', async () => {
-    render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
+    render(BackupPanel, {});
     const [first] = await screen.findAllByRole('button', {
       name: /Remove this vault from the list/i,
     });
@@ -113,7 +113,7 @@ describe('removing a vault', () => {
   // Proven red by dropping the `onvaults?.()` call from `doForget`.
   it('tells the app that the vault list changed', async () => {
     const onvaults = vi.fn();
-    render(BackupPanel, { onclose: () => {}, onnewvault: () => {}, onvaults } as never);
+    render(BackupPanel, { onvaults });
 
     // Two vaults in the fixture, so two remove buttons — the first one will do.
     const buttons = await screen.findAllByRole('button', { name: /Remove this vault/i });

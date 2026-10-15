@@ -18,7 +18,7 @@ import SettingsPanel from './SettingsPanel.svelte';
 function panel() {
   return render(SettingsPanel, {
     onclose: () => {},
-    onbackup: () => {},
+    onnewvault: () => {},
     layout: 'auto',
     onlayout: () => {},
     columns: 2,

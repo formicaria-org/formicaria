@@ -91,7 +91,7 @@ const show = (
       identity: (v.identity ?? null) as { name: string; email: string } | null,
     })),
   );
-  render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
+  render(BackupPanel, {});
 };
 
 beforeEach(() => {

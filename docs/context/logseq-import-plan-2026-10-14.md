@@ -156,7 +156,7 @@ threshold, so "does the port work" has a yes/no answer.
 The PhD graph **never enters the repo**: no file content, page titles or report in git. So there are
 two corpora:
 
-- **The private corpus**: the real graph, passed as `FM_IMPORT_CORPUS=/home/baljinder/logseq-phd`.
+- **The private corpus**: the real graph, passed as `FM_IMPORT_CORPUS=<path to the graph>`.
   The test is skipped when the variable is unset. Reports go to `target/import-corpus/`, which is
   already gitignored. This run is the **acceptance test**.
 - **A synthetic mini-graph** in `crates/fm-core/tests/fixtures/logseq-mini/`: one small page per
@@ -224,7 +224,7 @@ Conversion can be perfect and the note still render broken, so the rendered DOM 
   - nothing overflows at 320 px (the popups rule).
 
   It also writes a **contact sheet** of screenshots so the owner can look at the result directly.
-  Runs as `pixi run import-corpus-ui`.
+  Runs as `pixi run import-render`.
 
 ### Order of work, Part 1
 

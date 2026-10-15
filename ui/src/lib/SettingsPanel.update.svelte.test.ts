@@ -49,7 +49,7 @@ vi.mock('./ipc', async (importOriginal) => ({
 function panel() {
   return render(SettingsPanel, {
     onclose: () => {},
-    onbackup: () => {},
+    onnewvault: () => {},
     layout: 'auto',
     onlayout: () => {},
     columns: 2,
@@ -312,7 +312,7 @@ describe('SettingsPanel — getting a newer version', () => {
     updateStatus.mockResolvedValue(status());
     const { container } = render(SettingsPanel, {
       onclose: () => {},
-      onbackup: () => {},
+      onnewvault: () => {},
       layout: 'auto',
       onlayout: () => {},
       columns: 2,

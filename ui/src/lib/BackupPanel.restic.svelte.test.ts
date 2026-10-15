@@ -58,7 +58,7 @@ const show = (vaults: ReturnType<typeof vault>[], { restic = true, password = fa
       identity: null,
     })),
   );
-  render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
+  render(BackupPanel, {});
 };
 
 beforeEach(() => {

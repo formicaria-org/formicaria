@@ -18,7 +18,7 @@ import type { VaultInfo } from './types';
 function panel() {
   return render(SettingsPanel, {
     onclose: () => {},
-    onbackup: () => {},
+    onnewvault: () => {},
     layout: 'auto',
     onlayout: () => {},
     columns: 2,

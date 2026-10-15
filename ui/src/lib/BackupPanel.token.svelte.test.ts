@@ -51,7 +51,7 @@ beforeEach(() => {
 
 const show = (vaults: ReturnType<typeof vault>[]) => {
   backupStatus.mockResolvedValue({ vaults, git: true, restic: false });
-  render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
+  render(BackupPanel, {});
 };
 
 describe('a token for a private HTTPS remote', () => {
