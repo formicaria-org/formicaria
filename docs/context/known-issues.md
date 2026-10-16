@@ -987,16 +987,20 @@ Settings → Mail (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`). 
 **run on the owner's real Gmail on 2026-10-09** (a label, four conversations; the exchange in each
 note, invitations made meetings).
 
-- **A sign-in every 7 days** while the person's Google Cloud project is in testing (Google's rule
-  for unverified apps). Shown on the panel as an error with the remedy; nothing is read meanwhile.
+- **A sign-in every 7 days** while the person's Google Cloud project is in testing (Google's rule).
+  Nothing is read meanwhile; since 2026-10-16 Collaboration shows a red *Mail stopped* card with the
+  sign-in, and both it and Settings link the remedy — **Publish app** after filling in Branding with
+  the website's home, privacy and terms pages (manual, *Stop the weekly sign-out*). Whether Google
+  accepts `formicaria-org.github.io` as the authorized domain has not been seen done.
 - **`seen` grows without bound** in `gmail.json` (one id per message read). Fine for a labelled
   mailbox; a label with tens of thousands of messages would make the file large.
 - **Conversations get no tasks or summary yet.** That is Phase 3 (the assistant), which reads the
   conversation note itself (`decisions.md`, *the email exchange lives in the conversation note*).
 - **A message appended while the note is open in the editor** makes the editor's next save a
   lost-update conflict (the body's hash moved), handled like any other concurrent edit.
-- **Quote trimming is pattern-based** (English/Italian Gmail, Outlook, Apple Mail, `>` runs). An
-  unrecognised client's quoted history stays in the note — longer, never lost.
+- **Quote trimming is pattern-based** (English/Italian/Chinese Gmail and Outlook, Apple Mail, `>`
+  runs, an "On … wrote:" wrapped onto two lines). An unrecognised client's quoted history stays in the
+  note — longer, never lost; a note already written keeps what it had.
 - **Desktop only**, like the calendars. The section is hidden on the phone and on a paired device.
 - **The return address assumes `127.0.0.1`.** Google allows any loopback port for a desktop client,
   but formicaria opened at a LAN address cannot sign in. The panel says to open it at 127.0.0.1.
@@ -1004,7 +1008,12 @@ note, invitations made meetings).
 ## Meetings found in email — the assistant's pass, limits (2026-10-09)
 
 `fm-agent-run/src/meetings.rs` → `fm_agent::meetings`; proposals via `create_proposal` `props` and
-`propose_note`. Hermetic tests only; **never run against the real model or real mail.**
+`propose_note`. Hermetic tests, plus the ignored `live_meetings` harness run against `qwen3-vl-4b` on
+the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept in the repo).
+
+- **A quote the model shortens with "…" is checked piece by piece** (2026-10-16): every piece must be in
+  one email as written, and the piece with a figure stands as the quote. A quote stitched from two
+  different emails is still dropped (*"1 left out"* in the verdict).
 
 - **The date is Rust's, from the quoted sentence** or the same email before it; the model only points
   at the sentence (it translated and invented day words when asked to copy them; `decisions.md`).

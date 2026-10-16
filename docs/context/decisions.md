@@ -11230,10 +11230,10 @@ hand, or `pixi run -e android phone-test` with its token — but nothing require
 ## 2026-10-16 — new mail wakes the meeting pass; its verdict is shown, "nothing to change" included `#agent`
 
 The owner: *"the automatic email to meeting update with llm is not very responsive. Everytime I want to
-see it you are manually triggering it … siyu replied to me, I opened fm and still see no change in the
+see it you are manually triggering it … [a collaborator] replied to me, I opened fm and still see no change in the
 last 5 minutes in collaboration."* Measured on the machine, not assumed: fm-serve started at 15:03:45,
-the first read (15:04) brought in Siyu's 09:13 reply, and the meeting pass read it within the minute.
-Siyu wrote *"sounds good … 16:00 next Friday"*, which confirms the meeting already on the note, so the
+the first read (15:04) brought in a collaborator's 09:13 reply, and the meeting pass read it within the minute.
+The reply said *"sounds good … 16:00 next Friday"*, which confirms the meeting already on the note, so the
 pass rightly proposed nothing. **The fault was that "read, nothing to change" left no trace**: its
 one-line summary went to the agent's terminal only, and Collaboration shows proposals.
 
@@ -11264,7 +11264,7 @@ The owner: *"in the body of the email I see not all of them in crono order, why?
 messages were in order; what read as disorder was **an earlier email quoted inside a later one**. NUS
 students' Outlook writes its quote header in Chinese (`________` / `发件人:` / `发送时间:`), Chinese Gmail
 ends its intro with `写道：`, and Gmail wraps a long "On …, Name <\naddress> wrote:" onto two lines —
-`trim_quoted` knew none of them, so Li Shuhan's 21:40 reply carried the whole 17:38 email and the note
+`trim_quoted` knew none of them, so a student's 21:40 reply carried the whole 17:38 email and the note
 read 17:38, 21:40, 17:38. All three are now cut (either colon; Outlook's underscore rule only when a
 header follows it). **Notes already written keep their quotes**: the reader only ever appends, never
 rewrites what a note holds (*the email exchange lives in the conversation note*). Separate and still
@@ -11355,7 +11355,7 @@ If a new outbound path is added to the app, `privacy.html` must gain its line.
 
 ## 2026-10-16 (evening) — a quote shortened with "…" is checked piece by piece; another conversation's meeting is not "taken" `#agent`
 
-The owner: *"the llm part or something else is wrong, see the most recent Guo exchange … I even sent
+The owner: *"the llm part or something else is wrong, see the most recent [project partner] exchange … I even sent
 another correction through the email … but no change in the meeting."* Replayed against the real model
 (`live_meetings`, the note's own body): **the model was right both times** — Fri 30 Oct 16:30, the new
 Zoom link. Two faults were ours:
@@ -11367,11 +11367,11 @@ Zoom link. Two faults were ours:
   stands as the quote. An invented piece still sinks it (tested).
 - **`taken` held every conversation's own meeting.** `mail_conversations` listed the start of every
   note tagged `meeting`, conversation notes included, as "already on the agenda" for every other
-  conversation. Li's move to Fri 23 Oct 16:00 was dropped because Siyu's conversation met then. A
+  conversation. A student's move to Fri 23 Oct 16:00 was dropped because another conversation met then. A
   conversation's own meeting is its `current`, and the meetings proposed from it are its `linked`, so
   `taken` now holds only meetings no conversation accounts for — invitations, a calendar's events,
   ones made by hand (tested).
 
 `PASS_VERSION` 6 re-reads every conversation once; nothing already proposed is asked again. Live after
-the rebuild: Guo proposed for 30 Oct 16:30, Li for 23 Oct 16:00.
+the rebuild: both moves proposed (30 Oct 16:30 and 23 Oct 16:00).
 

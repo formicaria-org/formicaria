@@ -2743,7 +2743,8 @@ pub struct MailConversations {
     /// invitation, a calendar's event, a meeting made by hand: a meeting found in prose at one of these
     /// times is already on the agenda. A conversation's own meeting is its `start`, and the meetings
     /// proposed from it are its `linked`; counted here too, they made every conversation's time taken
-    /// for every other — Li's move to Friday 16:00 was dropped because Siyu met then (2026-10-16).
+    /// for every other — a student's move to Friday 16:00 was dropped because another conversation met then
+    /// (2026-10-16).
     pub taken: Vec<String>,
     /// For each conversation id, the starts of meeting notes linked to it with `meeting_of`.
     pub linked: HashMap<String, Vec<String>>,

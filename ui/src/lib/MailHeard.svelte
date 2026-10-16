@@ -1,7 +1,7 @@
 <script lang="ts">
   // **What the assistant made of your mail**, in Collaboration (2026-10-16). A reply that only
   // confirms a meeting proposes nothing, and with nothing to show the owner took it for the mail never
-  // having been read ("siyu replied … still see no change"). So each conversation the assistant read
+  // having been read ("[a collaborator] replied … still see no change"). So each conversation the assistant read
   // gets one line — "nothing to change — the meeting stays at …" is an answer too — beside when the
   // mail was last checked.
   //

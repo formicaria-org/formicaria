@@ -893,25 +893,25 @@ mod tests {
         assert_eq!(trim_quoted("> only quoted"), "> only quoted");
     }
 
-    /// **A reply carrying the email it answers read as mail out of order** (2026-10-16): Li Shuhan's
+    /// **A reply carrying the email it answers read as mail out of order** (2026-10-16): a student's
     /// 21:40 reply, from Outlook in Chinese, held the whole 17:38 email under a 发件人/发送时间 block, so
     /// the note read 17:38, 21:40, 17:38. Gmail in Chinese and a wrapped "On … wrote:" left their line.
     #[test]
     fn quoted_history_is_trimmed_in_chinese_and_when_wrapped() {
-        let outlook = "Best regards,\nLi Shuhan\n________________________________\n\
+        let outlook = "Best regards,\nWang Fang\n________________________________\n\
                        发件人: Baljinder Singh Bal <s@g.com>\n发送时间: 2026年10月15日 17:38\n\
-                       收件人: Li Shuhan\n\nDear Shuhan, the earlier email";
-        assert_eq!(trim_quoted(outlook), "Best regards,\nLi Shuhan");
+                       收件人: Wang Fang\n\nDear Fang, the earlier email";
+        assert_eq!(trim_quoted(outlook), "Best regards,\nWang Fang");
         let wide = "好的。\n发件人：Bal\n发送时间：2026年10月15日\n之前的邮件";
         assert_eq!(trim_quoted(wide), "好的。");
         let gmail =
-            "Best regards,\nSiyu\n\n\nBal <s@g.com>于2026年10月15日 周四15:34写道：\n> earlier";
-        assert_eq!(trim_quoted(gmail), "Best regards,\nSiyu");
+            "Best regards,\nZhang Wei\n\n\nBal <s@g.com>于2026年10月15日 周四15:34写道：\n> earlier";
+        assert_eq!(trim_quoted(gmail), "Best regards,\nZhang Wei");
         let wrapped = "Baljinder\n\nOn Fri, 2 Oct 2026 at 17:53, Baljinder Singh Bal <\n\
                        s@g.com> wrote:\n\n> earlier";
         assert_eq!(trim_quoted(wrapped), "Baljinder");
         let wrapped_late =
-            "Baljinder\n\nOn Mon, 28 Sept 2026 at 19:40, Tong Jiacheng <t@u.nus.edu>\nwrote:\n";
+            "Baljinder\n\nOn Mon, 28 Sept 2026 at 19:40, Zhang Wei <z@uni.example.edu>\nwrote:\n";
         assert_eq!(trim_quoted(wrapped_late), "Baljinder");
         // A line of underscores alone is someone's own writing, not Outlook's rule.
         assert_eq!(trim_quoted("Fill in: ____________________"), "Fill in: ____________________");

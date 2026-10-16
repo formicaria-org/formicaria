@@ -1,5 +1,5 @@
 // A reply that only confirms a meeting proposes nothing — and must still say it was read
-// (2026-10-16: Siyu's "sounds good" was read within a minute, and looked like it never arrived).
+// (2026-10-16: a collaborator's "sounds good" was read within a minute, and looked like it never arrived).
 
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
@@ -36,7 +36,7 @@ describe('what the assistant made of the mail', () => {
       heard: [
         {
           note: 'C1',
-          title: 'Siyu Hou — Collaborator',
+          title: 'Sara Lodi — Collaborator',
           latest: '2026-10-16T09:13',
           said: 'nothing to change — the meeting stays at 2026-10-23 16:00',
           at: Math.floor(Date.now() / 1000),
@@ -51,7 +51,7 @@ describe('what the assistant made of the mail', () => {
         'Read up to the email of 2026-10-16 09:13: nothing to change — the meeting stays at 2026-10-23 16:00',
       ),
     ).toBeTruthy();
-    await fireEvent.click(screen.getByText('Siyu Hou — Collaborator'));
+    await fireEvent.click(screen.getByText('Sara Lodi — Collaborator'));
     expect(onopen).toHaveBeenCalledWith('C1');
   });
 
