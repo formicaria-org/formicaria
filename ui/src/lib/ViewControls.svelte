@@ -24,8 +24,6 @@
   /// What is left is the distinction that survived the cut. Month/Week/List and Feed/List do not
   /// re-fetch anything — `feedKey` is a constant for both kinds — they choose which component
   /// draws the cards already in hand. They are two ways of reading one view, not an edit to it.
-  /// The search box does re-key its fetch, and is the only place the query a pane is *showing* can
-  /// be seen or amended; the chrome's field can replace it but never reads it back.
   import { rendererKind, type Pane, type Feed } from './panes';
 
   interface Props {
@@ -105,36 +103,9 @@
   >
     filtered: {hides.join(' · ')}
   </button>
-{:else if pane.kind === 'search'}
-  <!-- **Not redundant with the chrome's search field.** That one retargets this pane, but its own
-       box is never seeded from `pane.query` — so without this you could replace the search and
-       never see or amend what you are currently searching for. -->
-  <input
-    class="ctl"
-    type="search"
-    placeholder="Search…"
-    value={pane.query}
-    oninput={(e) => onchange({ query: (e.currentTarget as HTMLInputElement).value })}
-    spellcheck="false"
-    aria-label="search"
-  />
 {/if}
 
 <style>
-  .ctl {
-    min-width: 0;
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
-    font-size: var(--text-xs);
-    /* The pane header sets `cursor: grab` on itself (the whole bar is the drag handle); a text
-       field inside it must not claim to be draggable. Set here because Svelte scoping stops the
-       header reaching into this component. */
-    cursor: auto;
-  }
   .seg {
     display: inline-flex;
     border: 1px solid var(--border);

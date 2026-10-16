@@ -2284,10 +2284,10 @@
     onclick={onHeaderClick}
     title={note && editing ? 'Tap the title (or press Ctrl+S / Esc) to finish editing' : undefined}
   >
-    <!-- **A title and one ＋, on every device** (2026-09-11, `decisions.md#ui`). The owner, with a
-         screenshot of three rows of chrome and a menu half off the screen: "just a single title and a
-         single plus to do things". Everything else a note offers — editing, media, full screen, copy,
-         delete, close, and whose note it is — lives in the ＋'s window. -->
+    <!-- **A title, one ＋ and a ×, on every device.** The title and ＋ are 2026-09-11 (`decisions.md#ui`):
+         "just a single title and a single plus to do things" — everything a note offers lives in the
+         ＋'s window. The × is 2026-10-16 (*only notes are windows*): on a phone closing a note took the
+         window list, its row and its ×; it is one press now, where a window is closed. -->
     <div class="title-row">
       {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span
         >{/if}
@@ -2465,6 +2465,16 @@
           {/if}
         </div>
       {/if}
+      <!-- Outside `{#if note}`: a note that failed to load is still a window, and still closes. -->
+      <button
+        class="edit close-note"
+        onclick={(e) => {
+          e.stopPropagation();
+          onclose();
+        }}
+        aria-label="close note"
+        title="Close">✕</button
+      >
     </div>
     {#if recording}
       <div class="recording" role="status" aria-live="polite">
@@ -3388,6 +3398,14 @@
   }
   .edit:hover {
     border-color: var(--accent);
+  }
+  /* The ×: last in the title row, so at the top right like any window's; quiet until pointed at. */
+  .close-note {
+    flex: none;
+    margin-left: auto;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-muted);
   }
   /* Destructive actions: quiet danger tint on the outline, filled on the final
      confirm button so the irreversible click is unmistakable. */

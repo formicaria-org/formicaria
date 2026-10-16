@@ -108,13 +108,14 @@ describe('the app, driven end to end as a user', () => {
   // must render, not throw: loadWorkspace re-mints ids on the way in.
   it('recovers from a persisted workspace with duplicate pane ids instead of blanking', async () => {
     const dup = { ...newPane('board'), id: 'p1' };
-    const dup2 = { ...newPane('agenda'), id: 'p1' }; // same id as dup — the corruption
+    // A note: since 2026-10-16 the workspace keeps one view, so the second pane must be a window.
+    const dup2 = { ...newPane('note', { noteId: 'missing' }), id: 'p1' }; // same id — the corruption
     localStorage.setItem('fm-workspace', JSON.stringify({ cols: 2, panes: [dup, dup2] }));
 
     const { container } = render(App);
     // The board still renders its cards — the workspace was repaired, not crashed.
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
-    // Both panes rendered (board + agenda): the duplicate id was de-duplicated, not dropped.
+    // Both panes rendered (board + note): the duplicate id was de-duplicated, not dropped.
     expect(container.querySelectorAll('.pane')).toHaveLength(2);
   });
 

@@ -1364,6 +1364,9 @@ export type MailStatus = {
     updatedConversations?: number;
     invites?: { created: number; moved: number; cancelled: number };
   } | null;
+  /** What the assistant made of each conversation it read, newest first: `latest` is the email it
+   *  read up to, `said` its verdict in words ("nothing to change — …" included). */
+  heard?: { note: string; title: string; latest: string; said: string; at: number }[];
 };
 
 export const mailStatus = () => invoke<MailStatus>('mail_status');

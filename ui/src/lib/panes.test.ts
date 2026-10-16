@@ -40,9 +40,6 @@ describe('feedKey', () => {
     expect(feedKey(newPane('board', { groupBy: 'status' }))).toBe('board:status');
     expect(feedKey(newPane('board', { groupBy: 'project' }))).toBe('board:project');
   });
-  it('keys search by its query', () => {
-    expect(feedKey(newPane('search', { query: 'mito' }))).toBe('search:mito');
-  });
   it('has no feed for a note pane (NotePanel self-fetches by id)', () => {
     expect(feedKey(newPane('note', { noteId: '01K' }))).toBeNull();
   });
@@ -154,12 +151,6 @@ describe('matchesTarget — what counts as the same thing', () => {
     // Load-bearing: two editors on one note race each other through `update_body`.
     expect(matchesTarget(n, 'note', { noteId: 'xyz' })).toBe(false);
   });
-
-  it('matches any search regardless of query, so a second query re-points one pane', () => {
-    expect(matchesTarget(newPane('search', { query: 'alpha' }), 'search', { query: 'beta' })).toBe(
-      true,
-    );
-  });
 });
 
 describe('migrateWorkspace', () => {
@@ -202,13 +193,51 @@ describe('migrateWorkspace', () => {
     const { workspace } = migrateWorkspace({
       cols: 2,
       layout: 'single',
-      panes: [newPane('board'), newPane('agenda')],
+      panes: [newPane('board'), newPane('note', { noteId: 'n1' })],
       active: 5,
     });
-    expect(workspace.active).toBe(1);
+    // Out of range lands on the view, the place you are.
+    expect(workspace.active).toBe(0);
     expect(
       migrateWorkspace({ cols: 1, panes: [newPane('board')], active: -3 }).workspace.active,
     ).toBe(0);
+  });
+
+  // **Only notes are windows** (schema 3, 2026-10-16): a search pane is dropped, and of several views
+  // the one in front is kept; notes stay open, and the one in front stays in front.
+  it('keeps one view and the notes, dropping search panes', () => {
+    const { workspace, migrated } = migrateWorkspace({
+      v: 2,
+      cols: 3,
+      panes: [
+        newPane('board'),
+        { ...newPane('board'), kind: 'search' } as never,
+        newPane('note', { noteId: 'n1' }),
+        newPane('agenda'),
+      ],
+      active: 3,
+    });
+    expect(workspace.panes.map((p) => p.kind)).toEqual(['note', 'agenda']);
+    expect(workspace.active).toBe(1);
+    expect(migrated).toBe(true);
+  });
+
+  it('keeps the first view when a note is in front, and adds a board when there is no view', () => {
+    const notes = migrateWorkspace({
+      v: 2,
+      cols: 3,
+      panes: [newPane('timeline'), newPane('note', { noteId: 'n1' }), newPane('agenda')],
+      active: 1,
+    }).workspace;
+    expect(notes.panes.map((p) => p.kind)).toEqual(['timeline', 'note']);
+    expect(notes.active).toBe(1);
+    const none = migrateWorkspace({
+      v: 2,
+      cols: 1,
+      panes: [newPane('note', { noteId: 'n1' })],
+    }).workspace;
+    expect(none.panes.map((p) => p.kind)).toEqual(['board', 'note']);
+    expect(none.active).toBe(1);
   });
 
   it('recomputes the column count, which load never used to do', () => {

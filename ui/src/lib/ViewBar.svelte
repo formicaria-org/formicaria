@@ -22,7 +22,6 @@
     feed,
     onselect,
     onchange,
-    onclose,
   }: {
     panes: Pane[];
     active: number;
@@ -30,7 +29,6 @@
     feed: Feed | undefined;
     onselect: (i: number) => void;
     onchange: (patch: Partial<Pane>) => void;
-    onclose: (id: string) => void;
   } = $props();
 </script>
 
@@ -68,18 +66,8 @@
        into anything that is not a view. The chrome bar carries it now on every screen, and two
        buttons with one name is something two test files had to work around. -->
 
-  <!-- Closing is offered here as well as in the pane header: this strip is where you can see
-       *which* window you are closing, next to the others. -->
-  {#if panes.length > 1}
-    <button
-      class="tab close"
-      onclick={() => onclose(panes[active].id)}
-      aria-label="close this view"
-      title="Close this view"
-    >
-      <Icon name="close" size={16} />
-    </button>
-  {/if}
+  <!-- **No close here** (2026-10-16): only notes are windows, and a note closes from the × in its own
+       header — one place, on every device. -->
 </nav>
 
 <style>
@@ -134,10 +122,6 @@
   /* **The spacer is gone.** It was there to push the utilities to the far end, but `.tab`'s own
      `flex: 1 0 auto` already does that — so with one or two windows open it was simply a wide
      band of empty grey, which is what it looked like. */
-  .tab.close {
-    flex: 0 0 auto;
-    min-width: 3rem;
-  }
   /* The window you are in is named in full; the others are just enough to recognise. */
   .tab.active .label {
     max-width: 12rem;

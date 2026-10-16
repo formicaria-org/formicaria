@@ -2,8 +2,14 @@
 
 Every view is the same data seen a different way — "a query plus a renderer".
 Open a group from the sidebar — down the left of a wide window, along the bottom of a narrow one.
-One view is on screen at a time; a strip along the bottom moves between the ones you have open. If
-you would rather have several side by side, choose **Tiled** under *Layout* in Settings.
+There is always **one view**, the place you are: choosing another view changes it, it does not open
+a window beside it. **Only notes open as windows**, over the view: each has a **✕** at the top right
+of its header that closes it and takes you back to the view (Back does the same). If you would
+rather see a note beside the view, choose **Tiled** under *Layout* in Settings.
+
+**Search is not a view.** Type in the search field and the notes that match drop down from it, over
+whatever you are looking at; pick one to open it. ✕, Escape, Back or a tap outside puts the list
+away.
 
 ## The four groups
 
@@ -20,7 +26,8 @@ The views are gathered into four groups, and they are all ways of looking at the
   Food, *Day*, *Menu*, *Trends* and *Diet*.
 - **On a wide window** the groups head the sidebar.
 - **On a phone** the bar along the bottom is the same on every screen: the **＋**, search, the
-  menu of views, your open windows, backing up, settings. The menu of views lists the same
+  menu of views, your open notes (a numbered button, there while a note is open), backing up,
+  settings. The menu of views lists the same
   places, by the same names, as the sidebar of a wide window.
 - **The ＋ is one control, and what it makes follows what you are looking at.** In Food it logs a
   food; in Fitness, an exercise or an activity; anywhere else it opens the list of things to make — a note, a

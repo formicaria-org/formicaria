@@ -1,4 +1,9 @@
 <script lang="ts">
+  /// Where the person is sent to fix things, as plain links (2026-10-16, the owner: *"guide me better
+  /// to the cloud settings"*): the manual's step-by-step set-up, and the one Google Cloud page whose
+  /// *Publish app* ends the 7-day sign-out. One list, shared with the Collaboration card.
+  import { MAIL_LINKS } from './mailLinks';
+  const { AUDIENCE, MANUAL_SETUP, MANUAL_WEEKLY } = MAIL_LINKS;
   // Gmail, read-only — `decisions.md` 2026-10-09.
   //
   // Three steps, shown in order: save your own Google Cloud client, sign in with Google once, and
@@ -181,7 +186,13 @@
       <p class="muted small">
         Google shows a warning that it has not checked this app — that is because the app is your
         own Google Cloud project. Choose <em>Continue</em>. While the project is in testing, Google
-        asks you to sign in again every 7 days; this panel will say when.
+        ends the sign-in every 7 days and mail stops —
+        <a href={AUDIENCE} target="_blank" rel="noopener noreferrer">publish the app</a> in your
+        Google Cloud project to stop that (<a
+          href={MANUAL_WEEKLY}
+          target="_blank"
+          rel="noopener noreferrer">how</a
+        >).
       </p>
     {/if}
 
@@ -194,8 +205,10 @@
     >
       {#if !st.configured}
         <p class="muted small">
-          First, your own Google Cloud client (a one-time set-up — the manual's <em>Mail</em> page walks
-          through it). Paste its two values here.
+          First, your own Google Cloud client — a one-time set-up of about 10 minutes,
+          <a href={MANUAL_SETUP} target="_blank" rel="noopener noreferrer"
+            >step by step in the manual</a
+          >, each step with a link to its page in Google Cloud. Paste its two values here.
         </p>
       {/if}
       <label>

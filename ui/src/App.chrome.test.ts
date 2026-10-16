@@ -87,8 +87,8 @@ test('the panel offers every view you can open, and opening one shows it', async
   for (const v of ['Library', 'Tasks', 'Food', 'Fitness', 'Collaboration', 'Discussions']) {
     expect(names, `${v} missing from the rail`).toContain(v);
   }
-  // **And two absences that are decisions, not omissions.** `Search` is offered nowhere: an empty
-  // search pane does nothing, and the search box makes one when you type. `Activity` is off the
+  // **And two absences that are decisions, not omissions.** `Search` is not a place: it is the
+  // field's passing panel (2026-10-16). `Activity` is off the
   // rail — a column costs attention per entry — and stays in the palette, which is filterable and
   // can afford it.
   for (const v of ['Board', 'Agenda', 'Timeline']) expect(names).not.toContain(v);
@@ -97,10 +97,16 @@ test('the panel offers every view you can open, and opening one shows it', async
   // And the saved views, which is the half a fixed list of built-ins would miss.
   expect(names).toContain('Active');
 
-  // Clicking opens it: there was no window of the Library, so one appears.
+  // Clicking shows it **in the one view** — only notes are windows (2026-10-16), so the view you
+  // were on is re-pointed rather than a window added beside it.
   const before = document.querySelectorAll('.pane').length;
   await fireEvent.click(screen.getByRole('button', { name: 'open Library' }));
-  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+  await waitFor(() =>
+    expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe(
+      'Timeline',
+    ),
+  );
+  expect(document.querySelectorAll('.pane').length).toBe(before);
 
   // **And clicking it again shows that one rather than stacking another.** With one view at a
   // time, tapping a name means "show me that"; appending a second agenda answers a question
@@ -108,7 +114,7 @@ test('the panel offers every view you can open, and opening one shows it', async
   // "showing" is asserted structurally — which cell carries `.active` — not by visibility.
   await fireEvent.click(screen.getByRole('button', { name: 'open Library' }));
   await fireEvent.click(screen.getByRole('button', { name: 'open Library' }));
-  expect(document.querySelectorAll('.pane').length).toBe(before + 1);
+  expect(document.querySelectorAll('.pane').length).toBe(before);
   expect(document.querySelectorAll('.cell.active').length, 'one active window').toBe(1);
   // The name is read off the bar that names it — a pane has no header of its own when one view
   // fills the window, which is the row this arrangement exists to reclaim.
@@ -176,40 +182,63 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
 
   const before = document.querySelectorAll('.pane').length;
   await fireEvent.click(screen.getByRole('menuitem', { name: 'Library' }));
-  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+  await waitFor(() =>
+    expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe(
+      'Timeline',
+    ),
+  );
+  expect(document.querySelectorAll('.pane').length).toBe(before);
 
   // The bar's menu is the other consumer of the same list, so it re-points too — one edit
   // covers both, and this is what proves they did not drift.
   await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
   await fireEvent.click(await screen.findByRole('menuitem', { name: 'Library' }));
-  expect(document.querySelectorAll('.pane').length).toBe(before + 1);
+  expect(document.querySelectorAll('.pane').length).toBe(before);
 });
 
-/// **A second search must change what you are looking at.**
-///
-/// `onSearchInput` re-pointed the existing search pane but never made it the active one. While
-/// every pane was on screen that was invisible; the moment one view at a time became the default
-/// it meant a second query did nothing you could see.
-test('typing a second query re-points the one search window, and shows it', async () => {
+/// **Search is a passing panel, never a window** (2026-10-16): the owner, *"we open even searches as
+/// windows, which to me makes no sense"*. Typing fills a panel over the view; picking a result opens
+/// that note; ×, Escape and Back put it away — and at no point is a window added for the search.
+test('a search fills a passing panel, and picking a result opens the note', async () => {
   vi.useFakeTimers();
   try {
     render(App);
     const box = await screen.findByRole('searchbox', { name: 'search notes' });
+    const panes = document.querySelectorAll('.pane').length;
 
     await fireEvent.input(box, { target: { value: 'alpha' } });
     await vi.advanceTimersByTimeAsync(300);
-    expect(document.querySelectorAll('.pane').length).toBeGreaterThan(1);
+    const panel = await screen.findByRole('dialog', { name: 'search results' });
+    expect(document.querySelectorAll('.pane').length, 'no window for a search').toBe(panes);
 
-    const panes = document.querySelectorAll('.pane').length;
     await fireEvent.input(box, { target: { value: 'beta' } });
     await vi.advanceTimersByTimeAsync(300);
-    // Still one search window...
     expect(document.querySelectorAll('.pane').length).toBe(panes);
-    expect(document.querySelectorAll('.cell.active').length).toBe(1);
-    // ...and it is the one being described: the bar carries the active view's own controls, so
-    // the query box up there showing `beta` *is* the assertion that the search became visible.
-    // It also pins the thing the chrome's field cannot do — show you what you are searching for.
-    expect((screen.getByLabelText('search') as HTMLInputElement).value).toBe('beta');
+    expect(screen.getAllByRole('dialog', { name: 'search results' })).toHaveLength(1);
+
+    // Escape puts it away and keeps the words; focusing the field again brings it back.
+    await fireEvent.keyDown(box, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'search results' })).toBeNull();
+    await fireEvent.focus(box);
+    expect(await screen.findByRole('dialog', { name: 'search results' })).toBeTruthy();
+
+    // × clears it.
+    await fireEvent.click(screen.getByRole('button', { name: 'close search' }));
+    expect(screen.queryByRole('dialog', { name: 'search results' })).toBeNull();
+    expect((box as HTMLInputElement).value).toBe('');
+    void panel;
+
+    // Picking a result opens that note — the one window a search may lead to — and puts it away.
+    await fireEvent.input(box, { target: { value: 'a' } });
+    await vi.advanceTimersByTimeAsync(300);
+    const found = await screen.findByRole('dialog', { name: 'search results' });
+    await vi.waitFor(() => expect(found.querySelector('button.row')).toBeTruthy());
+    await fireEvent.click(found.querySelector('button.row') as HTMLElement);
+    expect(screen.queryByRole('dialog', { name: 'search results' })).toBeNull();
+    expect(document.querySelectorAll('.pane').length).toBe(panes + 1);
+    expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).not.toBe(
+      'Board · status',
+    );
   } finally {
     vi.useRealTimers();
   }
@@ -334,7 +363,10 @@ test('a saved view still lists and opens, with no way to author one anywhere', a
 
   const before = document.querySelectorAll('.pane').length;
   await fireEvent.click(screen.getByRole('button', { name: 'open Active' }));
-  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+  await waitFor(() =>
+    expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe('Active'),
+  );
+  expect(document.querySelectorAll('.pane').length).toBe(before);
 
   // And nothing anywhere in the chrome offers to make, rename or remove one.
   for (const gone of [

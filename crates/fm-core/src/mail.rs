@@ -13,14 +13,14 @@
 //!    or marks the same note, because both are keyed on the invite's `UID`.
 //! 2. [`reconcile`] keeps **one note per conversation** (Gmail's thread), titled by its subject, and
 //!    holding **the whole exchange**: one block per message — sender, To, Cc, date and time,
-//!    attachment names, and the text with its quoted history trimmed — appended in the order they
-//!    arrive, plus `participants` and a link that opens the thread in Gmail (`decisions.md`, *the email
+//!    attachment names, and the text with its quoted history trimmed — **placed by when it was sent**
+//!    (a message read after a later one of its conversation goes above it, 2026-10-16), plus `participants` and a link that opens the thread in Gmail (`decisions.md`, *the email
 //!    exchange lives in the conversation note*). The assistant reads that note like any other.
 //!
 //! # What is never done
 //!
 //! The title is never rewritten, and **nothing already in the body is changed or moved**: a message is
-//! only ever appended, found again by an invisible `<!-- gmail:<id> -->` marker so a re-read adds
+//! only ever added — at the end, or just above the first message sent after it — found again by an invisible `<!-- gmail:<id> -->` marker so a re-read adds
 //! nothing. Nothing is deleted, and no date is inferred from prose here — that is the model's job,
 //! behind a human's acceptance.
 
@@ -332,42 +332,45 @@ fn attachment_names(p: &Value) -> Vec<String> {
 /// messages are already above it in the note, and every reply repeating the whole thread would make a
 /// note grow with the square of its length.
 ///
-/// English and Italian forms of Gmail, Outlook and Apple Mail, plus a run of `>` lines. A message
+/// English, Italian and Chinese forms of Gmail, Outlook and Apple Mail (also an "On … wrote:" wrapped
+/// onto two lines), plus a run of `>` lines. A message
 /// that is *only* quoted text keeps it, rather than becoming empty.
 pub fn trim_quoted(text: &str) -> String {
     let lines: Vec<&str> = text.lines().collect();
-    let starts = |l: &str| {
-        let t = l.trim();
-        let lower = t.to_lowercase();
-        t.starts_with('>')
-            || (lower.starts_with("on ") && lower.ends_with("wrote:"))
-            || (lower.starts_with("il ") && lower.ends_with("ha scritto:"))
-            || (lower.starts_with("in data ") && lower.ends_with("ha scritto:"))
-            || lower.starts_with("-----original message-----")
-            || lower.starts_with("-----messaggio originale-----")
-            || lower.starts_with("---------- forwarded message")
-            || lower.starts_with("---------- messaggio inoltrato")
-            // Outlook's header block: "From: …" / "Da: …" directly followed by a "Sent:"/"Inviato:".
-            || ((lower.starts_with("from:") || lower.starts_with("da:")) && t.len() < 200)
+    let low = |i: usize| lines.get(i).map(|l| l.trim().to_lowercase()).unwrap_or_default();
+    // A header line, matched on its label with either colon — Chinese mail writes the full-width one.
+    let labelled = |l: &str, labels: &[&str]| {
+        labels.iter().any(|x| l.starts_with(&format!("{x}:")) || l.starts_with(&format!("{x}：")))
     };
-    let cut = lines.iter().enumerate().position(|(i, l)| {
-        if !starts(l) {
-            return false;
+    // Outlook's block: "From: …" directly followed by "Sent: …" — in English, Italian or Chinese.
+    let header_at = |i: usize| {
+        labelled(&low(i), &["from", "da", "发件人"]) && lines[i].trim().chars().count() < 200 && {
+            labelled(&low(i + 1), &["sent", "inviato", "date", "data", "发送时间", "日期", "时间"])
         }
-        let lower = l.trim().to_lowercase();
-        if lower.starts_with("from:") || lower.starts_with("da:") {
-            // Only Outlook's block, never a sentence that happens to begin "Da: …".
-            return lines.get(i + 1).is_some_and(|n| {
-                let n = n.trim().to_lowercase();
-                n.starts_with("sent:")
-                    || n.starts_with("inviato:")
-                    || n.starts_with("date:")
-                    || n.starts_with("data:")
-            });
-        }
-        true
-    });
-    match cut {
+    };
+    // "On … wrote:" and its translations, on one line or wrapped onto the next by the sender's mail.
+    let intro = |l: &str| {
+        (l.starts_with("on ") && l.ends_with("wrote:"))
+            || ((l.starts_with("il ") || l.starts_with("in data ")) && l.ends_with("ha scritto:"))
+            || l.ends_with("写道：")
+            || l.ends_with("写道:")
+    };
+    let starts = |i: usize| {
+        let l = low(i);
+        l.starts_with('>')
+            || intro(&l)
+            || ((l.starts_with("on ") || l.starts_with("il ") || l.starts_with("in data "))
+                && l.chars().count() < 200
+                && intro(&format!("{l} {}", low(i + 1))))
+            || l.starts_with("-----original message-----")
+            || l.starts_with("-----messaggio originale-----")
+            || l.starts_with("---------- forwarded message")
+            || l.starts_with("---------- messaggio inoltrato")
+            // Outlook's rule above its header block.
+            || (l.len() >= 20 && l.chars().all(|c| c == '_') && header_at(i + 1))
+            || header_at(i)
+    };
+    match (0..lines.len()).find(|&i| starts(i)) {
         Some(0) | None => text.trim().to_string(),
         Some(i) => lines[..i].join("\n").trim_end().to_string(),
     }
@@ -376,17 +379,7 @@ pub fn trim_quoted(text: &str) -> String {
 /// The block one message adds to its conversation note. The marker is invisible in the read view and
 /// is how a re-read recognises a message it has already written.
 pub fn render(m: &Message, offset: UtcOffset) -> String {
-    let when = OffsetDateTime::from_unix_timestamp(m.at)
-        .unwrap_or(OffsetDateTime::UNIX_EPOCH)
-        .to_offset(offset);
-    let stamp = format!(
-        "{}-{:02}-{:02} {:02}:{:02}",
-        when.year(),
-        u8::from(when.month()),
-        when.day(),
-        when.hour(),
-        when.minute()
-    );
+    let stamp = sent(m, offset);
     let from = if m.from.is_empty() { "(unknown sender)" } else { &m.from };
     let mut out = format!("{}\n### {from} — {stamp}\n", marker(&m.id));
     let mut who = Vec::new();
@@ -407,6 +400,43 @@ pub fn render(m: &Message, offset: UtcOffset) -> String {
     out.push_str(m.text.trim());
     out.push('\n');
     out
+}
+
+/// When a message was sent, as its heading shows it: `YYYY-MM-DD HH:MM` on the given clock.
+fn sent(m: &Message, offset: UtcOffset) -> String {
+    let when = OffsetDateTime::from_unix_timestamp(m.at)
+        .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+        .to_offset(offset);
+    format!(
+        "{}-{:02}-{:02} {:02}:{:02}",
+        when.year(),
+        u8::from(when.month()),
+        when.day(),
+        when.hour(),
+        when.minute()
+    )
+}
+
+/// Add a rendered message where it belongs by `at` (its [`sent`] time): just above the first message
+/// already in the note that was sent later, else at the end. A message read late — an older reply
+/// that only reached the reader after a newer one — so lands in date order, and nothing already in the
+/// body moves. A message's time is read from the heading under its marker; one that cannot be read
+/// is passed over.
+fn place(body: &mut String, block: &str, at: &str) {
+    let later = body.match_indices("<!-- gmail:").map(|(i, _)| i).find(|&i| {
+        let heading = body[i..].lines().nth(1).unwrap_or("");
+        heading.starts_with("### ")
+            && heading.rsplit_once(" — ").is_some_and(|(_, t)| t.len() == 16 && t > at)
+    });
+    match later {
+        Some(i) => body.insert_str(i, &format!("{block}\n")),
+        None => {
+            if !body.is_empty() && !body.ends_with("\n\n") {
+                body.push_str(if body.ends_with('\n') { "\n" } else { "\n\n" });
+            }
+            body.push_str(block);
+        }
+    }
 }
 
 fn marker(id: &str) -> String {
@@ -519,8 +549,8 @@ pub fn index<'a>(notes: impl IntoIterator<Item = &'a Object>) -> HashMap<String,
         .collect()
 }
 
-/// One note per conversation: create it on the first message, **append** each message the note does
-/// not yet hold (in arrival order), widen `participants`, and move the "latest message" fields forward.
+/// One note per conversation: create it on the first message, **add** each message the note does
+/// not yet hold in the order they were sent ([`place`]), widen `participants`, and move the "latest message" fields forward.
 /// The title is never rewritten, and nothing already in the body — the person's own writing above,
 /// between or below the messages — is changed or moved.
 ///
@@ -571,10 +601,7 @@ pub fn reconcile(
             Err(_) => true,
         };
         if !note.body.contains(&marker(&m.id)) {
-            if !note.body.is_empty() && !note.body.ends_with("\n\n") {
-                note.body.push_str(if note.body.ends_with('\n') { "\n" } else { "\n\n" });
-            }
-            note.body.push_str(&render(m, offset));
+            place(&mut note.body, &render(m, offset), &sent(m, offset));
             changed.insert(m.thread_id.clone());
         }
         let mut people = participants(&note);
@@ -823,6 +850,34 @@ mod tests {
         assert!(c.is_empty() && u.is_empty(), "a re-read must not touch the note");
     }
 
+    /// A reply read after a later one of its conversation (the label reaching it late, a read cut at
+    /// 200 messages) goes above the later one, not to the bottom — and the person's text stays put.
+    #[test]
+    fn a_message_read_late_is_placed_by_when_it_was_sent() {
+        let (create, _, _) = reconcile(
+            &[msg("1", "t", 1_760_000_000, "Maria"), msg("3", "t", 1_760_090_000, "Luca")],
+            &HashMap::new(),
+            offset!(+8),
+        );
+        let mut note = create[0].clone();
+        note.body =
+            note.body.replace("<!-- gmail:3 -->", "Da fare: rispondere.\n\n<!-- gmail:3 -->");
+        let existing = index([&note]);
+        let (_, update, _) =
+            reconcile(&[msg("2", "t", 1_760_040_000, "Bea")], &existing, offset!(+8));
+        let b = &update[0].body;
+        let (maria, bea, luca) =
+            (b.find("### Maria").unwrap(), b.find("### Bea").unwrap(), b.find("### Luca").unwrap());
+        assert!(maria < bea && bea < luca, "in the order they were sent:\n{b}");
+        assert!(b.find("Da fare").unwrap() < luca, "nothing already there moved:\n{b}");
+        assert!(b.contains("\n\n<!-- gmail:3 -->"), "the later message keeps its spacing:\n{b}");
+        // Sent last: at the end, as before.
+        let (_, update, _) =
+            reconcile(&[msg("4", "t", 1_760_200_000, "Bea")], &index([&update[0]]), offset!(+8));
+        let b = &update[0].body;
+        assert!(b.find("gmail:4").unwrap() > b.find("### Luca").unwrap(), "{b}");
+    }
+
     #[test]
     fn quoted_history_is_trimmed_in_english_and_italian() {
         let en = "Sounds good.\n\nOn Tue, 7 Oct 2026 at 09:12, Maria <m@x.it> wrote:\n> earlier";
@@ -836,6 +891,31 @@ mod tests {
         assert_eq!(trim_quoted("Da: domani lavoriamo da casa."), "Da: domani lavoriamo da casa.");
         // All-quoted keeps its text rather than vanishing.
         assert_eq!(trim_quoted("> only quoted"), "> only quoted");
+    }
+
+    /// **A reply carrying the email it answers read as mail out of order** (2026-10-16): Li Shuhan's
+    /// 21:40 reply, from Outlook in Chinese, held the whole 17:38 email under a 发件人/发送时间 block, so
+    /// the note read 17:38, 21:40, 17:38. Gmail in Chinese and a wrapped "On … wrote:" left their line.
+    #[test]
+    fn quoted_history_is_trimmed_in_chinese_and_when_wrapped() {
+        let outlook = "Best regards,\nLi Shuhan\n________________________________\n\
+                       发件人: Baljinder Singh Bal <s@g.com>\n发送时间: 2026年10月15日 17:38\n\
+                       收件人: Li Shuhan\n\nDear Shuhan, the earlier email";
+        assert_eq!(trim_quoted(outlook), "Best regards,\nLi Shuhan");
+        let wide = "好的。\n发件人：Bal\n发送时间：2026年10月15日\n之前的邮件";
+        assert_eq!(trim_quoted(wide), "好的。");
+        let gmail =
+            "Best regards,\nSiyu\n\n\nBal <s@g.com>于2026年10月15日 周四15:34写道：\n> earlier";
+        assert_eq!(trim_quoted(gmail), "Best regards,\nSiyu");
+        let wrapped = "Baljinder\n\nOn Fri, 2 Oct 2026 at 17:53, Baljinder Singh Bal <\n\
+                       s@g.com> wrote:\n\n> earlier";
+        assert_eq!(trim_quoted(wrapped), "Baljinder");
+        let wrapped_late =
+            "Baljinder\n\nOn Mon, 28 Sept 2026 at 19:40, Tong Jiacheng <t@u.nus.edu>\nwrote:\n";
+        assert_eq!(trim_quoted(wrapped_late), "Baljinder");
+        // A line of underscores alone is someone's own writing, not Outlook's rule.
+        assert_eq!(trim_quoted("Fill in: ____________________"), "Fill in: ____________________");
+        assert_eq!(trim_quoted("a\n____________________\nb"), "a\n____________________\nb");
     }
 
     #[test]

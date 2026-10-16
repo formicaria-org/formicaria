@@ -484,6 +484,9 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/mail_connect",
     "/api/mail_read_now",
     "/api/mail_disconnect",
+    // The assistant's verdicts name conversations; the novelty counter says when mail arrived.
+    "/api/mail_novelty",
+    "/api/mail_heard",
     "/api/oauth_google",
     // Spawns a process, or writes host-level state.
     "/api/set_agent",

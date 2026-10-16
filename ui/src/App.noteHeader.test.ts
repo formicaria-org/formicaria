@@ -46,14 +46,29 @@ async function openOptions(plus: HTMLElement) {
   return screen.findByRole('dialog', { name: 'note options' });
 }
 
-test('the header holds the title and one ＋, and nothing else', async () => {
+test('the header holds the title, one ＋ and a ×, and nothing else', async () => {
   const plus = await openNote();
   const header = plus.closest('header')!;
   expect(within(header).getByRole('heading', { level: 2 })).toBeTruthy();
   const buttons = within(header).getAllByRole('button');
   expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim())).toEqual([
     'note options',
+    'close note',
   ]);
+});
+
+/// **One press closes a note** (2026-10-16): on a phone it took the window list, its row and its ×.
+/// The × is the last thing in the header — top right, where a window is closed — and closing goes
+/// back to the view the note was opened over.
+test('the × closes the note and goes back to the view', async () => {
+  const plus = await openNote();
+  const panes = document.querySelectorAll('.pane').length;
+  await fireEvent.click(
+    within(plus.closest('header')!).getByRole('button', { name: 'close note' }),
+  );
+  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(panes - 1));
+  expect(screen.queryByRole('button', { name: 'note options' })).toBeNull();
+  expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toMatch(/Board/);
 });
 
 test('an untitled note is named by its first line, not "note"', async () => {

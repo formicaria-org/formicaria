@@ -18,6 +18,7 @@
   import FeedThread from './FeedThread.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import ProposalReview from './ProposalReview.svelte';
+  import MailHeard from './MailHeard.svelte';
   import TagChips from './library/TagChips.svelte';
   import { spacesShown, type SpaceTab } from './spaces.svelte';
   import TrackerPane from './TrackerPane.svelte';
@@ -309,12 +310,9 @@
         <ViewControls {pane} {feed} {onchange} />
       {/if}
 
+      <!-- **No close on a view** (2026-10-16): only notes are windows, and a note closes from its own
+           header's ×. The view is the place you are, re-pointed rather than closed. -->
       <span class="spacer"></span>
-      {#if pane.kind !== 'note'}
-        <button class="pane-close" onclick={onclose} aria-label="close pane" title="Close pane">
-          <Icon name="close" size={14} />
-        </button>
-      {/if}
     </header>
   {/if}
 
@@ -378,8 +376,6 @@
       {:else}
         <p class="pane-empty">Loading…</p>
       {/if}
-    {:else if pane.kind === 'search'}
-      <Search {cards} query={pane.query} {onopen} />
       <!-- A saved view asking for the flat list. Until now `renderer: search` parsed, was accepted
            by the loader, and then drew as a Timeline — the one place the "a broken view names
            itself, never vanishes" discipline was not applied, because nothing was broken: it just
@@ -453,6 +449,9 @@
           </ul>
         </section>
       {/if}
+      <!-- What the assistant made of the mail it read — including "nothing to change", which
+           proposes nothing and so would otherwise leave no trace here. -->
+      <MailHeard {onopen} />
       <!-- Proposals: each expands to its diff (fetched lazily on open); "open" jumps to the
            proposal note itself, where its discussion lives. -->
       {#if cards.length}
@@ -621,11 +620,6 @@
   .pane-head:active {
     cursor: grabbing;
   }
-  /* The close button sits above the header's grab cursor and keeps its own. The controls in
-     `ViewControls` set theirs there — Svelte scoping stops this file reaching into a child. */
-  .pane-head .pane-close {
-    cursor: pointer;
-  }
   /* **A name, not a button.** It carried a border and a surface because it used to be pressable;
      dressing a label as a control is the affordance lie this file has a comment about elsewhere.
      Quiet, and it stays out of the way of the controls that *are* pressable beside it. */
@@ -642,21 +636,6 @@
   }
   .spacer {
     flex: 1;
-  }
-  .pane-close {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    padding: 2px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-  }
-  .pane-close:hover {
-    color: var(--text);
-    background: var(--surface-hover);
   }
   .pane-body {
     flex: 1;

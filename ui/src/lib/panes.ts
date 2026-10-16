@@ -18,15 +18,7 @@ import type {
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
 export type PaneKind =
-  | 'board'
-  | 'agenda'
-  | 'timeline'
-  | 'search'
-  | 'activity'
-  | 'collaboration'
-  | 'discussions'
-  | 'note'
-  | 'view';
+  'board' | 'agenda' | 'timeline' | 'activity' | 'collaboration' | 'discussions' | 'note' | 'view';
 
 export interface Pane {
   id: string;
@@ -35,7 +27,6 @@ export interface Pane {
   agendaMode: 'month' | 'week' | 'list'; // agenda
   /** timeline — how much of each note a row shows. See `Timeline.svelte`. */
   timelineMode: 'feed' | 'compact';
-  query: string; // search
   noteId: string | null; // note / whiteboard
   viewName: string | null; // a saved .view
   /** note — the title last seen, so a list of windows can name a note rather than call it "Note".
@@ -65,7 +56,13 @@ export type Layout = 'single' | 'tiled';
 /** Schema version stamped into a persisted workspace. Bumped when a stored record needs
  *  interpreting differently — the point being to tell "the user chose this" apart from "this was
  *  the default at the time", which is exactly what the `auto` removal turned on. */
-export const SCHEMA = 2;
+export const SCHEMA = 3;
+
+/** **Only notes are windows** (`decisions.md#ui`, 2026-10-16). Every other pane is *the view* — the
+ *  one place you are — and the workspace holds exactly one of it, which picking a view re-points. */
+export function isView(p: Pane): boolean {
+  return p.kind !== 'note';
+}
 
 export interface Workspace {
   /** Schema version (`SCHEMA`). Absent on anything written before 2026-08-31, which is precisely
@@ -111,7 +108,6 @@ export function newPane(kind: PaneKind, over: Partial<Pane> = {}): Pane {
     // notes in one stream, each badged with its audience and its last editor. The dense list is a
     // click away for when you are hunting rather than catching up.
     timelineMode: 'feed',
-    query: '',
     noteId: null,
     viewName: null,
     colSpan: 1,
@@ -192,6 +188,8 @@ export function matchesTarget(p: Pane, kind: PaneKind, over: Partial<Pane> = {})
  *  2. **Recomputes `cols`**, which was only ever recomputed on add/close (see `defaultWorkspace`).
  *  3. **Migrates the layout, once.** Missing or `auto` becomes `single`; `tiled` is left alone.
  *  4. **Stamps `SCHEMA`**, so step 3 cannot run twice and undo a later choice.
+ *  5. **Keeps one view** (schema 3): drops a stored search pane and every view but the one in front
+ *     (else the first), so the workspace is one view and its notes — `isView`.
  *
  *  `migrated` means *"this differs from what was stored — write it back"*, which includes the
  *  first run, where nothing was stored at all.
@@ -208,12 +206,20 @@ export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated
     // rather than implicit in whatever this version happens to default to.
     return { workspace: defaultWorkspace(), migrated: true };
   }
-  const panes = reidentify(w.panes as Pane[]);
+  // **One view, and the notes** (schema 3, 2026-10-16): a stored search pane is dropped — search is a
+  // passing panel now — and of several views the one in front is kept, else the first.
+  const stored0 = (w.panes as Pane[]).filter((p) => (p.kind as string) !== 'search');
+  const front = (w.panes as Pane[])[w.active ?? 0];
+  const view = front && isView(front) && stored0.includes(front) ? front : stored0.find(isView);
+  const kept = stored0.filter((p) => !isView(p) || p === view);
+  if (!view) kept.unshift(newPane('board'));
+  const active0 = front ? kept.indexOf(front) : -1;
+  const panes = reidentify(kept);
   // `as string` because a pre-migration record can legitimately hold 'auto', which `Layout` no
   // longer admits — reading it is the whole point of this function.
   const stored = w.layout as string | undefined;
   const layout: Layout = stored === 'tiled' ? 'tiled' : 'single';
-  const migrated = w.v !== SCHEMA;
+  const migrated = w.v !== SCHEMA || kept.length !== w.panes.length;
   return {
     workspace: {
       ...w,
@@ -221,7 +227,7 @@ export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated
       layout,
       panes,
       cols: autoCols(panes.length, { colMode: w.colMode, cols: w.cols }),
-      active: Math.min(Math.max(w.active ?? 0, 0), panes.length - 1),
+      active: active0 === -1 ? panes.findIndex(isView) : active0,
     } as Workspace,
     migrated,
   };
@@ -238,8 +244,6 @@ export function feedKey(p: Pane): string | null {
       return 'agenda';
     case 'timeline':
       return 'timeline';
-    case 'search':
-      return `search:${p.query}`;
     case 'collaboration':
       // The proposals feed — a flat `ObjectMeta` list like `timeline`, fetched once and shared.
       return 'collaboration';
@@ -316,8 +320,6 @@ export function paneTitle(p: Pane): string {
   switch (p.kind) {
     case 'board':
       return `${paneLabel('board')} · ${p.groupBy}`;
-    case 'search':
-      return p.query ? `${paneLabel('search')} · ${p.query}` : paneLabel('search');
     case 'view':
       return p.viewName ?? 'View';
     case 'note':
@@ -354,7 +356,6 @@ export const BUILTIN_PANES: BuiltinPane[] = [
   { kind: 'board', label: 'Board', icon: 'board' },
   { kind: 'agenda', label: 'Agenda', icon: 'calendar' },
   { kind: 'timeline', label: 'Timeline', icon: 'timeline' },
-  { kind: 'search', label: 'Search', icon: 'search' },
   { kind: 'activity', label: 'Activity', icon: 'inbox' },
   { kind: 'collaboration', label: 'Collaboration', icon: 'merge' },
   { kind: 'discussions', label: 'Discussions', icon: 'chat' },
@@ -374,10 +375,9 @@ export function paneIcon(p: Pane): string | null {
 /// needs its icon in the bottom bar, and a workspace saved before today may hold one. These two
 /// lists are only about what the app *invites* you to open.
 ///
-/// **`search` is offered nowhere.** Opening an empty search pane does nothing: the search box makes
-/// one when you type into it (`onSearchInput`), which is the only way in that has ever made sense.
-/// Listing it invited a click that produces a blank pane.
-export const OPENABLE_PANES: BuiltinPane[] = BUILTIN_PANES.filter((b) => b.kind !== 'search');
+/// Every built-in is offered since search stopped being a pane (2026-10-16): it is a passing panel
+/// under the search field, not a place.
+export const OPENABLE_PANES: BuiltinPane[] = BUILTIN_PANES;
 
 /// **What the rail shows.** The palette is filterable, so a long list there costs nothing; the rail
 /// is a column you look at, where every entry is paid for in attention. `activity` comes off it —

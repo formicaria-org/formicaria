@@ -31,9 +31,15 @@
 //! A background thread reads every [`INTERVAL`] while the app is open. The person signs in once; a
 //! Google Cloud project in "testing" mode asks for that again every 7 days, and the panel says so
 //! plainly rather than going quiet.
+//!
+//! **A read that brings something new wakes the assistant** (2026-10-16): it raises [`NOVELTY`], which
+//! the assistant asks for at every poll (`/api/mail_novelty`, seconds apart), and the meeting pass runs
+//! at once rather than at its next minute. What the assistant concluded about each conversation comes
+//! back through `/api/mail_heard` and is shown in Collaboration — a reply that only confirms the
+//! meeting changes nothing, and "nothing to change" has to be visible, or it reads as nothing happened.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -47,16 +53,24 @@ const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
 const GMAIL: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-/// Five minutes (2026-10-15; was 15). A quiet mailbox costs one request a read — each conversation is
-/// opened only when its `historyId` moved — so keeping up with an exchange is cheap, and a reply
-/// should not wait a quarter of an hour to reach the Agenda.
-const INTERVAL: Duration = Duration::from_secs(5 * 60);
+/// One minute (2026-10-16; 5 since 2026-10-15, 15 before). A quiet mailbox costs one Gmail request a
+/// read — the sign-in is reused while it lasts ([`TOKEN`]), and each conversation is opened only when
+/// its `historyId` moved — so a reply reaches the assistant within about a minute of arriving.
+const INTERVAL: Duration = Duration::from_secs(60);
 /// At most this many new messages per read, so a first read over a busy label cannot occupy the
 /// machine for an hour. The rest come at the next read.
 const PER_READ: usize = 200;
 const LIMIT: usize = 25 * 1024 * 1024;
 
 static READING: AtomicBool = AtomicBool::new(false);
+/// Raised by every read that wrote something; the assistant runs its meeting pass when it moves.
+/// In memory: after a restart it starts again at 0, which the assistant also reads as a change.
+static NOVELTY: AtomicU64 = AtomicU64::new(0);
+/// The access token and when it stops working (seconds since 1970). Google's lasts an hour; reusing it
+/// keeps a quiet read to one request. In memory only, like the sign-in in progress.
+static TOKEN: Mutex<Option<(String, u64)>> = Mutex::new(None);
+/// How many of the assistant's verdicts are kept.
+const HEARD: usize = 12;
 static FILE: Mutex<()> = Mutex::new(());
 /// The sign-in in progress: `(state, PKCE verifier, redirect address)`. In memory only — a sign-in
 /// that outlives a restart is one nobody is waiting for.
@@ -87,6 +101,19 @@ struct Settings {
     /// cleared once so every message is read again into the current format — safe, because a message
     /// already in its note is recognised by its marker and not written twice.
     format: u32,
+    /// What the assistant concluded about each conversation it read, newest first ([`HEARD`] kept).
+    heard: Vec<Heard>,
+}
+
+/// One verdict of the meeting pass: which conversation, up to which message, and what it made of it.
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+struct Heard {
+    note: String,
+    title: String,
+    latest: String,
+    said: String,
+    at: u64,
 }
 
 /// 2: the whole exchange in the note (2026-10-09). 0/1: subject and last sender only.
@@ -134,6 +161,7 @@ fn public(s: &Settings) -> Value {
         "last": s.last,
         "lastChecked": s.last_checked,
         "reading": READING.load(Ordering::SeqCst),
+        "heard": s.heard,
     })
 }
 
@@ -233,6 +261,10 @@ fn get_json(url: &str, token: &str) -> Result<Value, String> {
 /// in again — a "testing" project's tokens last 7 days — so the stored one is forgotten and the
 /// panel says exactly that.
 fn access_token(s: &Settings) -> Result<String, String> {
+    let held = TOKEN.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if let Some((t, _)) = held.filter(|(_, until)| now() + 60 < *until) {
+        return Ok(t);
+    }
     let (status, v) = post_form(
         TOKEN_URL,
         &form(&[
@@ -243,6 +275,8 @@ fn access_token(s: &Settings) -> Result<String, String> {
         ]),
     )?;
     if let Some(t) = v["access_token"].as_str().filter(|_| status == 200) {
+        let lasts = v["expires_in"].as_u64().unwrap_or(0);
+        *TOKEN.lock().unwrap_or_else(|e| e.into_inner()) = Some((t.to_string(), now() + lasts));
         return Ok(t.to_string());
     }
     if v["error"].as_str() == Some("invalid_grant") {
@@ -406,6 +440,9 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
     })?;
     report["at"] = json!(now());
     report["waiting"] = json!(waiting);
+    if !ids.is_empty() {
+        NOVELTY.fetch_add(1, Ordering::SeqCst);
+    }
     Ok(report)
 }
 
@@ -451,7 +488,11 @@ fn read_all(state: &crate::AppState) {
     }
     let last = match read_once(state) {
         Ok(v) => v,
-        Err(e) => json!({ "at": now(), "error": e }),
+        Err(e) => {
+            // A refused token is asked for afresh next time, rather than refused for its hour.
+            forget_token();
+            json!({ "at": now(), "error": e })
+        }
     };
     let _ = edit(|s| {
         s.last = Some(last);
@@ -582,6 +623,8 @@ pub fn route(
             Ok(public(&load()))
         }
         "/api/mail_disconnect" => disconnect().map(|_| public(&load())),
+        "/api/mail_novelty" => Ok(json!({ "novelty": NOVELTY.load(Ordering::SeqCst) })),
+        "/api/mail_heard" => heard(body).map(|_| json!({ "ok": true })),
         _ => return None,
     };
     let (status, out) = match result {
@@ -589,6 +632,22 @@ pub fn route(
         Err(e) => ("400 Bad Request", json!({ "error": e })),
     };
     Some(crate::write_response(stream, status, "application/json", out.to_string().as_bytes()))
+}
+
+/// Keep the assistant's verdict on one conversation, replacing its earlier one.
+fn heard(body: &[u8]) -> Result<(), String> {
+    let mut h: Heard = serde_json::from_slice(body).map_err(|e| e.to_string())?;
+    if h.note.is_empty() {
+        return Err("which conversation?".into());
+    }
+    h.said = h.said.chars().take(300).collect();
+    h.at = now();
+    edit(|s| {
+        s.heard.retain(|x| x.note != h.note);
+        s.heard.insert(0, h);
+        s.heard.truncate(HEARD);
+        Ok(())
+    })
 }
 
 fn setup(req: &Req, state: &crate::AppState) -> Result<(), String> {
@@ -655,7 +714,12 @@ fn connect(req: &Req) -> Result<String, String> {
 
 /// Forget the sign-in here and ask Google to cancel it too. The notes already made are kept, like
 /// everything else in this app.
+fn forget_token() {
+    *TOKEN.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
 fn disconnect() -> Result<(), String> {
+    forget_token();
     let s = load();
     if !s.refresh_token.is_empty() {
         // Best effort: if Google cannot be reached, forgetting it here still stops all reading.
@@ -665,6 +729,7 @@ fn disconnect() -> Result<(), String> {
         s.refresh_token.clear();
         s.email.clear();
         s.seen.clear();
+        s.heard.clear();
         s.last = None;
         Ok(())
     })

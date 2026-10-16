@@ -4,6 +4,7 @@
   import { tick, untrack } from 'svelte';
   import { popup } from './lib/popup';
   import Icon from './lib/Icon.svelte';
+  import Search from './renderers/Search.svelte';
   import Pane from './lib/Pane.svelte';
   import {
     newPane,
@@ -13,6 +14,7 @@
     rendererKind,
     autoCols,
     matchesTarget,
+    isView,
     migrateWorkspace,
     BUILTIN_PANES,
     OPENABLE_PANES,
@@ -173,7 +175,8 @@
   /** Back (or forward) landed somewhere: close panels above it, then put that place back. */
   function onNavPop(e: PopStateEvent) {
     const t = nav.popped(e.state);
-    if (!t || !t.kind) return;
+    // `search` was a window until 2026-10-16; an entry from before then has nowhere to go.
+    if (!t || !t.kind || t.kind === 'search') return;
     nav.restore(() => {
       // A view of a group goes back into the group's own window, whichever of its views that
       // window is on now — otherwise Back would open a second window beside it.
@@ -220,7 +223,13 @@
    *  re-focusing an already-correct board would otherwise cost a fetch every time you tapped its
    *  name. `App.phone.test.ts` budgets exactly that. */
   function focusOrOpen(kind: PaneKind, over: Partial<PaneT> = {}) {
-    const at = workspace.panes.findIndex((p) => matchesTarget(p, kind, over));
+    let at = workspace.panes.findIndex((p) => matchesTarget(p, kind, over));
+    if (at === -1 && kind !== 'note') {
+      // **Only notes are windows** (2026-10-16): a view is the one place you are, so asking for
+      // another re-points it rather than adding a window beside it.
+      at = workspace.panes.findIndex(isView);
+      if (at !== -1) over = { viewName: null, ...over, kind };
+    }
     if (at === -1) {
       addPane(kind, over);
       return;
@@ -233,13 +242,19 @@
     moved();
   }
   function closePane(id: string) {
+    // A view is not closed, only re-pointed: only notes are windows (2026-10-16).
+    const closing = workspace.panes.find((p) => p.id === id);
+    if (!closing || isView(closing)) return;
+    const wasFront = workspace.panes[focused]?.id === id;
     const filtered = workspace.panes.filter((p) => p.id !== id);
     const panes = filtered.length ? filtered : [newPane('board')];
     // **The remaining views reclaim the space.** Growing on open without shrinking on close
     // left an empty column behind — the grid got wider and never got narrower, so closing two
     // of three notes left one note in a third of the screen.
     workspace = { ...workspace, cols: autoCols(panes.length, workspace), panes };
-    if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
+    // Closing the note in front goes back to the view it was opened over.
+    if (wasFront) focused = workspace.panes.findIndex(isView);
+    else if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
     persistWorkspace();
     moved();
     void refresh();
@@ -582,6 +597,25 @@
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
   let createOpen = $state(false);
   let searchOpen = $state(false);
+  /// **Search is a passing panel** (2026-10-16): what the field found, over whatever is on screen —
+  /// never a window. `null` until a query has been answered; a stale answer is dropped by `searchSeq`.
+  let searchResults = $state<ObjectMeta[] | null>(null);
+  let searchPanelOpen = $state(false);
+  let searchSeq = 0;
+  let searchSlotEl = $state<HTMLElement | undefined>(undefined);
+  /// Put the panel away; `clear` also empties the field (a result was picked, or × was pressed).
+  function closeSearch(clear = false) {
+    searchPanelOpen = false;
+    if (clear) {
+      searchQuery = '';
+      searchResults = null;
+      searchOpen = false;
+    }
+  }
+  function pickResult(id: string) {
+    closeSearch(true);
+    openNote(id);
+  }
   let vaultMenuOpen = $state(false);
   /// **The filter states itself.** A row of chips said "something is hidden" only in colour, which
   /// is how a vault hidden weeks ago comes to read as notes that have gone missing. The trigger
@@ -626,9 +660,7 @@
     { group: 'Create', label: 'New board', run: onNewBoard },
     { group: 'Create', label: 'New discussion', run: onNewDiscussion },
     { group: 'Create', label: 'New paper', run: onNewPaper },
-    // **The one deliberate `addPane`.** Everything else re-points an existing window; this is
-    // where someone explicitly asks for another, and the way into a `tiled` arrangement.
-    { group: 'Create', label: 'New window', run: () => addPane('board') },
+    // No "New window" since 2026-10-16: only notes are windows, and a note opens by being opened.
   ];
 
   // The `＋` menu, plus one "New from …" per template. Templates belong here — the `＋` is literally
@@ -938,11 +970,6 @@
     }
     if (type === 'timeline') {
       const cards = await recent();
-      learnStatuses(cards);
-      return { cards };
-    }
-    if (type === 'search') {
-      const cards = arg ? await ipcSearch(arg) : [];
       learnStatuses(cards);
       return { cards };
     }
@@ -1536,9 +1563,14 @@
   /// **The open windows behind the bottom bar's counted button** — a phone's way to see and switch
   /// them since its top row went (2026-09-11).
   let windowsOpen = $state(false);
+  $effect(() => {
+    if (openNotes === 0) windowsOpen = false;
+  });
   /// The window in front of you and the data it is showing: what the view menu's switches tune on a
   /// phone.
   const focusedPane = $derived(workspace.panes[focused]);
+  /// How many notes are open — the windows the phone's counted button lists.
+  const openNotes = $derived(workspace.panes.filter((p) => !isView(p)).length);
   const focusedFeed = $derived(
     focusedPane && feedKey(focusedPane) ? feeds[feedKey(focusedPane) ?? ''] : undefined,
   );
@@ -1549,7 +1581,6 @@
     const p = focusedPane;
     if (!p) return null;
     if (p.kind === 'agenda' || p.kind === 'timeline') return 'Show as';
-    if (p.kind === 'search') return 'Searching';
     if (p.kind === 'view' && (focusedFeed?.view?.filters?.length ?? 0) > 0) return 'This view';
     return null;
   });
@@ -1587,13 +1618,12 @@
   const showsTab = (p: PaneT, t: SpaceTab) =>
     t.viewName ? p.kind === 'view' && p.viewName === t.viewName : p.kind === t.kind;
   /// The tabs a window draws across its top: the views of the group it is in — one of the two a
-  /// built-in view belongs to. (A group of tracker views draws its own.) Search is not a tab
-  /// there: it has no window until something is typed.
+  /// built-in view belongs to. (A group of tracker views draws its own.)
   function tabsOf(p: PaneT): SpaceTab[] {
     const s = spaces.find(
       (x) => BUILTIN_SPACES.some((b) => b.name === x.name) && x.tabs.some((t) => showsTab(p, t)),
     );
-    return (s?.tabs ?? []).filter((t) => t.kind !== 'search');
+    return s?.tabs ?? [];
   }
   /// **The group the window in front belongs to.** A group of shipped views is one whether or not
   /// this device shows the four; a built-in view is in one only if it does.
@@ -1784,17 +1814,24 @@
     }
   }
 
-  // The top-bar global search: debounced, it opens (or retargets) a single search pane so a
-  // quick search doesn't require adding a pane by hand first.
+  // The global search: debounced, it fills the passing panel under the field. Nothing opens until a
+  // result is picked — a search is a question, not a place (2026-10-16).
   function onSearchInput() {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      // **And it becomes the visible one.** The old version re-pointed the search pane but never
-      // moved `focused`, which was invisible while every pane was on screen and a dead keypress
-      // the moment one view at a time became the default: a second query changed nothing you
-      // could see. `focusOrOpen` cannot express that bug — focusing is what it does.
-      if (searchQuery.trim() || workspace.panes.some((p) => p.kind === 'search')) {
-        focusOrOpen('search', { query: searchQuery });
+    const q = searchQuery.trim();
+    if (!q) {
+      closeSearch();
+      searchResults = null;
+      return;
+    }
+    searchPanelOpen = true;
+    searchTimer = setTimeout(async () => {
+      const seq = ++searchSeq;
+      try {
+        const found = await ipcSearch(q);
+        if (seq === searchSeq) searchResults = found;
+      } catch (e) {
+        if (seq === searchSeq) report(String(e));
       }
     }, 250);
   }
@@ -2112,6 +2149,7 @@
     ['paper', () => paperOpen, () => (paperOpen = false)],
     ['undo-menu', () => undoMenuOpen, () => (undoMenuOpen = false)],
     ['deleted', () => deletedOpen, () => (deletedOpen = false)],
+    ['search', () => searchPanelOpen, () => closeSearch()],
   ];
   for (const [name, isOpen, close] of LAYERS) {
     $effect(() => {
@@ -2423,7 +2461,7 @@
          is used a fraction as often as it occupies space; open it and it takes the room it
          needs. `searchOpen` starts false on every load, deliberately — a bar that remembers
          being open is a bar that is usually open. -->
-      <div class="search-slot" class:open={searchOpen}>
+      <div class="search-slot" class:open={searchOpen} bind:this={searchSlotEl}>
         <label class="searchfield">
           <Icon name="search" size={15} />
           <input
@@ -2433,6 +2471,12 @@
             placeholder="Search…"
             bind:value={searchQuery}
             oninput={onSearchInput}
+            onfocus={() => {
+              if (searchQuery.trim()) searchPanelOpen = true;
+            }}
+            onkeydown={(e) => {
+              if (e.key === 'Escape') closeSearch();
+            }}
             onblur={() => {
               if (!searchQuery.trim()) searchOpen = false;
             }}
@@ -2459,6 +2503,35 @@
         >
           <Icon name="search" size={16} />
         </button>
+        <!-- **The passing panel** (2026-10-16): results over whatever is on screen, placed by `popup`
+             (below the field on a computer, above it in a phone's bottom bar). Picking one opens the
+             note and puts the panel away; ×, Escape, Back or a tap outside dismiss it. -->
+        {#if searchPanelOpen && searchQuery.trim()}
+          <div class="menu-backdrop" role="presentation" onclick={() => closeSearch()}></div>
+          <div
+            class="search-panel"
+            role="dialog"
+            aria-label="search results"
+            use:popup={{ anchor: searchSlotEl, align: 'start' }}
+          >
+            <div class="search-panel-head">
+              <span
+                >{searchResults === null
+                  ? 'Searching…'
+                  : `${searchResults.length} ${searchResults.length === 1 ? 'note' : 'notes'}`}</span
+              >
+              <button
+                type="button"
+                class="search-panel-close"
+                onclick={() => closeSearch(true)}
+                aria-label="close search">✕</button
+              >
+            </div>
+            {#if searchResults !== null}
+              <Search cards={searchResults} query={searchQuery} onopen={pickResult} />
+            {/if}
+          </div>
+        {/if}
       </div>
 
       <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
@@ -2517,7 +2590,8 @@
          40rem, so their count sits here beside the view button, where the owner asked for it, and the
          list opens from it like every other menu in this bar. Hidden by CSS from 40rem up, where the row
          is back; mounted only in `single`, where the other windows are out of sight. -->
-      {#if (workspace.layout ?? 'single') === 'single'}
+      <!-- Counts the open **notes** — the only windows (2026-10-16) — and is there only while one is. -->
+      {#if (workspace.layout ?? 'single') === 'single' && openNotes > 0}
         <div class="create-wrap windows-wrap">
           <button
             type="button"
@@ -2525,10 +2599,10 @@
             onclick={() => (windowsOpen = !windowsOpen)}
             aria-expanded={windowsOpen}
             aria-haspopup="menu"
-            title="Open windows"
-            aria-label="open windows: {workspace.panes.length}"
+            title="Open notes"
+            aria-label="open notes: {openNotes}"
           >
-            <span class="windows-count" aria-hidden="true">{workspace.panes.length}</span>
+            <span class="windows-count" aria-hidden="true">{openNotes}</span>
           </button>
           {#if windowsOpen}
             <div
@@ -2557,7 +2631,7 @@
                     {/if}
                     <span class="window-name">{paneTitle(pane)}</span>
                   </button>
-                  {#if workspace.panes.length > 1}
+                  {#if !isView(pane)}
                     <button
                       type="button"
                       role="menuitem"
@@ -3032,7 +3106,6 @@
             : undefined}
           onselect={selectWindow}
           onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
-          onclose={closePane}
         />
       {/if}
 
@@ -3773,6 +3846,35 @@
     position: fixed;
     inset: 0;
     z-index: 40;
+  }
+  /* The passing search panel: placed and capped by `popup`, like every menu; a card, not a list. */
+  .search-panel {
+    position: fixed;
+    z-index: 41;
+    width: 26rem;
+    max-height: 70dvh;
+    overflow-y: auto;
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    box-shadow: var(--shadow-lg);
+  }
+  .search-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .search-panel-close {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    cursor: pointer;
   }
   .create-menu {
     position: fixed;

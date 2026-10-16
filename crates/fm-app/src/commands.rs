@@ -2739,8 +2739,11 @@ pub struct MailConversation {
 #[derive(Serialize)]
 pub struct MailConversations {
     pub conversations: Vec<MailConversation>,
-    /// `start` of every note tagged `meeting` (invitations, accepted meetings): a meeting found in
-    /// prose at one of these times is already on the agenda.
+    /// `start` of every note tagged `meeting` that **no conversation already accounts for** — an
+    /// invitation, a calendar's event, a meeting made by hand: a meeting found in prose at one of these
+    /// times is already on the agenda. A conversation's own meeting is its `start`, and the meetings
+    /// proposed from it are its `linked`; counted here too, they made every conversation's time taken
+    /// for every other — Li's move to Friday 16:00 was dropped because Siyu met then (2026-10-16).
     pub taken: Vec<String>,
     /// For each conversation id, the starts of meeting notes linked to it with `meeting_of`.
     pub linked: HashMap<String, Vec<String>>,
@@ -2761,7 +2764,10 @@ pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreE
     let mut seen_in: HashMap<String, usize> = HashMap::new();
     for o in &rows {
         let start = o.start.map(|s| s.to_string());
-        if matches!(o.get(fm_core::mail::GMAIL_THREAD), PropertyValue::Text(t) if !t.is_empty()) {
+        let conversation =
+            matches!(o.get(fm_core::mail::GMAIL_THREAD), PropertyValue::Text(t) if !t.is_empty());
+        let of_one = matches!(o.get(MEETING_OF), PropertyValue::Text(r) if !r.is_empty());
+        if conversation {
             if let PropertyValue::List(people) = o.get(fm_core::mail::PARTICIPANTS) {
                 for p in people {
                     *seen_in.entry(p.display()).or_default() += 1;
@@ -2779,7 +2785,9 @@ pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreE
             });
         }
         if let (true, Some(st)) = (o.tags.iter().any(|t| t == "meeting"), &start) {
-            out.taken.push(st.clone());
+            if !conversation && !of_one {
+                out.taken.push(st.clone());
+            }
         }
         if let (PropertyValue::Text(r), Some(st)) = (o.get(MEETING_OF), &start) {
             if let Some(of) = fm_model::parse_note_ref(&r) {

@@ -108,7 +108,7 @@ test('tiled keeps its pane headers, because that is what tells four windows apar
       cols: 2,
       layout: 'tiled',
       active: 0,
-      panes: [newPane('board'), newPane('agenda')],
+      panes: [newPane('board'), newPane('note', { noteId: 'missing' })],
     }),
   );
   render(App);

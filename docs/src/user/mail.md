@@ -11,13 +11,15 @@ afterwards are read too, even though Gmail does not put the label on them.
 - **One note per conversation**, tagged `mail`, titled by its subject (without `Re:`, `R:`, `Fwd:`).
   It holds **the whole exchange**: every message with its sender, recipients, date and time,
   attachment names (the files themselves are not copied) and text. Quoted earlier messages are trimmed
-  from replies, since they are already above. A link opens the conversation in Gmail.
-- **New replies are added at the bottom.** Anything you write in the note is never changed or moved,
+  from replies (English, Italian and Chinese mail), since they are already above. A link opens the
+  conversation in Gmail.
+- **New replies are added in date order** — at the bottom, or above a later email if an older one
+  arrives late. Anything you write in the note is never changed or moved,
   and reading the same mail again adds nothing.
 - **An invitation in a message becomes a meeting note**, exactly as if it came from your calendar.
   An updated invitation moves it, and a cancellation tags it `cancelled`. If the same meeting is also
   in your Google Calendar, it stays **one** note.
-- Mail is read when formicaria opens and then every 5 minutes while it is open, up to 200 new
+- Mail is read when formicaria opens and then every minute while it is open, up to 200 new
   messages each time.
 
 **Where the text goes.** The exchange is part of your notes, so it goes wherever the chosen notebook
@@ -75,9 +77,9 @@ the project menu says `formicaria`**: a link opens whichever project you chose l
 
 ## Things to know
 
-- **Every 7 days Google asks you to sign in again** while your Google Cloud project is in testing.
-  Settings → Connections → Mail says when; press *Sign in with Google* again — or
-  [stop the weekly sign-out](#stop-the-weekly-sign-out) for good.
+- **If mail stops, Collaboration says so** — a red *Mail stopped* card with Google's reason and a
+  **Sign in with Google** button — and so does Settings → Connections → Mail. Nothing new reaches your
+  notes until you sign in again.
 - **Changing the label or the start date** reads that mail from the beginning. Notes already made
   stay, and nothing is duplicated.
 - **Disconnect** stops all reading and asks Google to cancel the sign-in. The notes already made
@@ -106,7 +108,8 @@ says `formicaria`.)
    empty: Google shows one only after it has reviewed the app.
 2. **Publish** — <https://console.cloud.google.com/auth/audience>. Under *Publishing status*, press
    **Publish app**, then **Confirm**. The status reads **In production**.
-3. In formicaria, press **Sign in with Google** once more, in Settings → Connections → Mail. A sign-in made while the project was in testing still ends on its
+3. In formicaria, press **Sign in with Google** once more — in Collaboration's *Mail stopped* card, or
+   in Settings → Connections → Mail. A sign-in made while the project was in testing still ends on its
    7th day; the new one does not.
 
 **What publishing changes, and what it does not.** Nobody else can use your client: they would need its
@@ -147,9 +150,13 @@ then, not by turning the whole proposal down.
   alone.
 - **Each proposal quotes the sentence it came from, with who wrote it and when**, so you can see at
   a glance whether a time is one you proposed and nobody has answered yet.
-- **It keeps up on its own.** Mail is read as soon as formicaria opens and every 5 minutes after,
-  and the assistant goes through the changed conversations straight away, one after another. A
-  reply reaches Collaboration within about five minutes, with nothing to press.
+- **It keeps up on its own.** Mail is read as soon as formicaria opens and every minute after; new
+  mail wakes the assistant at once, and it goes through the changed conversations one after another.
+  A reply reaches Collaboration within a minute or two, with nothing to press.
+- **Collaboration says what it made of each reply**, under **Mail**: when mail was last checked, and
+  for each conversation the email it read up to and its verdict — a proposal, or *nothing to change —
+  the meeting stays at …* when a reply only confirms what is already on your Agenda. Tap a line to
+  open the conversation.
 - **The model never writes a date itself.** It copies the sentence and the words for the day and
   time; formicaria checks that the sentence really is in the emails and works out the date from the
   day that message was sent ("giovedì", "domani", "il 28", "16/10", "next Monday at 3pm"; "next week
