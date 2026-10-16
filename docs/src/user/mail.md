@@ -26,23 +26,41 @@ people wrote to you, are copied there too. They stay in the notebook's history e
 deleted, and reach anyone you share the notebook with. To keep mail on this computer only, choose a
 notebook that has no online copy under *Into*.
 
-## One-time set-up: your own Google Cloud client (about 10 minutes)
+## Set up your Google Cloud client
 
-Google only lets an app read Gmail through a "client" registered with Google. You create your own, so
-the arrangement stays between you and Google. If the console is in another language, add `?hl=en` to
-its address to see the names used below.
+Once, about 10 minutes. Google only lets an app read Gmail through a "client" registered with Google.
+You create your own, so the arrangement stays between you and Google.
 
-1. Open <https://console.cloud.google.com>, choose the project menu at the top, then **New project**.
-   Name it `formicaria` and create it.
-2. Open **APIs & Services → Library**, search for **Gmail API**, and press **Enable**.
-3. Open **Google Auth Platform** (also reachable as *OAuth consent screen*) and press **Get started**.
-   App name: `formicaria`. Support email: your Gmail address. Audience: **External**. Contact
-   email: yours. Agree and create.
-4. In **Audience**, under **Test users**, add your own Gmail address.
-5. In **Data access**, choose **Add or remove scopes**, filter for `gmail.readonly`, tick
-   `…/auth/gmail.readonly`, and save. Add nothing else.
-6. In **Clients**, choose **Create client**. Application type: **Desktop app**. Name: `formicaria`.
-   Create it, then copy the **Client ID** and **Client secret**.
+**Before you start:** sign in to <https://console.cloud.google.com> with the Gmail account you want
+read. If you are signed in to several Google accounts, check the picture at the top right — every
+link below opens in that account. If the console is in another language, add `?hl=en` to the address
+to see the names used here.
+
+Each step below is one page of the console, with its own link. **At the top of every page, check that
+the project menu says `formicaria`**: a link opens whichever project you chose last.
+
+1. **Create the project** — <https://console.cloud.google.com/projectcreate>.
+   Project name: `formicaria`. Press **Create**, wait for the notification, and press **Select
+   project** in it.
+2. **Turn on the Gmail API** — <https://console.cloud.google.com/apis/library/gmail.googleapis.com>.
+   Press **Enable**. (Do this before step 4: Google only lists the Gmail permission once its API is on.)
+3. **Register the app** — <https://console.cloud.google.com/auth/overview>.
+   Press **Get started** and fill in four short pages: App name `formicaria` and your Gmail as the
+   support email → **Next**; Audience **External** → **Next**; your email as the contact → **Next**;
+   tick the agreement → **Continue** → **Create**.
+4. **Allow reading Gmail, and nothing else** — <https://console.cloud.google.com/auth/scopes>.
+   Press **Add or remove scopes**, type `gmail.readonly` in the filter, tick
+   `…/auth/gmail.readonly`, press **Update**, then **Save** at the bottom of the page. If it is not
+   listed, paste `https://www.googleapis.com/auth/gmail.readonly` into **Manually add scopes**.
+5. **Make the sign-in last** — two pages, described in
+   [Stop the weekly sign-out](#stop-the-weekly-sign-out): fill in **Branding**, then press **Publish
+   app** in **Audience**. Skip this and Google signs you out **every 7 days**, and mail stops being
+   read until you sign in again. If you would rather stay in testing, add your own Gmail address
+   under **Test users** at <https://console.cloud.google.com/auth/audience> instead.
+6. **Create the client** — <https://console.cloud.google.com/auth/clients>.
+   Press **Create client**. Application type: **Desktop app**. Name: `formicaria`. Press **Create**,
+   then copy the **Client ID** and the **Client secret** from the window that opens (or press
+   **Download JSON** to keep them).
 
 ## Connect it
 
@@ -57,12 +75,46 @@ its address to see the names used below.
 
 ## Things to know
 
-- **Every 7 days Google asks you to sign in again**, while your Google Cloud project is in testing.
-  Settings → Connections → Mail says when; press *Sign in with Google* again.
+- **Every 7 days Google asks you to sign in again** while your Google Cloud project is in testing.
+  Settings → Connections → Mail says when; press *Sign in with Google* again — or
+  [stop the weekly sign-out](#stop-the-weekly-sign-out) for good.
 - **Changing the label or the start date** reads that mail from the beginning. Notes already made
   stay, and nothing is duplicated.
 - **Disconnect** stops all reading and asks Google to cancel the sign-in. The notes already made
   stay.
+
+## Stop the weekly sign-out
+
+While your Google Cloud project is in **testing**, Google ends formicaria's sign-in after 7 days
+([Google's rule](https://developers.google.com/identity/protocols/oauth2#expiration)). Mail then stops
+being read, and replies stop reaching your notes, until you sign in again. To stop it for good,
+publish the app. Google first asks for a home page, a privacy policy and terms for it; formicaria's
+website has all three, so you can give those. (Check on each page that the project menu at the top
+says `formicaria`.)
+
+1. **Branding** — <https://console.cloud.google.com/auth/branding>. Fill in, and press **Save** at
+   the bottom:
+
+   | Field | What to put |
+   |---|---|
+   | Application home page | `https://formicaria-org.github.io/formicaria/` |
+   | Application privacy policy link | `https://formicaria-org.github.io/formicaria/privacy.html` |
+   | Application terms of service link | `https://formicaria-org.github.io/formicaria/terms.html` |
+   | Authorized domains → **Add domain** | `formicaria-org.github.io` |
+
+   App name, support email and developer contact are already there from set-up. Leave the logo
+   empty: Google shows one only after it has reviewed the app.
+2. **Publish** — <https://console.cloud.google.com/auth/audience>. Under *Publishing status*, press
+   **Publish app**, then **Confirm**. The status reads **In production**.
+3. In formicaria, press **Sign in with Google** once more, in Settings → Connections → Mail. A sign-in made while the project was in testing still ends on its
+   7th day; the new one does not.
+
+**What publishing changes, and what it does not.** Nobody else can use your client: they would need its
+ID and secret, which only you have. Google keeps showing its *"Google hasn't verified this app"*
+screen at sign-in — choose **Continue**, as before — and an unverified app may be used by at most 100
+Google accounts in its lifetime
+([Google's page on this](https://support.google.com/cloud/answer/15549945)), which one person is far
+inside. You do **not** need to send the app to Google for verification.
 
 ## The assistant finds the meetings
 
