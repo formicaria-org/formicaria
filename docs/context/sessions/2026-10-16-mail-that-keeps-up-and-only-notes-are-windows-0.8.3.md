@@ -1,4 +1,4 @@
-# 2026-10-16 — mail that keeps up and says so; only notes are windows; v0.9.0
+# 2026-10-16 — mail that keeps up and says so; only notes are windows; v0.8.3
 
 > A snapshot, never updated. Current state is `features.md` and `known-issues.md`; the rulings are
 > in `decisions.md` under 2026-10-16.
