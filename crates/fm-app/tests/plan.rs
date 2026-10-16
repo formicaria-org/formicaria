@@ -388,22 +388,27 @@ fn a_named_protocol_counts_the_days_it_was_logged_under_its_name() {
     let c = check(&fri.checks, "sessions");
     assert_eq!((c.value, c.state.as_str()), (Some(2), "met"));
     // The week's example layouts come with the fitness library, Sunday to Saturday.
-    let lib = fm_app::plan::plan_library("fitness").unwrap();
+    let lib = fm_app::plan::plan_library(&fm_core::MemoryStore::new(), "fitness").unwrap();
     assert_eq!(lib.weeks[0].examples.len(), 3);
     assert!(lib.weeks[0].examples.iter().all(|e| e.days.len() == 7));
-    assert!(fm_app::plan::plan_library("food").unwrap().weeks.is_empty());
+    assert!(fm_app::plan::plan_library(&fm_core::MemoryStore::new(), "food")
+        .unwrap()
+        .weeks
+        .is_empty());
 }
 
 /// Every regime but "My own" has a week to start from; each is seven days from Monday, says what
 /// it is and whose, and names only exercise cards that exist.
 #[test]
 fn every_fitness_regime_has_a_week_to_start_from() {
-    let lib = fm_app::plan::plan_library("fitness").unwrap();
+    let lib = fm_app::plan::plan_library(&fm_core::MemoryStore::new(), "fitness").unwrap();
     let cards = fm_app::log::exercise_library().unwrap();
     let ids: std::collections::BTreeSet<&str> =
         cards["exercises"].as_array().unwrap().iter().map(|e| e["id"].as_str().unwrap()).collect();
     for p in &lib.plans {
-        if p.rests_on == "own" {
+        // A count written down each day (steps) is not a regime of sessions: no week to lay out.
+        let counted = p.checks.iter().all(|c| c.log == "body");
+        if p.rests_on == "own" || counted {
             continue;
         }
         assert!(!p.examples.is_empty(), "{} has no week to start from", p.id);
@@ -428,7 +433,7 @@ fn every_fitness_regime_has_a_week_to_start_from() {
 /// carried recipes — and then names recipes that exist, and says what it falls short of.
 #[test]
 fn a_diets_example_day_is_published_or_chosen_from_recipes_that_exist() {
-    let lib = fm_app::plan::plan_library("food").unwrap();
+    let lib = fm_app::plan::plan_library(&fm_core::MemoryStore::new(), "food").unwrap();
     let recipes = fm_app::log::recipe_library().unwrap();
     let ids: std::collections::BTreeSet<&str> =
         recipes["recipes"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap()).collect();
@@ -453,4 +458,228 @@ fn a_diets_example_day_is_published_or_chosen_from_recipes_that_exist() {
         }
     }
     assert!(with >= 7);
+}
+
+// ── A base and add-ons, trends, the watch set and the opt-in flags (2026-10-16) ─────────────────
+
+/// **One plan per question**, so WHO's weekly activity and a strength regime are followed together;
+/// a later plan of the *same* question replaces the earlier (`decisions.md#ui`, 2026-10-16).
+#[test]
+fn a_plan_per_question_is_followed_and_a_later_one_of_the_same_question_replaces_it() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "WHO weekly activity",
+                "2026-10-12",
+                json!({ "program": "training", "plan": "who-activity", "question": "moving",
+                        "p_minutes_min": 150, "p_strength_min": 2 }),
+            ),
+            draft(
+                "Strength, twice a week",
+                "2026-10-13",
+                json!({ "program": "training", "plan": "strength-health", "question": "stronger",
+                        "p_regions_min": 2 }),
+            ),
+            draft("Walk", "2026-10-14", json!({ "log": "workout", "activity": "Brisk walking", "counts_as": "aerobic", "minutes": 30, "effort": 5 })),
+        ],
+    )
+    .unwrap();
+    let p = plan_progress(&s, "fitness", "2026-10-16").unwrap();
+    let both: Vec<&str> = p.followed.iter().map(|f| f.plan.as_ref().unwrap().id.as_str()).collect();
+    assert_eq!(both, ["who-activity", "strength-health"], "in the order of the questions");
+    // The first is what the screens that show one plan read.
+    assert_eq!(p.plan.as_ref().unwrap().id, "who-activity");
+    // One walk counts for every plan it satisfies.
+    assert_eq!(check(&p.followed[0].checks, "minutes").value, Some(30));
+
+    // WHO 65 and over answers the same question: it replaces WHO, the strength regime stays.
+    create_notes(
+        &mut s,
+        "",
+        &[draft(
+            "WHO weekly activity, 65 and over",
+            "2026-10-15",
+            json!({ "program": "training", "plan": "who-activity-65", "question": "moving",
+                    "p_minutes_min": 150 }),
+        )],
+    )
+    .unwrap();
+    let p = plan_progress(&s, "fitness", "2026-10-16").unwrap();
+    let now: Vec<&str> = p.followed.iter().map(|f| f.plan.as_ref().unwrap().id.as_str()).collect();
+    assert_eq!(now, ["who-activity-65", "strength-health"]);
+}
+
+/// **A trend is the last four weeks**, oldest first: a day check's average over the days that had
+/// something, `None` for a week with nothing logged.
+#[test]
+fn a_check_carries_its_four_week_trend() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "WHO healthy diet",
+                "2026-09-28",
+                json!({ "program": "food", "plan": "who-healthy-diet", "question": "healthy",
+                        "p_fibre_min": 25_000 }),
+            ),
+            // The week of the 28th: two days, 20 g and 24 g → 22 g.
+            draft("Oats", "2026-09-29", json!({ "log": "food", "kcal": 500, "fiber_mg": 20_000 })),
+            draft("Beans", "2026-09-30", json!({ "log": "food", "kcal": 500, "fiber_mg": 24_000 })),
+            // The week of the 5th: nothing logged.
+            // This week: one day so far, 30 g.
+            draft(
+                "Lentils",
+                "2026-10-13",
+                json!({ "log": "food", "kcal": 500, "fiber_mg": 30_000 }),
+            ),
+        ],
+    )
+    .unwrap();
+    let p = plan_progress(&s, "food", "2026-10-14").unwrap();
+    let fibre = check(&p.checks, "fibre");
+    assert_eq!(fibre.trend, [None, Some(22_000), None, Some(30_000)]);
+}
+
+/// **The "worth watching" set** is measured whichever plan is followed, or none, with the
+/// person's own numbers — and a line their profile hides is left out.
+#[test]
+fn the_watch_set_is_measured_without_a_plan_and_follows_the_profile() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft("About me", "2026-10-01", json!({ "profile": "me", "sex": "female", "born": 1950, "weight_g": 60_000 })),
+            draft("Lunch", "2026-10-13", json!({ "log": "food", "kcal": 600, "fiber_mg": 12_000, "protein_mg": 40_000, "sodium_ug": 900_000, "saturated_fat_mg": 4_000 })),
+        ],
+    )
+    .unwrap();
+    let w = fm_app::plan::plan_watch(&s, "food", "2026-10-13").unwrap();
+    let ids: Vec<&str> = w.checks.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids, ["satfat", "sodium", "fibre", "protein"]);
+    assert_eq!(check(&w.checks, "fibre").state, "under");
+    // Born in 1950: past 65, so PROT-AGE's 1.0 g per kg — 60 g, not EFSA's 49.8 g.
+    assert_eq!(check(&w.checks, "protein").min, Some(60_000));
+
+    // Told of kidney disease: protein is left out of the set, not worked out.
+    let me = plan_profile(&s).unwrap().id.unwrap();
+    set_properties(&mut s, &me, &BTreeMap::from([("kidney".into(), json!(true))])).unwrap();
+    let w = fm_app::plan::plan_watch(&s, "food", "2026-10-13").unwrap();
+    assert!(w.checks.iter().all(|c| c.id != "protein"));
+
+    let f = fm_app::plan::plan_watch(&s, "fitness", "2026-10-13").unwrap();
+    let ids: Vec<&str> = f.checks.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids, ["minutes", "strength"]);
+}
+
+/// **A flag only uses a number a body publishes, or leaves a number out** — and a plan that is not
+/// for the person is left out of the library, by name.
+#[test]
+fn flags_swap_in_published_numbers_and_leave_out_what_is_not_for_the_person() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[draft(
+            "About me",
+            "2026-10-01",
+            json!({ "profile": "me", "sex": "female", "born": 1990, "height_cm": 165,
+                    "weight_g": 60_000, "pal_x10": 16 }),
+        )],
+    )
+    .unwrap();
+    let efsa = plan_preview(&s, "efsa-reference", "2026-10-12").unwrap();
+    assert_eq!(efsa.bounds["iron"].min, Some(16_000), "before the menopause");
+    assert_eq!(efsa.bounds["folate"].min, Some(330));
+    assert!(efsa.bounds["potassium"].min.is_some());
+    let energy = plan_preview(&s, "energy-for-me", "2026-10-12").unwrap().energy.unwrap();
+
+    let me = plan_profile(&s).unwrap().id.unwrap();
+    let flag = |s: &mut MemoryStore, k: &str, v: bool| {
+        set_properties(s, &me, &BTreeMap::from([(k.to_string(), json!(v))])).unwrap();
+    };
+    flag(&mut s, "postmenopausal", true);
+    assert_eq!(
+        plan_preview(&s, "efsa-reference", "2026-10-12").unwrap().bounds["iron"].min,
+        Some(11_000)
+    );
+    flag(&mut s, "pregnant", true);
+    assert_eq!(
+        plan_preview(&s, "efsa-reference", "2026-10-12").unwrap().bounds["folate"].min,
+        Some(600)
+    );
+    assert!(plan_preview(&s, "energy-for-me", "2026-10-12").unwrap().bounds["energy"]
+        .max
+        .is_none());
+    flag(&mut s, "pregnant", false);
+    flag(&mut s, "breastfeeding", true);
+    let bf = plan_preview(&s, "energy-for-me", "2026-10-12").unwrap();
+    assert_eq!(bf.energy, Some(energy + 500), "EFSA's 500 kcal for lactation");
+    assert_eq!(
+        plan_preview(&s, "efsa-reference", "2026-10-12").unwrap().bounds["folate"].min,
+        Some(500)
+    );
+    flag(&mut s, "kidney", true);
+    let k = plan_preview(&s, "efsa-reference", "2026-10-12").unwrap();
+    assert_eq!((k.bounds["potassium"].min, k.bounds["protein"].min), (None, None));
+
+    let lib = fm_app::plan::plan_library(&s, "food").unwrap();
+    let fasting = ["fasting-two-days", "fasting-alternate-days", "time-restricted-eating"];
+    assert!(lib.plans.iter().all(|p| !fasting.contains(&p.id.as_str())), "breastfeeding");
+    assert_eq!(lib.hidden, fasting);
+}
+
+/// WHO's protein share is a floor: 10–15% "is generally sufficient", and no ceiling is held.
+#[test]
+fn whos_protein_has_no_upper_limit() {
+    let s = MemoryStore::new();
+    let who = plan_preview(&s, "who-healthy-diet", "2026-10-12").unwrap();
+    assert_eq!((who.bounds["protein"].min, who.bounds["protein"].max), (Some(10), None));
+}
+
+/// **Steps are written down like a weight** — an entry of the body log — and the steps card reads
+/// them from there, beside the training log the other regimes read.
+#[test]
+fn the_steps_card_reads_the_steps_written_down() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Steps a day",
+                "2026-10-12",
+                json!({ "program": "training", "plan": "steps-daily", "question": "steps", "p_steps_min": 7_000 }),
+            ),
+            draft("Steps", "2026-10-13", json!({ "log": "body", "steps": 8_200 })),
+            draft("Walk", "2026-10-13", json!({ "log": "workout", "activity": "Brisk walking", "counts_as": "aerobic", "minutes": 30, "effort": 5 })),
+        ],
+    )
+    .unwrap();
+    let p = plan_progress(&s, "fitness", "2026-10-13").unwrap();
+    let steps = check(&p.checks, "steps");
+    assert_eq!((steps.value, steps.state.as_str()), (Some(8_200), "met"));
+}
+
+/// DASH is rich in potassium: with a kidney flag that number is left out, the rest kept.
+#[test]
+fn dash_leaves_out_potassium_for_kidney_disease() {
+    let mut s = MemoryStore::new();
+    let dash = plan_preview(&s, "dash", "2026-10-12").unwrap();
+    assert_eq!(dash.bounds["potassium"].min, Some(4_700_000));
+    assert_eq!(dash.bounds["satfat"].max, Some(6));
+    create_notes(
+        &mut s,
+        "",
+        &[draft("About me", "2026-10-01", json!({ "profile": "me", "kidney": true }))],
+    )
+    .unwrap();
+    let dash = plan_preview(&s, "dash", "2026-10-12").unwrap();
+    assert_eq!(dash.bounds["potassium"].min, None);
+    assert_eq!(dash.bounds["fibre"].min, Some(30_000));
 }

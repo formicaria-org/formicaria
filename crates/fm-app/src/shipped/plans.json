@@ -34,18 +34,26 @@
         { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "max": 30, "basis": "WHO: total fat 30% or less of total daily energy" },
         { "id": "satfat", "label": "Saturated fat, share of energy", "kind": "share", "key": "saturated_fat_mg", "kcal_per_g": 9, "max": 10, "basis": "WHO: no more than 10% of total energy from saturated fat" },
         { "id": "carbs", "label": "Carbohydrate, share of energy", "kind": "share", "key": "carbs_mg", "kcal_per_g": 4, "min": 45, "max": 75, "basis": "WHO: approximately 45–75% of total daily energy" },
-        { "id": "protein", "label": "Protein, share of energy", "kind": "share", "key": "protein_mg", "kcal_per_g": 4, "min": 10, "max": 15, "basis": "WHO: 10–15% of total daily energy is generally sufficient for adults" },
+        { "id": "protein", "label": "Protein, share of energy", "kind": "share", "key": "protein_mg", "kcal_per_g": 4, "min": 10, "basis": "WHO: 10–15% of total daily energy “is generally sufficient” for adults — enough, not a limit; WHO sets no upper limit" },
         { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min": 25000, "basis": "WHO: at least 25 g of naturally occurring dietary fibre a day" },
         { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2000000, "basis": "WHO: less than 5 g of salt a day (2 g of sodium)" },
-        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 3510000, "basis": "WHO: at least 3,510 mg a day may be beneficial for adults" }
+        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 3510000, "basis": "WHO: at least 3,510 mg a day may be beneficial for adults (a conditional recommendation)", "hide_if": ["kidney"] }
       ],
       "unmeasured": [
         "Free sugars under 10% of energy: the food tables give total sugars, and cannot tell free sugars from the rest.",
         "At least 400 g of fruit and vegetables a day: the food tables do not say which foods are fruit or vegetables.",
         "No more than 1% of energy from trans fat: the food list carries no trans fat value."
       ],
-      "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-cold-fusilli-pasta-summer", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-heavenly-chicken-angel-hair-pasta", "servings": 1}], "totals": {"kcal": 991, "fat_pct": 19.1, "saturated_fat_pct": 3.6, "carbs_pct": 61.8, "protein_pct": 23.4, "sodium_mg": 931, "fiber_g": 28.0, "potassium_mg": 1628}, "against": "Fat 19.1% of energy: met (30% or less). Saturated fat 3.6%: met (10% or less). Carbohydrate 61.8%: met (45-75%). Protein 23.4%: over the 10-15% range by 8.4 points. Fibre 28.0 g: met (25 g or more). Sodium 931 mg: met (under 2,000 mg). Potassium 1628 mg: short by 1882 mg of 3,510 mg. Energy: 991 kcal from three servings — WHO sets no energy figure, but this is about half of the 2,000 kcal the NHLBI's own DASH menus are built on, so it is three dishes of a day, not a whole day; the shares stay the same if portions grow, the fibre and potassium grow with them. Rule used: one breakfast-like recipe (parfait, shake or smoothie, by title) plus two different recipes of 250 kcal or more with all eight values present and whose fat+carbohydrate+protein energy is within 85-115% of the stated kcal; the triple meeting most of the seven WHO checks, ties broken by fibre then potassium. No triple of carried recipes meets the protein range or the potassium floor."}, {"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (over the 10-15% range by 7.1 points); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets six of the seven WHO checks once the low-sodium substitutions are made, and fails only the protein range, on the high side. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
-      "guides": []
+      "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-cold-fusilli-pasta-summer", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-heavenly-chicken-angel-hair-pasta", "servings": 1}], "totals": {"kcal": 991, "fat_pct": 19.1, "saturated_fat_pct": 3.6, "carbs_pct": 61.8, "protein_pct": 23.4, "sodium_mg": 931, "fiber_g": 28.0, "potassium_mg": 1628}, "against": "Fat 19.1% of energy: met (30% or less). Saturated fat 3.6%: met (10% or less). Carbohydrate 61.8%: met (45-75%). Protein 23.4%: met (10% or more; WHO calls 10–15% generally sufficient and sets no upper limit). Fibre 28.0 g: met (25 g or more). Sodium 931 mg: met (under 2,000 mg). Potassium 1628 mg: short by 1882 mg of 3,510 mg. Energy: 991 kcal from three servings — WHO sets no energy figure, but this is about half of the 2,000 kcal the NHLBI's own DASH menus are built on, so it is three dishes of a day, not a whole day; the shares stay the same if portions grow, the fibre and potassium grow with them. Rule used: one breakfast-like recipe (parfait, shake or smoothie, by title) plus two different recipes of 250 kcal or more with all eight values present and whose fat+carbohydrate+protein energy is within 85-115% of the stated kcal; the triple meeting most of the seven WHO checks, ties broken by fibre then potassium. No triple of carried recipes meets the potassium floor."}, {"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (met: 10% or more, and WHO sets no upper limit); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets all seven WHO checks once the low-sodium substitutions are made. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
+      "guides": [],
+      "kind": "targets",
+      "question": "healthy",
+      "start_here": true,
+      "relation": "Written for all adults in all countries. Its numbers are averages for whole populations: read them over a week, not each day.",
+      "caution": "Values for healthy adults (EFSA). A log can show intake below a reference; only a blood test shows a deficiency.",
+      "flag_notes": [
+        { "flag": "kidney", "text": "With kidney disease, potassium and protein are set with your kidney team, so they are left out here (KDIGO 2024; WHO 2025, salt substitutes)." }
+      ]
     },
     {
       "id": "efsa-reference",
@@ -59,26 +67,36 @@
       ],
       "needs": ["sex", "born", "weight_g"],
       "checks": [
-        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "basis": "EFSA: 0.83 g for each kg of body weight a day (population reference intake)" },
+        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "basis": "EFSA: 0.83 g for each kg of body weight a day (population reference intake); from 65, PROT-AGE: 1.0–1.2 g for each kg (Bauer et al. 2013), and Nordic 2023 about 1.2 g for food planning", "hide_if": ["kidney"], "min_mg_per_kg_older": 1000 },
         { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "min": 20, "max": 35, "basis": "EFSA: 20–35% of energy (reference intake range)" },
         { "id": "carbs", "label": "Carbohydrate, share of energy", "kind": "share", "key": "carbs_mg", "kcal_per_g": 4, "min": 45, "max": 60, "basis": "EFSA: 45–60% of energy (reference intake range)" },
         { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min": 25000, "basis": "EFSA: 25 g a day (adequate intake)" },
         { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2000000, "basis": "EFSA 2019: 2.0 g a day is safe and adequate" },
-        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 3500000, "basis": "EFSA: 3,500 mg a day (adequate intake)" },
+        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 3500000, "basis": "EFSA: 3,500 mg a day (adequate intake); 4,000 mg while breastfeeding", "hide_if": ["kidney"], "min_breastfeeding": 4000000 },
         { "id": "calcium", "label": "Calcium", "kind": "sum", "key": "calcium_ug", "min": 950000, "min_young": 1000000, "max": 2500000, "basis": "EFSA: 950 mg a day, 1,000 mg at 18–24; upper level 2,500 mg" },
-        { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "min_male": 11000, "min_female": 16000, "basis": "EFSA: 11 mg a day for men; 16 mg for women before the menopause, 11 mg after" },
+        { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "min_male": 11000, "min_female": 16000, "basis": "EFSA: 11 mg a day for men; 16 mg for women before the menopause, 11 mg after", "min_postmenopausal": 11000 },
         { "id": "magnesium", "label": "Magnesium", "kind": "sum", "key": "magnesium_ug", "min_male": 350000, "min_female": 300000, "basis": "EFSA: 350 mg a day for men, 300 mg for women (adequate intake)" },
         { "id": "vitamin_c", "label": "Vitamin C", "kind": "sum", "key": "vitamin_c_ug", "min_male": 110000, "min_female": 95000, "basis": "EFSA: 110 mg a day for men, 95 mg for women" },
         { "id": "vitamin_d", "label": "Vitamin D", "kind": "sum", "key": "vitamin_d_ug", "min": 15, "max": 100, "basis": "EFSA: 15 µg a day (adequate intake); upper level 100 µg" },
         { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ug", "min": 4, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
-        { "id": "folate", "label": "Folate", "kind": "sum", "key": "folate_dfe_ug", "min": 330, "basis": "EFSA: 330 µg of dietary folate equivalents a day" }
+        { "id": "folate", "label": "Folate", "kind": "sum", "key": "folate_dfe_ug", "min": 330, "basis": "EFSA: 330 µg of dietary folate equivalents a day; 600 µg in pregnancy, 500 µg while breastfeeding", "min_pregnant": 600, "min_breastfeeding": 500 }
       ],
       "unmeasured": [
         "Saturated fat: EFSA says “as low as possible” and gives no number, so nothing is measured for it here.",
         "Vitamin A: EFSA counts retinol equivalents, which the food list does not store."
       ],
-      "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-tuscan-beans-tomatoes-and-oregano", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-heavenly-chicken-angel-hair-pasta", "servings": 1}], "totals": {"kcal": 838, "fat_pct": 21.5, "saturated_fat_pct": 2.1, "carbs_pct": 59.7, "protein_pct": 23.4, "sodium_mg": 592, "fiber_g": 25.0, "potassium_mg": 1783}, "against": "Fat 21.5% of energy: met (20-35%). Carbohydrate 59.7%: met (45-60%), by 0.3 of a point. Fibre 25.0 g: met exactly (25 g). Sodium 592 mg: met (2,000 mg or less). Potassium 1783 mg: short by 1717 mg of 3,500 mg. Protein 49 g: meets 0.83 g per kg only up to a body weight of 59 kg; short above that. Calcium, iron, magnesium, vitamin C, vitamin D, vitamin B12, folate: cannot be told — the carried recipes give no values for them. Energy 838 kcal: three dishes, not a whole day. Same selection rule as the WHO example, scored on EFSA's five measurable checks (fat, carbohydrate, fibre, sodium, potassium); three triples meet four of the five and this one has the most potassium; none meets potassium. good_picks lists recipes whose single serving has fat within 20-35% of energy and sodium at or under 667 mg, ranked by fibre; EFSA gives no number for saturated fat."}, {"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (over the 10-15% range by 7.1 points); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets six of the seven WHO checks once the low-sodium substitutions are made, and fails only the protein range, on the high side. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
-      "guides": []
+      "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-tuscan-beans-tomatoes-and-oregano", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-heavenly-chicken-angel-hair-pasta", "servings": 1}], "totals": {"kcal": 838, "fat_pct": 21.5, "saturated_fat_pct": 2.1, "carbs_pct": 59.7, "protein_pct": 23.4, "sodium_mg": 592, "fiber_g": 25.0, "potassium_mg": 1783}, "against": "Fat 21.5% of energy: met (20-35%). Carbohydrate 59.7%: met (45-60%), by 0.3 of a point. Fibre 25.0 g: met exactly (25 g). Sodium 592 mg: met (2,000 mg or less). Potassium 1783 mg: short by 1717 mg of 3,500 mg. Protein 49 g: meets 0.83 g per kg only up to a body weight of 59 kg; short above that. Calcium, iron, magnesium, vitamin C, vitamin D, vitamin B12, folate: cannot be told — the carried recipes give no values for them. Energy 838 kcal: three dishes, not a whole day. Same selection rule as the WHO example, scored on EFSA's five measurable checks (fat, carbohydrate, fibre, sodium, potassium); three triples meet four of the five and this one has the most potassium; none meets potassium. good_picks lists recipes whose single serving has fat within 20-35% of energy and sodium at or under 667 mg, ranked by fibre; EFSA gives no number for saturated fat."}, {"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (met: 10% or more, and WHO sets no upper limit); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets all seven WHO checks once the low-sodium substitutions are made. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
+      "guides": [],
+      "kind": "targets",
+      "question": "nutrients",
+      "relation": "Enough of each nutrient for healthy adults: adequacy, not disease prevention.",
+      "caution": "Values for healthy adults (EFSA). A log can show intake below a reference; only a blood test shows a deficiency.",
+      "flag_notes": [
+        { "flag": "kidney", "text": "With kidney disease, potassium and protein are set with your kidney team, so they are left out here (KDIGO 2024; WHO 2025, salt substitutes)." },
+        { "flag": "pregnant", "text": "EFSA's pregnancy values are used for folate. NHS: take 400 µg of folic acid a day until week 12, and 10 µg of vitamin D a day between early October and late March." },
+        { "flag": "breastfeeding", "text": "EFSA's values while breastfeeding are used for folate (500 µg) and potassium (4,000 mg)." },
+        { "flag": "postmenopausal", "text": "EFSA's 11 mg of iron after the menopause is used." }
+      ]
     },
     {
       "id": "energy-for-me",
@@ -93,14 +111,24 @@
       ],
       "needs": ["sex", "born", "height_cm", "weight_g", "pal_x10"],
       "checks": [
-        { "id": "energy", "label": "Energy", "kind": "sum", "key": "kcal", "max_energy_pct": 100, "basis": "Henry’s equation for your sex and age, times EFSA’s activity level. An estimate: change it if it does not fit you." },
-        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "basis": "0.83 g for each kg of body weight a day (WHO/FAO/UNU 2007; EFSA)" }
+        { "id": "energy", "label": "Energy", "kind": "sum", "key": "kcal", "max_energy_pct": 100, "basis": "Henry’s equation for your sex and age, times EFSA’s activity level. An estimate: change it if it does not fit you.", "hide_if": ["eating_disorder", "pregnant"] },
+        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "basis": "0.83 g for each kg of body weight a day (WHO/FAO/UNU 2007; EFSA); from 65, PROT-AGE: 1.0–1.2 g for each kg (Bauer et al. 2013), and Nordic 2023 about 1.2 g for food planning", "hide_if": ["kidney"], "min_mg_per_kg_older": 1000 }
       ],
       "unmeasured": [
         "Whether the estimate is right for you: it is an average for people of your sex, age, size and activity, and says nothing about gaining or losing weight."
       ],
-      "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-strawberry-banana-yogurt-parfait", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-heavenly-chicken-angel-hair-pasta", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-turkey-bolognese-shell-pasta", "servings": 1}], "totals": {"kcal": 1094, "fat_pct": 17.3, "saturated_fat_pct": 4.1, "carbs_pct": 54.5, "protein_pct": 26.3, "sodium_mg": 1067, "fiber_g": 20.0, "potassium_mg": 1741}, "against": "Energy 1094 kcal: the check is a ceiling at 100% of your own estimated need (from sex, age, height, weight and activity), so this day passes unless your estimate is below 1,094 kcal. It is the largest breakfast-plus-two-mains day the carried recipes give at one serving each; how far it falls below your estimate is your own number, shown by the app. Protein 72 g: meets 0.83 g per kg up to a body weight of 87 kg. Rule used: the breakfast-like recipe and two mains with the highest summed kcal."}, {"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (over the 10-15% range by 7.1 points); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets six of the seven WHO checks once the low-sodium substitutions are made, and fails only the protein range, on the high side. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
-      "guides": []
+      "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-strawberry-banana-yogurt-parfait", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-heavenly-chicken-angel-hair-pasta", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-turkey-bolognese-shell-pasta", "servings": 1}], "totals": {"kcal": 1094, "fat_pct": 17.3, "saturated_fat_pct": 4.1, "carbs_pct": 54.5, "protein_pct": 26.3, "sodium_mg": 1067, "fiber_g": 20.0, "potassium_mg": 1741}, "against": "Energy 1094 kcal: the check is a ceiling at 100% of your own estimated need (from sex, age, height, weight and activity), so this day passes unless your estimate is below 1,094 kcal. It is the largest breakfast-plus-two-mains day the carried recipes give at one serving each; how far it falls below your estimate is your own number, shown by the app. Protein 72 g: meets 0.83 g per kg up to a body weight of 87 kg. Rule used: the breakfast-like recipe and two mains with the highest summed kcal."}, {"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (met: 10% or more, and WHO sets no upper limit); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets all seven WHO checks once the low-sodium substitutions are made. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
+      "guides": [],
+      "kind": "targets",
+      "question": "amount",
+      "relation": "An estimate of what you need, to correct from your own weight trend.",
+      "caution": "Values for healthy adults (EFSA). A log can show intake below a reference; only a blood test shows a deficiency.",
+      "flag_notes": [
+        { "flag": "kidney", "text": "With kidney disease, potassium and protein are set with your kidney team, so they are left out here (KDIGO 2024; WHO 2025, salt substitutes)." },
+        { "flag": "breastfeeding", "text": "EFSA adds about 500 kcal a day while breastfeeding; it is added to your estimate." },
+        { "flag": "pregnant", "text": "The energy ceiling is left out: in pregnancy EFSA's extra energy depends on the trimester." },
+        { "flag": "eating_disorder", "text": "The energy ceiling is left out." }
+      ]
     },
     {
       "id": "fasting-two-days",
@@ -110,7 +138,9 @@
       "summary": "Two days a week on up to a quarter of your energy need. Defined by an international consensus; recommended by no public body found.",
       "sources": [
         { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — “modified fasting”: “limiting energy intake to typically up to 25% of energy needs on modified fasting days”, for example “on 2 separate or consecutive days per week”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" },
-        { "by": "Henry CJK; European Food Safety Authority", "title": "The energy need the quarter is taken of: Henry’s equation times EFSA’s activity level", "url": "https://doi.org/10.1079/PHN2005801" }
+        { "by": "Henry CJK; European Food Safety Authority", "title": "The energy need the quarter is taken of: Henry’s equation times EFSA’s activity level", "url": "https://doi.org/10.1079/PHN2005801" },
+        { "by": "Garegnani et al., Cochrane", "title": "Intermittent fasting for adults with overweight or obesity, CD015610 (2026): “may result in little to no difference in weight loss” versus regular dietary advice", "url": "https://www.cochrane.org/evidence/CD015610_intermittent-fasting-traditional-dietary-advice-or-no-treatment-which-works-better-help-adults" },
+        { "by": "Semnani-Azad et al., BMJ", "title": "Intermittent fasting strategies and their effects on body weight, network meta-analysis of 99 trials (2025): “similar benefits to continuous energy restriction”", "url": "https://doi.org/10.1136/bmj-2024-082007" }
       ],
       "needs": ["sex", "born", "height_cm", "weight_g", "pal_x10"],
       "checks": [
@@ -119,9 +149,16 @@
       "unmeasured": [
         "A day you logged nothing on is not counted as a fasting day: formicaria cannot tell fasting from not writing it down."
       ],
-      "caution": "This is a definition, not advice. The consensus says therapeutic fasting is individually tailored and medically supervised fasting is led by a trained physician.",
+      "caution": "This is a definition, not advice. The consensus says therapeutic fasting is individually tailored and medically supervised fasting is led by a trained physician. Not intended for children, anyone with a past or present eating disorder, or a BMI under 18.5 (Varady et al. 2022); not studied in pregnancy, breastfeeding or after 70.",
       "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published. A fasting pattern is a definition here, not advice.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-baked-fish", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-spicy-southern-barbecued-chicken", "servings": 1}], "totals": {"kcal": 480, "fat_pct": 11.2, "saturated_fat_pct": 0.0, "carbs_pct": 34.2, "protein_pct": 52.5, "sodium_mg": 588, "fiber_g": 4.0, "potassium_mg": 1328}, "against": "Fasting-day check (the day's energy at or under 25% of your own need): 480 kcal counts as a fasting day for anyone whose estimated need is 1920 kcal or more; for a lower need it is over, and a serving must go. Protein 63 g, fibre 4.0 g, sodium 588 mg, potassium 1328 mg. Rule used: among triples of carried recipes with all values present that include one breakfast-like recipe and total 500 kcal or less, the one with the most protein (the Harvie 2011 trial's restricted days supplied 50 g of protein). good_picks lists the 25 recipes with the fewest kcal per serving, lowest first (39 to 183 kcal), from which other days under 500-600 kcal can be made, e.g. vegetable stew 119 + lentil soup 151 + baked fish 183 = 453 kcal. The other five days of the week are not restricted and need no example."}, {"kind": "published", "by": "Klempel MC, Bhutani S, Fitzgibbon M, Freels S, Varady KA (University of Illinois at Chicago)", "title": "Dietary and physical activity adaptations to alternate day modified fasting: implications for optimal weight loss. Nutrition Journal 2010;9:35 — Table 1, 'Meal components of provided fast day meals during controlled feeding phase'", "url": "https://doi.org/10.1186/1475-2891-9-35", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Fast day 1", "meals": [{"meal": "Entree", "items": ["Chicken fettuccini"]}, {"meal": "Fruit/vegetable", "items": ["Carrot sticks"]}, {"meal": "Snack", "items": ["Cookie"]}], "totals": {"Note": "The table prints no amounts and no totals. The paper reports what was eaten on fast days, not a menu total", "Energy intake on the fast day (reported in the abstract)": "26 ± 3% of baseline needs (501 ± 28 kcal/d)", "Fast day 2": "Vegetarian pizza; Apple; Peanuts", "Fast day 3": "Chicken enchilada; Orange; Crackers"}}, "fits": "The plan counts a day at 25% of energy need or less; the trial prescribed 25% of each person's need (by the Mifflin equation — the app uses Henry's) as one meal eaten between 12 and 2 pm, and measured 26 ± 3%. It is the only openly licensed example of a fasting day's food found, and it is thin: three dish names a day from a metabolic kitchen, 'typical American foods', no weights. It is what 16 obese trial participants were given, not a recommendation; say so beside it. For two fasting days a week it shows the size of such a day, not that pattern."}],
-      "guides": []
+      "guides": [],
+      "kind": "timing",
+      "question": "timing",
+      "relation": "Three ways of eating less; pick one. In trials, about as effective as eating a little less every day (Cochrane 2026; BMJ 2025).",
+      "not_for": ["pregnant", "breastfeeding", "eating_disorder"],
+      "flag_notes": [
+        { "flag": "diabetes_meds", "text": "If you use insulin or a sulfonylurea, fasting needs your diabetes team first (IDF-DAR practical guidelines, 2022)." }
+      ]
     },
     {
       "id": "fasting-alternate-days",
@@ -131,7 +168,9 @@
       "summary": "A day of eating freely, then a day on up to a quarter of your energy need. A definition, not a recommendation.",
       "sources": [
         { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — alternate-day modified fasting: “alternating a day of eating ad libitum and a day of modified fasting”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" },
-        { "by": "Henry CJK; European Food Safety Authority", "title": "The energy need the quarter is taken of", "url": "https://doi.org/10.1079/PHN2005801" }
+        { "by": "Henry CJK; European Food Safety Authority", "title": "The energy need the quarter is taken of", "url": "https://doi.org/10.1079/PHN2005801" },
+        { "by": "Garegnani et al., Cochrane", "title": "Intermittent fasting for adults with overweight or obesity, CD015610 (2026): “may result in little to no difference in weight loss” versus regular dietary advice", "url": "https://www.cochrane.org/evidence/CD015610_intermittent-fasting-traditional-dietary-advice-or-no-treatment-which-works-better-help-adults" },
+        { "by": "Semnani-Azad et al., BMJ", "title": "Intermittent fasting strategies and their effects on body weight, network meta-analysis of 99 trials (2025): “similar benefits to continuous energy restriction”", "url": "https://doi.org/10.1136/bmj-2024-082007" }
       ],
       "needs": ["sex", "born", "height_cm", "weight_g", "pal_x10"],
       "checks": [
@@ -141,9 +180,16 @@
         "That the days alternate: formicaria counts them and does not check their order.",
         "A day you logged nothing on is not counted as a fasting day."
       ],
-      "caution": "This is a definition, not advice. The consensus says therapeutic fasting is individually tailored and medically supervised fasting is led by a trained physician.",
+      "caution": "This is a definition, not advice. The consensus says therapeutic fasting is individually tailored and medically supervised fasting is led by a trained physician. Not intended for children, anyone with a past or present eating disorder, or a BMI under 18.5 (Varady et al. 2022); not studied in pregnancy, breastfeeding or after 70.",
       "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published. A fasting pattern is a definition here, not advice.", "recipes": [{"meal": "Midday meal", "recipe": "nhlbi-cold-fusilli-pasta-summer", "servings": 1}], "totals": {"kcal": 418, "fat_pct": 23.7, "saturated_fat_pct": 6.5, "carbs_pct": 60.3, "protein_pct": 20.1, "sodium_mg": 455, "fiber_g": 13.0, "potassium_mg": 576}, "against": "Fasting-day check: 418 kcal counts as a fasting day for anyone whose estimated need is 1672 kcal or more. One serving as the day's single meal, the form the Chicago alternate-day trials used (one provided meal of 400-600 kcal eaten between 12 and 2 pm, formulated at 30% fat, 15% protein, 55% carbohydrate): this recipe is fat 23.7%, protein 20.1%, carbohydrate 60.3% of energy, fibre 13.0 g, sodium 455 mg. Rule used: of the carried recipes with 400-600 kcal a serving and consistent values (cold fusilli 418, chicken angel hair pasta 452, turkey bolognese 463; mushroom penne 418 is left out because its fat, carbohydrate and protein add up to only 55% of its stated kcal), the one closest to 30/15/55. The alternating eating days are unrestricted."}, {"kind": "published", "by": "Klempel MC, Bhutani S, Fitzgibbon M, Freels S, Varady KA (University of Illinois at Chicago)", "title": "Dietary and physical activity adaptations to alternate day modified fasting: implications for optimal weight loss. Nutrition Journal 2010;9:35 — Table 1, 'Meal components of provided fast day meals during controlled feeding phase'", "url": "https://doi.org/10.1186/1475-2891-9-35", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Fast day 1", "meals": [{"meal": "Entree", "items": ["Chicken fettuccini"]}, {"meal": "Fruit/vegetable", "items": ["Carrot sticks"]}, {"meal": "Snack", "items": ["Cookie"]}], "totals": {"Note": "The table prints no amounts and no totals. The paper reports what was eaten on fast days, not a menu total", "Energy intake on the fast day (reported in the abstract)": "26 ± 3% of baseline needs (501 ± 28 kcal/d)", "Fast day 2": "Vegetarian pizza; Apple; Peanuts", "Fast day 3": "Chicken enchilada; Orange; Crackers"}}, "fits": "The plan counts a day at 25% of energy need or less; the trial prescribed 25% of each person's need (by the Mifflin equation — the app uses Henry's) as one meal eaten between 12 and 2 pm, and measured 26 ± 3%. It is the only openly licensed example of a fasting day's food found, and it is thin: three dish names a day from a metabolic kitchen, 'typical American foods', no weights. It is what 16 obese trial participants were given, not a recommendation; say so beside it. For two fasting days a week it shows the size of such a day, not that pattern."}],
-      "guides": []
+      "guides": [],
+      "kind": "timing",
+      "question": "timing",
+      "relation": "Three ways of eating less; pick one. Slightly ahead of eating less every day only in trials under 24 weeks, and the hardest to keep (BMJ 2025; Trepanowski 2017).",
+      "not_for": ["pregnant", "breastfeeding", "eating_disorder"],
+      "flag_notes": [
+        { "flag": "diabetes_meds", "text": "If you use insulin or a sulfonylurea, fasting needs your diabetes team first (IDF-DAR practical guidelines, 2022)." }
+      ]
     },
     {
       "id": "time-restricted-eating",
@@ -152,7 +198,9 @@
       "rests_on": "definition",
       "summary": "All eating inside a part of the day, leaving at least 14 hours without. Measured from the times of what you log.",
       "sources": [
-        { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — “a daily fasting window of at least 14 hours. There is no explicit limit on energy intake during eating hours”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" }
+        { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — “a daily fasting window of at least 14 hours. There is no explicit limit on energy intake during eating hours”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" },
+        { "by": "Garegnani et al., Cochrane", "title": "Intermittent fasting for adults with overweight or obesity, CD015610 (2026): “may result in little to no difference in weight loss” versus regular dietary advice", "url": "https://www.cochrane.org/evidence/CD015610_intermittent-fasting-traditional-dietary-advice-or-no-treatment-which-works-better-help-adults" },
+        { "by": "Semnani-Azad et al., BMJ", "title": "Intermittent fasting strategies and their effects on body weight, network meta-analysis of 99 trials (2025): “similar benefits to continuous energy restriction”", "url": "https://doi.org/10.1136/bmj-2024-082007" }
       ],
       "needs": [],
       "checks": [
@@ -163,7 +211,55 @@
         "Anything eaten and not logged, or logged later without correcting its time: an entry's time is when you logged it unless you change it.",
         "Three of the consensus's experts would have preferred a window of at least 12 hours; the number is yours to change."
       ],
-      "caution": "This is a definition, not advice.",
+      "caution": "This is a definition, not advice. Not intended for children, anyone with a past or present eating disorder, or a BMI under 18.5 (Varady et al. 2022); not studied in pregnancy, breastfeeding or after 70.",
+      "guides": [],
+      "kind": "timing",
+      "question": "timing",
+      "relation": "Three ways of eating less; pick one. With the same calories, the window itself added nothing in trials (NEJM 2022; Ann Intern Med 2023).",
+      "not_for": ["pregnant", "breastfeeding", "eating_disorder"],
+      "flag_notes": [
+        { "flag": "diabetes_meds", "text": "If you use insulin or a sulfonylurea, fasting needs your diabetes team first (IDF-DAR practical guidelines, 2022)." }
+      ]
+    },
+    {
+      "id": "dash",
+      "group": "food",
+      "name": "DASH eating plan",
+      "kind": "pattern",
+      "question": "healthy",
+      "rests_on": "guideline",
+      "relation": "Instead of WHO, the eating plan the US National Heart, Lung, and Blood Institute tested to lower blood pressure, in two trials of 459 and 412 adults.",
+      "summary": "Low in saturated fat and total fat; rich in potassium, calcium, magnesium, protein and fibre; sodium at 2,300 mg or, better for blood pressure, 1,500 mg.",
+      "sources": [
+        { "by": "National Heart, Lung, and Blood Institute", "title": "Your Guide to Lowering Your Blood Pressure With DASH, NIH Publication No. 06-4082 (revised April 2006), Box 2 and Box 3", "url": "https://www.nhlbi.nih.gov/files/docs/public/heart/new_dash.pdf" },
+        { "by": "National Heart, Lung, and Blood Institute", "title": "DASH eating plan", "url": "https://www.nhlbi.nih.gov/education/dash-eating-plan" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "max": 27, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: total fat 27% of calories" },
+        { "id": "satfat", "label": "Saturated fat, share of energy", "kind": "share", "key": "saturated_fat_mg", "kcal_per_g": 9, "max": 6, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: saturated fat 6% of calories" },
+        { "id": "protein", "label": "Protein, share of energy", "kind": "share", "key": "protein_mg", "kcal_per_g": 4, "min": 18, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: protein 18% of calories" },
+        { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min": 30000, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: fiber 30 g" },
+        { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2300000, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: sodium 2,300 mg; “1,500 mg sodium was a lower goal tested and found to be even better for lowering blood pressure”" },
+        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 4700000, "hide_if": ["kidney"], "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: potassium 4,700 mg" },
+        { "id": "calcium", "label": "Calcium", "kind": "sum", "key": "calcium_ug", "min": 1250000, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: calcium 1,250 mg" },
+        { "id": "magnesium", "label": "Magnesium", "kind": "sum", "key": "magnesium_ug", "min": 500000, "basis": "NHLBI, the DASH studies' daily nutrient goals for a 2,100-calorie eating plan: magnesium 500 mg" },
+        { "id": "kept", "label": "Days you kept to its servings this week", "kind": "kept", "min": 7, "basis": "You say so each day" }
+      ],
+      "describes": [
+        "At 2,000 calories a day (NHLBI, Box 3): grains 6–8 servings, whole grains for most; vegetables 4–5; fruits 4–5; fat-free or low-fat milk and milk products 2–3",
+        "Lean meats, poultry and fish 6 or less; nuts, seeds and legumes 4–5 a week; fats and oils 2–3; sweets and added sugars 5 or less a week",
+        "Servings change with energy: Box 4 of the guide gives them for 1,600, 2,600 and 3,100 calories"
+      ],
+      "unmeasured": [
+        "Servings of each food group: the food list does not say which group a food is in, so you say each day whether you kept to them.",
+        "Cholesterol, 150 mg in the studies' goals: the food list carries no cholesterol value."
+      ],
+      "caution": "Rich in potassium: with kidney disease, potassium is set with your kidney team, so it is left out here. Values for healthy adults (EFSA). A log can show intake below a reference; only a blood test shows a deficiency.",
+      "flag_notes": [
+        { "flag": "kidney", "text": "With kidney disease, potassium is set with your kidney team, so it is left out here (KDIGO 2024; WHO 2025, salt substitutes)." }
+      ],
+      "examples": [{"kind": "published", "by": "National Heart, Lung, and Blood Institute; National Institutes of Health; U.S. Department of Health and Human Services", "title": "A Week With the DASH Eating Plan", "url": "https://www.nhlbi.nih.gov/sites/default/files/publications/WeekOnDASH.pdf", "note": "As published, unchanged, by the body named; one day of its seven. Only an indication of what a day can look like, to change to what you eat.", "day": {"name": "Day 1", "meals": [{"meal": "Breakfast", "items": ["¾ cup bran flakes cereal: — sodium 220 mg", "+ 1 medium banana — sodium 1 mg", "+ 1 cup low-fat milk — sodium 107 mg", "1 slice whole wheat bread: — sodium 149 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 cup orange juice — sodium 5 mg"]}, {"meal": "Lunch", "items": ["¾ cup chicken salad: — sodium 179 mg", "+ 2 slices whole wheat bread — sodium 299 mg", "+ 1 Tbsp Dijon mustard — sodium 373 mg", "salad:", "+ ½ cup fresh cucumber slices — sodium 1 mg", "+ ½ cup tomato wedges — sodium 5 mg", "+ 1 Tbsp sunflower seeds — sodium 0 mg", "+ 1 tsp Italian dressing, low calorie — sodium 43 mg", "½ cup fruit cocktail, juice pack — sodium 5 mg"]}, {"meal": "Dinner", "items": ["3 oz roast beef, eye of the round: — sodium 35 mg", "+ 2 Tbsp beef gravy, fat-free — sodium 165 mg", "1 cup green beans, sautéed with: — sodium 12 mg", "+ ½ tsp canola oil — sodium 0 mg", "1 small baked potato: — sodium 14 mg", "+ 1 Tbsp sour cream, fat-free — sodium 21 mg", "+ 1 Tbsp natural cheddar cheese, reduced-fat — sodium 67 mg", "+ 1 Tbsp chopped scallions — sodium 1 mg", "1 small whole wheat roll: — sodium 148 mg", "+ 1 tsp soft (tub) margarine — sodium 26 mg", "1 small apple — sodium 1 mg", "1 cup low-fat milk — sodium 107 mg"]}, {"meal": "Snacks", "items": ["⅓ cup almonds, unsalted — sodium 0 mg", "¼ cup raisins — sodium 4 mg", "½ cup fruit yogurt, fat-free, no sugar added — sodium 86 mg"]}], "totals": {"Calories": "2,062", "Total fat": "63 g", "Calories from fat": "28%", "Saturated fat": "13 g", "Calories from saturated fat": "6%", "Cholesterol": "155 mg", "Sodium": "2,101 mg", "Carbohydrate": "284 g", "Protein": "114 g", "Calcium": "1,220 mg", "Magnesium": "594 mg", "Potassium": "4,909 mg", "Fiber": "37 g", "Servings by DASH food group (as printed)": "Grains 5; Vegetables 5; Fruits 6; Dairy 2½; Meats, Fish, and Poultry 6; Nuts, Seeds, and Legumes 1½; Fats and Oils 3½; Sweets and Added Sugars 0", "Printed tips to bring sodium to 1,500 mg": "219 mg less sodium: Try shredded wheat cereal instead of bran flakes. 59 mg less sodium: Make the chicken salad without salt. 198 mg less sodium: Use regular mustard in place of Dijon mustard. 66 mg less sodium: Use low-sodium, reduced-fat cheddar cheese. 26 mg less sodium: Use unsalted margarine.", "Totals at the 1,500 mg level (from the 2006 guide, same menu)": "Calories 2,037; Total fat 59 g; Calories from fat 26%; Saturated fat 12 g; Calories from saturated fat 5%; Cholesterol 155 mg; Sodium 1,507 mg; Carbohydrate 284 g; Protein 115 g; Calcium 1,218 mg; Magnesium 580 mg; Potassium 4,855 mg; Fiber 36 g"}}, "fits": "Arithmetic from the printed Day 1 totals with the app's factors (fat 9, carbohydrate 4, protein 4 kcal per g; shares of the printed 2,062 kcal). WHO: fat 63 g = 27.5% (met, 30% or less); saturated fat 13 g = 5.7% (met, 10% or less); carbohydrate 284 g = 55.1% (met, 45-75%); protein 114 g = 22.1% (met: 10% or more, and WHO sets no upper limit); fibre 37 g (met, 25 g or more); sodium 2,101 mg (over 'less than 2,000 mg' by 101 mg as printed; 1,507 mg with the printed substitutions — met); potassium 4,909 mg (met, 3,510 mg or more). So a DASH day meets all seven WHO checks once the low-sodium substitutions are made. EFSA: fat 27.5% (met, 20-35%); carbohydrate 55.1% (met, 45-60%); fibre met; sodium over by 101 mg / met at 1,507 mg; potassium met; calcium 1,220 mg (met, 950/1,000 mg); magnesium 594 mg (met); protein 114 g covers 0.83 g/kg up to 137 kg; iron, vitamins C, D, B12 and folate are not printed. energy-for-me: the menus are built on 2,000 kcal ('Serving sizes should be increased or decreased for other calorie levels'). Across the seven days as printed: calories 1,939-2,062; fat 25-29% of calories; saturated fat 5-6%; fibre 30-37 g; potassium 4,575-4,909 mg; protein 93-114 g; sodium 1,671-2,373 mg (days 4 and 5 are 2,312 and 2,373 mg; only day 6, at 1,671 mg, is under 2,000 mg without substitutions). The chicken salad in the lunch is itself one of the 54 carried recipes (nhlbi-chicken-salad, 179 mg sodium a serving — the same figure). The NHLBI asks that no changes be made, so carry the menu whole and credited, not edited."}],
       "guides": []
     },
     {
@@ -175,8 +271,14 @@
       "sources": [
         { "by": "Nordic Council of Ministers", "title": "Nordic Nutrition Recommendations 2023, Table 24", "url": "https://doi.org/10.6027/nord2023-003" }
       ],
-      "needs": [],
+      "needs": ["sex"],
       "checks": [
+        { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "min": 25, "max": 40, "basis": "Nordic 2023: 25–40% of energy" },
+        { "id": "satfat", "label": "Saturated fat, share of energy", "kind": "share", "key": "saturated_fat_mg", "kcal_per_g": 9, "max": 10, "basis": "Nordic 2023: less than 10% of energy" },
+        { "id": "carbs", "label": "Carbohydrate, share of energy", "kind": "share", "key": "carbs_mg", "kcal_per_g": 4, "min": 45, "max": 60, "basis": "Nordic 2023: 45–60% of energy" },
+        { "id": "protein", "label": "Protein, share of energy", "kind": "share", "key": "protein_mg", "kcal_per_g": 4, "min": 10, "max": 20, "basis": "Nordic 2023: 10–20% of energy" },
+        { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min_female": 25000, "min_male": 35000, "basis": "Nordic 2023: at least 25 g a day for women, 35 g for men" },
+        { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2300000, "basis": "Nordic 2023: 2.3 g a day (5.75 g of salt)" },
         { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "min": 7, "basis": "You say so each day" }
       ],
       "describes": [
@@ -186,13 +288,17 @@
         "Fish: 300–450 g a week, 200 g of it fatty",
         "Red meat: at most 350 g a week",
         "Low-fat dairy: 350–500 ml a day",
-        "Vegetable oil: at least 25 g a day"
+        "Vegetable oil: at least 25 g a day",
+        "Alcohol: “it is recommended to avoid alcohol intake”"
       ],
       "unmeasured": [
         "All of it: no food table used here tells whole grain from refined, says which group a mixed dish belongs to, or marks dairy as low-fat."
       ],
       "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published. This is a reading of the ingredient lists, not a measurement: formicaria cannot weigh the food groups in a mixed dish.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-cold-fusilli-pasta-summer", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-asian-style-steamed-salmon", "servings": 1}], "totals": {"kcal": 714, "fat_pct": 25.2, "saturated_fat_pct": 6.3, "carbs_pct": 51.0, "protein_pct": 25.8, "sodium_mg": 727, "fiber_g": 16.0, "potassium_mg": 1546}, "against": "The plan's only check is your own daily 'kept to it'; nothing below is measured. By reading the ingredient lines: low-fat dairy and fruit (1 C nonfat plain yogurt, strawberries, pineapple, banana for 3 servings); whole grain, legumes, vegetables and vegetable oil (8 oz whole-wheat fusilli, a 15½ oz can of chickpeas, tomatoes, pepper, zucchini, 1 Tbsp olive oil for 4 servings — 2 oz, about 57 g, of dry whole-wheat pasta a serving against 'at least 90 g' of whole grains a day); fatty fish (3 oz, about 85 g, of salmon a serving against 300-450 g a week). Not covered by these three: nuts (20-30 g a day), most of the 500-800 g of vegetables, fruit and berries, most of the 350-500 ml of low-fat dairy, most of the 25 g of vegetable oil. No red meat. Measured totals for information: 714 kcal, fibre 16.0 g, sodium 727 mg."}],
-      "guides": []
+      "guides": [],
+      "kind": "pattern",
+      "question": "healthy",
+      "relation": "Instead of WHO, for adults in the Nordic and Baltic countries; each food group is graded by the strength of its evidence."
     },
     {
       "id": "planetary-health",
@@ -201,26 +307,69 @@
       "rests_on": "described",
       "summary": "The EAT-Lancet Commission's daily food-group amounts for about 2,400 kcal. You say each day whether you kept to them.",
       "sources": [
-        { "by": "EAT-Lancet Commission", "title": "Summary report, 2025", "url": "https://eatforum.org/eat-lancet-commission/" }
+        { "by": "EAT-Lancet Commission", "title": "Summary report, 2025", "url": "https://eatforum.org/eat-lancet-commission/" },
+        { "by": "EAT-Lancet Commission, The Lancet", "title": "Healthy, sustainable and just food systems (2025)", "url": "https://doi.org/10.1016/S0140-6736(25)01201-2" },
+        { "by": "Beal, Ortenzi and Fanzo, Lancet Planetary Health", "title": "Estimated micronutrient shortfalls of the EAT–Lancet planetary health diet (2023)", "url": "https://doi.org/10.1016/S2542-5196(23)00006-2" }
       ],
       "needs": [],
       "checks": [
+        { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2000000, "basis": "EAT-Lancet 2025: sodium under 2,000 mg a day" },
         { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "min": 7, "basis": "You say so each day" }
       ],
       "describes": [
         "Whole grains: 210 g a day",
         "Vegetables: 300 g; fruit: 200 g",
-        "Dairy: 250 g",
-        "Legumes: 75 g; nuts: 50 g",
-        "Red meat: 15 g; poultry: 30 g; fish: 30 g; eggs: 15 g",
+        "Starchy roots and tubers: 50 g (0–100)",
+        "Dairy: 250 g (0–500)",
+        "Legumes: 75 g (0–150); nuts: 50 g (0–75)",
+        "Red meat: 15 g (0–30); poultry: 30 g; fish: 30 g (0–100); eggs: 15 g",
         "Unsaturated oils: 40 g",
-        "Added sugars: at most 30 g"
+        "Added sugars: at most 30 g",
+        "Amounts are for about 2,400 kcal; a smaller person eats less of each"
       ],
       "unmeasured": [
         "All of it: the food tables do not sort foods into these groups."
       ],
       "examples": [{"kind": "selected", "by": "formicaria, by arithmetic from the recipes it carries", "title": "NHLBI Healthy Eating Recipes", "url": "https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes", "note": "Chosen by arithmetic from the 54 recipes formicaria carries from the U.S. National Heart, Lung, and Blood Institute, one serving of each; only an indication to start from and change, not a plan anyone published. This is a reading of the ingredient lists, not a measurement: formicaria cannot weigh the food groups in a mixed dish.", "recipes": [{"meal": "Breakfast", "recipe": "nhlbi-summer-breeze-smoothie", "servings": 1}, {"meal": "Lunch", "recipe": "nhlbi-lentil-soup", "servings": 1}, {"meal": "Dinner", "recipe": "nhlbi-cold-fusilli-pasta-summer", "servings": 1}], "totals": {"kcal": 690, "fat_pct": 18.3, "saturated_fat_pct": 3.9, "carbs_pct": 64.3, "protein_pct": 20.9, "sodium_mg": 767, "fiber_g": 22.0, "potassium_mg": 1562}, "against": "The plan's only check is your own daily 'kept to it'; nothing below is measured. By reading the ingredient lines: dairy and fruit (nonfat yogurt, strawberries, pineapple, banana); legumes, vegetables and unsaturated oil (2 C dry lentils, carrots, celery, onion, crushed tomatoes, 2 Tbsp olive oil for 11 servings); whole grains, legumes and vegetables (8 oz whole-wheat fusilli — about 57 g dry a serving against 210 g of whole grains a day — chickpeas, tomatoes, pepper, zucchini, 1 Tbsp olive oil, ½ C parmesan for 4 servings). No meat, poultry, fish or egg in the three. Not covered: nuts (50 g), most of the whole grains, most of the 40 g of unsaturated oils. Measured totals for information: 690 kcal (the plan describes about 2,400), fibre 22.0 g, sodium 767 mg."}],
-      "guides": []
+      "guides": [],
+      "kind": "pattern",
+      "question": "healthy",
+      "relation": "Instead of WHO, for health and the planet together; built for the world's average adult, at about 2,400 kcal.",
+      "caution": "EAT-Lancet 2025: “For children and women of reproductive age, those who choose vegan or vegetarian diets should consider bioavailability and include fortified foods or supplements where appropriate.” An analysis of the 2019 diet (Beal et al. 2023) found it short in iron, B12, calcium and zinc for women of reproductive age."
+    },
+    {
+      "id": "vegan-watch",
+      "group": "food",
+      "name": "Vegan or vegetarian: what to watch",
+      "kind": "targets",
+      "question": "nutrients",
+      "rests_on": "guideline",
+      "relation": "Instead of the European reference values, the four nutrients a plant-based diet most often falls short of.",
+      "summary": "Vitamin B12, iron, calcium and iodine against EFSA's values: the nutrients a plant-based diet can fall short of.",
+      "sources": [
+        { "by": "European Food Safety Authority", "title": "Dietary reference values for nutrients, summary report (2017)", "url": "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf" },
+        { "by": "The Vegan Society", "title": "Vitamin B12: what every vegan should know", "url": "https://www.vegansociety.com/resources/nutrition-and-health/nutrients/vitamin-b12" },
+        { "by": "NHS", "title": "The vegan diet", "url": "https://www.nhs.uk/live-well/eat-well/how-to-eat-a-balanced-diet/the-vegan-diet/" }
+      ],
+      "needs": ["sex", "born"],
+      "checks": [
+        { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ug", "min": 4, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
+        { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "min_male": 11000, "min_female": 16000, "min_postmenopausal": 11000, "basis": "EFSA: 11 mg a day for men; 16 mg for women before the menopause, 11 mg after" },
+        { "id": "calcium", "label": "Calcium", "kind": "sum", "key": "calcium_ug", "min": 950000, "min_young": 1000000, "max": 2500000, "basis": "EFSA: 950 mg a day, 1,000 mg at 18–24; upper level 2,500 mg" },
+        { "id": "iodine", "label": "Iodine", "kind": "sum", "key": "iodine_ug", "min": 150, "min_pregnant": 200, "min_breastfeeding": 200, "max": 600, "basis": "EFSA: 150 µg a day (adequate intake), 200 µg in pregnancy and while breastfeeding; upper level 600 µg" }
+      ],
+      "describes": [
+        "B12 has no reliable plant source. The Vegan Society: “fortified foods two or three times a day to get at least three micrograms”, or “one B12 supplement daily providing at least 10 micrograms”, or “a weekly B12 supplement providing at least 2000 micrograms”",
+        "NHS: calcium, iron, vitamin B12, iodine and selenium are the nutrients a vegan diet can miss without planning; “a vitamin B12 supplement may be needed”"
+      ],
+      "unmeasured": [
+        "A supplement counts only when you log it."
+      ],
+      "caution": "Values for healthy adults (EFSA). A log can show intake below a reference; only a blood test shows a deficiency.",
+      "flag_notes": [
+        { "flag": "pregnant", "text": "EFSA's pregnancy value is used for iodine. NHS: take 400 µg of folic acid a day until week 12." },
+        { "flag": "postmenopausal", "text": "EFSA's 11 mg of iron after the menopause is used." }
+      ]
     },
     {
       "id": "own-food",
@@ -250,7 +399,9 @@
         { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "basis": "You say so each day" }
       ],
       "unmeasured": [],
-      "guides": []
+      "guides": [],
+      "kind": "own",
+      "question": "own"
     },
     {
       "id": "who-activity",
@@ -275,7 +426,11 @@
       "guides": [
         { "label": "Strength exercises to do at home", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/strength-and-flexibility-exercises/strength-exercises/", "seen": "2026-10-12" },
         { "label": "Strength and resistance videos", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/", "seen": "2026-10-12" }
-      ]
+      ],
+      "kind": "amounts",
+      "question": "moving",
+      "start_here": true,
+      "relation": "Written for adults 18–64, including those with a chronic condition or a disability. 150 is the start of a range: up to 300 minutes still adds benefit."
     },
     {
       "id": "who-activity-65",
@@ -298,7 +453,10 @@
       "guides": [
         { "label": "Balance exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/", "seen": "2026-10-12" },
         { "label": "Sitting exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/", "seen": "2026-10-12" }
-      ]
+      ],
+      "kind": "amounts",
+      "question": "moving",
+      "relation": "WHO's weekly activity, plus balance and strength work on 3 or more days, from 65."
     },
     {
       "id": "falls-prevention",
@@ -320,7 +478,10 @@
       "examples": [{"kind": "assembled", "by": "formicaria, from the NHS's balance exercises and the World Falls Guidelines' three sessions a week", "title": "Balance exercises", "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/", "note": "The NHS's five balance exercises and its sit-to-stand, on three days as the World Falls Guidelines ask; this is only a simple indication to start from — the guideline expects the exercise to be fitted to the person and made harder over time.", "week": [{"day": "mon", "items": [{"type": "session", "name": "NHS balance exercises", "exercises": [{"card": "nhs-sideways-walking", "sets": 1, "reps": "10 steps each way", "said": "Avoid dropping your hips as you step. Perform 10 steps each way or step from one side of the room to the other."}, {"card": "nhs-simple-grapevine", "sets": 1, "reps": "5 cross-steps on each side", "said": "Attempt 5 cross-steps on each side. If necessary, put your fingers against a wall for stability. The smaller the step, the more you work on your balance."}, {"card": "nhs-heel-to-toe-walk", "sets": 1, "reps": "at least 5 steps", "said": "Try to perform at least 5 steps. As you progress, move away from the wall."}, {"card": "nhs-one-leg-stand", "sets": 1, "reps": "3 on each side, each held 5 to 10 seconds", "said": "Hold the lift for 5 to 10 seconds and perform 3 on each side."}, {"card": "nhs-step-up", "sets": 1, "reps": "up to 5 steps with each leg", "said": "The key for building balance is to step up and down slowly and in a controlled manner. Perform up to 5 steps with each leg."}, {"card": "nhs-sit-to-stand", "sets": 1, "reps": "5", "said": "Aim for 5 repetitions. The slower the repetitions, the better."}]}]}, {"day": "tue", "items": []}, {"day": "wed", "items": [{"type": "session", "name": "NHS balance exercises", "exercises": [{"card": "nhs-sideways-walking", "sets": 1, "reps": "10 steps each way", "said": "Avoid dropping your hips as you step. Perform 10 steps each way or step from one side of the room to the other."}, {"card": "nhs-simple-grapevine", "sets": 1, "reps": "5 cross-steps on each side", "said": "Attempt 5 cross-steps on each side. If necessary, put your fingers against a wall for stability. The smaller the step, the more you work on your balance."}, {"card": "nhs-heel-to-toe-walk", "sets": 1, "reps": "at least 5 steps", "said": "Try to perform at least 5 steps. As you progress, move away from the wall."}, {"card": "nhs-one-leg-stand", "sets": 1, "reps": "3 on each side, each held 5 to 10 seconds", "said": "Hold the lift for 5 to 10 seconds and perform 3 on each side."}, {"card": "nhs-step-up", "sets": 1, "reps": "up to 5 steps with each leg", "said": "The key for building balance is to step up and down slowly and in a controlled manner. Perform up to 5 steps with each leg."}, {"card": "nhs-sit-to-stand", "sets": 1, "reps": "5", "said": "Aim for 5 repetitions. The slower the repetitions, the better."}]}]}, {"day": "thu", "items": []}, {"day": "fri", "items": [{"type": "session", "name": "NHS balance exercises", "exercises": [{"card": "nhs-sideways-walking", "sets": 1, "reps": "10 steps each way", "said": "Avoid dropping your hips as you step. Perform 10 steps each way or step from one side of the room to the other."}, {"card": "nhs-simple-grapevine", "sets": 1, "reps": "5 cross-steps on each side", "said": "Attempt 5 cross-steps on each side. If necessary, put your fingers against a wall for stability. The smaller the step, the more you work on your balance."}, {"card": "nhs-heel-to-toe-walk", "sets": 1, "reps": "at least 5 steps", "said": "Try to perform at least 5 steps. As you progress, move away from the wall."}, {"card": "nhs-one-leg-stand", "sets": 1, "reps": "3 on each side, each held 5 to 10 seconds", "said": "Hold the lift for 5 to 10 seconds and perform 3 on each side."}, {"card": "nhs-step-up", "sets": 1, "reps": "up to 5 steps with each leg", "said": "The key for building balance is to step up and down slowly and in a controlled manner. Perform up to 5 steps with each leg."}, {"card": "nhs-sit-to-stand", "sets": 1, "reps": "5", "said": "Aim for 5 repetitions. The slower the repetitions, the better."}]}]}, {"day": "sat", "items": []}, {"day": "sun", "items": []}], "meets": "balance days: Mon + Wed + Fri = 3 (min 3).", "later": "NHS: \"Build up slowly and aim to gradually increase the repetitions of each exercise over time.\" No published session length was read; the Otago programme (about 30 minutes, three times a week) is copyright and prescribed by a physiotherapist, and is not copied."}],
       "guides": [
         { "label": "Balance exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/", "seen": "2026-10-12" }
-      ]
+      ],
+      "kind": "programme",
+      "question": "falls",
+      "relation": "One balance session also counts for WHO's 65 and over. Walking alone is not a falls programme."
     },
     {
       "id": "strength-health",
@@ -329,7 +490,7 @@
       "rests_on": "position",
       "summary": "Every major muscle group at least twice a week, at least 2 sets an exercise, stopping short of failure.",
       "sources": [
-        { "by": "American College of Sports Medicine", "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72 (read from a copy of the paper)", "url": "" }
+        { "by": "American College of Sports Medicine", "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72 (read from a copy of the paper)", "url": "https://doi.org/10.1249/MSS.0000000000003897" }
       ],
       "needs": [],
       "checks": [
@@ -343,7 +504,10 @@
         { "label": "Strength exercises to do at home", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/strength-and-flexibility-exercises/strength-exercises/", "seen": "2026-10-12" },
         { "label": "Video: The PERFECT Beginner Workout (Sets and Reps Included) — a trainer's routine, not a health body's; 7.3 million views when seen", "by": "ATHLEAN-X (Jeff Cavaliere, Masters in Physical Therapy, University of Connecticut, by his own site) — a trainer's channel", "url": "https://www.youtube.com/watch?v=ixkQaZXVQjs", "seen": "2026-10-12" },
         { "label": "Video: The #1 Full Body Routine to Build Muscle & Lose Fat — a trainer's routine, not a health body's; 3.5 million views when seen", "by": "Jeremy Ethier (Bachelor's in Kinesiology, by his own site) — a trainer's channel", "url": "https://www.youtube.com/watch?v=B12MXF0bSFo", "seen": "2026-10-12" }
-      ]
+      ],
+      "kind": "amounts",
+      "question": "stronger",
+      "relation": "The middle of three: Minimal strength takes less time, Muscle growth more volume. Pick one."
     },
     {
       "id": "strength-growth",
@@ -352,7 +516,7 @@
       "rests_on": "position",
       "summary": "Ten or more sets a week for each muscle group, at any load, on as many days as you like.",
       "sources": [
-        { "by": "American College of Sports Medicine", "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72, Table 6 (read from a copy of the paper)", "url": "" }
+        { "by": "American College of Sports Medicine", "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72, Table 6 (read from a copy of the paper)", "url": "https://doi.org/10.1249/MSS.0000000000003897" }
       ],
       "needs": [],
       "checks": [
@@ -365,7 +529,10 @@
         "ACSM counts sets for each muscle group; formicaria counts them for four regions of the body, which is coarser."
       ],
       "examples": [{"kind": "assembled", "by": "formicaria, from ACSM 2026 (10 sets a week for each muscle group) and the U.S. Army's machine exercises", "title": "ACSM position stand on resistance training, 2026, Table 6 (no example week is published)", "url": "https://acsm.org/resistance-training-guidelines-update-2026/", "note": "No body publishes an example week for this; this is the app's own arrangement of ACSM's 10 sets a week over three days with four machines, a simple indication that you can re-split over any number of days.", "week": [{"day": "mon", "items": [{"type": "session", "name": "Four machines", "exercises": [{"card": "army-leg-press", "sets": 4, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-leg-curl", "sets": 4, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-chest-press", "sets": 4, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-seated-row", "sets": 4, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}], "rest": "1 to 2 minutes between sets", "effort_said": "stop 2 to 3 repetitions short of failure"}]}, {"day": "tue", "items": []}, {"day": "wed", "items": [{"type": "session", "name": "Four machines", "exercises": [{"card": "army-leg-press", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-leg-curl", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-overhead-press", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-lat-pull-down", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}], "rest": "1 to 2 minutes between sets", "effort_said": "stop 2 to 3 repetitions short of failure"}]}, {"day": "thu", "items": []}, {"day": "fri", "items": [{"type": "session", "name": "Four machines", "exercises": [{"card": "army-leg-press", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-leg-curl", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-chest-press", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-seated-row", "sets": 3, "reps": "8 to 12", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}], "rest": "1 to 2 minutes between sets", "effort_said": "stop 2 to 3 repetitions short of failure"}]}, {"day": "sat", "items": []}, {"day": "sun", "items": []}], "variant": "gym", "meets": "sets a week (min 10 each): lower-push leg press 4+3+3 = 10; lower-pull leg curl 4+3+3 = 10; upper-push chest press 4 + overhead press 3 + chest press 3 = 10; upper-pull seated row 4 + lat pull-down 3 + seated row 3 = 10."}],
-      "guides": []
+      "guides": [],
+      "kind": "amounts",
+      "question": "stronger",
+      "relation": "The top of three, for muscle size; it already includes Strength, twice a week, when the sets fall on 2 days."
     },
     {
       "id": "strength-minimal",
@@ -386,7 +553,10 @@
         "The load the review describes (a weight you can lift 6 to 15 times)."
       ],
       "examples": [{"kind": "published", "by": "Iversen et al. 2021 (exercises, sets, load, rest); the two days are formicaria's", "title": "No time to lift? … Table 1: Summary of practical applications for time-efficient strength- and hypertrophy programs", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772/", "note": "The review's own three example exercises — leg press, seated row, bench press — two sets each on two days to reach its 4 sets a week; it publishes no day-by-day week, so the layout is only a simple indication.", "week": [{"day": "mon", "items": [{"type": "session", "name": "Three exercises", "exercises": [{"card": "army-leg-press", "sets": 2, "reps": "6 to 15", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-seated-row", "sets": 2, "reps": "6 to 15", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-bench-press", "sets": 2, "reps": "6 to 15", "said": ""}], "rest": "1 to 2 minutes between sets"}]}, {"day": "tue", "items": []}, {"day": "wed", "items": []}, {"day": "thu", "items": [{"type": "session", "name": "Three exercises", "exercises": [{"card": "army-leg-press", "sets": 2, "reps": "6 to 15", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-seated-row", "sets": 2, "reps": "6 to 15", "said": "Repeat this movement for the correct number of repetitions and sets required to meet the goal of the strength machine session."}, {"card": "army-bench-press", "sets": 2, "reps": "6 to 15", "said": ""}], "rest": "1 to 2 minutes between sets"}]}, {"day": "fri", "items": []}, {"day": "sat", "items": []}, {"day": "sun", "items": []}], "variant": "gym", "meets": "sets a week (min 4 each): legs (leg press, lower-push) 2+2 = 4; pull (seated row) 2+2 = 4; push (bench press) 2+2 = 4.", "later": "Table 1: \"Increase volume when possible (up to 10 + weekly sets)\". Warm-up: \"Specific warm-up can be useful when training with heavy loads (> 80% of 1RM)\"."}, {"kind": "assembled", "by": "formicaria, from Iversen et al. 2021, Table 1, with body-weight exercises from the NHS and the U.S. Army", "title": "No time to lift? … Table 1", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772/", "note": "The same three kinds of exercise without equipment — squats, a prone row, push-ups — which the review allows if each set is taken close to failure; the choice of exercises is this app's and only a simple indication.", "week": [{"day": "mon", "items": [{"type": "session", "name": "Three exercises at home", "exercises": [{"card": "nhs-squats", "sets": 2, "reps": "as many as you can, close to failure", "said": ""}, {"card": "army-prone-row", "sets": 2, "reps": "as many as you can, close to failure", "said": ""}, {"card": "army-push-up", "sets": 2, "reps": "as many as you can, close to failure", "said": ""}], "rest": "1 to 2 minutes between sets"}]}, {"day": "tue", "items": []}, {"day": "wed", "items": []}, {"day": "thu", "items": [{"type": "session", "name": "Three exercises at home", "exercises": [{"card": "nhs-squats", "sets": 2, "reps": "as many as you can, close to failure", "said": ""}, {"card": "army-prone-row", "sets": 2, "reps": "as many as you can, close to failure", "said": ""}, {"card": "army-push-up", "sets": 2, "reps": "as many as you can, close to failure", "said": ""}], "rest": "1 to 2 minutes between sets"}]}, {"day": "fri", "items": []}, {"day": "sat", "items": []}, {"day": "sun", "items": []}], "variant": "no equipment", "meets": "sets a week (min 4 each): legs (squats, lower-push) 2+2 = 4; pull (prone row) 2+2 = 4; push (push-up) 2+2 = 4."}],
-      "guides": []
+      "guides": [],
+      "kind": "amounts",
+      "question": "stronger",
+      "relation": "The bottom of three, from a narrative review; ACSM 2026 found “insufficient evidence” to recommend minimal-dose programmes yet."
     },
     {
       "id": "stretching-daily",
@@ -395,7 +565,7 @@
       "rests_on": "position",
       "summary": "Stretch daily: 2–3 sets for each muscle, each held 30–120 seconds.",
       "sources": [
-        { "by": "Warneke et al.", "title": "Delphi consensus on stretching, 2025 — for range of motion; not for injury prevention, recovery or posture", "url": "" }
+        { "by": "Warneke et al.", "title": "Delphi consensus on stretching, 2025 — for range of motion; not for injury prevention, recovery or posture", "url": "https://doi.org/10.1016/j.jshs.2025.101067" }
       ],
       "needs": [],
       "checks": [
@@ -407,7 +577,10 @@
       "examples": [{"kind": "assembled", "by": "formicaria, from Warneke et al. 2025 (2 sets, 30 seconds, daily) and the NHS's five stretches", "title": "How to stretch after exercising", "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/", "note": "The NHS's five stretches every day, each done twice and held 30 seconds — the low end of the consensus; the NHS itself says 15 to 20 seconds, so the longer hold is this regime's, and the whole is only a simple indication.", "week": [{"day": "mon", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}, {"day": "tue", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}, {"day": "wed", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}, {"day": "thu", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}, {"day": "fri", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}, {"day": "sat", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}, {"day": "sun", "items": [{"type": "session", "name": "NHS stretches", "exercises": [{"card": "nhs-buttock-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-hamstring-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-inner-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-calf-stretch-how-to-stretch-after-exercising", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}, {"card": "nhs-thigh-stretch", "sets": 2, "reps": "hold 30 seconds each side", "said": "hold for 15 to 20 seconds"}]}]}], "meets": "flexibility days: 7 of 7 (min 7). Each stretch: 2 sets × 30 s, inside Warneke's 2–3 sets of 30–120 s.", "later": "An alternative with the upper body in it: the Army Recovery Drill cards (army-overhead-arm-pull, army-rear-lunge-recovery-drill, army-extend-and-flex, army-thigh-stretch, army-single-leg-over-recovery-drill, army-groin-stretch, army-calf-stretch, army-hamstring-stretch), each held 30 seconds, twice."}],
       "guides": [
         { "label": "Flexibility exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/", "seen": "2026-10-12" }
-      ]
+      ],
+      "kind": "programme",
+      "question": "flexible",
+      "relation": "Combines with any card. Daily is the panel's route to “the highest possible weekly volume”; fewer days still count."
     },
     {
       "id": "norwegian-4x4",
@@ -416,34 +589,13 @@
       "rests_on": "review",
       "summary": "Four 4-minute efforts hard enough that you cannot speak in sentences, with 3 easy minutes between, two or three times a week. From a research group in Trondheim.",
       "sources": [
-        {
-          "by": "NTNU Cardiac Exercise Research Group (CERG)",
-          "title": "Advice on exercise: “We … recommend 4x4-minutes interval training to improve fitness”; 2–3 sessions a week to increase fitness, one to maintain it",
-          "url": "https://www.ntnu.edu/cerg/advice"
-        },
-        {
-          "by": "Helgerud et al.",
-          "title": "Aerobic high-intensity intervals improve VO2max more than moderate training. Med Sci Sports Exerc 2007 — 40 moderately trained men, 8 weeks",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/17414804/"
-        },
-        {
-          "by": "Stensvold et al.",
-          "title": "Generation 100, BMJ 2020 — 1,567 people aged 70–77 for 5 years: “All cause mortality did not differ between the control group and combined MICT and HIIT group”",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/33028588/"
-        }
+        { "by": "NTNU Cardiac Exercise Research Group (CERG)", "title": "Advice on exercise: “We … recommend 4x4-minutes interval training to improve fitness”; 2–3 sessions a week to increase fitness, one to maintain it", "url": "https://www.ntnu.edu/cerg/advice" },
+        { "by": "Helgerud et al.", "title": "Aerobic high-intensity intervals improve VO2max more than moderate training. Med Sci Sports Exerc 2007 — 40 moderately trained men, 8 weeks", "url": "https://pubmed.ncbi.nlm.nih.gov/17414804/" },
+        { "by": "Stensvold et al.", "title": "Generation 100, BMJ 2020 — 1,567 people aged 70–77 for 5 years: “All cause mortality did not differ between the control group and combined MICT and HIIT group”", "url": "https://pubmed.ncbi.nlm.nih.gov/33028588/" }
       ],
       "needs": [],
       "checks": [
-        {
-          "id": "sessions",
-          "label": "4×4 sessions this week",
-          "kind": "named_days",
-          "names": [
-            "4×4 intervals"
-          ],
-          "min": 2,
-          "basis": "CERG: “we recommend 2–3 sessions with interval training per week” to increase fitness; one a week maintains it"
-        }
+        { "id": "sessions", "label": "4×4 sessions this week", "kind": "named_days", "names": ["4×4 intervals"], "min": 2, "basis": "CERG: “we recommend 2–3 sessions with interval training per week” to increase fitness; one a week maintains it" }
       ],
       "describes": [
         "Warm up for 10 minutes at an easy effort",
@@ -457,34 +609,18 @@
         "Whether each effort reached the intensity: formicaria counts the sessions you log, not your heart rate.",
         "Its originator says “there are no studies that show that 4×4 interval training prolongs life more than any other type of exercise” (Wisløff, 2024). It is one well-studied way to raise fitness, not a better one than all others."
       ],
-      "caution": "CERG: “We have positive experience with 4x4 interval training for people with coronary artery disease. However, every patient is different, and if you're unsure you should contact your doctor.”",
+      "caution": "CERG: “We have positive experience with 4x4 interval training for people with coronary artery disease. However, every patient is different, and if you're unsure you should contact your doctor.” WHO 2020: “Those who develop new symptoms when increasing their levels of activity should consult a healthcare provider.”",
       "examples": [{"kind": "published", "by": "NTNU Cardiac Exercise Research Group (CERG)", "title": "7 week fitness program — Week 1", "url": "https://www.ntnu.edu/cerg/regimen", "note": "Week 1 of the 7-week programme by the Trondheim group that devised the 4×4: it starts with one 4-minute effort and builds to four by week 4; a starting point only — CERG itself says to take an extra week or two if the pace is too hard.", "week": [{"day": "mon", "items": [{"type": "activity", "name": "4×4 intervals", "minutes": 19, "effort": 8, "counts_as": "aerobic", "said": "Endurance program: 1x4 minutes kick-start — 10-minute warm-up; 4 minutes of walking or running uphill so you feel tired and winded; 5-minute cool-down"}]}, {"day": "tue", "items": []}, {"day": "wed", "items": [{"type": "activity", "name": "Jogging", "minutes": 30, "effort": 5, "counts_as": "aerobic", "said": "Endurance program: 20 minutes Fun-Run — warm up for 10 minutes at a comfortable pace; run or walk for 20 minutes … a bit harder than the speed at the warm-up – without stopping"}, {"type": "session", "name": "CERG core strength program", "exercises": [{"card": "army-push-up", "sets": 1, "reps": "10", "said": "10 push-ups, either with bent knees, or as in the picture below"}, {"card": "nhs-squats", "sets": 1, "reps": "15", "said": "15 squats"}], "uncarded": ["10 squat jumps (no card in exercises.json): \"same movements as for squats described above, but move so quickly up that you jump up in the air\""]}]}, {"day": "thu", "items": []}, {"day": "fri", "items": [{"type": "activity", "name": "4×4 intervals", "minutes": 26, "effort": 8, "counts_as": "aerobic", "said": "Endurance program: 2x4 minutes health boost — 10-minute warm-up; 1 x 4 minutes so you're very short of breath; 3 minutes of relaxed walking; 1 x 4 minutes; 5 minutes of calm walking"}]}, {"day": "sat", "items": []}, {"day": "sun", "items": []}], "meets": "named_days \"4×4 intervals\" (min 2): Mon + Fri = 2 — but only if the build-up sessions are logged under that name: Monday is 1 × 4 minutes and Friday 2 × 4, not four. The first full 4×4 is Monday of week 4; weeks 4, 6 hold two full 4×4 sessions, week 7 one. Session lengths: Mon 10+4+5 = 19 min; Fri 10+4+3+4+5 = 26 min; Wed 10+20 = 30 min.", "later": "Transcribed from the page (PDF agrees). Full 4×4 = 10 warm-up, 4 hard / 3 relaxed walking ×4 (last one followed by the cool-down), 5 cool-down = 40 min; 3×4 = 33 min; 2×4 = 26; 1×4 = 19. WEEK 2 — Mon: 1×4 kick-start. Wed: 3×4 interval. Fri: core strength, after a 10-minute warm-up: split-squat, squat jumps, push-ups, 5–10 repetitions each, 30 seconds rest between exercises, 1 minute between each of 3 series. Weekend: favourite activity for more than 60 minutes. WEEK 3 — Mon: 3×4. Wed: an activity you do not normally do, more than 60 minutes. Fri: 1×4 kick-start. Weekend off. WEEK 4 — Mon: 4×4 Health Booster. Wed: 4×4 again. Fri: 1×4 kick-start, then core strength: squats 10, split-squat 7 each foot, squat jumps 5, push-ups as many as you can; then squats 7, split-squat 5 each foot, squat jumps 5, push-ups as many as you can. Weekend off, or low-to-moderate only. WEEK 5 — Mon: 1×4 kick-start. Wed: 20-minute Fun-Run (after 10 warm-up), then core strength: 10 push-ups, 15 squats, 10 squats with jumps, three series (30 s between exercises, 1 min between series). Fri: an unfamiliar activity, more than 60 minutes. WEEK 6 — Mon: 4×4. Tue: 20-minute Fun-Run + core strength (10 push-ups, 15 squats, 10 squat jumps, once). Thu: 4×4. Fri: 20-minute Fun-Run + core strength (10 push-ups, 15 squats, 10 squat jumps, three times). WEEK 7 — Mon: 4×4. Wed: an unfamiliar activity, more than 60 minutes. Thu: as many sit-ups as you can, a 30-minute walk or jog at a conversational pace, as many sit-ups as you can. Sessions a week: 3 in weeks 1, 3, 4, 5, 7; 3 plus a weekend activity in week 2; 4 in week 6. Interval sessions a week (any length): 2, 2, 2, 3, 1, 2, 1."}],
       "guides": [
-        {
-          "label": "Advice on exercise, and the 4×4 as its originators describe it",
-          "by": "NTNU CERG",
-          "url": "https://www.ntnu.edu/cerg/advice",
-          "seen": "2026-10-12"
-        },
-        {
-          "label": "A 7-week programme that builds up from one interval",
-          "by": "NTNU CERG",
-          "url": "https://www.ntnu.edu/cerg/regimen",
-          "seen": "2026-10-12"
-        },
-        {
-          "label": "Video: 4x4 Interval Training (the one CERG's page shows; on a personal Vimeo account)",
-          "by": "Maria Henningsen, shown by NTNU CERG",
-          "url": "https://vimeo.com/75764170",
-          "seen": "2026-10-12"
-        },
-        {
-          "label": "Video: 4x4 Interval Training (on a personal YouTube account; its Norwegian twin is the one CERG's own page shows; 74,820 views when seen)",
-          "by": "Øyvind Lundenes — a person's channel, not NTNU's",
-          "url": "https://www.youtube.com/watch?v=1XDsRNeVynk",
-          "seen": "2026-10-12"
-        }
-      ]
+        { "label": "Advice on exercise, and the 4×4 as its originators describe it", "by": "NTNU CERG", "url": "https://www.ntnu.edu/cerg/advice", "seen": "2026-10-12" },
+        { "label": "A 7-week programme that builds up from one interval", "by": "NTNU CERG", "url": "https://www.ntnu.edu/cerg/regimen", "seen": "2026-10-12" },
+        { "label": "Video: 4x4 Interval Training (the one CERG's page shows; on a personal Vimeo account)", "by": "Maria Henningsen, shown by NTNU CERG", "url": "https://vimeo.com/75764170", "seen": "2026-10-12" },
+        { "label": "Video: 4x4 Interval Training (on a personal YouTube account; its Norwegian twin is the one CERG's own page shows; 74,820 views when seen)", "by": "Øyvind Lundenes — a person's channel, not NTNU's", "url": "https://www.youtube.com/watch?v=1XDsRNeVynk", "seen": "2026-10-12" },
+        { "label": "PAR-Q+, a short health check before becoming more active", "by": "PAR-Q+ Collaboration", "url": "https://eparmedx.com/", "seen": "2026-10-16" }
+      ],
+      "kind": "programme",
+      "question": "fitter",
+      "relation": "An alternative to Interval walking for fitness: harder, and better studied for VO2max. Its sessions count toward WHO's minutes."
     },
     {
       "id": "interval-walking",
@@ -493,24 +629,11 @@
       "rests_on": "review",
       "summary": "Three minutes of fast walking and three of slow, five times or more, on four or more days a week. Tested in Japan in people around 63.",
       "sources": [
-        {
-          "by": "Nemoto, Nose et al.",
-          "title": "Effects of high-intensity interval walking training on physical fitness and blood pressure in middle-aged and older people. Mayo Clin Proc 2007 — 246 people, 5 months",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/17605959/"
-        }
+        { "by": "Nemoto, Nose et al.", "title": "Effects of high-intensity interval walking training on physical fitness and blood pressure in middle-aged and older people. Mayo Clin Proc 2007 — 246 people, 5 months", "url": "https://pubmed.ncbi.nlm.nih.gov/17605959/" }
       ],
       "needs": [],
       "checks": [
-        {
-          "id": "sessions",
-          "label": "Interval-walking days this week",
-          "kind": "named_days",
-          "names": [
-            "Interval walking"
-          ],
-          "min": 4,
-          "basis": "Nemoto et al. 2007: “5 or more sets of 3-minute low-intensity walking … followed by a 3-minute high-intensity walking … 4 or more days per week”"
-        }
+        { "id": "sessions", "label": "Interval-walking days this week", "kind": "named_days", "names": ["Interval walking"], "min": 4, "basis": "Nemoto et al. 2007: “5 or more sets of 3-minute low-intensity walking … followed by a 3-minute high-intensity walking … 4 or more days per week”" }
       ],
       "describes": [
         "3 minutes of slow walking, then 3 minutes of fast walking",
@@ -523,7 +646,13 @@
         "The trial's people were about 63 years old; nothing here says what it does for a younger person."
       ],
       "examples": [{"kind": "published", "by": "Nemoto, Nose et al. 2007 and Masuki, Morikawa, Nose 2019 (Shinshu University) — the trials' own instruction; the four days chosen are formicaria's", "title": "Effects of high-intensity interval walking training on physical fitness and blood pressure in middle-aged and older people", "url": "https://pubmed.ncbi.nlm.nih.gov/17605959/", "note": "The instruction given in the Japanese trials — five rounds of 3 minutes slow and 3 minutes fast, on four days — at its minimum; which four days is only a simple indication.", "week": [{"day": "mon", "items": [{"type": "activity", "name": "Interval walking", "minutes": 30, "effort": 7, "counts_as": "aerobic", "said": "5 sets of 3 minutes slow then 3 minutes fast; effort 7 is the fast half — the slow half is easy"}]}, {"day": "tue", "items": [{"type": "activity", "name": "Interval walking", "minutes": 30, "effort": 7, "counts_as": "aerobic", "said": "5 sets of 3 minutes slow then 3 minutes fast; effort 7 is the fast half — the slow half is easy"}]}, {"day": "wed", "items": []}, {"day": "thu", "items": [{"type": "activity", "name": "Interval walking", "minutes": 30, "effort": 7, "counts_as": "aerobic", "said": "5 sets of 3 minutes slow then 3 minutes fast; effort 7 is the fast half — the slow half is easy"}]}, {"day": "fri", "items": []}, {"day": "sat", "items": [{"type": "activity", "name": "Interval walking", "minutes": 30, "effort": 7, "counts_as": "aerobic", "said": "5 sets of 3 minutes slow then 3 minutes fast; effort 7 is the fast half — the slow half is easy"}]}, {"day": "sun", "items": []}], "meets": "named_days \"Interval walking\" (min 4): Mon + Tue + Thu + Sat = 4. Each: 5 × (3 + 3) = 30 min; fast walking 4 × 15 = 60 min a week."}],
-      "guides": []
+      "guides": [
+        { "label": "PAR-Q+, a short health check before becoming more active", "by": "PAR-Q+ Collaboration", "url": "https://eparmedx.com/", "seen": "2026-10-16" }
+      ],
+      "kind": "programme",
+      "question": "fitter",
+      "relation": "An alternative to the Norwegian 4×4 for fitness: gentler, tested in people around 63. Its sessions count toward WHO's minutes.",
+      "caution": "WHO 2020: “Those who develop new symptoms when increasing their levels of activity should consult a healthcare provider.”"
     },
     {
       "id": "activity-for-weight-loss",
@@ -532,34 +661,14 @@
       "rests_on": "position",
       "summary": "More than 250 minutes of moderate activity a week, with strengthening on 2 days to keep muscle. Written for people above a healthy weight, and it works with eating less, not instead of it.",
       "sources": [
-        {
-          "by": "American College of Sports Medicine",
-          "title": "Donnelly et al. 2009, position stand: “Moderate-intensity PA between 150 and 250 min wk(-1) will provide only modest weight loss. Greater amounts of PA (>250 min wk(-1)) have been associated with clinically significant weight loss.”",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/19127177/"
-        },
-        {
-          "by": "U.S. Department of Health and Human Services",
-          "title": "Physical Activity Guidelines for Americans, 2nd edition (2018): “Muscle-strengthening activities can also help maintain lean body mass during weight loss.”",
-          "url": "https://health.gov/sites/default/files/2019-09/Physical_Activity_Guidelines_2nd_edition.pdf"
-        }
+        { "by": "American College of Sports Medicine", "title": "Donnelly et al. 2009, position stand: “Moderate-intensity PA between 150 and 250 min wk(-1) will provide only modest weight loss. Greater amounts of PA (>250 min wk(-1)) have been associated with clinically significant weight loss.”", "url": "https://pubmed.ncbi.nlm.nih.gov/19127177/" },
+        { "by": "U.S. Department of Health and Human Services", "title": "Physical Activity Guidelines for Americans, 2nd edition (2018): “Muscle-strengthening activities can also help maintain lean body mass during weight loss.”", "url": "https://health.gov/sites/default/files/2019-09/Physical_Activity_Guidelines_2nd_edition.pdf" },
+        { "by": "Jayedi et al., JAMA Network Open", "title": "Aerobic exercise and weight loss, dose–response meta-analysis of 116 trials (2024): “Each 30 minutes per week of aerobic exercise was associated with reduced body weight by 0.52 kg”; more than 150 minutes a week may be needed for clinically important change", "url": "https://doi.org/10.1001/jamanetworkopen.2024.52185" }
       ],
       "needs": [],
       "checks": [
-        {
-          "id": "minutes",
-          "label": "Activity this week",
-          "kind": "minutes",
-          "min": 250,
-          "basis": "ACSM 2009: more than 250 min a week of moderate activity for clinically significant weight loss; 150–250 gives only modest loss. A vigorous minute counts as two."
-        },
-        {
-          "id": "strength",
-          "label": "Strengthening days this week",
-          "kind": "days",
-          "of": "strength",
-          "min": 2,
-          "basis": "WHO and the US guidelines: all major muscle groups on 2 or more days a week; it helps keep lean mass while weight is lost"
-        }
+        { "id": "minutes", "label": "Activity this week", "kind": "minutes", "min": 250, "basis": "ACSM 2009: more than 250 min a week of moderate activity for clinically significant weight loss; 150–250 gives only modest loss. A vigorous minute counts as two." },
+        { "id": "strength", "label": "Strengthening days this week", "kind": "days", "of": "strength", "min": 2, "basis": "WHO and the US guidelines: all major muscle groups on 2 or more days a week; it helps keep lean mass while weight is lost" }
       ],
       "describes": [
         "Diet and activity together: “Combining both caloric restriction and physical activity tend to be most beneficial for weight loss” (US guidelines)",
@@ -573,6 +682,65 @@
       ],
       "caution": "CDC: “if you have a chronic health condition, be sure to talk with your doctor about the types and amounts of physical activity that are right for you.” A healthy weight for adults is generally a body mass index between 18.5 and 24.9 (NHLBI); this is not for losing weight below it.",
       "examples": [{"kind": "assembled", "by": "formicaria, from NIDDK's \"about 1 hour a day on 5 days of the week\" and the NHS's strength exercises, laid out like the CDC's Example 1", "title": "Walking: A Step in the Right Direction", "url": "https://web.archive.org/web/20180102202631/https://www.niddk.nih.gov/health-information/weight-management/walking-step-right-direction", "note": "An hour's brisk walk on five days, as the U.S. NIDDK suggests for weight control, with the NHS strength exercises on the other two; only a simple indication — NIDDK's own programme takes 20 weeks to build up to the hour.", "week": [{"day": "mon", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 60, "effort": 5, "counts_as": "aerobic", "said": "about 1 hour a day on 5 days of the week"}]}, {"day": "tue", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 60, "effort": 5, "counts_as": "aerobic", "said": ""}]}, {"day": "wed", "items": [{"type": "session", "name": "NHS strength exercises", "exercises": [{"card": "nhs-sit-to-stand", "sets": 1, "reps": "5", "said": "Aim for 5 repetitions. The slower the repetitions, the better."}, {"card": "nhs-mini-squats", "sets": 1, "reps": "5", "said": "Repeat 5 times."}, {"card": "nhs-calf-raises", "sets": 1, "reps": "5", "said": "Repeat 5 times."}, {"card": "nhs-sideways-leg-lift", "sets": 1, "reps": "5 with each leg", "said": "Raise and lower each leg 5 times."}, {"card": "nhs-leg-extension", "sets": 1, "reps": "5 with each leg, each held up to 5 seconds", "said": "Hold the lift for up to 5 seconds and repeat 5 times with each leg."}, {"card": "nhs-wall-press-up", "sets": 3, "reps": "5 to 10", "said": "Attempt 3 sets of 5 to 10 repetitions."}, {"card": "nhs-biceps-curls", "sets": 3, "reps": "5 with each arm", "said": "This can also be carried out while sitting. Attempt 3 sets of 5 curls with each arm."}]}]}, {"day": "thu", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 60, "effort": 5, "counts_as": "aerobic", "said": ""}]}, {"day": "fri", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 60, "effort": 5, "counts_as": "aerobic", "said": ""}]}, {"day": "sat", "items": [{"type": "session", "name": "NHS strength exercises", "exercises": [{"card": "nhs-sit-to-stand", "sets": 1, "reps": "5", "said": "Aim for 5 repetitions. The slower the repetitions, the better."}, {"card": "nhs-mini-squats", "sets": 1, "reps": "5", "said": "Repeat 5 times."}, {"card": "nhs-calf-raises", "sets": 1, "reps": "5", "said": "Repeat 5 times."}, {"card": "nhs-sideways-leg-lift", "sets": 1, "reps": "5 with each leg", "said": "Raise and lower each leg 5 times."}, {"card": "nhs-leg-extension", "sets": 1, "reps": "5 with each leg, each held up to 5 seconds", "said": "Hold the lift for up to 5 seconds and repeat 5 times with each leg."}, {"card": "nhs-wall-press-up", "sets": 3, "reps": "5 to 10", "said": "Attempt 3 sets of 5 to 10 repetitions."}, {"card": "nhs-biceps-curls", "sets": 3, "reps": "5 with each arm", "said": "This can also be carried out while sitting. Attempt 3 sets of 5 curls with each arm."}]}]}, {"day": "sun", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 60, "effort": 5, "counts_as": "aerobic", "said": ""}]}], "meets": "minutes: 5 × 60 = 300 moderate (min 250; ACSM's wording is \"more than 250\"). strength days: Wed + Sat = 2 (min 2).", "later": "NIDDK sample daily walking program (total = 5 warm-up + brisk + 5 cool-down): weeks 1–2 brisk 5 (total 15); 3–4 brisk 10 (20); 5–6 brisk 15 (25); 7–8 brisk 20 (30); 9–10 brisk 25 (35); 11–12 brisk 30 (40); 13–14 brisk 35 (45); 15–16 brisk 40 (50); 17–18 brisk 45 (55); 19–20 brisk 50 (60)."}],
+      "guides": [],
+      "kind": "amounts",
+      "question": "moving",
+      "relation": "Contains WHO's weekly activity, at the higher dose trials tie to losing weight.",
+      "not_for": ["eating_disorder"]
+    },
+    {
+      "id": "pregnancy-activity",
+      "group": "fitness",
+      "name": "Activity in pregnancy and after",
+      "kind": "amounts",
+      "question": "moving",
+      "rests_on": "guideline",
+      "relation": "Instead of WHO's weekly activity, WHO's own recommendation for pregnancy and after giving birth.",
+      "summary": "At least 150 minutes of moderate activity a week through pregnancy and after giving birth, with muscle-strengthening work.",
+      "sources": [
+        { "by": "World Health Organization", "title": "Guidelines on physical activity and sedentary behaviour (2020), pregnant and postpartum women — a strong recommendation", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7719906/" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "minutes", "label": "Activity this week", "kind": "minutes", "min": 150, "basis": "WHO: at least 150 minutes of moderate-intensity aerobic activity throughout the week. A vigorous minute counts as two." }
+      ],
+      "describes": [
+        "A variety of aerobic and muscle-strengthening activities; “adding gentle stretching may also be beneficial”",
+        "If you were vigorously active before pregnancy, you can continue",
+        "Avoid lying flat on your back after the first trimester; avoid extreme heat, contact sports and activities with a high risk of falling",
+        "After the birth, return gradually; after a caesarean section, consult a healthcare provider first"
+      ],
+      "unmeasured": [
+        "Muscle-strengthening and stretching: WHO gives no number of days for pregnancy."
+      ],
+      "caution": "WHO: for all pregnant and postpartum women “without contraindication”. Your healthcare provider should tell you the warning signs to stop and seek care.",
+      "guides": [],
+      "examples": [{"kind": "assembled", "by": "formicaria, from WHO's 150 minutes a week for pregnancy and after giving birth", "title": "Guidelines on physical activity and sedentary behaviour (2020), pregnant and postpartum women", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7719906/", "note": "WHO's 150 minutes laid out by this app as a 30-minute brisk walk on five days; WHO names no days and no activity. Muscle-strengthening and gentle stretching are left for you and your healthcare provider to place, since WHO gives no number of days for them in pregnancy. Only a simple indication to change.", "week": [{"day": "mon", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 30, "effort": 5, "counts_as": "aerobic", "said": "at least 150 minutes of moderate-intensity aerobic physical activity throughout the week"}]}, {"day": "tue", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 30, "effort": 5, "counts_as": "aerobic", "said": ""}]}, {"day": "wed", "items": []}, {"day": "thu", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 30, "effort": 5, "counts_as": "aerobic", "said": ""}]}, {"day": "fri", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 30, "effort": 5, "counts_as": "aerobic", "said": ""}]}, {"day": "sat", "items": []}, {"day": "sun", "items": [{"type": "activity", "name": "Brisk walking", "minutes": 30, "effort": 5, "counts_as": "aerobic", "said": ""}]}]}]
+    },
+    {
+      "id": "steps-daily",
+      "group": "fitness",
+      "name": "Steps a day",
+      "kind": "amounts",
+      "question": "steps",
+      "rests_on": "review",
+      "relation": "Combines with any card: a count of everyday walking, beside WHO's minutes.",
+      "summary": "About 7,000 steps a day, written down from any step counter. From a meta-analysis of studies that followed people for years, not from a guideline.",
+      "sources": [
+        { "by": "Ding et al., The Lancet Public Health", "title": "Daily steps and health outcomes in adults: a systematic review and dose–response meta-analysis of 57 studies (2025)", "url": "https://doi.org/10.1016/S2468-2667(25)00164-1" },
+        { "by": "Paluch et al., The Lancet Public Health", "title": "Daily steps and all-cause mortality: a meta-analysis of 15 international cohorts (2022)", "url": "https://doi.org/10.1016/S2468-2667(21)00302-9" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "steps", "label": "Steps", "kind": "sum", "key": "steps", "log": "body", "min": 7000, "basis": "Ding et al. 2025: benefits level off at about 5,000–7,000 steps a day for death from any cause, heart disease, dementia and falls, and keep growing for some other outcomes; 7,000 “might be a more realistic and achievable target for some”. Paluch et al. 2022: about 6,000–8,000 from 60, 8,000–10,000 below 60" }
+      ],
+      "describes": [
+        "Write the day's steps down in Food → Trends, under Steps, as you would a weight; any phone or step counter will do"
+      ],
+      "unmeasured": [
+        "Steps are not counted by formicaria: it reads only what you write down."
+      ],
+      "caution": "An association seen in studies that followed people, not a guideline: 10,000 steps a day is in no guideline read.",
       "guides": []
     },
     {
@@ -595,7 +763,17 @@
         { "id": "lower_pull", "label": "Lower body, pulling: sets this week", "kind": "sets", "regions": ["lower-pull"], "basis": "Yours" }
       ],
       "unmeasured": [],
-      "guides": []
+      "guides": [],
+      "kind": "own",
+      "question": "own"
     }
+  ],
+  "watch": [
+    { "group": "food", "id": "satfat", "label": "Saturated fat, share of energy", "kind": "share", "key": "saturated_fat_mg", "kcal_per_g": 9, "max": 10, "basis": "WHO and Nordic 2023: under 10% of energy; EFSA: as low as possible" },
+    { "group": "food", "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2000000, "basis": "WHO and EFSA: 2 g a day (5 g of salt); Nordic 2023: 2.3 g" },
+    { "group": "food", "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min": 25000, "basis": "WHO and EFSA: at least 25 g a day; Nordic 2023: at least 35 g for men" },
+    { "group": "food", "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "min_mg_per_kg_older": 1000, "hide_if": ["kidney"], "basis": "EFSA: 0.83 g for each kg of body weight; from 65, PROT-AGE: 1.0–1.2 g" },
+    { "group": "fitness", "id": "minutes", "label": "Activity this week", "kind": "minutes", "min": 150, "basis": "WHO: 150–300 minutes of moderate activity a week; the biggest gain is from none to some" },
+    { "group": "fitness", "id": "strength", "label": "Strengthening days this week", "kind": "days", "of": "strength", "min": 2, "basis": "WHO: muscle-strengthening on 2 or more days a week" }
   ]
 }

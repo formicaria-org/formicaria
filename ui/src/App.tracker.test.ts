@@ -261,15 +261,45 @@ test('a regime is chosen from the library, followed, measured, and stopped', asy
   await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
   const bar = await screen.findByRole('group', { name: 'Fitness' });
   await fireEvent.click(within(bar).getByRole('button', { name: 'Regime' }));
-  expect(await screen.findByRole('heading', { name: 'Choose a regime to follow' })).toBeTruthy();
-  await fireEvent.click(await screen.findByRole('button', { name: /WHO weekly activity/ }));
+  expect(await screen.findByRole('heading', { name: 'Choose what to follow' })).toBeTruthy();
+  // The "worth watching" set is there before anything is followed (2026-10-16).
+  expect(screen.getByRole('heading', { name: 'Worth watching' })).toBeTruthy();
+  // Shelved by kind; WHO is the card to start from.
+  const who = await screen.findByRole('button', { name: /WHO weekly activity/ });
+  expect(who.textContent).toMatch(/Start here/);
+  expect(who.textContent).toMatch(/Guideline/);
+  await fireEvent.click(who);
   // What it would hold you to is shown before anything is written, and each number says whose it is.
   expect(await screen.findByRole('heading', { name: 'What you will be held to' })).toBeTruthy();
   await fireEvent.click(screen.getByRole('button', { name: 'Follow this' }));
   expect(await screen.findByRole('button', { name: 'Stop following' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'What you follow' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'WHO weekly activity' })).toBeTruthy();
-  await fireEvent.click(screen.getByRole('button', { name: 'Stop following' }));
-  expect(await screen.findByRole('heading', { name: 'Choose a regime to follow' })).toBeTruthy();
+  // Another card is added from the library, where the followed one is marked.
+  await fireEvent.click(screen.getByRole('button', { name: 'Add a card, or change one' }));
+  expect((await screen.findByRole('button', { name: /WHO weekly activity/ })).textContent).toMatch(
+    /Following/,
+  );
+  await fireEvent.click(screen.getByRole('button', { name: /Back to what you follow/ }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'Stop following' }));
+  expect(await screen.findByRole('heading', { name: 'Choose what to follow' })).toBeTruthy();
+});
+
+test('a flag set in "Anything we should know?" leaves out the cards not meant for it', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+  const bar = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Diet' }));
+  await fireEvent.click(await screen.findByRole('button', { name: /WHO healthy diet/ }));
+  await fireEvent.click(await screen.findByText(/Anything we should know/));
+  await fireEvent.click(screen.getByLabelText('Breastfeeding'));
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await fireEvent.click(await screen.findByRole('button', { name: /All diets/ }));
+  // Time-restricted eating is not for breastfeeding: left out, and said so.
+  expect(await screen.findByText(/1 card is left out because of what you told us/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Time-restricted eating/ })).toBeNull();
 });
 
 test('a weight is written down from the trends, where it is one of the values to pick', async () => {

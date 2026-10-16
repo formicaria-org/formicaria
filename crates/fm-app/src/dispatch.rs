@@ -576,6 +576,7 @@ const READ_ONLY: &[&str] = &[
     "plan_profile",
     "plan_preview",
     "plan_progress",
+    "plan_watch",
     // The food list is not in any vault. Reading it moves no note, so none of these should tell
     // a connected client the vault changed.
     "food_search",
@@ -2328,10 +2329,20 @@ fn dispatch_inner(
             json(crate::log::log_routines(&store, &def).map_err(err)?)
         }
         // ── Diets and regimes to follow (`plan.rs`; `decisions.md#data`, 2026-10-12) ─────────────
-        // The library needs no vault. The other three read notes: the person's measurements, an
-        // option with its numbers worked out for them, and a week measured against what they
-        // follow. Following one is `create_notes`; stopping is `set_properties` — no write here.
-        "plan_library" => json(crate::plan::plan_library(&s("group")).map_err(err)?),
+        // All read notes: the library leaves out what the person's profile says is not for them;
+        // the person's measurements; an option with its numbers worked out for them; a week
+        // measured against what they follow; and the "worth watching" set. Following one is
+        // `create_notes`; stopping is `set_properties` — no write here.
+        "plan_library" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::plan::plan_library(&store, &s("group")).map_err(err)?)
+        }
+        "plan_watch" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::plan::plan_watch(&store, &s("group"), &s("day")).map_err(err)?)
+        }
         "plan_profile" => {
             let mut g = lock()?;
             let store = g.store(scope);

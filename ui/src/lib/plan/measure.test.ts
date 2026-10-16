@@ -10,6 +10,7 @@ import {
   shownBound,
   shownValue,
   storedBound,
+  trendShown,
   unitOf,
   verdict,
 } from './measure';
@@ -194,5 +195,17 @@ describe('dishes for what a day is short of', () => {
     };
     expect(dishesFor(short, salty, null, 3, [sodium])[0].over).toEqual(['Sodium']);
     expect(dishesFor(short, salty, null, 3, [{ ...sodium, value: 100_000 }])[0].over).toEqual([]);
+  });
+});
+
+describe('a trend', () => {
+  it('shows each week in the check’s own unit, and a week with nothing as a dash', () => {
+    expect(trendShown({ unit: 'fiber_mg', trend: [null, 22_000, null, 30_000] })).toEqual([
+      '—',
+      shownValue({ unit: 'fiber_mg' }, 22_000),
+      '—',
+      shownValue({ unit: 'fiber_mg' }, 30_000),
+    ]);
+    expect(trendShown({ unit: 'minutes' })).toEqual([]);
   });
 });

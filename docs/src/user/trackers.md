@@ -295,6 +295,10 @@ days shown. Two weighings in a day count as their average. The weight you give i
 (under **Diet**) is written down the same way, and the numbers worked out for you always use
 your latest weighing.
 
+**Steps** are written down the same way: pick **Steps** on the menu and press **+** to note the
+day's count from any phone or step counter. formicaria counts no steps itself. The *Steps a day*
+card reads what you write here.
+
 ## Fitness
 
 Fitness has three tabs: **Week**, **Exercises** and **Regime**.
@@ -357,76 +361,90 @@ a card for its steps.
 
 ## Following a diet or a regime
 
-**Food → Diet** and **Fitness → Regime** let you choose something to follow and then show how
-your week measures up to it.
+**Food → Diet** and **Fitness → Regime** let you choose what to follow and then show how your weeks
+measure up to it. Everything they hold you to is a number a named health body or study published;
+nothing is made up, and each number says whose it is.
 
-**Choosing.** Each option says where it comes from, and they are shelved by that: a public
-guideline, an expert position, a single research review, a definition, a diet described by the
-body that wrote it, or your own. Press one to see, before anything is saved:
-
-- **What you will be held to** — each number, with whose number it is. You can change any of
-  them; that is how you fit an option to yourself. **My own** is the same form with nothing
-  filled in.
-- **About you**, when the option needs it: sex, year of birth, height, weight and how active you
-  are. They are kept in one note of yours and used only to work out numbers that depend on you —
-  an energy estimate, protein for your weight, iron for your sex. The energy figure is an average
-  for people like you, not a prescription, and says so.
-- **What formicaria cannot measure** about it. Free sugars, for instance, are not in the food
-  tables; hours without eating cannot be told from entries that have a day and no time.
-- Its **sources**, as links.
-
-**A day to start from.** Most diets show an example day: one as a health body published it, where
-one did (a day of the U.S. heart institute's DASH menus, unchanged), and one chosen by arithmetic
-from the recipes that come with the app. The second kind says what it meets and what it falls
-short of — three recipes are about half a day's food — and **Plan it for today** puts it on your
-day as planned meals, to confirm or change. It is only an indication.
-
-**Follow this** starts it today.
+**Worth watching.** At the top of both tabs, whatever you follow or if you follow nothing, are the
+same few numbers, read over the week, with the last four weeks beside them, oldest first:
 
 | In Food | In Fitness |
 |---|---|
-| WHO healthy diet | WHO weekly activity |
-| | Activity for losing weight |
-| | Norwegian 4×4 intervals |
-| | Interval walking |
-| European reference values (vitamins and minerals too) | WHO weekly activity, 65 and over |
-| Energy and protein for me | Falls prevention |
-| Two fasting days a week | Strength, twice a week |
-| Alternate-day modified fasting | Muscle growth |
-| Time-restricted eating | Minimal strength |
-| Nordic recommendations 2023 | Stretching for range of motion |
-| Planetary health diet | My own |
-| My own | |
+| Saturated fat under 10% of energy (WHO, Nordic 2023; EFSA: as low as possible) | Activity, 150–300 minutes a week (WHO) |
+| Sodium under 2 g (WHO, EFSA; Nordic 2023: 2.3 g) | Strengthening on 2 or more days (WHO) |
+| Fibre at least 25 g (WHO, EFSA; Nordic 2023: 35 g for men) | |
+| Protein for your weight: 0.83 g per kg (EFSA); 1.0–1.2 g from 65 (PROT-AGE) | |
 
-The interval options are followed by logging the session under its name, which the add sheet
-offers. Each says what stands behind it: the 4×4's own originators say no study shows it
-prolongs life more than other exercise, and the app repeats that. *Activity for losing weight* is
-written for people above a healthy weight; no health body defines "toning" or "definition", and
-exercising one area does not take fat from it.
+They were chosen because they are both the best-supported and measurable from what you log.
+Potassium is not among them on purpose: pushing it is not safe with kidney disease.
 
-The fasting patterns are given as an international group of researchers defines them. No public
-health body was found recommending them, and the screen says that.
+**Choosing.** The cards are shelved by **what kind of thing they are**, which says how they are
+measured:
 
-**Being measured.** Once you follow something, the tab shows one row for each thing it asks:
-what was asked, where you are today or so far this week, and the seven days from Monday. A day
-you logged nothing on reads *nothing logged*, not zero. A weekly amount is only called short
-once the week is over.
+- **Targets** — numbers for nutrients, measured from what you log.
+- **A way of eating** — amounts of food groups. What the food list can measure is measured; for the
+  servings, you say each day whether you kept to them (**I kept to it today**).
+- **When to eat** — measured from the times of what you log.
+- **Weekly amounts** and **Programmes** — measured from the sessions you log.
+- **Yours** — every number set by you.
 
-The hours you went without eating are measured from the times of what you logged: from the last
-thing with energy the day before to the first that day. Some things only you can say — whether
-you kept to a diet written in portions of food groups. For those there is **I kept to it today**.
+Each card shows the **question** it answers (*Am I eating healthily?*, *Getting stronger*, …), what
+it **rests on** (a guideline, an expert consensus, a review of trials, a definition), and **how it
+relates to the others** — *"Instead of WHO, for adults in the Nordic and Baltic countries"*, *"The
+middle of three: pick one"*. **Start here** marks WHO's two cards, the only ones written for all
+adults.
 
-A diet's energy and protein numbers also become the targets on **Food → Day**.
+**One card for each question.** You can follow WHO's weekly activity *and* a strength card *and*
+stretching, because they answer different questions; one session you log counts for every card it
+fits. Following a second card for the **same** question replaces the first — WHO 65 and over
+instead of WHO's weekly activity, say.
 
-**How to do it** links to pages and videos by the body itself, such as the NHS's strength
-exercises. They open in your browser; nothing of theirs is kept in the app.
+| In Food | In Fitness |
+|---|---|
+| **Eating healthily:** WHO healthy diet · DASH eating plan · Nordic recommendations 2023 · Planetary health diet | **Moving enough:** WHO weekly activity · WHO, 65 and over · Activity for losing weight · Activity in pregnancy and after |
+| **Enough of each nutrient:** European reference values · Vegan or vegetarian: what to watch | **Walking more:** Steps a day |
+| **How much to eat:** Energy and protein for me | **Getting stronger:** Strength, twice a week · Muscle growth · Minimal strength |
+| **When to eat:** Two fasting days · Alternate-day modified fasting · Time-restricted eating | **Fitter heart and lungs:** Norwegian 4×4 · Interval walking |
+| **My own** | **Steadier on my feet:** Falls prevention · **More flexible:** Stretching · **My own** |
+
+Press a card to see, before anything is saved, **what you will be held to** (every number
+changeable — that is how you fit a card to yourself), **about you** where it needs it, **what
+formicaria cannot measure**, its **sources** as links, and a day or a week to start from. **Follow
+this** starts it today.
+
+**Anything we should know?** Optional, never required: pregnant, breastfeeding, after the
+menopause, kidney disease, taking insulin or a sulfonylurea, an eating disorder now or in the past.
+A box you tick does only two things — shows the card's note for it, and uses a number a health body
+publishes for you, or leaves a number out:
+
+- Pregnant or breastfeeding: EFSA's folate (600 / 500 µg) and iodine; the energy figure gains
+  EFSA's 500 kcal while breastfeeding, and is left out in pregnancy; the fasting cards are left out.
+- After the menopause: EFSA's 11 mg of iron instead of 16.
+- Kidney disease: potassium and protein are left out — with kidney disease your kidney team sets them.
+- From 65 (from your year of birth): protein 1.0 g per kg (PROT-AGE) instead of 0.83.
+- An eating disorder: the fasting and weight-loss cards and the energy ceiling are left out.
+- Insulin or a sulfonylurea: the fasting cards say to talk to your diabetes team first.
+
+The library says how many cards it left out. A log can show intake below a reference; only a blood
+test shows a deficiency, and formicaria never suggests a dose of anything.
+
+**Being measured.** Each card you follow shows one row for each thing it asks: what was asked,
+today or the week so far, the seven days from Monday, and **the last four weeks** — a day's number
+as the week's average, a weekly one as the week's total. WHO's numbers are averages for whole
+populations, so the trend over weeks is the reading closest to what they mean. A day you logged
+nothing on reads *nothing logged*, not zero; a weekly amount is only called short once the week is
+over.
+
+The fasting cards: in trials, about as effective as eating a little less every day (Cochrane 2026;
+BMJ 2025). The interval cards are followed by logging the session under its name. A diet's energy
+and protein numbers also become the targets on **Food → Day**.
 
 **Change its numbers** starts a new set from today and leaves earlier weeks measured against what
-they had. **Choose another** replaces it. **Stop following** ends it; undo brings it back.
+they had. **Add a card, or change one** opens the library. **Stop following** ends a card; undo
+brings it back.
 
-Not offered: Mediterranean, DASH, vegetarian, vegan and low-carbohydrate diets. The food tables
-cannot say how many servings of a food group a day held, or that a mixed dish contains no meat,
-and nothing here is measured by guessing.
+Not offered: a Mediterranean card (its 14-question check is a research instrument whose reuse terms
+are not settled), low-carbohydrate and keto (no agreed definition), and "zone 2" (none either).
 
 ## What is kept, and where
 

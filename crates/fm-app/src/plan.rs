@@ -48,6 +48,40 @@ pub const COUNTS_AS: &str = "counts_as";
 /// The energy need a plan was set from, kept on its note so a fasting day is measured against
 /// the figure the person saw and not one recomputed later.
 pub const ENERGY: &str = "p_energy";
+/// The question a followed plan answers, kept on its note (`decisions.md#ui`, 2026-10-16, *a base
+/// and add-ons*): one plan is in force per question, so a person can follow WHO's weekly activity
+/// and a strength regime together. A note without it is from before, and only the latest of those
+/// in a group counts, as it always did.
+pub const QUESTION: &str = "question";
+
+/// What a person may tell the app about themselves — opt-in, never required
+/// (`cards-guidance-proposal-2026-10-16.md` §7). Each is a `true` property on the profile note, and
+/// does only two things: show a card's note for it, and use a number a body publishes for it.
+/// Nothing here diagnoses, doses or works out a medical target.
+pub const FLAGS: [&str; 6] =
+    ["pregnant", "breastfeeding", "postmenopausal", "kidney", "diabetes_meds", "eating_disorder"];
+
+/// The age from which a number published for older adults is used: WHO 2020's "65 years and
+/// older", and PROT-AGE's (Bauer et al. 2013) "older people (>65 years)".
+pub const OLDER: i64 = 65;
+
+/// The questions plans answer, in the order they are shown and the first of them is the one the
+/// other screens read.
+const QUESTIONS: [&str; 13] = [
+    "healthy",
+    "nutrients",
+    "amount",
+    "timing",
+    "moving",
+    "steps",
+    "stronger",
+    "fitter",
+    "falls",
+    "flexible",
+    "vegan",
+    "pregnancy",
+    "own",
+];
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Source {
@@ -89,6 +123,10 @@ pub struct Check {
     pub kind: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub key: String,
+    /// The log its entries are read from, when not the group's own: `body` for steps, which are
+    /// written down like a weight.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub log: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kcal_per_g: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -117,8 +155,29 @@ pub struct Check {
     min_mg_per_kg: Option<i64>,
     #[serde(default, skip_serializing)]
     max_energy_pct: Option<i64>,
+    /// A number a body publishes for a group, used when the profile says so: after the menopause
+    /// (women), in pregnancy, while breastfeeding, and per kg from [`OLDER`].
+    #[serde(default, skip_serializing)]
+    min_postmenopausal: Option<i64>,
+    #[serde(default, skip_serializing)]
+    min_pregnant: Option<i64>,
+    #[serde(default, skip_serializing)]
+    min_breastfeeding: Option<i64>,
+    #[serde(default, skip_serializing)]
+    min_mg_per_kg_older: Option<i64>,
+    /// Flags under which the number is **not shown** — a target that is set by a clinician for
+    /// that person (potassium and protein in kidney disease), not worked out here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hide_if: Vec<String>,
     /// Whose number it is, in the source's words.
     pub basis: String,
+}
+
+/// A note a plan shows when a flag is set: what changes for that person, and on whose word.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct FlagNote {
+    pub flag: String,
+    pub text: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -153,6 +212,32 @@ pub struct Plan {
     /// Read by the screens as written; a test holds each to seven days and cards that exist.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<serde_json::Value>,
+    /// What kind of thing it is, which says how it is tracked: `targets` (measured from the log),
+    /// `pattern` (a way of eating, ticked), `timing`, `amounts` (weekly activity), `programme`, `own`.
+    #[serde(default)]
+    pub kind: String,
+    /// The question it answers; one plan is followed per question.
+    #[serde(default)]
+    pub question: String,
+    /// The card to start from: written for all adults (`decisions.md#ui`, 2026-10-16).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub start_here: bool,
+    /// How it relates to the other cards of its question, from the evidence review.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub relation: String,
+    /// Flags under which it is not offered.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub not_for: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flag_notes: Vec<FlagNote>,
+}
+
+/// A line of the "worth watching" set: a check, and the log it is measured from.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct WatchCheck {
+    pub group: String,
+    #[serde(flatten)]
+    pub check: Check,
 }
 
 /// An activity a known body names, and what it counts as.
@@ -194,6 +279,9 @@ struct Library {
     weeks: Vec<ExampleWeeks>,
     activities: Vec<Activity>,
     plans: Vec<Plan>,
+    /// What everyone sees, whichever plan they follow or none (`decisions.md#ui`, 2026-10-16).
+    #[serde(default)]
+    watch: Vec<WatchCheck>,
 }
 
 fn library() -> &'static Library {
@@ -217,16 +305,27 @@ pub struct LibraryAnswer {
     pub activities: Vec<Activity>,
     /// Weeks laid out day by day by a public body. Only for `fitness`.
     pub weeks: Vec<ExampleWeeks>,
+    /// Plans left out for this person, by what their profile says (`not_for`). Named, so the
+    /// screen can say how many and why rather than let them silently vanish.
+    pub hidden: Vec<String>,
 }
 
-/// What can be followed in a group, in the order it is offered.
-pub fn plan_library(group: &str) -> Result<LibraryAnswer, StoreError> {
+/// What can be followed in a group, in the order it is offered — less what the person's own
+/// profile says is not for them.
+pub fn plan_library(store: &dyn Store, group: &str) -> Result<LibraryAnswer, StoreError> {
     kinds_of(group)?;
     let lib = library();
+    let flags = plan_profile(store)?.flags;
+    let (plans, hidden): (Vec<&Plan>, Vec<&Plan>) = lib
+        .plans
+        .iter()
+        .filter(|p| p.group == group)
+        .partition(|p| !p.not_for.iter().any(|f| flags.contains(f)));
     Ok(LibraryAnswer {
-        plans: lib.plans.iter().filter(|p| p.group == group).cloned().collect(),
+        plans: plans.into_iter().cloned().collect(),
         activities: if group == "fitness" { lib.activities.clone() } else { Vec::new() },
         weeks: if group == "fitness" { lib.weeks.clone() } else { Vec::new() },
+        hidden: hidden.into_iter().map(|p| p.id.clone()).collect(),
     })
 }
 
@@ -259,6 +358,8 @@ pub struct Profile {
     /// EFSA's activity level times ten: 14, 16, 18 or 20.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pal_x10: Option<i64>,
+    /// Which of [`FLAGS`] the person has set.
+    pub flags: Vec<String>,
 }
 
 impl Profile {
@@ -277,7 +378,15 @@ impl Profile {
             height_cm: int("height_cm"),
             weight_g: int("weight_g"),
             pal_x10: int("pal_x10"),
+            flags: FLAGS
+                .iter()
+                .filter(|f| matches!(o.get(f), PropertyValue::Bool(true)))
+                .map(|f| f.to_string())
+                .collect(),
         }
+    }
+    fn flagged(&self, flag: &str) -> bool {
+        self.flags.iter().any(|f| f == flag)
     }
     fn has(&self, field: &str) -> bool {
         match field {
@@ -349,10 +458,14 @@ pub fn henry_bmr(sex: &str, age: i64, weight_g: i64, height_cm: i64) -> Option<i
 
 /// A day's energy need in kcal: Henry's basal rate times EFSA's activity level (1.4, 1.6, 1.8 or
 /// 2.0 — "a rough indication", in EFSA's words). `None` unless all five measurements are there.
+///
+/// **While breastfeeding, plus 500 kcal**: EFSA's additional energy for lactation in the first six
+/// months (EFSA dietary reference values, summary report 2017; `cards-evidence-2026-10-16.md` §6b).
 pub fn energy_need(p: &Profile, year: i32) -> Option<i64> {
     let pal = p.pal_x10.filter(|x| [14, 16, 18, 20].contains(x))?;
     let bmr = henry_bmr(p.sex.as_deref()?, p.age_in(year)?, p.weight_g?, p.height_cm?)?;
-    Some((bmr * pal + 5) / 10)
+    let lactation = if p.flagged("breastfeeding") { 500 } else { 0 };
+    Some((bmr * pal + 5) / 10 + lactation)
 }
 
 // ── a plan with its numbers filled in ────────────────────────────────────────────────────────────
@@ -380,6 +493,9 @@ pub struct Preview {
 }
 
 fn bounds_for(check: &Check, p: &Profile, year: i32, energy: Option<i64>) -> Bound {
+    if check.hide_if.iter().any(|f| p.flagged(f)) {
+        return Bound::default();
+    }
     let mut b = Bound { min: check.min, max: check.max };
     match p.sex.as_deref() {
         Some("male") if check.min_male.is_some() => b.min = check.min_male,
@@ -394,7 +510,17 @@ fn bounds_for(check: &Check, p: &Profile, year: i32, energy: Option<i64>) -> Bou
             b.min = Some(young);
         }
     }
+    if p.sex.as_deref() == Some("female") && p.flagged("postmenopausal") {
+        b.min = check.min_postmenopausal.or(b.min);
+    }
+    if p.flagged("pregnant") {
+        b.min = check.min_pregnant.or(b.min);
+    } else if p.flagged("breastfeeding") {
+        b.min = check.min_breastfeeding.or(b.min);
+    }
     if let Some(per_kg) = check.min_mg_per_kg {
+        let older = p.age_in(year).is_some_and(|a| a >= OLDER);
+        let per_kg = if older { check.min_mg_per_kg_older.unwrap_or(per_kg) } else { per_kg };
         b.min = p.weight_g.map(|g| per_kg * g / 1000);
     }
     if let Some(pct) = check.max_energy_pct {
@@ -426,7 +552,7 @@ fn day_string(d: Date) -> String {
     format!("{:04}-{:02}-{:02}", d.year(), d.month() as u8, d.day())
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct CheckProgress {
     pub id: String,
     pub label: String,
@@ -450,6 +576,29 @@ pub struct CheckProgress {
     /// day added. `None` where a day had nothing.
     pub days: Vec<Option<i64>>,
     pub basis: String,
+    /// The last [`TREND_WEEKS`] weeks, oldest first, the last being this week so far: a `day`
+    /// check's average over the days that had something, a `week` check's total. `None` for a week
+    /// with nothing logged. WHO's numbers are population averages "to aim at over days" (WHO/FAO
+    /// TRS 916), so a week's average, and how it moves, is the reading closest to the source.
+    pub trend: Vec<Option<i64>>,
+}
+
+/// How many weeks a trend spans, this one included.
+pub const TREND_WEEKS: usize = 4;
+
+/// One followed plan, measured — there is one per question (`QUESTION`).
+#[derive(Debug, Serialize)]
+pub struct Followed {
+    pub question: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<Plan>,
+    pub note: ObjectMeta,
+    /// The note names a plan this version does not have.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unknown: Option<String>,
+    pub checks: Vec<CheckProgress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kept_today: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -471,6 +620,9 @@ pub struct Progress {
     /// The note that says the person kept to it on `day`, when they said so.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kept_today: Option<String>,
+    /// **Every** plan followed in this group, one per question, in the order of the questions.
+    /// The fields above are the first of them, for the screens that show one.
+    pub followed: Vec<Followed>,
 }
 
 fn int_of(o: &Object, key: &str) -> Option<i64> {
@@ -519,7 +671,6 @@ fn moderate_minutes(o: &Object) -> i64 {
 }
 
 struct Week<'a> {
-    days: [Date; 7],
     /// The counted entries of the group's log, by day of the week.
     entries: [Vec<&'a Object>; 7],
     kept: [bool; 7],
@@ -527,6 +678,87 @@ struct Week<'a> {
     eve: Vec<&'a Object>,
     /// Up to which day of the week there is anything to say (the day asked about).
     upto: usize,
+}
+
+/// A group's log, read once: the counted entries by day, the "kept to it" notes and the program
+/// notes. Every week measured — this one and the ones its trend looks back on — is cut from it.
+struct Logged<'a> {
+    by_day: BTreeMap<Date, Vec<&'a Object>>,
+    kept: Vec<&'a Object>,
+    programs: Vec<&'a Object>,
+}
+
+fn logged<'a>(rows: &'a [Object], log: &str, program: &str, with_planned: bool) -> Logged<'a> {
+    let mut out = Logged { by_day: BTreeMap::new(), kept: Vec::new(), programs: Vec::new() };
+    for o in rows {
+        if is_template(o) || is_message(o) || is_proposal(o) {
+            continue;
+        }
+        let kind = text_of(o, LOG);
+        if kind.is_empty() {
+            if text_of(o, PROGRAM) == program && !text_of(o, PLAN).is_empty() {
+                out.programs.push(o);
+            }
+            continue;
+        }
+        let Some(at) = o.start.map(|s| s.date) else { continue };
+        if kind == KEPT {
+            out.kept.push(o);
+        } else if kind == log && (with_planned || !is_planned(o)) {
+            out.by_day.entry(at).or_default().push(o);
+        }
+    }
+    out
+}
+
+/// The week from `monday`, up to day `upto` of it, with the days said kept to `plan`.
+fn week_of<'a>(l: &Logged<'a>, monday: Date, upto: usize, plan: Option<&str>) -> Week<'a> {
+    let days: [Date; 7] = std::array::from_fn(|i| monday + Duration::days(i as i64));
+    let entries = days.map(|d| l.by_day.get(&d).cloned().unwrap_or_default());
+    let eve = l.by_day.get(&(monday - Duration::days(1))).cloned().unwrap_or_default();
+    let mut kept = [false; 7];
+    for k in l.kept.iter().filter(|k| plan.is_some_and(|id| text_of(k, PLAN) == id)) {
+        let at = k.start.expect("kept notes have a day").date;
+        if at >= monday && at < monday + Duration::days(7) {
+            kept[(at - monday).whole_days() as usize] = true;
+        }
+    }
+    Week { entries, kept, eve, upto }
+}
+
+/// A check measured on the week from `monday`, with its trend over the weeks before it.
+fn measured(
+    check: &Check,
+    bound: Bound,
+    energy: Option<i64>,
+    l: &Logged,
+    monday: Date,
+    upto: usize,
+    plan: Option<&str>,
+) -> CheckProgress {
+    let reading = |cp: &CheckProgress, w: &Week, upto: usize| -> Option<i64> {
+        let anything = w.entries.iter().any(|e| !e.is_empty()) || w.kept.iter().any(|k| *k);
+        if !anything {
+            return None;
+        }
+        if cp.per == "day" {
+            let had: Vec<i64> = cp.days[..=upto].iter().flatten().copied().collect();
+            let n = had.len() as i64;
+            (n > 0).then(|| (had.iter().sum::<i64>() + n / 2) / n)
+        } else {
+            cp.value
+        }
+    };
+    let mut trend = Vec::with_capacity(TREND_WEEKS);
+    for back in (1..TREND_WEEKS as i64).rev() {
+        let w = week_of(l, monday - Duration::weeks(back), 6, plan);
+        trend.push(reading(&measure(check, bound, energy, &w), &w, 6));
+    }
+    let w = week_of(l, monday, upto, plan);
+    let mut cp = measure(check, bound, energy, &w);
+    trend.push(reading(&cp, &w, upto));
+    cp.trend = trend;
+    cp
 }
 
 fn measure(check: &Check, bound: Bound, energy: Option<i64>, w: &Week) -> CheckProgress {
@@ -680,15 +912,18 @@ fn measure(check: &Check, bound: Bound, energy: Option<i64>, w: &Week) -> CheckP
         state: state.into(),
         days,
         basis: check.basis.clone(),
+        trend: Vec::new(),
     }
 }
 
-/// The week holding `day`, measured against the plan in force on it.
+/// The week holding `day`, measured against the plans in force on it.
 ///
-/// **The plan in force** is the program note of this group that names a plan, has started, has
-/// not ended, and started latest — the rule `log.rs` uses for targets, asked of the notes that
-/// carry `plan`. **Only the bounds on that note are measured**: a check the person left empty is
-/// not held against them, whatever the library says.
+/// **The plans in force** are the program notes of this group that name a plan, have started and
+/// have not ended — **one per question** (`QUESTION`), the one started latest. A note from before
+/// questions were kept counts only if it is the latest such note of the group, as it always did,
+/// so a plan someone moved away from does not come back. **Only the bounds on a note are
+/// measured**: a check the person left empty is not held against them, whatever the library says;
+/// and a check the person's profile now hides (`hide_if`) is not measured either.
 ///
 /// **A week is Monday to Sunday**, measured up to the day asked about. Planned entries are in
 /// none of it.
@@ -703,6 +938,29 @@ pub fn plan_outlook(store: &dyn Store, group: &str, day: &str) -> Result<Progres
     progress(store, group, day, true)
 }
 
+fn monday_of(day: Date) -> Date {
+    day - Duration::days(i64::from(day.weekday().number_days_from_monday()))
+}
+
+fn rows_of(store: &dyn Store, log: &str) -> Result<Vec<Object>, StoreError> {
+    let q = Query {
+        filter: plan_base(&[log, KEPT], &[PROGRAM]),
+        sort: vec![SortKey::asc("created")],
+        ..Default::default()
+    };
+    Ok(store.query(&q)?.rows)
+}
+
+/// The question a followed note answers: its own `question`, else its plan's.
+fn question_of(note: &Object) -> String {
+    let own = text_of(note, QUESTION);
+    if !own.is_empty() {
+        return own;
+    }
+    let id = text_of(note, PLAN);
+    plan_named(&id).map(|p| p.question.clone()).unwrap_or(id)
+}
+
 fn progress(
     store: &dyn Store,
     group: &str,
@@ -711,97 +969,126 @@ fn progress(
 ) -> Result<Progress, StoreError> {
     let (log, program) = kinds_of(group)?;
     let day = parse_day("day", day)?;
-    let monday = day - Duration::days(i64::from(day.weekday().number_days_from_monday()));
+    let monday = monday_of(day);
     let sunday = monday + Duration::days(6);
-    let days: [Date; 7] = std::array::from_fn(|i| monday + Duration::days(i as i64));
+    let upto = (day - monday).whole_days() as usize;
+    let rows = rows_of(store, log)?;
+    let data = logged(&rows, log, program, with_planned);
+    let body_rows = rows_of(store, BODY)?;
+    let body = logged(&body_rows, BODY, program, with_planned);
+    let source = |c: &Check| if c.log == BODY { &body } else { &data };
+    let profile = plan_profile(store)?;
 
-    let q = Query {
-        filter: plan_base(&[log, KEPT], &[PROGRAM]),
-        sort: vec![SortKey::asc("created")],
-        ..Default::default()
-    };
-    let rows = store.query(&q)?.rows;
-    let mut programs: Vec<&Object> = Vec::new();
-    let mut entries: [Vec<&Object>; 7] = Default::default();
-    let mut kept_notes: Vec<&Object> = Vec::new();
-    let mut eve: Vec<&Object> = Vec::new();
-    let sunday_before = monday - Duration::days(1);
-    for o in &rows {
-        if is_template(o) || is_message(o) || is_proposal(o) {
-            continue;
-        }
-        let kind = text_of(o, LOG);
-        if kind.is_empty() {
-            if text_of(o, PROGRAM) == program && !text_of(o, PLAN).is_empty() {
-                programs.push(o);
-            }
-            continue;
-        }
-        if o.start.is_some_and(|s| s.date == sunday_before)
-            && kind == log
-            && (with_planned || !is_planned(o))
-        {
-            eve.push(o);
-        }
-        let Some(at) = o.start.map(|s| s.date).filter(|d| *d >= monday && *d <= sunday) else {
-            continue;
-        };
-        let i = (at - monday).whole_days() as usize;
-        if kind == KEPT {
-            kept_notes.push(o);
-        } else if kind == log && (with_planned || !is_planned(o)) {
-            entries[i].push(o);
-        }
-    }
-
-    let in_force = programs
+    let started = |p: &&Object| (p.start.map(|s| s.date), p.updated);
+    let in_force: Vec<&Object> = data
+        .programs
         .iter()
         .filter(|p| p.start.is_none_or(|s| s.date <= day))
         .filter(|p| p.due.is_none_or(|d| d.date >= day))
-        .max_by_key(|p| (p.start.map(|s| s.date), p.updated))
-        .copied();
+        .copied()
+        .collect();
+    let latest_old = in_force
+        .iter()
+        .filter(|p| text_of(p, QUESTION).is_empty())
+        .max_by_key(|p| started(p))
+        .map(|p| p.id);
+    let mut by_question: BTreeMap<String, &Object> = BTreeMap::new();
+    for p in in_force {
+        if text_of(p, QUESTION).is_empty() && Some(p.id) != latest_old {
+            continue;
+        }
+        let q = question_of(p);
+        let later = by_question.get(&q).is_none_or(|was| started(&p) > started(was));
+        if later {
+            by_question.insert(q, p);
+        }
+    }
+    let mut chosen: Vec<(String, &Object)> = by_question.into_iter().collect();
+    let rank = |q: &str| QUESTIONS.iter().position(|x| *x == q).unwrap_or(QUESTIONS.len());
+    chosen.sort_by_key(|(q, _)| rank(q));
 
-    let mut out = Progress {
-        plan: None,
-        note: in_force.map(ObjectMeta::from),
-        unknown: None,
+    let mut followed = Vec::new();
+    for (question, note) in chosen {
+        let id = text_of(note, PLAN);
+        let mut f = Followed {
+            question,
+            plan: None,
+            note: ObjectMeta::from(note),
+            unknown: None,
+            checks: Vec::new(),
+            kept_today: None,
+        };
+        let Ok(plan) = plan_named(&id) else {
+            f.unknown = Some(id);
+            followed.push(f);
+            continue;
+        };
+        f.kept_today = data
+            .kept
+            .iter()
+            .find(|k| text_of(k, PLAN) == id && k.start.is_some_and(|s| s.date == day))
+            .map(|k| k.id.to_string());
+        let energy = int_of(note, ENERGY);
+        f.checks = plan
+            .checks
+            .iter()
+            .filter(|c| !c.hide_if.iter().any(|flag| profile.flagged(flag)))
+            .filter_map(|c| {
+                let bound = Bound {
+                    min: int_of(note, &format!("p_{}_min", c.id)),
+                    max: int_of(note, &format!("p_{}_max", c.id)),
+                };
+                (bound.min.is_some() || bound.max.is_some())
+                    .then(|| measured(c, bound, energy, source(c), monday, upto, Some(&id)))
+            })
+            .collect();
+        f.plan = Some(plan.clone());
+        followed.push(f);
+    }
+
+    let first = followed.first();
+    Ok(Progress {
+        plan: first.and_then(|f| f.plan.clone()),
+        note: first.map(|f| f.note.clone()),
+        unknown: first.and_then(|f| f.unknown.clone()),
         from: day_string(monday),
         to: day_string(sunday),
         day: day_string(day),
-        checks: Vec::new(),
-        kept_today: None,
-    };
-    let Some(note) = in_force else { return Ok(out) };
-    let id = text_of(note, PLAN);
-    let Ok(plan) = plan_named(&id) else {
-        out.unknown = Some(id);
-        return Ok(out);
-    };
+        checks: first.map(|f| f.checks.clone()).unwrap_or_default(),
+        kept_today: first.and_then(|f| f.kept_today.clone()),
+        followed,
+    })
+}
 
-    let mut kept = [false; 7];
-    for k in kept_notes.iter().filter(|k| text_of(k, PLAN) == id) {
-        let at = k.start.expect("filtered to the week above").date;
-        kept[(at - monday).whole_days() as usize] = true;
-        if at == day {
-            out.kept_today = Some(k.id.to_string());
-        }
-    }
-    let week = Week { days, entries, kept, eve, upto: (day - monday).whole_days() as usize };
-    let _ = &week.days;
-    let energy = int_of(note, ENERGY);
-    out.checks = plan
-        .checks
+/// The "worth watching" set of a group, measured on the week holding `day` with its trend —
+/// shown whichever plan is followed, or none (`decisions.md#ui`, 2026-10-16). Its numbers are the
+/// library's, worked out for the person as any plan's are; a line the profile hides is left out.
+#[derive(Debug, Serialize)]
+pub struct Watch {
+    pub from: String,
+    pub to: String,
+    pub checks: Vec<CheckProgress>,
+}
+
+pub fn plan_watch(store: &dyn Store, group: &str, day: &str) -> Result<Watch, StoreError> {
+    let (log, program) = kinds_of(group)?;
+    let day = parse_day("day", day)?;
+    let monday = monday_of(day);
+    let rows = rows_of(store, log)?;
+    let data = logged(&rows, log, program, false);
+    let profile = plan_profile(store)?;
+    let checks = library()
+        .watch
         .iter()
-        .filter_map(|c| {
-            let bound = Bound {
-                min: int_of(note, &format!("p_{}_min", c.id)),
-                max: int_of(note, &format!("p_{}_max", c.id)),
-            };
-            (bound.min.is_some() || bound.max.is_some()).then(|| measure(c, bound, energy, &week))
+        .filter(|w| w.group == group)
+        .filter(|w| !w.check.hide_if.iter().any(|f| profile.flagged(f)))
+        .map(|w| {
+            let bound = bounds_for(&w.check, &profile, day.year(), None);
+            let upto = (day - monday).whole_days() as usize;
+            measured(&w.check, bound, None, &data, monday, upto, None)
         })
         .collect();
-    out.plan = Some(plan.clone());
-    Ok(out)
+    Ok(Watch { from: day_string(monday), to: day_string(monday + Duration::days(6)), checks })
 }
 
 #[cfg(test)]
@@ -888,9 +1175,63 @@ mod tests {
                 assert_eq!(g.seen.len(), 10, "{}: a guide says when it was last seen", p.id);
             }
         }
-        assert!(plan_library("food").unwrap().plans.iter().any(|p| p.rests_on == "own"));
-        assert!(plan_library("fitness").unwrap().plans.iter().any(|p| p.rests_on == "own"));
-        assert!(plan_library("music").is_err());
+        assert!(plan_library(&fm_core::MemoryStore::new(), "food")
+            .unwrap()
+            .plans
+            .iter()
+            .any(|p| p.rests_on == "own"));
+        assert!(plan_library(&fm_core::MemoryStore::new(), "fitness")
+            .unwrap()
+            .plans
+            .iter()
+            .any(|p| p.rests_on == "own"));
+        assert!(plan_library(&fm_core::MemoryStore::new(), "music").is_err());
+    }
+
+    /// Every card says what kind of thing it is and which question it answers, WHO is the one to
+    /// start from in each group, and every flag the data names is one a person can set.
+    #[test]
+    fn every_card_has_a_kind_a_question_and_only_known_flags() {
+        let lib = library();
+        let kinds = ["targets", "pattern", "timing", "amounts", "programme", "own"];
+        for p in &lib.plans {
+            assert!(kinds.contains(&p.kind.as_str()), "{}: kind '{}'", p.id, p.kind);
+            assert!(
+                QUESTIONS.contains(&p.question.as_str()),
+                "{}: question '{}'",
+                p.id,
+                p.question
+            );
+            if p.rests_on != "own" {
+                assert!(!p.relation.is_empty(), "{} does not say how it relates", p.id);
+            }
+            let named = p
+                .not_for
+                .iter()
+                .chain(p.flag_notes.iter().map(|n| &n.flag))
+                .chain(p.checks.iter().flat_map(|c| &c.hide_if));
+            for f in named {
+                assert!(FLAGS.contains(&f.as_str()), "{}: no such flag '{f}'", p.id);
+            }
+        }
+        for group in ["food", "fitness"] {
+            let start: Vec<&str> = lib
+                .plans
+                .iter()
+                .filter(|p| p.group == group && p.start_here)
+                .map(|p| p.id.as_str())
+                .collect();
+            assert_eq!(start.len(), 1, "{group}: one card to start from, not {start:?}");
+            assert!(start[0].starts_with("who-"), "{group}: WHO is the start, not {}", start[0]);
+        }
+        assert!(!lib.watch.is_empty());
+        for w in &lib.watch {
+            assert!(["food", "fitness"].contains(&w.group.as_str()));
+            assert!(w.check.basis.len() > 8, "watch/{} says whose number it is", w.check.id);
+            assert!(
+                w.check.min.is_some() || w.check.max.is_some() || w.check.min_mg_per_kg.is_some()
+            );
+        }
     }
 
     #[test]

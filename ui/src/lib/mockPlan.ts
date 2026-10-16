@@ -13,11 +13,44 @@ import type {
   PlanPreview,
   PlanProfile,
   PlanProgress,
+  PlanCheck,
+  PlanFlag,
+  PlanFollowed,
+  PlanWatch,
 } from './types';
+
+const FLAGS: PlanFlag[] = [
+  'pregnant',
+  'breastfeeding',
+  'postmenopausal',
+  'kidney',
+  'diabetes_meds',
+  'eating_disorder',
+];
+/// The order the real core shows followed cards in (`plan.rs` `QUESTIONS`).
+const QUESTIONS = [
+  'healthy',
+  'nutrients',
+  'amount',
+  'timing',
+  'moving',
+  'steps',
+  'stronger',
+  'fitter',
+  'falls',
+  'flexible',
+  'vegan',
+  'pregnancy',
+  'own',
+];
 
 const who: PlanOption = {
   id: 'who-healthy-diet',
   group: 'food',
+  kind: 'targets',
+  question: 'healthy',
+  start_here: true,
+  relation: 'Written for all adults in all countries.',
   name: 'WHO healthy diet',
   rests_on: 'guideline',
   summary: 'Limits on fat, saturated fat and sodium; at least 25 g of fibre a day.',
@@ -59,6 +92,9 @@ const who: PlanOption = {
 const energy: PlanOption = {
   id: 'energy-for-me',
   group: 'food',
+  kind: 'targets',
+  question: 'amount',
+  relation: 'An estimate of what you need.',
   name: 'Energy and protein for me',
   rests_on: 'guideline',
   summary: 'A daily energy estimate from your measurements.',
@@ -71,6 +107,10 @@ const energy: PlanOption = {
 const tre: PlanOption = {
   id: 'time-restricted-eating',
   group: 'food',
+  kind: 'timing',
+  question: 'timing',
+  not_for: ['pregnant', 'breastfeeding', 'eating_disorder'],
+  relation: 'One of three ways of eating less.',
   name: 'Time-restricted eating',
   rests_on: 'definition',
   summary: 'All eating inside a part of the day.',
@@ -94,6 +134,8 @@ const tre: PlanOption = {
 const ownFood: PlanOption = {
   id: 'own-food',
   group: 'food',
+  kind: 'own',
+  question: 'own',
   name: 'My own',
   rests_on: 'own',
   summary: 'Set each number yourself.',
@@ -109,6 +151,10 @@ const ownFood: PlanOption = {
 const whoActivity: PlanOption = {
   id: 'who-activity',
   group: 'fitness',
+  kind: 'amounts',
+  question: 'moving',
+  start_here: true,
+  relation: 'Written for adults 18–64.',
   name: 'WHO weekly activity',
   rests_on: 'guideline',
   summary: 'At least 150 minutes of moderate activity a week, and strengthening on 2 days.',
@@ -171,6 +217,8 @@ const whoActivity: PlanOption = {
 const ownFitness: PlanOption = {
   id: 'own-fitness',
   group: 'fitness',
+  kind: 'own',
+  question: 'own',
   name: 'My own',
   rests_on: 'own',
   summary: 'Set each number yourself.',
@@ -184,9 +232,13 @@ const ownFitness: PlanOption = {
 };
 const PLANS = [who, energy, tre, ownFood, whoActivity, ownFitness];
 
-export function planLibrary(args: { group: string }): PlanLibrary {
+export function planLibrary(notes: ObjectMeta[], args: { group: string }): PlanLibrary {
+  const flags = planProfile(notes).flags ?? [];
+  const group = PLANS.filter((p) => p.group === args.group);
+  const left = (p: PlanOption) => (p.not_for ?? []).some((f) => flags.includes(f));
   return {
-    plans: PLANS.filter((p) => p.group === args.group),
+    plans: group.filter((p) => !left(p)),
+    hidden: group.filter(left).map((p) => p.id),
     activities:
       args.group === 'fitness'
         ? [
@@ -237,6 +289,7 @@ export function planProfile(notes: ObjectMeta[]): PlanProfile {
     height_cm: num('height_cm'),
     weight_g: num('weight_g'),
     pal_x10: num('pal_x10'),
+    flags: FLAGS.filter((f) => n.props[f] === true || n.props[f] === 'true'),
   };
 }
 
@@ -256,93 +309,195 @@ export function planPreview(notes: ObjectMeta[], args: { id: string }): PlanPrev
   return { plan, profile, missing, energy: estimate, bounds };
 }
 
+const day = (n: ObjectMeta) => (n.start ?? '').slice(0, 10);
+const mondayOf = (d: string) => addDays(d, -((new Date(`${d}T12:00:00`).getDay() + 6) % 7));
+
+/// One check measured on the week from `from`, up to `upto` (an index), with a four-week trend.
+function measure(
+  notes: ObjectMeta[],
+  c: PlanCheck,
+  bound: PlanBound,
+  args: { group: string; day: string; planned?: boolean },
+  plan?: string,
+): PlanCheckProgress {
+  const log = args.group === 'fitness' ? 'workout' : 'food';
+  const weekDays = (from: string, planId?: string) => {
+    const week = Array.from({ length: 7 }, (_, i) => addDays(from, i));
+    const rows = (w: string) =>
+      notes.filter(
+        (n) => n.props.log === log && day(n) === w && (args.planned || !n.props.planned),
+      );
+    if (c.kind === 'kept')
+      return week.map((w) =>
+        notes.some((k) => k.props.log === 'kept' && k.props.plan === planId && day(k) === w)
+          ? 1
+          : null,
+      );
+    if (c.kind === 'sum' && c.key)
+      return week.map((w) =>
+        rows(w).length
+          ? rows(w).reduce(
+              (t, n) => t + (typeof n.props[c.key!] === 'number' ? (n.props[c.key!] as number) : 0),
+              0,
+            )
+          : null,
+      );
+    if (c.kind === 'minutes')
+      return week.map((w) => {
+        const m = rows(w).reduce(
+          (t, n) => t + (typeof n.props.minutes === 'number' ? (n.props.minutes as number) : 0),
+          0,
+        );
+        return m > 0 ? m : null;
+      });
+    return week.map(() => null);
+  };
+  const per: 'day' | 'week' = c.kind === 'sum' || c.kind === 'share' ? 'day' : 'week';
+  const unit =
+    c.kind === 'sum'
+      ? (c.key ?? '')
+      : c.kind === 'share'
+        ? 'percent'
+        : c.kind === 'minutes'
+          ? 'minutes'
+          : 'days';
+  const from = mondayOf(args.day);
+  const at = Array.from({ length: 7 }, (_, i) => addDays(from, i)).indexOf(args.day);
+  const days = weekDays(from, plan);
+  const reading = (ds: (number | null)[], upto: number) => {
+    const had = ds.slice(0, upto + 1).filter((x): x is number => x !== null);
+    if (!had.length) return null;
+    return per === 'day'
+      ? Math.round(had.reduce((a, b) => a + b, 0) / had.length)
+      : had.reduce((a, b) => a + b, 0);
+  };
+  const trend = [3, 2, 1].map((back) => reading(weekDays(addDays(from, -7 * back), plan), 6));
+  trend.push(reading(days, at));
+  const value =
+    per === 'day'
+      ? (days[at] ?? undefined)
+      : days.slice(0, at + 1).reduce<number>((t, x) => t + (x ?? 0), 0);
+  const state =
+    value === undefined
+      ? 'none'
+      : bound.max !== undefined && value > bound.max
+        ? 'over'
+        : bound.min !== undefined && value < bound.min
+          ? 'under'
+          : 'met';
+  return {
+    id: c.id,
+    label: c.label,
+    kind: c.kind,
+    unit,
+    per,
+    min: bound.min,
+    max: bound.max,
+    value,
+    state,
+    days,
+    basis: c.basis,
+    trend,
+  };
+}
+
 export function planProgress(
   notes: ObjectMeta[],
   args: { group: string; day: string; planned?: boolean },
 ): PlanProgress {
   const program = args.group === 'fitness' ? 'training' : 'food';
-  const log = args.group === 'fitness' ? 'workout' : 'food';
-  const d = new Date(`${args.day}T12:00:00`);
-  const from = addDays(args.day, -((d.getDay() + 6) % 7));
+  const from = mondayOf(args.day);
   const to = addDays(from, 6);
-  const day = (n: ObjectMeta) => (n.start ?? '').slice(0, 10);
-  const note = notes
+  const flags = planProfile(notes).flags ?? [];
+  // One card per question, the latest; notes from before questions were kept: only the latest.
+  const inForce = notes
     .filter((n) => n.props.program === program && n.props.plan)
     .filter((n) => !n.start || day(n) <= args.day)
     .filter((n) => !n.due || n.due.slice(0, 10) >= args.day)
-    .sort((a, b) => day(a).localeCompare(day(b)))
-    .at(-1);
-  const base = { from, to, day: args.day, checks: [] as PlanCheckProgress[] };
-  if (!note) return base;
-  const plan = PLANS.find((p) => p.id === note.props.plan);
-  if (!plan) return { ...base, note, unknown: String(note.props.plan) };
-
-  const week = Array.from({ length: 7 }, (_, i) => addDays(from, i));
-  const kept = notes.filter((n) => n.props.log === 'kept' && n.props.plan === plan.id);
-  const checks = plan.checks.flatMap((c): PlanCheckProgress[] => {
-    const num = (k: string) =>
-      typeof note.props[k] === 'number' ? (note.props[k] as number) : undefined;
-    const min = num(`p_${c.id}_min`);
-    const max = num(`p_${c.id}_max`);
-    if (min === undefined && max === undefined) return [];
-    let days: (number | null)[] = week.map(() => null);
-    let per: 'day' | 'week' = 'week';
-    let unit = 'days';
-    if (c.kind === 'kept') days = week.map((w) => (kept.some((k) => day(k) === w) ? 1 : null));
-    else if (c.kind === 'sum' && c.key) {
-      per = 'day';
-      unit = c.key;
-      days = week.map((w) => {
-        const rows = notes.filter(
-          (n) => n.props.log === log && day(n) === w && (args.planned || !n.props.planned),
-        );
-        return rows.length
-          ? rows.reduce(
-              (t, n) => t + (typeof n.props[c.key!] === 'number' ? (n.props[c.key!] as number) : 0),
-              0,
-            )
-          : null;
-      });
-    } else if (c.kind === 'share') {
-      per = 'day';
-      unit = 'percent';
-    } else if (c.kind === 'minutes') unit = 'minutes';
-    const at = week.indexOf(args.day);
-    const value =
-      per === 'day'
-        ? (days[at] ?? undefined)
-        : c.kind === 'kept'
-          ? days.filter(Boolean).length
-          : undefined;
-    const state =
-      value === undefined
-        ? 'none'
-        : max !== undefined && value > max
-          ? 'over'
-          : min !== undefined && value < min
-            ? 'under'
-            : 'met';
-    return [
-      {
-        id: c.id,
-        label: c.label,
-        kind: c.kind,
-        unit,
-        per,
-        min,
-        max,
-        value,
-        state,
-        days,
-        basis: c.basis,
-      },
-    ];
-  });
+    .sort((a, b) => day(a).localeCompare(day(b)));
+  const latestOld = inForce.filter((n) => !n.props.question).at(-1);
+  const byQuestion = new Map<string, ObjectMeta>();
+  for (const n of inForce) {
+    if (!n.props.question && n !== latestOld) continue;
+    const q = String(
+      n.props.question ?? PLANS.find((p) => p.id === n.props.plan)?.question ?? n.props.plan,
+    );
+    byQuestion.set(q, n);
+  }
+  const order = (q: string) => {
+    const i = QUESTIONS.indexOf(q);
+    return i < 0 ? QUESTIONS.length : i;
+  };
+  const followed: PlanFollowed[] = [...byQuestion.entries()]
+    .sort(([a], [b]) => order(a) - order(b))
+    .map(([question, note]) => {
+      const plan = PLANS.find((p) => p.id === note.props.plan);
+      if (!plan) return { question, note, unknown: String(note.props.plan), checks: [] };
+      const num = (k: string) =>
+        typeof note.props[k] === 'number' ? (note.props[k] as number) : undefined;
+      const checks = plan.checks
+        .filter((c) => !(c.hide_if ?? []).some((f) => flags.includes(f as PlanFlag)))
+        .flatMap((c) => {
+          const bound = { min: num(`p_${c.id}_min`), max: num(`p_${c.id}_max`) };
+          if (bound.min === undefined && bound.max === undefined) return [];
+          return [measure(notes, c, bound, args, plan.id)];
+        });
+      const kept = notes.find(
+        (n) => n.props.log === 'kept' && n.props.plan === plan.id && day(n) === args.day,
+      );
+      return { question, note, plan, checks, kept_today: kept?.id };
+    });
+  const first = followed[0];
   return {
-    ...base,
-    plan,
-    note,
-    checks,
-    kept_today: kept.find((k) => day(k) === args.day)?.id,
+    from,
+    to,
+    day: args.day,
+    checks: first?.checks ?? [],
+    plan: first?.plan,
+    note: first?.note,
+    unknown: first?.unknown,
+    kept_today: first?.kept_today,
+    followed,
+  };
+}
+
+/// The "worth watching" set: a small stand-in of the real one.
+const WATCH: (PlanCheck & { group: string })[] = [
+  {
+    group: 'food',
+    id: 'fibre',
+    label: 'Fibre',
+    kind: 'sum',
+    key: 'fiber_mg',
+    min: 25_000,
+    basis: 'WHO and EFSA: at least 25 g a day',
+  },
+  {
+    group: 'food',
+    id: 'sodium',
+    label: 'Sodium',
+    kind: 'sum',
+    key: 'sodium_ug',
+    max: 2_000_000,
+    basis: 'WHO and EFSA: 2 g a day',
+  },
+  {
+    group: 'fitness',
+    id: 'minutes',
+    label: 'Activity this week',
+    kind: 'minutes',
+    min: 150,
+    basis: 'WHO: 150–300 minutes a week',
+  },
+];
+
+export function planWatch(notes: ObjectMeta[], args: { group: string; day: string }): PlanWatch {
+  const from = mondayOf(args.day);
+  return {
+    from,
+    to: addDays(from, 6),
+    checks: WATCH.filter((w) => w.group === args.group).map((w) =>
+      measure(notes, w, { min: w.min, max: w.max }, args),
+    ),
   };
 }

@@ -2514,3 +2514,19 @@ that logs on completion) before reaching for a retry.
   whole drill), and so is their order. It is hand-kept data: about half the films did not match
   a card by name ("Bird dog" is the Army's "Quadraplex"). A card id that no longer exists fails
   `tests/log.rs`. Films are links, checked to exist on the file's `seen` date and no later.
+
+## The card library (2026-10-16) — what it does not do yet
+
+`plans.json`, `plan.rs`, `PlanScreen.svelte`; `decisions.md#ui`, 2026-10-16.
+
+- **No Mediterranean card**: MEDAS's reuse terms are unconfirmed. Ask the PREDIMED authors before
+  carrying the 14 questions.
+- **Steps are typed in**, from Food → Trends; nothing reads a phone's step counter.
+- **B12 in pregnancy** (EFSA 4.5 µg) is not used: B12 is stored in whole micrograms.
+- **Kidney disease** leaves potassium and protein out rather than showing a stage-specific figure.
+- **Trends are four weeks**, the week's average of a day number or the week's total; a longer span
+  is not offered here (Food → Trends has 4 and 12 weeks for single values).
+- **A flag changes the numbers of a card only when it is followed again**: a card already followed
+  keeps the bounds on its note, except that a number a flag *hides* stops being measured at once.
+- **Not seen on a phone screen**: the new library shelves, badges and the watch section.
+

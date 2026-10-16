@@ -63,6 +63,12 @@ export function shownValue(c: Pick<PlanCheckProgress, 'unit'>, v: number): strin
   }
 }
 
+/** A check's last weeks as shown, oldest first: each week's reading in the check's own unit, or
+ *  "—" for a week with nothing logged (`plan.rs`, `CheckProgress::trend`). */
+export function trendShown(c: Pick<PlanCheckProgress, 'unit' | 'trend'>): string[] {
+  return (c.trend ?? []).map((v) => (v === null || v === undefined ? '—' : shownValue(c, v)));
+}
+
 /** What a check asks for, in words: `at least 25 g`, `at most 30%`, `45–75%`. */
 export function shownAsk(c: Pick<PlanCheckProgress, 'unit' | 'min' | 'max'>): string {
   if (c.min !== undefined && c.max !== undefined) {

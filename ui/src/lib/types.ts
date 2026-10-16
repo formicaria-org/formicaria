@@ -926,11 +926,20 @@ export interface PlanCheck {
   kind:
     'sum' | 'share' | 'low_days' | 'minutes' | 'days' | 'sets' | 'region_days' | 'kept' | 'fast';
   key?: string;
+  /** The log its entries are read from, when not the group's own (`body` for steps). */
+  log?: string;
   min?: number;
   max?: number;
+  /** Flags under which the number is not shown — set by a clinician for that person. */
+  hide_if?: string[];
   /** Whose number it is, in the source's words. */
   basis: string;
 }
+/** What a person may tell the app about themselves — opt-in, never required (`plan.rs` `FLAGS`). */
+export type PlanFlag =
+  'pregnant' | 'breastfeeding' | 'postmenopausal' | 'kidney' | 'diabetes_meds' | 'eating_disorder';
+/** What kind of thing a card is, which says how it is tracked (`decisions.md#ui`, 2026-10-16). */
+export type PlanKind = 'targets' | 'pattern' | 'timing' | 'amounts' | 'programme' | 'own';
 export interface PlanOption {
   id: string;
   group: 'food' | 'fitness';
@@ -947,6 +956,17 @@ export interface PlanOption {
   guides: PlanGuide[];
   /** A week (a regime) or a day (a diet) to start from, to be changed. */
   examples?: (PlanExample | PlanFoodExample)[];
+  kind: PlanKind;
+  /** The question it answers; one card is followed per question. */
+  question: string;
+  /** The card to start from: written for all adults. */
+  start_here?: boolean;
+  /** How it relates to the other cards of its question. */
+  relation?: string;
+  /** Flags under which it is not offered. */
+  not_for?: PlanFlag[];
+  /** What changes for a person who has set a flag, and on whose word. */
+  flag_notes?: { flag: PlanFlag; text: string }[];
 }
 export interface PlanExampleItem {
   type: 'activity' | 'session';
@@ -1010,6 +1030,8 @@ export interface PlanLibrary {
   activities: PlanActivity[];
   /** Fitness only. Sunday to Saturday, as the source lists them. */
   weeks?: ExampleWeeks[];
+  /** Cards left out because of what the profile says, by id. */
+  hidden?: string[];
 }
 /** How an exercise is done, as its source wrote it (`exercise_library`). */
 export interface ExerciseSource {
@@ -1074,6 +1096,8 @@ export interface PlanProfile {
   weight_g?: number;
   /** EFSA's activity level times ten: 14, 16, 18 or 20. */
   pal_x10?: number;
+  /** The opt-in flags the person has set. */
+  flags?: PlanFlag[];
 }
 export interface PlanBound {
   min?: number;
@@ -1100,6 +1124,24 @@ export interface PlanCheckProgress {
   /** Monday to Sunday. */
   days: (number | null)[];
   basis: string;
+  /** The last four weeks, oldest first, the last this week so far: a day check's average over the
+   *  days that had something, a week check's total; `null` for a week with nothing logged. */
+  trend?: (number | null)[];
+}
+/** One followed card, measured: there is one per question. */
+export interface PlanFollowed {
+  question: string;
+  plan?: PlanOption;
+  note: ObjectMeta;
+  unknown?: string;
+  checks: PlanCheckProgress[];
+  kept_today?: string;
+}
+/** The "worth watching" set: measured whichever card is followed, or none. */
+export interface PlanWatch {
+  from: string;
+  to: string;
+  checks: PlanCheckProgress[];
 }
 export interface PlanProgress {
   plan?: PlanOption;
@@ -1112,4 +1154,6 @@ export interface PlanProgress {
   checks: PlanCheckProgress[];
   /** The id of the note saying the person kept to it today. */
   kept_today?: string;
+  /** Every card followed in the group, one per question; the fields above are the first. */
+  followed?: PlanFollowed[];
 }

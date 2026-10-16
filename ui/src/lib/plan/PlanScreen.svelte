@@ -15,7 +15,7 @@
   import ExampleWeek from './ExampleWeek.svelte';
   import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { planLibrary, planPreview, planProgress } from '../ipc';
+  import { planLibrary, planPreview, planProfile, planProgress, planWatch } from '../ipc';
   import { createNotesUndoable, deleteUndoable, setPropertiesUndoable } from '../undo.svelte';
   import { addDays, dayLabel, dayLetter } from '../units';
   import {
@@ -26,16 +26,21 @@
     shownBound,
     shownValue,
     storedBound,
+    trendShown,
     unitOf,
     verdict,
   } from './measure';
   import type {
     PlanCheck,
+    PlanFlag,
+    PlanFollowed,
+    PlanKind,
     PlanLibrary,
     PlanOption,
     PlanPreview,
     PlanProfile,
     PlanProgress,
+    PlanWatch,
     TotalsDef,
   } from '../types';
 
@@ -55,6 +60,12 @@
 
   let progress = $state<PlanProgress | null>(null);
   let library = $state<PlanLibrary | null>(null);
+  /// The "worth watching" set, shown whatever is followed (`decisions.md#ui`, 2026-10-16).
+  let watch = $state<PlanWatch | null>(null);
+  /// The flags the person has set, for the notes a card shows them.
+  let flagsNow = $state<PlanFlag[]>([]);
+  /// Every card followed in this group, one per question.
+  const followedList = $derived(progress?.followed ?? []);
   /// The library is on screen although something is followed: the person asked to change.
   let choosing = $state(false);
   let open = $state<PlanPreview | null>(null);
@@ -65,13 +76,17 @@
   async function load() {
     const mine = ++asked;
     try {
-      const [p, l] = await Promise.all([
+      const [p, l, w, me] = await Promise.all([
         planProgress(group, today),
-        library ? Promise.resolve(library) : planLibrary(group),
+        planLibrary(group),
+        planWatch(group, today).catch(() => null),
+        planProfile().catch(() => null),
       ]);
       if (mine !== asked) return;
       progress = p;
       library = l;
+      watch = w;
+      flagsNow = me?.flags ?? [];
       failed = '';
     } catch (e) {
       if (mine === asked) failed = String(e);
@@ -84,22 +99,68 @@
   });
 
   // ── the library ────────────────────────────────────────────────────────────────────────────────
-  /// What an option rests on, said before its name: a guideline is not a single trial, and the
-  /// list says which is which (`sources-2026-10-11.md` ranks them the same way).
-  const RESTS: [PlanOption['rests_on'], string][] = [
-    ['guideline', 'From a guideline'],
-    ['position', 'From a position stand or an expert consensus'],
-    ['review', 'From a review of trials'],
-    ['definition', 'Defined by a consensus, recommended by no public body'],
-    ['described', 'Set out by its own body; not measurable from what you log'],
-    ['own', 'Yours'],
+  /// **Shelved by what kind of thing a card is**, which says how it is tracked; what it rests on is
+  /// its badge (`decisions.md#ui`, 2026-10-16 — it was the shelf until then, which answered an
+  /// expert's question before a newcomer's).
+  const KINDS: [PlanKind, string, string][] = [
+    ['targets', 'Targets', 'Numbers for nutrients, measured from what you log.'],
+    [
+      'pattern',
+      'A way of eating',
+      'Amounts of food groups: measured where the food list can, and you say each day whether you kept to it.',
+    ],
+    ['timing', 'When to eat', 'Measured from the times of what you log.'],
+    ['amounts', 'Weekly amounts', 'Measured from the sessions you log.'],
+    ['programme', 'Programmes', 'A set way to train, counted by its sessions.'],
+    ['own', 'Yours', 'Set every number yourself.'],
   ];
   const shelves = $derived(
-    RESTS.map(([rests, heading]) => ({
+    KINDS.map(([kind, heading, how]) => ({
       heading,
-      plans: (library?.plans ?? []).filter((p) => p.rests_on === rests),
+      how,
+      plans: (library?.plans ?? []).filter((p) => p.kind === kind),
     })).filter((s) => s.plans.length),
   );
+  /// What a card rests on, as its badge — the same ranking as `sources-2026-10-11.md`.
+  const RESTS: Record<PlanOption['rests_on'], string> = {
+    guideline: 'Guideline',
+    position: 'Expert consensus',
+    review: 'Review of trials',
+    definition: 'Definition, not advice',
+    described: 'Set out by its own body',
+    own: 'Yours',
+  };
+  /// The question a card answers — one card is followed per question.
+  const QUESTIONS: Record<string, string> = {
+    healthy: 'Am I eating healthily?',
+    nutrients: 'Enough of each nutrient?',
+    amount: 'How much to eat',
+    timing: 'When to eat',
+    moving: 'Am I moving enough?',
+    steps: 'Walking more',
+    stronger: 'Getting stronger',
+    fitter: 'Fitter heart and lungs',
+    falls: 'Steadier on my feet',
+    flexible: 'More flexible',
+    own: 'My own',
+  };
+  /// The opt-in flags, in plain words (`plan.rs` `FLAGS`).
+  const FLAG_LABELS: [PlanFlag, string][] = [
+    ['pregnant', 'Pregnant'],
+    ['breastfeeding', 'Breastfeeding'],
+    ['postmenopausal', 'After the menopause'],
+    ['kidney', 'Kidney disease'],
+    ['diabetes_meds', 'Taking insulin or a sulfonylurea for diabetes'],
+    ['eating_disorder', 'An eating disorder, now or in the past'],
+  ];
+  let flagsDraft = $state<PlanFlag[]>([]);
+  function toggleFlag(f: PlanFlag, on: boolean) {
+    flagsDraft = on ? [...new Set([...flagsDraft, f])] : flagsDraft.filter((x) => x !== f);
+  }
+  /// A card's notes for the flags set.
+  const notesFor = (p: PlanOption, flags: PlanFlag[]) =>
+    (p.flag_notes ?? []).filter((n) => flags.includes(n.flag));
+  const following = (id: string) => followedList.some((f) => f.plan?.id === id);
 
   // ── one option, opened ─────────────────────────────────────────────────────────────────────────
   /// The bounds as typed, by check: text, so an empty field stays empty.
@@ -129,6 +190,7 @@
       weight: pr.weight_g ? String(Math.round(pr.weight_g / 100) / 10) : '',
       pal: pr.pal_x10 ? String(pr.pal_x10) : '',
     };
+    flagsDraft = [...(pr.flags ?? [])];
   }
   async function look(id: string, keep?: Record<string, { min?: number; max?: number }>) {
     failed = '';
@@ -164,6 +226,8 @@
     dropDraft(DRAFT);
     open = null;
     resumed = false;
+    // A flag saved while it was open may change which cards are offered.
+    void load();
   }
   async function afresh() {
     const id = open?.plan.id;
@@ -171,11 +235,10 @@
     if (id) await look(id);
   }
   /// Change the numbers of what is followed: the same form, starting from the note's own bounds.
-  function retune() {
-    const p = progress;
-    if (!p?.plan) return;
-    const mine = Object.fromEntries(p.checks.map((c) => [c.id, { min: c.min, max: c.max }]));
-    void look(p.plan.id, mine);
+  function retune(f: PlanFollowed) {
+    if (!f.plan) return;
+    const mine = Object.fromEntries(f.checks.map((c) => [c.id, { min: c.min, max: c.max }]));
+    void look(f.plan.id, mine);
   }
 
   const settled = $derived.by(() => {
@@ -209,18 +272,23 @@
     const weight = Number(me.weight);
     if (Number.isFinite(weight) && weight > 0) props.weight_g = Math.round(weight * 1000);
     if (me.pal) props.pal_x10 = Number(me.pal);
+    // The flags: each written, set or not, so taking one back is a write too. As the text a file
+    // would hold — `true` / `false` — which the core types exactly as it types a written one.
+    const flags: Record<string, string> = Object.fromEntries(
+      FLAG_LABELS.map(([f]) => [f, String(flagsDraft.includes(f))]),
+    );
     busy = true;
     failed = '';
     try {
       const id = open.profile.id;
-      if (id) await setPropertiesUndoable(id, props, 'changed your measurements');
+      if (id) await setPropertiesUndoable(id, { ...props, ...flags }, 'changed your measurements');
       else
         await createNotesUndoable(
           [
             {
               title: 'About me',
               body: 'Your own measurements, used only to work out numbers you ask for.\n',
-              props: { profile: 'me', ...props },
+              props: { profile: 'me', ...props, ...flags },
             },
           ],
           'wrote down your measurements',
@@ -234,6 +302,7 @@
         );
       onsaved();
       // The numbers follow the measurements: work them out again.
+      flagsNow = [...flagsDraft];
       await look(open.plan.id);
     } catch (e) {
       failed = String(e);
@@ -255,6 +324,14 @@
           ask: shownAsk({ unit: unitFor(c), ...settled[c.id] }),
           basis: c.basis,
         }));
+      // **One card per question**: the one followed for this question so far gets a last day.
+      const was = followedList.find((f) => f.question === p.plan.question);
+      if (was)
+        await setPropertiesUndoable(
+          was.note.id,
+          { due: addDays(today, -1) },
+          `stopped following ${was.note.title ?? 'a plan'}`,
+        );
       await createNotesUndoable(
         [
           {
@@ -264,6 +341,7 @@
             props: {
               program,
               plan: p.plan.id,
+              question: p.plan.question,
               ...boundProps(
                 p.plan.checks,
                 settled,
@@ -305,8 +383,8 @@
   );
   const weekOver = $derived(!!progress && today >= progress.to);
 
-  async function stop() {
-    const note = progress?.note;
+  async function stop(f: PlanFollowed) {
+    const note = f.note;
     if (busy || !note) return;
     busy = true;
     try {
@@ -325,9 +403,8 @@
       busy = false;
     }
   }
-  async function toggleKept() {
-    const p = progress;
-    if (busy || !p?.plan) return;
+  async function toggleKept(p: PlanFollowed) {
+    if (busy || !p.plan) return;
     busy = true;
     try {
       if (p.kept_today) await deleteUndoable(p.kept_today, `kept to ${p.plan.name}`);
@@ -362,10 +439,34 @@
     </button>
     {#if resumed}<Resumed onafresh={afresh} />{/if}
     <header class="head">
+      {#if QUESTIONS[p.question]}<span class="question">{QUESTIONS[p.question]}</span>{/if}
       <h2>{p.name}</h2>
       <p>{p.summary}</p>
+      {#if p.relation}<p class="relation">{p.relation}</p>{/if}
     </header>
     {#if p.caution}<p class="caution">{p.caution}</p>{/if}
+    {#each notesFor(p, open.profile.flags ?? []) as n (n.flag)}<p class="caution">
+        {n.text}
+      </p>{/each}
+
+    <details class="card flags" open={flagsDraft.length > 0}>
+      <summary>Anything we should know? <small>optional</small></summary>
+      <p class="why">
+        Only used to leave out a number that is not for you, or to use one a health body publishes
+        for you. Kept in “About me”; never required.
+      </p>
+      {#each FLAG_LABELS as [f, label] (f)}
+        <label class="flag">
+          <input
+            type="checkbox"
+            checked={flagsDraft.includes(f)}
+            onchange={(e) => toggleFlag(f, e.currentTarget.checked)}
+          />
+          {label}
+        </label>
+      {/each}
+      <button type="button" class="quiet" onclick={saveMe} disabled={busy}>Save</button>
+    </details>
 
     {#if p.needs.length}
       <section class="card">
@@ -506,128 +607,53 @@
     <button type="button" class="go" onclick={follow} disabled={busy || !ready}>
       Follow this
     </button>
-  {:else if progress?.plan && !choosing}
-    {@const p = progress.plan}
+  {:else if followedList.length && !choosing}
+    {@render watching()}
     <header class="head">
-      <h2>{p.name}</h2>
-      <p>
-        Following since {dayLabel(progress.note?.start?.slice(0, 10) ?? today)} · week of {dayLabel(
-          progress.from,
-        )}
-      </p>
+      <h2>What you follow</h2>
+      <p>Week of {dayLabel(progress!.from)} · one card for each question</p>
     </header>
-
-    {#if progress.checks.length === 0}
-      <p class="none">Nothing in it is being measured. Change its numbers to add something.</p>
-    {/if}
-    {#each progress.checks as c (c.id)}
-      <section class="row" data-state={c.state}>
-        <div class="line">
-          <strong>{c.label}</strong>
-          <span class="ask">{shownAsk(c)}</span>
-        </div>
-        <div class="line">
-          <span class="value">
-            {c.value === undefined ? '—' : shownValue(c, c.value)}
-            {#if c.per === 'day'}<small>today</small>{/if}
-          </span>
-          <span class="verdict">{verdict(c, weekOver)}</span>
-        </div>
-        <div class="bar" role="img" aria-label={`${c.label}: ${verdict(c, weekOver)}`}>
-          <div class="fill" style="width:{fraction(c) * 100}%"></div>
-        </div>
-        <ol class="days" aria-label="this week, day by day">
-          {#each week as d, i (d)}
-            <li class:has={c.days[i] !== null && c.days[i] !== 0} class:today={d === today}>
-              <span>{dayLetter(d)}</span>
-            </li>
-          {/each}
-        </ol>
-        {#if c.kind === 'kept'}
-          <button
-            type="button"
-            class="quiet"
-            aria-pressed={!!progress.kept_today}
-            onclick={toggleKept}
-            disabled={busy}
-          >
-            {progress.kept_today ? 'Kept to it today ✓' : 'I kept to it today'}
-          </button>
-        {/if}
-      </section>
+    {#each followedList as f (f.note.id)}
+      {@render followedCard(f)}
     {/each}
-
-    {#if p.describes?.length}
-      <section class="card">
-        <h3>What it asks, in its own terms</h3>
-        <ul class="plain">
-          {#each p.describes as d (d)}<li>{d}</li>{/each}
-        </ul>
-      </section>
-    {/if}
-    {#each p.examples ?? [] as example, i (i)}
-      {#if 'week' in example}
-        <ExampleWeek {example} {onsaved} />
-      {:else}
-        <ExampleDay {example} {today} {onsaved} />
-      {/if}
-    {/each}
-    {#if p.guides.length}
-      <section class="card">
-        <h3>How to do it</h3>
-        <ul class="plain">
-          {#each p.guides as g (g.url)}
-            <li>
-              <a href={g.url} target="_blank" rel="noopener noreferrer">{g.label}</a>
-              <span class="basis">{g.by}, seen {g.seen}</span>
-            </li>
-          {/each}
-        </ul>
-      </section>
-    {/if}
-    {#if p.unmeasured.length}
-      <section class="card">
-        <h3>What formicaria cannot measure</h3>
-        <ul class="plain">
-          {#each p.unmeasured as u (u)}<li>{u}</li>{/each}
-        </ul>
-      </section>
-    {/if}
-    {#if p.caution}<p class="caution">{p.caution}</p>{/if}
-    {@render sources(p)}
-
-    <div class="actions">
-      <button type="button" class="quiet" onclick={retune}>Change its numbers</button>
-      <button type="button" class="quiet" onclick={() => (choosing = true)}>
-        Choose another
-      </button>
-      <button type="button" class="quiet" onclick={stop} disabled={busy}>Stop following</button>
-    </div>
-  {:else if progress?.unknown && !choosing}
-    <header class="head">
-      <h2>{progress.note?.title ?? 'A plan'}</h2>
-      <p>
-        This copy of formicaria does not know the plan this note follows (“{progress.unknown}”), so
-        it cannot measure it. A newer version may.
-      </p>
-    </header>
-    <button type="button" class="quiet" onclick={() => (choosing = true)}>Choose another</button>
+    <button type="button" class="quiet" onclick={() => (choosing = true)}>
+      Add a card, or change one
+    </button>
   {:else if library}
+    {@render watching()}
     <header class="head">
-      <h2>Choose a {noun} to follow</h2>
-      <p>Each one says where it comes from. Pick one to see what it would hold you to.</p>
+      <h2>Choose what to follow</h2>
+      <p>
+        One card for each question. Start with WHO's, written for all adults; each card says where
+        it comes from and how it relates to the others.
+      </p>
     </header>
     {#if choosing}
       <button type="button" class="back" onclick={() => (choosing = false)}>
         <Icon name="chevronLeft" size={18} /> Back to what you follow
       </button>
     {/if}
+    {#if library.hidden?.length}
+      <p class="why">
+        {library.hidden.length}
+        {library.hidden.length === 1 ? 'card is' : 'cards are'} left out because of what you told us in
+        “About me”.
+      </p>
+    {/if}
     {#each shelves as shelf (shelf.heading)}
       <h3 class="shelf">{shelf.heading}</h3>
+      <p class="why shelf-how">{shelf.how}</p>
       {#each shelf.plans as p (p.id)}
         <button type="button" class="option" onclick={() => look(p.id)}>
+          <span class="badges">
+            {#if p.start_here}<span class="badge start">Start here</span>{/if}
+            {#if following(p.id)}<span class="badge on">Following</span>{/if}
+            <span class="badge">{RESTS[p.rests_on]}</span>
+            {#if QUESTIONS[p.question]}<span class="badge q">{QUESTIONS[p.question]}</span>{/if}
+          </span>
           <strong>{p.name}</strong>
           <span>{p.summary}</span>
+          {#if p.relation}<span class="relation">{p.relation}</span>{/if}
           {#if p.sources.length}
             <small>{[...new Set(p.sources.map((s) => s.by))].join(' · ')}</small>
           {/if}
@@ -638,6 +664,147 @@
     <p class="none">Loading…</p>
   {/if}
 </div>
+
+{#snippet watching()}
+  {#if watch?.checks.length}
+    <section class="card watch">
+      <h3>Worth watching</h3>
+      <p class="why">
+        The same few numbers whatever you follow, read over a week. Each says whose number it is.
+        Last four weeks, oldest first; this week so far is the last.
+      </p>
+      {#each watch.checks as c (c.id)}
+        <div class="watch-row">
+          <div class="line">
+            <strong>{c.label}</strong>
+            <span class="ask">{shownAsk(c)}</span>
+          </div>
+          <p class="trend" aria-label={`${c.label}, the last four weeks`}>
+            {trendShown(c).join(' · ') || '—'}
+          </p>
+          <span class="basis">{c.basis}</span>
+        </div>
+      {/each}
+    </section>
+  {/if}
+{/snippet}
+
+{#snippet followedCard(f: PlanFollowed)}
+  <section class="followed">
+    {#if !f.plan}
+      <header class="head">
+        <h2>{f.note.title ?? 'A plan'}</h2>
+        <p>
+          This copy of formicaria does not know the plan this note follows (“{f.unknown}”), so it
+          cannot measure it. A newer version may.
+        </p>
+      </header>
+      <button type="button" class="quiet" onclick={() => stop(f)} disabled={busy}>
+        Stop following
+      </button>
+    {:else}
+      {@const p = f.plan}
+      <header class="head">
+        {#if QUESTIONS[f.question]}<span class="question">{QUESTIONS[f.question]}</span>{/if}
+        <h2>{p.name}</h2>
+        <p>Following since {dayLabel(f.note.start?.slice(0, 10) ?? today)}</p>
+      </header>
+      {#each notesFor(p, flagsNow) as n (n.flag)}<p class="caution">{n.text}</p>{/each}
+      {#if f.checks.length === 0}
+        <p class="none">Nothing in it is being measured. Change its numbers to add something.</p>
+      {/if}
+      {#each f.checks as c (c.id)}
+        <section class="row" data-state={c.state}>
+          <div class="line">
+            <strong>{c.label}</strong>
+            <span class="ask">{shownAsk(c)}</span>
+          </div>
+          <div class="line">
+            <span class="value">
+              {c.value === undefined ? '—' : shownValue(c, c.value)}
+              {#if c.per === 'day'}<small>today</small>{/if}
+            </span>
+            <span class="verdict">{verdict(c, weekOver)}</span>
+          </div>
+          <div class="bar" role="img" aria-label={`${c.label}: ${verdict(c, weekOver)}`}>
+            <div class="fill" style="width:{fraction(c) * 100}%"></div>
+          </div>
+          <ol class="days" aria-label="this week, day by day">
+            {#each week as d, i (d)}
+              <li class:has={c.days[i] !== null && c.days[i] !== 0} class:today={d === today}>
+                <span>{dayLetter(d)}</span>
+              </li>
+            {/each}
+          </ol>
+          {#if c.trend?.some((v) => v !== null)}
+            <p class="trend" aria-label={`${c.label}, the last four weeks`}>
+              {c.per === 'day' ? 'Week averages' : 'Weeks'}: {trendShown(c).join(' · ')}
+            </p>
+          {/if}
+          {#if c.kind === 'kept'}
+            <button
+              type="button"
+              class="quiet"
+              aria-pressed={!!f.kept_today}
+              onclick={() => toggleKept(f)}
+              disabled={busy}
+            >
+              {f.kept_today ? 'Kept to it today ✓' : 'I kept to it today'}
+            </button>
+          {/if}
+        </section>
+      {/each}
+      <details class="more">
+        <summary>More about it</summary>
+        {#if p.relation}<p class="relation">{p.relation}</p>{/if}
+        {#if p.describes?.length}
+          <section class="card">
+            <h3>What it asks, in its own terms</h3>
+            <ul class="plain">
+              {#each p.describes as d (d)}<li>{d}</li>{/each}
+            </ul>
+          </section>
+        {/if}
+        {#each p.examples ?? [] as example, i (i)}
+          {#if 'week' in example}
+            <ExampleWeek {example} {onsaved} />
+          {:else}
+            <ExampleDay {example} {today} {onsaved} />
+          {/if}
+        {/each}
+        {#if p.guides.length}
+          <section class="card">
+            <h3>How to do it</h3>
+            <ul class="plain">
+              {#each p.guides as g (g.url)}
+                <li>
+                  <a href={g.url} target="_blank" rel="noopener noreferrer">{g.label}</a>
+                  <span class="basis">{g.by}, seen {g.seen}</span>
+                </li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+        {#if p.unmeasured.length}
+          <section class="card">
+            <h3>What formicaria cannot measure</h3>
+            <ul class="plain">
+              {#each p.unmeasured as u (u)}<li>{u}</li>{/each}
+            </ul>
+          </section>
+        {/if}
+        {#if p.caution}<p class="caution">{p.caution}</p>{/if}
+        {@render sources(p)}
+      </details>
+      <div class="actions">
+        <button type="button" class="quiet" onclick={() => retune(f)}>Change its numbers</button>
+        <button type="button" class="quiet" onclick={() => stop(f)} disabled={busy}>
+          Stop following
+        </button>
+      </div>
+    {/if}
+  </section>
+{/snippet}
 
 {#snippet sources(p: PlanOption)}
   {#if p.sources.length}
@@ -729,6 +896,88 @@
   }
   .option:hover {
     border-color: var(--accent);
+  }
+  /* What a card answers, what it rests on, and whether to start with it (2026-10-16). */
+  .shelf-how {
+    margin: 0;
+  }
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .option .badge,
+  .badge {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+  }
+  .option .badge.start {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .option .badge.on {
+    border-color: var(--ok-fg);
+    color: var(--ok-fg);
+  }
+  .question {
+    display: block;
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .option .relation,
+  .relation {
+    color: var(--text);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+  .flags summary,
+  .more summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .flags small {
+    color: var(--text-subtle);
+    font-weight: 400;
+  }
+  .flag {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.25rem;
+    font-size: var(--text-sm);
+  }
+  .followed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
+  }
+  .more {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .watch-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--border);
+  }
+  .trend {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
   }
   .option strong {
     font-size: var(--text-md);

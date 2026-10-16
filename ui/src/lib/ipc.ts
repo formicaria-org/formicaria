@@ -46,6 +46,7 @@ import type {
   PlanPreview,
   PlanProfile,
   PlanProgress,
+  PlanWatch,
   NoteDraft,
   FoodHit,
   FoodDetail,
@@ -1292,6 +1293,9 @@ export const planPreview = (id: string, day: string) =>
 /** `planned` counts what is planned too: what a day on the menu would come to. */
 export const planProgress = (group: string, day: string, planned = false) =>
   invoke<PlanProgress>('plan_progress', { group, day, planned });
+/** The "worth watching" set of a group for the week holding `day`, with its four-week trend. */
+export const planWatch = (group: string, day: string) =>
+  invoke<PlanWatch>('plan_watch', { group, day });
 /** Create several notes in one write. */
 export const createNotes = (notes: NoteDraft[], vault = '') =>
   invoke<ObjectMeta[]>('create_notes', { notes, vault });

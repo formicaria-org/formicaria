@@ -2400,7 +2400,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'log_routines':
       return tracker.logRoutines(notes, args as { view: string }) as T;
     case 'plan_library':
-      return plan.planLibrary(args as { group: string }) as T;
+      return plan.planLibrary(notes, args as { group: string }) as T;
+    case 'plan_watch':
+      return plan.planWatch(notes, args as { group: string; day: string }) as T;
     case 'plan_profile':
       return plan.planProfile(notes) as T;
     case 'plan_preview':
