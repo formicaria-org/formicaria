@@ -1,5 +1,39 @@
-import { describe, expect, it } from 'vitest';
-import { shareSummary, type ShareStatus } from './remote';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { asDesktop, asPhone } from './harness';
+import { isRemote, shareSummary, type ShareStatus } from './remote';
+
+// **The reliance did bite** (2026-10-17): Android serves the page from `tauri.localhost`, so the
+// phone read as a paired tablet and never backed up by itself. Pinned with the real hostname.
+describe('isRemote', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+  });
+
+  it('is false on the phone, whose page comes from tauri.localhost', () => {
+    vi.stubGlobal('location', { hostname: 'tauri.localhost' });
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    expect(isRemote()).toBe(false);
+  });
+
+  it('is false under the phone harness, which serves from the same address', () => {
+    asPhone();
+    expect(location.hostname).toBe('tauri.localhost');
+    expect(isRemote()).toBe(false);
+    asDesktop();
+    expect(location.hostname).not.toBe('tauri.localhost');
+  });
+
+  it('is true for a tablet that reached the computer over the network', () => {
+    vi.stubGlobal('location', { hostname: '192.168.1.20' });
+    expect(isRemote()).toBe(true);
+  });
+
+  it('is false in the computer’s own browser', () => {
+    vi.stubGlobal('location', { hostname: 'localhost' });
+    expect(isRemote()).toBe(false);
+  });
+});
 
 // `isRemote` reads `location`, which is jsdom's and not settable per-test without stubbing the
 // whole object; it is three comparisons and its real risk is not logic but *reliance* — so what

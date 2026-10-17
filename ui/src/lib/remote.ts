@@ -1,3 +1,5 @@
+import { isPhone } from './platform';
+
 // **Am I the computer, or a device that paired with it?**
 //
 // Answered from `location.hostname`, not from the server. The page already knows how it was
@@ -7,7 +9,14 @@
 // This is a *courtesy* signal and nothing rests on it. It decides which buttons to show; the
 // server refuses the same actions regardless (`REMOTE_DENIED` in `fm-serve`). If this were the
 // only check, editing one line of JavaScript would be the exploit.
+//
+// **The phone is the device itself, never a paired one.** Android serves the page from
+// `http://tauri.localhost`, which the hostname test below reads as a stranger — so from the day
+// it was written the phone took itself for a tablet: backing up by itself returned on every tick
+// and its switch, the backup half of Settings and *New vault…* were hidden. Found 2026-10-17
+// after five days of the phone's notes never leaving it.
 export const isRemote = (): boolean => {
+  if (isPhone()) return false;
   const h = globalThis.location?.hostname ?? '';
   return !(h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '');
 };

@@ -1193,8 +1193,15 @@ Decision: `decisions.md#ui`, *Settings shows one category at a time*.
 
 Decision: `decisions.md#sync`, *formicaria backs up by itself*.
 
+- **It never ran on Android until 2026-10-17.** `isRemote()` read the phone's `tauri.localhost`
+  as a paired tablet, so `autoBackup` returned on every tick; the owner's phone held 46 changes
+  (11–16 Oct, a new note among them) while still *getting* the laptop's. Fixed in `remote.ts`;
+  `asPhone()` now serves from `tauri.localhost`, so every phone test sees the real address.
+  **Not yet seen on a device.** The same check had hidden the switch, Settings' backup half,
+  *New vault…*, moving a vault and the food settings on the phone — all shown there now, first time.
 - **Not yet seen between two real devices.** The rules (`autoBackup.ts`) are unit-tested; the
-  wiring in `App.svelte` is type-checked and nothing more.
+  wiring in `App.svelte` is type-checked and nothing more — it is behind `import.meta.env.PROD`,
+  which no test build sets, so **no test has ever run it on any device**.
 - **Only while the app is open.** A phone in a pocket sends nothing; the backup made on leaving is
   best effort, and Android may stop the app first.
 - **The phone learns of incoming changes only when it comes to the front**, at most every five

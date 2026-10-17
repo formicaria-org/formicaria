@@ -21,6 +21,7 @@
 /// cost of a command is the cost of blocking the UI for it, so counting commands measures the
 /// thing that hurts, deterministically and on any machine.
 import * as mock from './mock';
+import { vi } from 'vitest';
 import { setCoarsePointer } from '../test-setup';
 
 /// One command as it crossed the bridge.
@@ -56,7 +57,11 @@ function decodeBase64(data: string): Uint8Array {
   return out;
 }
 
-/// Install a fake `__TAURI_INTERNALS__` and switch the pointer to coarse.
+/// jsdom's own `location`, kept so `asDesktop()` puts back exactly it and no other stub.
+const jsdomLocation = globalThis.location;
+
+/// Install a fake `__TAURI_INTERNALS__`, serve the page from the phone's address, and switch the
+/// pointer to coarse.
 ///
 /// Returns the ledger. Call `asDesktop()` in an `afterEach` — the global outlives the test
 /// otherwise, and vitest isolates per *file*, not per test.
@@ -146,6 +151,16 @@ export function asPhone(): CountingBridge {
     convertFileSrc: (path: string, protocol: string) => `http://${protocol}.localhost/${path}`,
     transformCallback: (cb: unknown) => cb,
   };
+  // **The phone's own address, not jsdom's.** Android serves the page from `http://tauri.localhost`,
+  // and every phone test ran at `localhost` instead — the one address the phone never has. So
+  // nothing caught `isRemote()` taking the phone for a paired tablet, which kept it from ever
+  // backing up by itself (2026-10-17). A URL carries every field the app reads; `reload` is inert.
+  const phoneLocation = Object.assign(new URL('http://tauri.localhost/'), {
+    reload: () => {},
+    assign: () => {},
+    replace: () => {},
+  });
+  vi.stubGlobal('location', phoneLocation);
   setCoarsePointer(true);
   return bridge;
 }
@@ -153,6 +168,7 @@ export function asPhone(): CountingBridge {
 /// Undo `asPhone()`. Safe to call unconditionally.
 export function asDesktop(): void {
   delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  if (globalThis.location?.hostname === 'tauri.localhost') vi.stubGlobal('location', jsdomLocation);
   setCoarsePointer(false);
 }
 
