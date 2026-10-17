@@ -102,6 +102,11 @@ jobs:
           pixi run -e cross pnpm -C ui build
           pixi run -e cross pnpm -C mobile install --frozen-lockfile
 
+      # **The manual is built into the app** (`decisions.md` 2026-10-18): the shell's `build.rs`
+      # embeds `docs/book`, and refuses to build a versioned app without it.
+      - name: the manual
+        run: pixi run -e cross docs
+
       # **The version the artifact reports about itself**, exactly as the desktop release workflow
       # and `ci/android-release.sh` do it. Nothing set this on the iOS path, so Settings said `dev`
       # while `CFBundleShortVersionString` came from `tauri.conf.json` — two halves of one build

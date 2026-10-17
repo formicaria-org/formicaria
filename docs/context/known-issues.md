@@ -4,6 +4,19 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## The manual inside the app — limits (2026-10-18)
+
+- **Seen in a desktop browser, not on a device.** A real Chromium rendered the book in a sandboxed
+  frame under `MANUAL_CSP`, scripts and all, at 1200px and 360px. The phone's `fmmanual:` scheme
+  compiles and is unit-reachable only in thought: whether Android's WebView and iOS's WKWebView
+  load a custom-scheme document in a sandboxed frame under the app's `frame-src` is unverified.
+- **Trap: a manual link names a heading by id.** Renaming a heading in `docs/src/user/` breaks the
+  link; `ci/checks.sh` fails and names it. Keep the id, or change the link with the heading.
+- **The book's "use default theme" control writes storage unguarded** (`book.js`
+  `delete_saved_theme`) and throws inside the sandbox; the other theme choices still work.
+- **Back up and undo menus carry no link** — Back up is actions only (`decisions.md`, 2026-10-15),
+  and its explanation is linked from Settings → Vaults & backup instead.
+
 ## A backup and everything else at once — what is left (2026-10-18)
 
 - **Proposal pushes still hold the vault lock across the network** (`push_branch` inside the

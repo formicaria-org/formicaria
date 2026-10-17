@@ -2,6 +2,7 @@
   /// Where the person is sent to fix things, as plain links (2026-10-16, the owner: *"guide me better
   /// to the cloud settings"*): the manual's step-by-step set-up, and the one Google Cloud page whose
   /// *Publish app* ends the 7-day sign-out. One list, shared with the Collaboration card.
+  import ManualLink from './ManualLink.svelte';
   import { MAIL_LINKS } from './mailLinks';
   const { AUDIENCE, MANUAL_SETUP, MANUAL_WEEKLY } = MAIL_LINKS;
   // Gmail, read-only — `decisions.md` 2026-10-09.
@@ -147,6 +148,7 @@
 
 <section data-testid="mail">
   <h3>Mail</h3>
+  <ManualLink page="user/mail.html" section="connect-it" />
   <p class="muted lede">
     Read Gmail to keep your meetings and conversations up to date. formicaria can only read.
   </p>

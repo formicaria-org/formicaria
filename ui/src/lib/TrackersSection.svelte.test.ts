@@ -38,7 +38,11 @@ describe('food and training in Settings', () => {
     render(TrackersSection);
     expect(await screen.findByText(/comes with the app/)).toBeTruthy();
     expect(screen.getByText(/8\.\dMB on this device/)).toBeTruthy();
-    expect(screen.queryByRole('button')).toBeNull();
+    // Nothing to get or remove — the one button is the manual's "How this works" (2026-10-18).
+    const actions = screen
+      .queryAllByRole('button')
+      .filter((b) => b.textContent !== 'How this works');
+    expect(actions).toEqual([]);
   });
 
   it('says so, and what still works, when the list could not be put in place', async () => {

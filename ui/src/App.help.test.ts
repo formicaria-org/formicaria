@@ -43,7 +43,7 @@ test('the help button is there on the desktop and opens something readable', asy
   expect(screen.getByRole('button', { name: /open the full manual/i })).toBeTruthy();
 });
 
-test('the phone gets the same help, without a link to a manual it cannot serve', async () => {
+test('the phone gets the same help, and the full manual from its own copy', async () => {
   // The real phone bridge the rest of the suite uses, not a bare marker: `isPhone()` only reads
   // `__TAURI_INTERNALS__`, but setting that without a bridge sends every command into nothing.
   asPhone();
@@ -51,6 +51,21 @@ test('the phone gets the same help, without a link to a manual it cannot serve',
   await fireEvent.click(await screen.findByRole('button', { name: 'help' }));
   const dialog = await screen.findByRole('dialog', { name: /how this works/i });
   expect(dialog.textContent).toMatch(/New note/);
-  // `/manual/` is not served by the Tauri shell; offering it would be the 404 button again.
-  expect(screen.queryByRole('button', { name: /open the full manual/i })).toBeNull();
+  // Since 2026-10-18 the phone carries the book and serves it on `fmmanual:` — its own origin.
+  await fireEvent.click(screen.getByRole('button', { name: /open the full manual/i }));
+  const frame = (await screen.findByTitle('The manual')) as HTMLIFrameElement;
+  expect(frame.getAttribute('src')).toBe('http://fmmanual.localhost/index.html');
+  expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+});
+
+test('the full manual opens inside the app on the desktop, and Done closes it', async () => {
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: 'help' }));
+  await fireEvent.click(await screen.findByRole('button', { name: /open the full manual/i }));
+  const frame = (await screen.findByTitle('The manual')) as HTMLIFrameElement;
+  expect(frame.getAttribute('src')).toBe('/manual/index.html');
+  // Sandboxed with no `allow-same-origin`: the book cannot reach the app's page or storage.
+  expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+  await fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+  expect(screen.queryByTitle('The manual')).toBeNull();
 });

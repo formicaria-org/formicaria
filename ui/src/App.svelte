@@ -110,6 +110,8 @@
   import { unreachable } from './lib/reachable.svelte';
   import * as ipc from './lib/ipc';
   import * as undo from './lib/undo.svelte';
+  import * as manual from './lib/manual.svelte';
+  import ManualPanel from './lib/ManualPanel.svelte';
   import * as nav from './lib/nav.svelte';
   import { captureUndoable, createNotesUndoable, setPropertyUndoable } from './lib/undo.svelte';
   import ViewBar from './lib/ViewBar.svelte';
@@ -873,6 +875,11 @@
       run: () => (settingsOpen = true),
       command: 'palette' as keys.Command,
     },
+    // **Help on every layout** (2026-10-18). The ? button is hidden below 60rem, which is every
+    // phone, and nothing else opened Help: a phone had no way into it at all. Here is reached on
+    // every device, and the full manual is one row below.
+    { group: 'Help', label: 'How this works', run: () => (helpOpen = true) },
+    { group: 'Help', label: 'Open the manual', run: () => manual.openManual() },
   ]);
 
   // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
@@ -2271,6 +2278,8 @@
     ['undo-menu', () => undoMenuOpen, () => (undoMenuOpen = false)],
     ['deleted', () => deletedOpen, () => (deletedOpen = false)],
     ['search', () => searchPanelOpen, () => closeSearch()],
+    // The manual's reader: opened from any feature's "How this works", so Back closes it first.
+    ['manual', () => manual.openPage() !== null, () => manual.closeManual()],
   ];
   for (const [name, isOpen, close] of LAYERS) {
     $effect(() => {
@@ -3331,6 +3340,9 @@
       {/await}
     {/if}
 
+    <!-- The manual's reader, over everything — Settings included, where most of its links are. -->
+    <ManualPanel />
+
     {#if unrecordedOpen}
       {#await import('./lib/UnrecordedPanel.svelte') then { default: UnrecordedPanel }}
         <UnrecordedPanel
@@ -3906,8 +3918,8 @@
        only because `ViewBar` carried a second gear on the phone; that gear is gone (the strip
        is desktop-only now), so hiding the class outright would leave a phone with no way into
        Settings at all — and on a device with no logcat that is the only diagnostic surface
-       there is. Help is the one that can afford to go: it opens a manual that 404s on the
-       phone anyway. */
+       there is. Help is the one that can afford to go: Settings → Do something → Help reaches
+       it, and the full manual, on every layout (2026-10-18). */
     .topbar .help {
       display: none;
     }

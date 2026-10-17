@@ -2144,6 +2144,35 @@ if [ -f ui/src/lib/Appearance.svelte ]; then
     fi
 fi
 
+echo "[check] every link into the manual lands on a page and a heading that exist..."
+# **A "How this works" that opens the top of a page, or nothing, is the Help that 404s in a quieter
+# form** (2026-10-18). Each `<ManualLink page="user/x.html" section="id">` must name a page of the
+# book and, when it names a section, a heading on that page that mdBook turns into that id (lower
+# case, punctuation dropped, each space a dash).
+man_fail=$(mktemp)
+for f in $(grep -rl "<ManualLink" ui/src --include=*.svelte); do
+    grep -oE '<ManualLink page="[^"]+"( section="[^"]+")?' "$f" | while read -r tag; do
+        page=$(echo "$tag" | sed -E 's/.*page="([^"]+)".*/\1/')
+        section=$(echo "$tag" | grep -oE 'section="[^"]+"' | sed -E 's/section="([^"]+)"/\1/')
+        md="docs/src/${page%.html}.md"
+        if [ ! -f "$md" ]; then
+            echo "  FAIL: $f links to $page, but $md does not exist"
+            echo "        (a link the manual cannot answer)"
+            echo x > "$man_fail"
+            continue
+        fi
+        [ -n "$section" ] || continue
+        ids=$(grep -E '^#{1,6} ' "$md" | sed -E 's/^#+ +//' | tr 'A-Z' 'a-z' \
+            | sed -E 's/[^a-z0-9 _-]//g; s/ /-/g')
+        if ! printf '%s\n' "$ids" | grep -qxF -- "$section"; then
+            echo "  FAIL: $f links to $page#$section, but no heading in $md becomes that id"
+            echo x > "$man_fail"
+        fi
+    done
+done
+[ -s "$man_fail" ] && fail=1
+rm -f "$man_fail"
+
 # The first note a new user reads has to actually be in the archive. It is also the one file whose
 # failure is guaranteed to be invisible: the note loader is tolerant by design, so a note that does
 # not parse does not error — it disappears, and the newcomer opens an empty notebook. `welcome_note.rs`

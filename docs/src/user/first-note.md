@@ -82,7 +82,8 @@ window is narrow (a phone, or a split screen). Same buttons, same order, whereve
 - **＋** at the start — make a note, a board, anything new.
 - **Search**, just below it — find any note by what is inside it.
 - **☁** near the end — back up.
-- **?** — this manual, at any time.
+- **?** — a short *How this works*, and this whole manual, at any time. Where the **?** is not shown
+  (a phone, or a narrow window), the same two are in **⚙ → Do something → Help**.
 - **⚙** — settings.
 
 ## Coming back tomorrow
@@ -103,3 +104,8 @@ exactly as you left them, and they are still there whether formicaria is running
 - History, backup, another machine — [Backup & versioning](./backup.md)
 - Writing with someone else — [Collaboration](./collaboration.md)
 - A local AI assistant that answers in your notes — [The study assistant](./assistant.md)
+- One view or several, and the keyboard — [Layout and the keyboard](./workspace.md)
+- Writing on a tablet through this computer — [Share with a nearby device](./sharing.md)
+
+Most screens in the app also have a **How this works** link beside them, which opens this manual at
+the part about that screen — on every device, without a connection.

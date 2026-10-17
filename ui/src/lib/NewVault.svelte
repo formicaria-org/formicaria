@@ -10,6 +10,7 @@
   // A browser cannot open a folder picker for a server's filesystem, and shelling out to
   // zenity would mean the core spawns a process to do its own first run. So: a typed path,
   // and the server answers what is really there on every keystroke.
+  import ManualLink from './ManualLink.svelte';
   import { onMount } from 'svelte';
   import {
     checkImport,
@@ -436,6 +437,7 @@
       </div>
 
       {#if mode === 'import'}
+        <ManualLink page="user/import.html" section="doing-it" />
         <label>
           <span>Source folder</span>
           <input

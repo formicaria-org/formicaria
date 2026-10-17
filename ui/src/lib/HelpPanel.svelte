@@ -12,7 +12,7 @@
   /// mdBook in the mobile shell is a real piece of work (its own protocol scheme and its own CSP,
   /// exactly as `MANUAL_CSP` already exists for on the desktop); this is what makes the gap
   /// survivable in the meantime, and it stays useful afterwards as the one-screen version.
-  import { isPhone } from './platform';
+  import { openManual } from './manual.svelte';
 
   interface Props {
     onclose: () => void;
@@ -67,10 +67,10 @@
       Photos, PDFs and recordings are larger, so they are a separate, optional step in the same place.
     </p>
 
-    <!-- **The assistant belongs here, and on the phone this is the only place it can be.** Android
-         has no manual link (the button below is desktop-only), so without this the Settings row is
-         the sole text about a feature that is bundled in every phone build. Short, and it names the
-         two things that are not guessable: how to call it, and that it is off until you say so. -->
+    <!-- **The assistant belongs here.** Until 2026-10-18 the phone had no manual at all, and this was
+         the only text about a feature bundled in every phone build; the full manual is now one press
+         below, on every device, but the two things that are not guessable stay on this page: how to
+         call it, and that it is off until you say so. -->
     <h3>Asking the assistant</h3>
     <p>
       Optionally, a small AI model runs <strong>on this device</strong> — your notes never leave it.
@@ -88,18 +88,16 @@
       you could not click through is not switched on a second time.
     </p>
 
-    {#if !isPhone()}
-      <p class="more">
-        <button
-          class="link"
-          onclick={() => {
-            window.open('/manual/', '_blank', 'noopener');
-            onclose();
-          }}>Open the full manual</button
-        >
-        — every feature, offline, in this app.
-      </p>
-    {/if}
+    <p class="more">
+      <button
+        class="link"
+        onclick={() => {
+          onclose();
+          openManual();
+        }}>Open the full manual</button
+      >
+      — every feature, explained, on this device and without a connection.
+    </p>
 
     <div class="actions">
       <button class="done" onclick={onclose}>Done</button>

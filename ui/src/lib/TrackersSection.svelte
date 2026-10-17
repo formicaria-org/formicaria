@@ -3,6 +3,7 @@
   //
   // The list comes with the app (`decisions.md#toolchain`, 2026-10-11), so there is nothing to get
   // and nothing to remove — only something to say: what it is, whose it is, and what it takes.
+  import ManualLink from './ManualLink.svelte';
   import { onMount } from 'svelte';
   import { packStatus } from './ipc';
   import { humanSize } from './size';
@@ -21,6 +22,7 @@
 
 <section>
   <h3>Food and training</h3>
+  <ManualLink page="user/trackers.html" />
   <label class="switch-line">
     <input
       type="checkbox"

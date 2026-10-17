@@ -1520,6 +1520,9 @@ fn manual(conn: &mut dyn Conn, path: &str) -> std::io::Result<()> {
 /// 'none'` it provably cannot. Checked against the book's own JS: `toc.js`, `searcher.js` and
 /// elasticlunr make no network call at all (the search index arrives as a `<script src>`, not a
 /// fetch), so nothing here needs the network.
+///
+/// **`frame-ancestors 'self'`** (2026-10-18): the app shows the manual in its own reader, in a
+/// sandboxed frame; any other page — another site, another localhost port — still cannot frame it.
 const MANUAL_CSP: &str = "default-src 'self'; \
 img-src 'self' data:; \
 style-src 'self' 'unsafe-inline'; \
@@ -1528,7 +1531,7 @@ script-src 'self' 'unsafe-inline'; \
 connect-src 'none'; \
 object-src 'none'; \
 frame-src 'none'; \
-frame-ancestors 'none'; \
+frame-ancestors 'self'; \
 base-uri 'self'; \
 form-action 'none'";
 
@@ -2395,6 +2398,26 @@ mod tests {
         );
         // Unchanged by the widening — framing *us* is still forbidden.
         assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+    }
+
+    /// **The manual may be framed by the app and by nothing else** (2026-10-18): the app shows it in
+    /// its own reader. `'self'` and only `'self'`; its `connect-src 'none'` — what pays for its
+    /// inline script — is unchanged.
+    #[test]
+    fn the_manual_is_framed_by_the_app_only() {
+        let ancestors = MANUAL_CSP
+            .split("frame-ancestors")
+            .nth(1)
+            .unwrap_or("")
+            .split(';')
+            .next()
+            .unwrap_or("");
+        assert_eq!(ancestors.trim(), "'self'", "{MANUAL_CSP}");
+        assert!(MANUAL_CSP.contains("connect-src 'none'"), "{MANUAL_CSP}");
+        assert!(
+            CSP.contains("frame-ancestors 'none'"),
+            "the app itself is still framed by nothing"
+        );
     }
 
     /// **A user theme is a `<style>` element this app writes into its own page.**

@@ -8,6 +8,7 @@
   //
   // **The address never comes back from the server.** It is a secret — anyone holding it reads the
   // whole calendar — so the list shows only its host, and the paste field is a password field.
+  import ManualLink from './ManualLink.svelte';
   import { onMount } from 'svelte';
   import {
     calendarAdd,
@@ -104,6 +105,7 @@
 
 <section data-testid="calendars">
   <h3>Calendars</h3>
+  <ManualLink page="user/calendars.html" section="add-a-calendar" />
   <p class="muted lede">Meetings from your own calendar, as notes.</p>
   <details class="more">
     <summary>More</summary>

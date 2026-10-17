@@ -19,6 +19,7 @@
   /// When the file contains more than the form can say, the form goes read-only and **refuses to
   /// rewrite it** rather than flattening it — the rule `views::save_view` already applies to a
   /// filter richer than one tag, for the same reason.
+  import ManualLink from './ManualLink.svelte';
   import { listThemes, readTheme, saveTheme, deleteTheme, renameTheme } from './ipc';
   import * as appearance from './appearance';
   import { STARTERS, freeName, slug, type Starter } from './starterThemes';
@@ -224,6 +225,7 @@
 
 <section>
   <h3>Appearance</h3>
+  <ManualLink page="user/appearance.html" section="the-quick-way" />
   <p class="muted lede">Colours and type. Kept in your vault, so it travels with your notes.</p>
   <details class="more">
     <summary>More</summary>
@@ -294,6 +296,7 @@
   </ul>
 
   <p class="group">Start from a suggestion</p>
+  <ManualLink page="user/appearance.html" section="starting-from-a-suggestion" />
   <p class="muted">
     Each is copied into your vault as a theme of your own, switched on, and yours to edit.
   </p>

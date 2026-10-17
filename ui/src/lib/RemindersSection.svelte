@@ -1,6 +1,7 @@
 <script lang="ts">
   // Reminders: whether this device shows them (`decisions.md#ui`, 2026-10-13). Asked for, never
   // assumed: nothing reminds until the person turns it on here.
+  import ManualLink from './ManualLink.svelte';
   import { isPhone } from './platform';
   import { allow, allowed, remindersOn, set } from './reminders.svelte';
 
@@ -15,6 +16,7 @@
 
 <section>
   <h3>Reminders</h3>
+  <ManualLink page="user/notes.html" section="reminders" />
   <label class="switch-line">
     <input
       type="checkbox"

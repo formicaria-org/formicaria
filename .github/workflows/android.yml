@@ -110,6 +110,10 @@ jobs:
         run: |
           pixi run -e android pnpm -C ui install --frozen-lockfile
           pixi run -e android pnpm -C mobile install --frozen-lockfile
+      # **The manual is built into the app** (`decisions.md` 2026-10-18): the shell's `build.rs`
+      # embeds `docs/book`, and refuses to build a versioned app without it.
+      - name: the manual
+        run: pixi run -e android docs
       - name: version
         shell: bash
         run: |

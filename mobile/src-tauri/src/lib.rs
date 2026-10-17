@@ -215,6 +215,60 @@ impl Host for MobileHost {
 /// `fmblob://localhost/<url-encoded reference>` — the reference is whatever the note wrote
 /// (`sha256:…` or `asset:sha256-…`), resolved by the same command the desktop uses, so there is
 /// one implementation of what a reference means.
+mod manual_assets {
+    include!(concat!(env!("OUT_DIR"), "/manual_assets.rs"));
+}
+
+/// The manual's policy: the desktop's `MANUAL_CSP`, with the app as the one page allowed to frame
+/// it. Inline script is the concession mdBook needs; **`connect-src 'none'` pays for it**.
+const MANUAL_CSP: &str =
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; \
+font-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'; \
+frame-src 'none'; frame-ancestors tauri: http://tauri.localhost https://tauri.localhost; \
+base-uri 'self'; form-action 'none'";
+
+/// One page or file of the book, by path: `fmmanual://localhost/user/appearance.html`, or
+/// `http://fmmanual.localhost/…` where wry rewrites the scheme (Android).
+fn manual_response(uri: &str) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::{Response, StatusCode};
+    let rest =
+        uri.split_once("://").and_then(|(_, r)| r.split_once('/')).map(|(_, r)| r).unwrap_or("");
+    let rel = rest.split(['?', '#']).next().unwrap_or("");
+    let rel = percent_decode(rel);
+    let rel = if rel.is_empty() || rel.ends_with('/') { format!("{rel}index.html") } else { rel };
+    let found = (!rel.split('/').any(|seg| seg == ".."))
+        .then(|| manual_assets::MANUAL_ASSETS.iter().find(|(name, _)| *name == rel))
+        .flatten();
+    let Some((_, bytes)) = found else {
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .body(b"not in the manual".to_vec())
+            .unwrap_or_default();
+    };
+    let kind = match rel.rsplit('.').next().unwrap_or("") {
+        "html" => "text/html; charset=utf-8",
+        "js" => "text/javascript; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "json" => "application/json",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        _ => "application/octet-stream",
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", kind)
+        .header("Content-Security-Policy", MANUAL_CSP)
+        .header("X-Content-Type-Options", "nosniff")
+        .header("Referrer-Policy", "no-referrer")
+        .body(bytes.to_vec())
+        .unwrap_or_default()
+}
+
 fn blob_response(
     app: &tauri::AppHandle,
     method: &str,
@@ -1105,6 +1159,11 @@ pub fn run() {
                 *last = boot(app.handle()).err();
             }
             Ok(())
+        })
+        // The manual, on its own scheme and origin (`decisions.md` 2026-10-18): the book needs
+        // inline scripts, which the app's policy refuses, so it never shares the app's origin.
+        .register_uri_scheme_protocol("fmmanual", |_ctx, req| {
+            manual_response(&req.uri().to_string())
         })
         .register_uri_scheme_protocol("fmblob", |ctx, req| {
             blob_response(

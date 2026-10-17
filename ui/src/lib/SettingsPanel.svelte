@@ -16,6 +16,7 @@
   // Cheap on purpose. `config` shells out to nothing, unlike `backup_status`, which runs
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
+  import ManualLink from './ManualLink.svelte';
   import { onDestroy, onMount, tick } from 'svelte';
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
@@ -1193,6 +1194,7 @@
 
       <section data-cat="look" data-words="dark light mode colour color">
         <h3>Theme</h3>
+        <ManualLink page="user/appearance.html" section="themes-and-darklight" />
         <p class="muted">
           Stored in this browser. It followed the system setting until you chose here.
         </p>
@@ -1215,6 +1217,7 @@
 
       <section data-cat="look">
         <h3>Layout</h3>
+        <ManualLink page="user/workspace.html" section="one-view-or-several" />
         <p class="muted lede">One view at a time, or several side by side.</p>
         <details class="more">
           <summary>More</summary>
@@ -1245,6 +1248,7 @@
       {#if agentOn !== null}
         <section data-cat="assistant" data-words="ai model llm transcription agent">
           <h3>Study assistant</h3>
+          <ManualLink page="user/assistant.html" section="turn-it-on" />
           <p class="muted lede">
             A small model on this device that answers in discussions and proposes edits you review.
           </p>
@@ -1490,6 +1494,7 @@
       {#if !isRemote()}
         <section data-cat="connections" data-words="tablet phone pair pairing network">
           <h3>Share with another device</h3>
+          <ManualLink page="user/sharing.html" section="turning-it-on" />
           <p class="muted lede">Open your notes on a tablet or phone on the same network.</p>
           <details class="more">
             <summary>More</summary>
@@ -1610,6 +1615,7 @@
 
       <section data-cat="look" data-words="grid width panes">
         <h3>Columns</h3>
+        <ManualLink page="user/workspace.html" section="columns" />
         <p class="muted">
           How wide the grid is in the tiled arrangement. <strong>Automatic</strong> follows the number
           of open views, so opening one widens the grid and closing one lets the rest reclaim the space.
@@ -1633,6 +1639,7 @@
 
       <section data-cat="keyboard" data-words="shortcut shortcuts hotkey keys">
         <h3>Keyboard</h3>
+        <ManualLink page="user/workspace.html" section="keyboard-shortcuts" />
         <p class="muted">
           Click a shortcut, then press the keys you want. <strong>Esc</strong> cancels. The
           <em>Next / Previous view</em> pair works even while you are typing in a note — which is the
@@ -1700,6 +1707,7 @@
       >
         <div class="vaults-head" id="vaults">
           <h3>Vaults <span class="count">{vaults.length}</span></h3>
+          <ManualLink page="user/backup.html" section="setting-up-once" />
           {#if !isRemote()}
             <button class="new-vault" onclick={onnewvault}>New vault…</button>
           {/if}
@@ -1767,6 +1775,7 @@
 
       <section data-cat="about" data-words="update updates upgrade version release about">
         <h3>This machine</h3>
+        <ManualLink page="user/updating.html" />
         <ul class="caps facts">
           <!-- **Which build this is.** First on the list because it is the one fact you need
                before any of the others mean anything, and until now it was nowhere in the app.

@@ -13,8 +13,12 @@
  *  `fmblob://…` to `http://fmblob.localhost/…` (its `custom_protocol_workaround`). Asking Tauri
  *  to map a known path and then trimming it back is how this stays correct on a platform whose
  *  rewriting rules are not ours. */
-export function blobBase(convert?: (path: string, protocol: string) => string): string {
-  const FALLBACK = 'fmblob://localhost/';
+export function blobBase(
+  convert?: (path: string, protocol: string) => string,
+  protocol = 'fmblob',
+): string {
+  // The manual's scheme (`fmmanual`) is rewritten by the same rules, so it asks the same way.
+  const FALLBACK = `${protocol}://localhost/`;
   // **Never throws.** This is reached from `assetUrl`, which runs *during render* of any note
   // that has an asset — so an exception here does not surface as a failed image, it takes the
   // whole component down and the app is a blank screen with nothing in the console. That is
@@ -24,7 +28,7 @@ export function blobBase(convert?: (path: string, protocol: string) => string): 
   // A wrong URL costs a broken image. A throw costs the application.
   try {
     if (!convert) return FALLBACK;
-    const probe = convert('__base__', 'fmblob');
+    const probe = convert('__base__', protocol);
     const cut = probe.lastIndexOf('__base__');
     return cut > 0 ? probe.slice(0, cut) : FALLBACK;
   } catch {

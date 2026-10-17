@@ -6,6 +6,7 @@
   // the window onto it. **Bring back** writes the note again exactly as it was (`restore_deleted`),
   // refused if a note with that id exists again. A deletion from the last few seconds that has not
   // been saved yet is not here; the ↶ menu's Undo covers it.
+  import ManualLink from './ManualLink.svelte';
   import { onMount } from 'svelte';
   import { deletedNotes, restoreDeleted, type DeletedRow } from './ipc';
   import { labelFor } from './vaults.svelte';
@@ -56,6 +57,7 @@
   <div class="panel" role="dialog" aria-label="recently deleted notes">
     <div class="panel-head">
       <h2>Recently deleted</h2>
+      <ManualLink page="user/notes.html" section="undo-and-getting-back-a-deleted-note" />
       <button type="button" class="close" aria-label="close" onclick={onclose}>✕</button>
     </div>
     <p class="lede">
