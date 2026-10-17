@@ -370,7 +370,11 @@
       <!-- The note's own editor: drawn finished, a line turning into its text where you click —
            a proposal reads like the note it would become (the owner, 2026-10-15). -->
       <div class="pr-edit">
-        <LiveEditor bind:value={draft} label="proposed note body" />
+        <LiveEditor
+          bind:value={draft}
+          label="proposed note body"
+          undoLabel="typing in the proposed note"
+        />
       </div>
       <div class="pr-edit-actions">
         <button class="pr-save" onclick={save} disabled={!dirty || saving || accepting}>

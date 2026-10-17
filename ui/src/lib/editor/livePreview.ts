@@ -52,11 +52,10 @@ class Tick extends WidgetType {
 const hide = Decoration.replace({});
 const bullet = Decoration.replace({ widget: new Bullet() });
 
-function draw(reading: Reading, view: EditorView): DecorationSet {
-  const main = view.state.selection.main;
-  // A note nobody is writing in is shown finished throughout: no line is "the one being written".
-  const sel = view.hasFocus ? { from: main.from, to: main.to } : { from: -1, to: -1 };
-  const ranges = decide(reading, sel).map((d) => {
+/// `at` is where the marks are shown, or -1 for nowhere: a note nobody is writing in is shown
+/// finished throughout, with no line "the one being written".
+function draw(reading: Reading, at: number): DecorationSet {
+  const ranges = decide(reading, { from: at, to: at }).map((d) => {
     switch (d.kind) {
       case 'hide':
         return hide.range(d.from, d.to);
@@ -78,18 +77,37 @@ function draw(reading: Reading, view: EditorView): DecorationSet {
 
 /// The note is read again only when its text changes; a move of the cursor only changes what is
 /// hidden.
+///
+/// **A selection does not change what is drawn** (owner, 2026-10-17: selecting on the phone was
+/// "not good", and a stretch of chosen length could not be selected anywhere). The marks used to
+/// come back on every line the selection touched, so dragging its end across a line put that line's
+/// `**`, `#` or link address back, the text moved under the finger or the pointer, and the end
+/// landed somewhere else. Now the marks follow the caret only: while a stretch is selected they stay
+/// where they were when the selection began — nowhere, if the editor was not being written in.
 export const livePreview = ViewPlugin.fromClass(
   class {
     reading: Reading;
     decorations: DecorationSet;
+    /** Where the marks are shown: the caret's last place, or -1 for nowhere. */
+    at = -1;
     constructor(view: EditorView) {
       this.reading = read(view.state.doc.toString());
-      this.decorations = draw(this.reading, view);
+      this.at = this.reveal(view, -1);
+      this.decorations = draw(this.reading, this.at);
+    }
+    reveal(view: EditorView, was: number): number {
+      const main = view.state.selection.main;
+      if (!view.hasFocus) return -1;
+      return main.empty ? main.head : was;
     }
     update(u: ViewUpdate) {
       if (u.docChanged) this.reading = read(u.state.doc.toString());
-      if (u.docChanged || u.selectionSet || u.focusChanged)
-        this.decorations = draw(this.reading, u.view);
+      const was = u.docChanged && this.at >= 0 ? u.changes.mapPos(this.at) : this.at;
+      const at = this.reveal(u.view, was);
+      if (u.docChanged || at !== this.at) {
+        this.at = at;
+        this.decorations = draw(this.reading, at);
+      }
     }
   },
   { decorations: (p) => p.decorations },

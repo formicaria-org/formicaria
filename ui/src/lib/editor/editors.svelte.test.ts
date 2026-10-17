@@ -8,6 +8,8 @@ import { tick } from 'svelte';
 import { describe, expect, it } from 'vitest';
 import LiveEditor from './LiveEditor.svelte';
 import type { EditorHandle } from './handle';
+import { typeInto } from './testing';
+import * as undo from '../undo.svelte';
 
 // A line that ends in spaces, a tab, an empty line, and no newline at the end.
 const AWKWARD = 'one\ntwo  \n\tthree\n\n- [ ] four';
@@ -117,5 +119,50 @@ describe('the editor that renders as you write', () => {
     const at = ENDINGS.indexOf('four');
     ed.select(at, at + 4);
     expect(ed.selection()).toEqual({ from: at, to: at + 4 });
+  });
+
+  /// Dragging a selection's end across a line must not move the text under it: the marks of the
+  /// lines it touches stay hidden, as they were when the selection began (2026-10-17).
+  it('does not show the marks of the lines a selection runs across', async () => {
+    const note = 'plain line\n\na **bold** word\n\n## Title';
+    const { component, container } = render(LiveEditor as never, { value: note } as never);
+    await tick();
+    const ed = component as unknown as EditorHandle;
+    ed.focus();
+    ed.select(2); // a caret on the first line: its marks (none) are shown
+    ed.select(2, note.length); // now the selection reaches the bold word and the heading
+    await tick();
+    const shown = [...container.querySelectorAll('.cm-line')].map((l) => l.textContent).join('\n');
+    expect(shown).toBe('plain line\n\na bold word\n\nTitle');
+    // A caret on the bold word's line shows that line as written.
+    ed.select(note.indexOf('bold'));
+    await tick();
+    expect(container.querySelector('.cm-content')?.textContent).toContain('**bold**');
+  });
+
+  /// A phone has no Ctrl+Z: the ↶ menu undoes what is typed in the open editor, a change at a time,
+  /// then goes on to the app's own steps (2026-10-17).
+  it('lends its typing to the undo menu while it is written in', async () => {
+    undo.clear();
+    const { component, container, unmount } = render(
+      LiveEditor as never,
+      { value: 'first', undoLabel: 'typing in “Lab”' } as never,
+    );
+    await tick();
+    const ed = component as unknown as EditorHandle;
+    ed.focus();
+    await tick();
+    expect(undo.nextUndo()).toBeNull();
+    typeInto(container.querySelector('.cm-content')!, 'second');
+    await tick();
+    expect(undo.nextUndo()?.label).toBe('typing in “Lab”');
+    expect(await undo.undo()).toBe('typing in “Lab”');
+    expect(ed.text()).toBe('first');
+    expect(undo.nextUndo()).toBeNull();
+    expect(await undo.redo()).toBe('typing in “Lab”');
+    expect(ed.text()).toBe('second');
+    unmount();
+    // Closed, it lends nothing: the finished session is the note panel's step to record.
+    expect(undo.nextUndo()).toBeNull();
   });
 });

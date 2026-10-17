@@ -11,7 +11,16 @@
   import { onMount } from 'svelte';
   import { EditorState, Prec } from '@codemirror/state';
   import { EditorView, keymap } from '@codemirror/view';
-  import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+  import {
+    defaultKeymap,
+    history,
+    historyKeymap,
+    redo,
+    redoDepth,
+    undo,
+    undoDepth,
+  } from '@codemirror/commands';
+  import { holdText } from '../undo.svelte';
   import type { EditorHandle } from './handle';
   import { smallestChange } from './change';
   import { livePreview } from './livePreview';
@@ -27,6 +36,7 @@
     onblur,
     onlink,
     label = 'note body (Markdown)',
+    undoLabel = 'typing',
   }: {
     value?: string;
     oninput?: () => void;
@@ -39,6 +49,8 @@
     onlink?: (href: string) => void;
     /** What the editor is called to assistive technology — a note, or a proposed note under review. */
     label?: string;
+    /** What the ↶ menu calls undoing the typing here: `typing in “Lab meeting”`. */
+    undoLabel?: string;
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
@@ -46,6 +58,19 @@
   /** How long a second press may follow the first and still make it a double one. */
   const DOUBLE_MS = 280;
   let following: ReturnType<typeof setTimeout> | undefined;
+  /** This editor's history, lent to the ↶ menu from the moment it is written in (`undo.svelte.ts`):
+   *  a phone has no Ctrl+Z, so without it the typing could not be undone there at all. */
+  let lent: ReturnType<typeof holdText> | undefined;
+  function lend(v: EditorView) {
+    lent ??= holdText({
+      get label() {
+        return undoLabel;
+      },
+      undo: () => undo(v),
+      redo: () => redo(v),
+    });
+    lent.depth(undoDepth(v.state), redoDepth(v.state));
+  }
 
   onMount(() => {
     view = new EditorView({
@@ -68,6 +93,8 @@
               value = u.state.doc.toString();
               oninput?.();
             }
+            if ((u.focusChanged || u.transactions.length) && (lent || u.view.hasFocus))
+              lend(u.view);
             if (u.selectionSet || u.docChanged) onselect?.();
             if (u.focusChanged && !u.view.hasFocus) onblur?.();
           }),
@@ -132,6 +159,7 @@
     });
     return () => {
       clearTimeout(following);
+      lent?.release();
       view?.destroy();
     };
   });

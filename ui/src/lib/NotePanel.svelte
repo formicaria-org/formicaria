@@ -2873,6 +2873,7 @@
           ondrop={onDrop}
           onblur={() => (fmtBar = null)}
           onlink={followLink}
+          undoLabel={`typing in “${noteName(note) ?? 'a note'}”`}
         />
         {#if adding}<span class="adding">Adding…</span>{/if}
         {#if slash.open && slash.results.length}

@@ -99,6 +99,9 @@ The **↶** button (beside Settings, or in the bottom bar on a phone) opens a sm
   *created a note*. Choose it to undo that. On a computer, **Ctrl+Z** does the same and
   **Ctrl+Shift+Z** redoes. Inside a text field or a whiteboard, those keys undo your typing or
   drawing instead, as usual.
+- **While you are writing in a note**, Undo takes back your typing first, a little at a time
+  (*typing in "Lab meeting"*), then goes on to the things you did before. On a phone, this is how
+  you undo typing.
 - **Redo** puts back what you just undid.
 - **Recently deleted…** lists the notes deleted in the last 30 days, on this device or another one
   that shares the notebook, even after formicaria was closed. **Bring back** restores a note

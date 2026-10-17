@@ -1057,6 +1057,9 @@ the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept
 - **Not undoable:** proposals, getting their changes, backups, imports, merges, a reply in a
   discussion, a copy to another notebook (it has its own Undo strip). The ↶ menu names only what it
   can undo.
+- **Typing in an open note** is undone from the ↶ menu a change at a time while the note is open
+  (2026-10-17); typing goes before a property changed during the same session, whatever the order.
+  Unverified on the phone.
 - **A whiteboard's drawing** is undone by the whiteboard's own undo; the app's Ctrl+Z is
   deliberately off inside it.
 - **Back and `tiled`**: Back re-focuses the window you came from; it does not re-open a window you

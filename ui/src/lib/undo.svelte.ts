@@ -10,6 +10,12 @@
 // note: if the value is no longer the one this action set — the person, a collaborator or another
 // device changed it since — it refuses and says so. A deleted note is put back only if no note with
 // that id exists again; edited text uses the server's own lost-update guard.
+//
+// **The text being written is reached first** (owner, 2026-10-17: undo "is not working" on the
+// phone). A finished editing session is one step on the stack, but while the note is still being
+// written the stack has nothing for it, and a phone has no Ctrl+Z to reach the editor's own history.
+// So the editor last written in lends that history here (`holdText`) for as long as it is open: the
+// menu and the keys undo its typing, a change at a time, and go on to the stack once it has none.
 
 import {
   capture,
@@ -34,6 +40,34 @@ const LIMIT = 50;
 
 const state = $state({ done: [] as Undoable[], undone: [] as Undoable[], busy: false });
 
+/** An open editor's own history, lent to the menu. `undo`/`redo` answer whether they did anything. */
+export type TextHistory = { label: string; undo: () => boolean; redo: () => boolean };
+
+/** Raw, not proxied: `holdText` knows its own history by identity. */
+let held = $state.raw<TextHistory | null>(null);
+/** How many changes the held history can undo and redo, kept current by the editor. */
+const text = $state({ undo: 0, redo: 0 });
+
+/** An editor lends its history while it is written in. Answers how to keep the menu's counts
+ *  current, and how to take it back (only if no other editor has taken the place since). */
+export function holdText(h: TextHistory) {
+  held = h;
+  return {
+    depth(undo: number, redo: number) {
+      if (held !== h) return;
+      text.undo = undo;
+      text.redo = redo;
+    },
+    release() {
+      if (held !== h) return;
+      held = null;
+      text.undo = text.redo = 0;
+    },
+  };
+}
+
+const typing = (n: number) => (held && n > 0 ? { label: held.label } : null);
+
 /** Called after an undo or redo lands, so the app can refresh its views and save. Set by `App`. */
 let after: () => void | Promise<void> = () => {};
 export function onChange(fn: () => void | Promise<void>) {
@@ -46,12 +80,15 @@ export function record(u: Undoable) {
   state.undone = [];
 }
 
-export const nextUndo = () => state.done.at(-1) ?? null;
-export const nextRedo = () => state.undone.at(-1) ?? null;
+export const nextUndo = (): { label: string } | null =>
+  typing(text.undo) ?? state.done.at(-1) ?? null;
+export const nextRedo = (): { label: string } | null =>
+  typing(text.redo) ?? state.undone.at(-1) ?? null;
 export const busy = () => state.busy;
 
 /** Undo the last action. Resolves to its label, or throws a sentence when it cannot. */
 export async function undo(): Promise<string | null> {
+  if (held && text.undo > 0 && held.undo()) return held.label;
   const u = state.done.at(-1);
   if (!u || state.busy) return null;
   state.busy = true;
@@ -73,6 +110,7 @@ export async function undo(): Promise<string | null> {
 }
 
 export async function redo(): Promise<string | null> {
+  if (held && text.redo > 0 && held.redo()) return held.label;
   const u = state.undone.at(-1);
   if (!u || state.busy) return null;
   state.busy = true;
@@ -96,6 +134,8 @@ export async function redo(): Promise<string | null> {
 export function clear() {
   state.done = [];
   state.undone = [];
+  held = null;
+  text.undo = text.redo = 0;
 }
 
 const CHANGED =
