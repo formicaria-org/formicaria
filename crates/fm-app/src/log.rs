@@ -830,11 +830,16 @@ pub fn set_properties(
 ) -> Result<BTreeMap<String, Option<String>>, StoreError> {
     let parsed: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(parsed)?.ok_or(StoreError::NotFound(parsed))?;
+    let unchanged = obj.clone();
     let mut previous = BTreeMap::new();
     for (key, value) in props {
         let before = obj.get(key);
         previous.insert(key.clone(), (!before.is_null()).then(|| before.display()));
         apply_property(&mut obj, key, &as_written(key, value)?)?;
+    }
+    // Values the note already holds are not a write (`commands::update_body` says why).
+    if obj == unchanged {
+        return Ok(previous);
     }
     obj.updated = OffsetDateTime::now_utc();
     store.put(&obj)?;

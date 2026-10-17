@@ -595,6 +595,14 @@ pub fn update_body(
 ) -> Result<String, StoreError> {
     let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
+    // **The same text is not a write** (2026-10-17, `decisions.md#sync`). Stamping `updated` on an
+    // unchanged note made a change for history to carry, and the other device behind for nothing.
+    // Before the `base` check on purpose: a pane that is stale but holding exactly what is on
+    // disk has nothing to lose and nothing to overwrite, so refusing it would only manufacture a
+    // conflict.
+    if obj.body == body {
+        return Ok(crate::dto::version_of(&obj.body));
+    }
     if !base.is_empty() && crate::dto::version_of(&obj.body) != base {
         return Err(StoreError::Conflict(id));
     }
@@ -625,7 +633,12 @@ pub fn set_property(
 ) -> Result<(), StoreError> {
     let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
+    let before = obj.clone();
     apply_property(&mut obj, key, value)?;
+    // Setting a value the note already holds is not a write — see `update_body`.
+    if obj == before {
+        return Ok(());
+    }
     obj.updated = OffsetDateTime::now_utc();
     store.put(&obj)?;
     Ok(())
