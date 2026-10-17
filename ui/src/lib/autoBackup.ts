@@ -20,6 +20,19 @@
 /// - never for a vault that has never been sent. A first backup chooses where notes go, and that
 ///   stays a decision somebody makes.
 
+/// Whether this build backs up by itself at all: a real build does; the test build does not,
+/// because its mock has nowhere to send. **A function read at call time**, not the inline
+/// `import.meta.env.PROD` it replaced: no test build sets that, so until 2026-10-17 no test had
+/// ever run the wiring on any device — which is how the phone went five days without sending.
+/// A test turns it on with `setRunsByItself(true)`, and back with `null`.
+let runsOverride: boolean | null = null;
+export function runsByItself(): boolean {
+  return runsOverride ?? import.meta.env.PROD;
+}
+export function setRunsByItself(on: boolean | null): void {
+  runsOverride = on;
+}
+
 /// The preference, per device, on unless turned off.
 export const AUTO_KEY = 'fm-auto-backup';
 /// How often the app looks at whether a backup is due. The look itself is local and cheap.

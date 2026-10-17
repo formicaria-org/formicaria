@@ -1199,9 +1199,19 @@ Decision: `decisions.md#sync`, *formicaria backs up by itself*.
   `asPhone()` now serves from `tauri.localhost`, so every phone test sees the real address.
   **Not yet seen on a device.** The same check had hidden the switch, Settings' backup half,
   *New vault…*, moving a vault and the food settings on the phone — all shown there now, first time.
-- **Not yet seen between two real devices.** The rules (`autoBackup.ts`) are unit-tested; the
-  wiring in `App.svelte` is type-checked and nothing more — it is behind `import.meta.env.PROD`,
-  which no test build sets, so **no test has ever run it on any device**.
+- **The wiring is tested since 2026-10-17.** It sat behind `import.meta.env.PROD`, which no test
+  build sets, so no test had ever run it; now `runsByItself()` (`autoBackup.ts`) is a switch a test
+  turns on, and `App.autoBackup.test.ts` runs the whole app on the phone and on the computer and
+  expects a send with no press — the phone case fails with the `isRemote` bug put back. *Getting*
+  by itself (the `remotePoll` effect) is still behind `PROD` and untested.
+- **To try it between devices by hand: `pixi run collab-lab start`** (`ci/collab-lab.sh`) — Ana on
+  two devices, Ben on a third, each a real `fm-serve` on its own port, sharing a bare repo under
+  `~/.cache/formicaria-lab`; `checklist` lists the scenarios, `status` shows what each has not sent
+  or got. **Limit:** "ana-phone" is a browser tab with real git, not the Android shell or libgit2.
+- **Trap the lab hit: a second device's own `.gitignore` blocks its first get.** Opening a vault
+  writes `.gitignore`/`.gitattributes`; if the copy it was cloned from lacked them, the first get
+  refuses ("untracked working tree files would be overwritten by merge"). A real first backup sends
+  them, so this needs a hand-seeded repo — but the app then says only *could not get changes*.
 - **Only while the app is open.** A phone in a pocket sends nothing; the backup made on leaving is
   best effort, and Android may stop the app first.
 - **The phone learns of incoming changes only when it comes to the front**, at most every five

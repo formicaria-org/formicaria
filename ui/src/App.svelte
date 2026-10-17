@@ -92,7 +92,7 @@
   import { isRemote } from './lib/remote';
   import { isPhone } from './lib/platform';
   import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
-  import { TICK_MS, autoBackupOn, dueVaults, type Attempt } from './lib/autoBackup';
+  import { TICK_MS, autoBackupOn, dueVaults, runsByItself, type Attempt } from './lib/autoBackup';
   import { isTyping } from './lib/typing';
   import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
   import { unreachable } from './lib/reachable.svelte';
@@ -1243,7 +1243,7 @@
     }
   }
   $effect(() => {
-    if (!import.meta.env.PROD) return; // the mock has nowhere to send
+    if (!runsByItself()) return; // the mock has nowhere to send, unless a test says otherwise
     const id = setInterval(() => {
       if (!document.hidden) void autoBackup();
     }, TICK_MS);
