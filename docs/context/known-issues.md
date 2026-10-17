@@ -1208,6 +1208,9 @@ Decision: `decisions.md#sync`, *formicaria backs up by itself*.
   two devices, Ben on a third, each a real `fm-serve` on its own port, sharing a bare repo under
   `~/.cache/formicaria-lab`; `checklist` lists the scenarios, `status` shows what each has not sent
   or got. **Limit:** "ana-phone" is a browser tab with real git, not the Android shell or libgit2.
+  **`collab-lab smoke` runs in every release** (`desktop.yml`, Linux, after the build): a throwaway
+  lab on ports 8811–8813, both directions and both people, then deleted. It checks the shared vault
+  through the Back up commands, not the app's timers — `App.autoBackup.test.ts` covers those.
 - **Trap the lab hit: a second device's own `.gitignore` blocks its first get.** Opening a vault
   writes `.gitignore`/`.gitattributes`; if the copy it was cloned from lacked them, the first get
   refuses ("untracked working tree files would be overwritten by merge"). A real first backup sends

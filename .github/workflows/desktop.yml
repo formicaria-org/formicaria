@@ -95,6 +95,16 @@ jobs:
           echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
       - run: pixi run build
 
+      # **Three devices share a vault, with the binaries this release ships** (2026-10-17): Ana's
+      # laptop, Ana's phone and Ben's laptop, each a real `fm-serve`, back up and get through a
+      # bare repo in a temp dir, and each finds the others' notes in search. Seconds, because the
+      # build above already made the binaries; Linux only, because the check is about the shared
+      # vault, not the OS, and `cross.yml` covers the others. `ci/collab-lab.sh` says what it
+      # cannot see (the app's timers, the Android shell).
+      - name: three devices share a vault
+        if: runner.os == 'Linux'
+        run: pixi run collab-lab smoke
+
       # Stage the app: both binaries + the instructions. `fm` is NOT optional beside
       # `fm-serve` — `ensure_repo` installs the `.md` merge driver by pointing git at the
       # `fm` binary *beside the running one*, and installs nothing when it cannot find one,

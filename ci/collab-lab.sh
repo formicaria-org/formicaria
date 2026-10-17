@@ -6,6 +6,7 @@
 #   pixi run collab-lab checklist  the scenarios worth trying, in order
 #   pixi run collab-lab stop       stop the three programs (the vaults stay)
 #   pixi run collab-lab reset      stop, and delete the whole lab
+#   pixi run collab-lab smoke      a throwaway lab, checked by machine, then deleted (CI runs this)
 #
 # | device     | who | address                |
 # |------------|-----|------------------------|
@@ -37,10 +38,14 @@ LAB=${FM_LAB_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/formicaria-lab}
 BIN=${FM_LAB_BIN:-$(pwd)/target/release}
 MARK="$LAB/.formicaria-lab"
 
+# The first port; the other two devices take the next two. `smoke` moves it, so a check can run
+# beside a lab someone has open.
+BASE=${FM_LAB_PORT:-8801}
+
 # device|port|name|email
-DEVICES='ana-laptop|8801|Ana|ana@lab.invalid
-ana-phone|8802|Ana|ana@lab.invalid
-ben-laptop|8803|Ben|ben@lab.invalid'
+DEVICES="ana-laptop|$BASE|Ana|ana@lab.invalid
+ana-phone|$((BASE + 1))|Ana|ana@lab.invalid
+ben-laptop|$((BASE + 2))|Ben|ben@lab.invalid"
 
 each() {
   printf '%s\n' "$DEVICES" | while IFS='|' read -r dev port name email; do
@@ -108,10 +113,10 @@ setup() {
   isolated_git -C "$v" config user.email ana@lab.invalid
   isolated_git -C "$v" remote add origin "$LAB/shared.git"
   write_config ana-laptop
-  start_device ana-laptop 8801
-  wait_up 8801
-  api 8801 commit '{"message":"backup: the lab starts","vault":"lab"}' >/dev/null
-  api 8801 push '{"message":"backup: the lab starts","vault":"lab"}' >/dev/null
+  start_device ana-laptop "$BASE"
+  wait_up "$BASE"
+  api "$BASE" commit '{"message":"backup: the lab starts","vault":"lab"}' >/dev/null
+  api "$BASE" push '{"message":"backup: the lab starts","vault":"lab"}' >/dev/null
   each join_device
   : >"$MARK"
 }
@@ -149,6 +154,60 @@ status_device() { # dev port name email
   dirty=$(isolated_git -C "$d/vault" status --porcelain -- notes 2>/dev/null | wc -l | tr -d ' ')
   printf '  %-11s %-4s %-32s not sent: %-3s not got: %-3s unsaved files: %s\n' \
     "$1" "$3" "$state" "$ahead" "$behind" "$dirty"
+}
+
+# **Back up, as the Back up button does it**: save, get their changes, send (`syncOnce`).
+back_up() { # port
+  api "$1" commit '{"message":"backup: lab","vault":"lab"}' >/dev/null &&
+    api "$1" pull '{"vault":"lab"}' >/dev/null &&
+    api "$1" push '{"message":"backup: lab","vault":"lab"}' >/dev/null
+}
+
+expect() { # what -- command...: run it, and stop the smoke with the logs if it fails
+  what=$1
+  shift
+  if "$@"; then
+    echo "  ok    $what"
+  else
+    echo "  FAIL  $what" >&2
+    for d in ana-laptop ana-phone ben-laptop; do
+      echo "--- $d/serve.log" >&2
+      tail -20 "$LAB/$d/serve.log" >&2 2>/dev/null || true
+    done
+    exit 1
+  fi
+}
+
+finds() { # port word: does that device's search find it?
+  api "$1" search "{\"query\":\"$2\"}" | grep -q "$2"
+}
+
+level() { # dev: has it sent everything and got everything?
+  [ "$(isolated_git -C "$LAB/$1/vault" rev-list --count HEAD...origin/main 2>/dev/null)" = 0 ]
+}
+
+# **What a release proves before it ships**: three real `fm-serve` programs share a vault — Ana
+# on two devices, Ben on a third — through the same commands the app's Back up runs. It cannot
+# prove the app's *timers* (nothing clicks here); `App.autoBackup.test.ts` does that.
+smoke() {
+  mark=$(date +%s)$$
+  a=$BASE
+  p=$((BASE + 1))
+  b=$((BASE + 2))
+  api "$a" capture "{\"body\":\"Anas note smoke$mark\",\"vault\":\"lab\"}" >/dev/null
+  expect "Ana's laptop backs up a new note" back_up "$a"
+  expect "Ana's phone gets it" back_up "$p"
+  expect "Ana's phone finds it in search" finds "$p" "smoke$mark"
+  expect "Ben's laptop gets it" back_up "$b"
+  expect "Ben's laptop finds it in search" finds "$b" "smoke$mark"
+  api "$b" capture "{\"body\":\"Bens reply reply$mark\",\"vault\":\"lab\"}" >/dev/null
+  expect "Ben backs up a note of his own" back_up "$b"
+  expect "Ana's laptop gets Ben's note" back_up "$a"
+  expect "Ana's laptop finds it in search" finds "$a" "reply$mark"
+  expect "Ana's phone gets it too" back_up "$p"
+  for d in ana-laptop ana-phone ben-laptop; do
+    expect "$d has nothing left to send or get" level "$d"
+  done
 }
 
 checklist() {
@@ -193,6 +252,19 @@ status)
   each status_device
   ;;
 checklist) checklist ;;
+smoke)
+  if [ -z "${FM_LAB_SMOKING:-}" ]; then
+    # A throwaway lab on its own ports, removed however this ends.
+    tmp=$(mktemp -d)
+    trap 'FM_LAB_DIR="$tmp/lab" FM_LAB_PORT=8811 sh "$0" reset >/dev/null 2>&1; rm -rf "$tmp"' EXIT
+    FM_LAB_DIR="$tmp/lab" FM_LAB_PORT=8811 sh "$0" start >/dev/null
+    FM_LAB_DIR="$tmp/lab" FM_LAB_PORT=8811 FM_LAB_SMOKING=1 sh "$0" smoke
+    echo "collab-lab: smoke passed"
+  else
+    for port in "$BASE" $((BASE + 1)) $((BASE + 2)); do wait_up "$port"; done
+    smoke
+  fi
+  ;;
 reset)
   if [ -f "$MARK" ]; then
     each stop_device
