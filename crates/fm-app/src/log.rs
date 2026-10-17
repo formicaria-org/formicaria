@@ -388,6 +388,8 @@ pub fn log_recent(
 
 /// A recipe's notes share one word under this key: the recipe itself and each of its ingredients.
 pub const RECIPE: &str = "recipe";
+/// On a recipe's own note: the carried recipe it was made from, e.g. `nhlbi/<id>`.
+pub const FROM: &str = "from";
 /// The note that carries this is the recipe; the others under the same word are what goes in it.
 pub const SERVINGS: &str = "servings";
 
@@ -407,6 +409,10 @@ pub struct Recipe {
     /// ingredients carried it — so a total missing an ingredient's value says so.
     pub sums: BTreeMap<String, MetricSum>,
     pub ingredients: Vec<ObjectMeta>,
+    /// The carried recipe it was made from (e.g. `nhlbi/<id>`), when it was — so the screen
+    /// can set the book's lines beside it, each to be matched to a food (2026-10-18).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
 }
 
 /// The recipes kept in this log, by name, each with the sum of its ingredients.
@@ -481,6 +487,10 @@ pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, St
             of: ingredients.len(),
             sums,
             ingredients: ingredients.iter().map(ObjectMeta::from).collect(),
+            from: match head.get(FROM) {
+                PropertyValue::Text(s) if !s.is_empty() => Some(s),
+                _ => None,
+            },
         });
     }
     out.sort_by_key(|r| r.title.to_lowercase());
@@ -582,8 +592,18 @@ pub fn log_products(store: &dyn Store) -> Result<Vec<Product>, StoreError> {
 /// `ci/pack-recipes.py` makes the file.
 pub const RECIPES_NHLBI: &str = include_str!("shipped/recipes-nhlbi.json");
 
-pub fn recipe_library() -> Result<serde_json::Value, StoreError> {
-    serde_json::from_str(RECIPES_NHLBI)
+/// **Italian Wikibooks' recipes, the Italian ones** (`decisions.md#data`, 2026-10-18, *a modern
+/// Italian collection is carried*): 291 pages of *Libro di cucina* filed under an Italian region,
+/// word for word, under **CC BY-SA 4.0** — a separate work in its own file, credited per recipe by
+/// its page and its history, its licence named in the file and in `THIRD-PARTY.md`. No values:
+/// the pages give none, so a recipe of theirs counts once it is made one's own and matched to foods.
+/// `ci/pack-wikibooks.py` makes the file.
+pub const RECIPES_WIKIBOOKS: &str = include_str!("shipped/recipes-wikibooks.json");
+
+/// A carried collection by name: `wikibooks`, or anything else (and nothing) for the NHLBI's.
+pub fn recipe_library(book: &str) -> Result<serde_json::Value, StoreError> {
+    let text = if book == "wikibooks" { RECIPES_WIKIBOOKS } else { RECIPES_NHLBI };
+    serde_json::from_str(text)
         .map_err(|e| StoreError::Parse(format!("the carried recipes do not read: {e}")))
 }
 

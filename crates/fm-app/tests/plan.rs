@@ -434,7 +434,7 @@ fn every_fitness_regime_has_a_week_to_start_from() {
 #[test]
 fn a_diets_example_day_is_published_or_chosen_from_recipes_that_exist() {
     let lib = fm_app::plan::plan_library(&fm_core::MemoryStore::new(), "food").unwrap();
-    let recipes = fm_app::log::recipe_library().unwrap();
+    let recipes = fm_app::log::recipe_library("").unwrap();
     let ids: std::collections::BTreeSet<&str> =
         recipes["recipes"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap()).collect();
     let mut with = 0;

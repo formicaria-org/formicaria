@@ -85,7 +85,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***The full manual on every device, and a link beside each feature to its section*** (2026-10-18; read before adding a feature screen, a manual page, or touching `fmmanual:`/`MANUAL_CSP`) · ***A theme wins in light mode too, and four starters are offered*** (2026-10-18; read before adding a starter, defining a token in `app.css`, or changing how a theme meets dark/light) · ***A refresh that read back the same thing draws nothing*** (2026-10-18; read before writing into a feed's reply, or adding a `refresh()` to a pane change) · ***The ↶ menu undoes the typing; a selection does not redraw the note*** (2026-10-17; read before changing what the editor reveals or what the undo menu reaches) · ***The card library as built*** (2026-10-16; read before adding a card, a flag, or a number to `plans.json`) · ***The card library: shelved by kind, WHO to start, a base with add-ons, flags, new cards*** (2026-10-16; read before changing how a plan is followed or adding a card) · ***Trends from the cards' own numbers, and a "worth watching" set for everyone*** (2026-10-16; read before adding a tracked number that no card or body gives) · ***Only notes are windows: views switch in place, search is a passing panel, a note closes with ×*** (2026-10-16; read before adding a way to open a window, a pane kind, or a control to a note's header) · ***A proposal under review is shown in the note's own editor*** (2026-10-15; read before giving the review a separate editor again) · ***Vaults & backup is a category of its own, and nothing in it is an action*** (2026-10-15, later; read before adding an action to Settings or a settings link to Back up) · ***A vault is set up in one place, Settings; Back up is only actions*** (2026-10-15; read before adding a vault setting elsewhere or a non-action to the Back up menu) · ***A form's unsaved work is kept on the device*** (2026-10-14; read before adding a form to Food or Fitness) · ***A recipe is kept from the moment it has a name*** (2026-10-14; read before adding a form in Food that holds its work in memory) · ***The program on a computer stays up while a reminder is waiting, and the assistant does not*** (2026-10-13; read before letting the program outlive its page for any other reason, starting anything at login, or letting the assistant run with nobody there) · ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***Fitness is the week, the exercises and the regime; what is added is picked; every regime has a week to start from*** (2026-10-12; read before adding a view to Fitness, pre-filling a number, or writing an example week) · ***How an exercise is done is its source's own words…*** (2026-10-12, filed under `#data`: the Exercises tab and its credits) · ***A week of training is a timetable*** (2026-10-12; read before adding a view to Fitness, storing a weekly plan, or assuming a pane keeps its state across tabs) · ***A barcode is read from a photograph, not from a live camera*** (2026-10-12; read before declaring the camera permission, adding a viewfinder, or loading the reader from anywhere but the app) · ***Dishes for what a day is short of are arithmetic, shown where the gap is*** (2026-10-12; read before ranking dishes on more than one value, proposing anything for a check that is over, wording a suggestion as advice, or counting planned entries anywhere but the Menu) · ***A packaged food is a note read off its label…*** (2026-10-12, filed under `#data`: the label form in the logging sheet) · ***A menu is the days ahead, filled; it writes nothing of its own kind*** (2026-10-12; read before adding a view to Food, storing a meal plan, or stating how long food keeps) · ***Food made easy to use…*** (2026-10-12, filed under `#data`: what the Day screen says about a followed diet, and the all-nutrients sheet) · ***Weight is one of the trends…*** (2026-10-12, filed under `#data`: where a weight is written down, and routines on the session screen) · ***A diet or a regime is chosen from a library…*** (2026-10-12, filed under `#data`: the *Diet* and *Regime* tabs, and why they are two names) · ***The layout may differ between a phone and a desktop; the names never do*** (2026-10-12; read before naming a view, a group, a tab or a menu entry anywhere, or building a second list of places) · ***A phone's bar is the app's own again; the plus means what the view in front makes*** (2026-10-12; read before changing the phone's bottom bar, what the plus does, or where a group's views are switched) · ***After the owner used it on the phone: Everything and Weight go, a trend is picked from a menu, and a starter template has something to see*** (2026-10-12; read before adding a view to a group, listing logged entries, or putting more than one thing on a screen) · ***The board and the agenda are left as they were; graphs get a place of their own; phone and desktop are designed apart*** (2026-10-12; read before adding anything above or inside an existing view, or shipping a layout nobody has looked at on the screen it is for) · ***A view may ask for logged entries by name, and must then be bounded*** (2026-10-12; read before listing logged entries anywhere, or adding a key to a `.view` file) · ***Four groups over notes: Library, Tasks, Food, Fitness; a template carries structure; tags classify and properties drive*** (2026-10-12; read before adding a group, a view to one, a template rule, a filter that reads a tag, or changing what the phone's bar holds) · ***A meal is the one the person names; the training total is called volume load*** (2026-10-11; read before defaulting a meal, adding a training category, or naming a training number) · ***A sixth renderer and view groups, inside the notebook*** (2026-10-11; read before adding a renderer, a group, or anything a group carries beyond views, a filter and an add action) · ***There is one editor*** (2026-10-11; read before adding a second editor, a setting that chooses one, or a test that reaches for a textarea) · ***In the live editor a press follows a finished link, and a double press edits it*** (2026-10-11; read before giving any drawn element in the editor a meaning for a single press) · ***With a mouse and keyboard the format options are always there, one line under the note*** (2026-10-11; read before making them appear only on a selection again, moving them back to the top, or adding a persistent bar on touch) · ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***A Home a newcomer starts on and can always come back to*** (2026-10-18; read before changing the first screen, the order of the views list, or the welcome note) · ***The full manual on every device, and a link beside each feature to its section*** (2026-10-18; read before adding a feature screen, a manual page, or touching `fmmanual:`/`MANUAL_CSP`) · ***A theme wins in light mode too, and four starters are offered*** (2026-10-18; read before adding a starter, defining a token in `app.css`, or changing how a theme meets dark/light) · ***A refresh that read back the same thing draws nothing*** (2026-10-18; read before writing into a feed's reply, or adding a `refresh()` to a pane change) · ***The ↶ menu undoes the typing; a selection does not redraw the note*** (2026-10-17; read before changing what the editor reveals or what the undo menu reaches) · ***The card library as built*** (2026-10-16; read before adding a card, a flag, or a number to `plans.json`) · ***The card library: shelved by kind, WHO to start, a base with add-ons, flags, new cards*** (2026-10-16; read before changing how a plan is followed or adding a card) · ***Trends from the cards' own numbers, and a "worth watching" set for everyone*** (2026-10-16; read before adding a tracked number that no card or body gives) · ***Only notes are windows: views switch in place, search is a passing panel, a note closes with ×*** (2026-10-16; read before adding a way to open a window, a pane kind, or a control to a note's header) · ***A proposal under review is shown in the note's own editor*** (2026-10-15; read before giving the review a separate editor again) · ***Vaults & backup is a category of its own, and nothing in it is an action*** (2026-10-15, later; read before adding an action to Settings or a settings link to Back up) · ***A vault is set up in one place, Settings; Back up is only actions*** (2026-10-15; read before adding a vault setting elsewhere or a non-action to the Back up menu) · ***A form's unsaved work is kept on the device*** (2026-10-14; read before adding a form to Food or Fitness) · ***A recipe is kept from the moment it has a name*** (2026-10-14; read before adding a form in Food that holds its work in memory) · ***The program on a computer stays up while a reminder is waiting, and the assistant does not*** (2026-10-13; read before letting the program outlive its page for any other reason, starting anything at login, or letting the assistant run with nobody there) · ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***Fitness is the week, the exercises and the regime; what is added is picked; every regime has a week to start from*** (2026-10-12; read before adding a view to Fitness, pre-filling a number, or writing an example week) · ***How an exercise is done is its source's own words…*** (2026-10-12, filed under `#data`: the Exercises tab and its credits) · ***A week of training is a timetable*** (2026-10-12; read before adding a view to Fitness, storing a weekly plan, or assuming a pane keeps its state across tabs) · ***A barcode is read from a photograph, not from a live camera*** (2026-10-12; read before declaring the camera permission, adding a viewfinder, or loading the reader from anywhere but the app) · ***Dishes for what a day is short of are arithmetic, shown where the gap is*** (2026-10-12; read before ranking dishes on more than one value, proposing anything for a check that is over, wording a suggestion as advice, or counting planned entries anywhere but the Menu) · ***A packaged food is a note read off its label…*** (2026-10-12, filed under `#data`: the label form in the logging sheet) · ***A menu is the days ahead, filled; it writes nothing of its own kind*** (2026-10-12; read before adding a view to Food, storing a meal plan, or stating how long food keeps) · ***Food made easy to use…*** (2026-10-12, filed under `#data`: what the Day screen says about a followed diet, and the all-nutrients sheet) · ***Weight is one of the trends…*** (2026-10-12, filed under `#data`: where a weight is written down, and routines on the session screen) · ***A diet or a regime is chosen from a library…*** (2026-10-12, filed under `#data`: the *Diet* and *Regime* tabs, and why they are two names) · ***The layout may differ between a phone and a desktop; the names never do*** (2026-10-12; read before naming a view, a group, a tab or a menu entry anywhere, or building a second list of places) · ***A phone's bar is the app's own again; the plus means what the view in front makes*** (2026-10-12; read before changing the phone's bottom bar, what the plus does, or where a group's views are switched) · ***After the owner used it on the phone: Everything and Weight go, a trend is picked from a menu, and a starter template has something to see*** (2026-10-12; read before adding a view to a group, listing logged entries, or putting more than one thing on a screen) · ***The board and the agenda are left as they were; graphs get a place of their own; phone and desktop are designed apart*** (2026-10-12; read before adding anything above or inside an existing view, or shipping a layout nobody has looked at on the screen it is for) · ***A view may ask for logged entries by name, and must then be bounded*** (2026-10-12; read before listing logged entries anywhere, or adding a key to a `.view` file) · ***Four groups over notes: Library, Tasks, Food, Fitness; a template carries structure; tags classify and properties drive*** (2026-10-12; read before adding a group, a view to one, a template rule, a filter that reads a tag, or changing what the phone's bar holds) · ***A meal is the one the person names; the training total is called volume load*** (2026-10-11; read before defaulting a meal, adding a training category, or naming a training number) · ***A sixth renderer and view groups, inside the notebook*** (2026-10-11; read before adding a renderer, a group, or anything a group carries beyond views, a filter and an add action) · ***There is one editor*** (2026-10-11; read before adding a second editor, a setting that chooses one, or a test that reaches for a textarea) · ***In the live editor a press follows a finished link, and a double press edits it*** (2026-10-11; read before giving any drawn element in the editor a meaning for a single press) · ***With a mouse and keyboard the format options are always there, one line under the note*** (2026-10-11; read before making them appear only on a selection again, moving them back to the top, or adding a persistent bar on touch) · ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***An import can replace an earlier one, links to pages that do not exist become tags, and the person sets the rules for attachments*** (2026-10-15; read before touching the importer's options, `write_import`, or the import form) · ***A food keeps its pictures, and a label can be settled later*** (2026-10-13; read before shrinking a kept picture, estimating an unread packet, or converting an amount to fill an entry in) · ***Italy's table is carried on its own terms, read off its pages; Singapore's is not collected by a robot*** (2026-10-13; read before collecting a table from a website, before treating a licence as leave to crawl, or before storing CREA's carbohydrate) · ***The food list gains the Swiss table, and every table's own-language names are searched*** (2026-10-13; read before adding a table, translating a food's name, or treating a food in one table as the same food in another) · ***A label is typed as it is printed: per 100 g, per 100 ml or per serving; kcal or kJ; salt or sodium*** (2026-10-13; read before assuming a packaged food is per 100 g, treating a millilitre as a gram, or adding a unit to the label form) · ***How an exercise is done is its source's own words; a protocol with a name is offered by its name*** (2026-10-12; read before rewording a carried exercise, carrying a picture, adding a video that is not a known body's, or offering a training goal no body defines) · ***Recipes from outside are carried word for word, with their source's own figures*** (2026-10-12; read before adding a recipe collection, converting a carried recipe's units, or computing its values) · ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***A recipe can be saved from a link; any recipe's ingredient lines are matched to foods*** (2026-10-18; read before reading a web page for anything, or changing how a recipe's text becomes its ingredients) · ***An import can replace an earlier one, links to pages that do not exist become tags, and the person sets the rules for attachments*** (2026-10-15; read before touching the importer's options, `write_import`, or the import form) · ***A food keeps its pictures, and a label can be settled later*** (2026-10-13; read before shrinking a kept picture, estimating an unread packet, or converting an amount to fill an entry in) · ***Italy's table is carried on its own terms, read off its pages; Singapore's is not collected by a robot*** (2026-10-13; read before collecting a table from a website, before treating a licence as leave to crawl, or before storing CREA's carbohydrate) · ***The food list gains the Swiss table, and every table's own-language names are searched*** (2026-10-13; read before adding a table, translating a food's name, or treating a food in one table as the same food in another) · ***A label is typed as it is printed: per 100 g, per 100 ml or per serving; kcal or kJ; salt or sodium*** (2026-10-13; read before assuming a packaged food is per 100 g, treating a millilitre as a gram, or adding a unit to the label form) · ***How an exercise is done is its source's own words; a protocol with a name is offered by its name*** (2026-10-12; read before rewording a carried exercise, carrying a picture, adding a video that is not a known body's, or offering a training goal no body defines) · ***Recipes from outside are carried word for word, with their source's own figures*** (2026-10-12; read before adding a recipe collection, converting a carried recipe's units, or computing its values) · ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -11725,4 +11725,226 @@ one-off fee, needs an identity check, and a new personal account must run a clos
 for two weeks before it can publish; F-Droid is free but builds from source with its own key and
 reviews what a build downloads (the bundled model runtime is the question). Either removes the
 "allow from this source" step, which no website can. Both are in `outstanding.md`.
+
+## 2026-10-18 — a Home a newcomer starts on and can always come back to `#ui`
+
+> Extends *the archive ships a welcome note* (2026-08-30) without reversing it: the app still
+> writes no note into anyone's notebook.
+
+**What happened.** A person who does not program installed the app, went quickly through the first
+screens, chose Agenda — and asked the owner *"I want to go back to home page"*: they did not know
+they could start using it, or move between views. The owner: *"too much text for a human being …
+much more intuitive explanation … a page to go back to"*.
+
+**Why.** The explanation was a 412-word note, only in the computer download — **a phone had none**,
+and its Help button is hidden below 60rem. Nothing on screen was a place to return to.
+
+**Decision.**
+1. **Home is a view** (`kind: 'home'`, `Home.svelte`): four ideas, each a picture and a line —
+   write, see your notes your way, keep them safe, come back here — with buttons that *do* (open
+   Timeline, Board, Agenda; open the manual). The pictures are the icons of the buttons they talk
+   about, shown inline where a phone's button has no label.
+2. **First in the list of views, always**, on every device and with or without groups.
+3. **A first launch opens on it** (`defaultWorkspace`); a saved workspace keeps what it had. The
+   test suite opens on Board, as it was written to (`setFirstView` in `test-setup.ts`).
+4. **Built into the app, not a note** (the owner's choice, offered both): the same on every device,
+   never stale, deletable by nobody, and not committed into notebooks shared with others — which
+   is why 2026-08-30 refused to have the app write the welcome note. That note stays, cut to 122
+   words that point at Home.
+
+## 2026-10-18 — the camera is declared to Android, and every picture can come from either `#track-m` `#ui`
+
+**What happened.** On the phone, food pictures *"only from the gallery"* — the camera was never
+offered, though the food sheet's picker asks for it (`capture="environment"`), as Take a photo in a
+note does.
+
+**Why.** wry opens the camera only after `resolveActivity(ACTION_IMAGE_CAPTURE)` finds an app, and
+under Android 11+ package visibility an app targeting API 30+ sees no other app it has not declared
+in `<queries>`. The answer was "none", and wry fell back to the file picker without a log line the
+person could see. The note panel's comment called the camera path *verified*; it was verified in
+code, not on a target-35 build.
+
+**Decision.** `ci/android-inject-service.sh` adds `<queries>` for `IMAGE_CAPTURE` and
+`VIDEO_CAPTURE` to the generated manifest. It grants nothing and asks for no permission (CAMERA
+stays undeclared, so the system camera app owns its own). **Widens what ships** by that manifest
+block. In the food sheet each picture action keeps the camera as its default and gains *or choose
+one from the gallery* beside it.
+
+**Unverified on a device**: the fix follows from the code paths read, not from a phone.
+
+## 2026-10-18 — a recipe is one note, reached from the notes and from the food view `#ui` `#data`
+
+> Extends *a recipe is kept from the moment it has a name* (2026-10-14) and the starter templates
+> (2026-10-12). Reverses nothing.
+
+**The ask.** The owner, for a tester who cooks: a recipe is *"not only the ingredients but also
+steps and pictures and times"*; *"recipes should be addable as notes and also in the food view
+where we have a better interface … But they should be the same."* Later: dictating them.
+
+**Decision.**
+- **One shape.** `RECIPE_BODY` (*Method*, *Times*, *Notes*) is the body of a recipe started from the
+  template **and** from the food view; only the ingredients are structured (and counted), kept as
+  before. Nothing in the body is read back as fields.
+- **Each side leads to the other.** The food view's kept recipe has *Write the method, times and
+  notes* (opens the note); a recipe's note — any note with a `recipe` word and `servings` — has
+  *Ingredients and servings* (opens the Food group's sheet on it, through `trackers.askToOpen`,
+  taken once by the food view). With the food views hidden on the device it says where to turn
+  them on.
+
+**Next, not done:** carried Italian recipes (research under way, `decisions.md#data` rules apply);
+a recipe from a recording, proposed by the assistant and accepted or changed like any proposal.
+
+## 2026-10-18 — the assistant is Myrme, on every device; each device answers its own messages `#agent` `#ui`
+
+> Delivers P2's naming half of `agent-simplification-plan-2026-10-09.md` (*the assistant gets one
+> stable name: Myrme*; *one identity per device*). The router/skills half of P2 is not part of this.
+
+**What happened.** On the phone the owner wrote `@qwen3-vl-4b /transcribe` — the computer's model,
+named as the example in Help — while the phone's own assistant was running under another name.
+Nothing answered, and the app said there was *"not enough free memory"*. The owner: *"I want Myrme
+now, which should be already in all devices and OSs."*
+
+**Decision.**
+1. **One name, `@Myrme`, on every device**; the `@` list offers it (`present` says *Myrme*). The model
+   is configuration: `@<model>` still addresses the copy running that model.
+2. **The app stamps each message with the device it was written on** (`device: phone|laptop`,
+   `commands::reply_from`; a paired tablet writes through the computer, so `laptop`). A plain
+   `@Myrme` is answered only by that device's copy (`convo::addressed_here`), so a message synced to
+   two devices is answered **once** — the plan's gate, tested. `@Myrme-phone` / `@Myrme·phone` asks
+   one copy by name. A message with no stamp (older) is answered by whoever sees it.
+3. **Each copy signs as itself**: *Myrme (laptop)*, `myrme+laptop@fm-agents.local` — replies,
+   proposals and the meeting pass. The person's identity is untouched.
+4. **The notice tells the truth**: a name that is not on this device, with Myrme running here, says
+   so and offers *Ask @Myrme instead* in one press; "not enough free memory" is said only when no
+   assistant started on this device at all. Help, Settings and the manual say `@Myrme`.
+
+**Not done (from the plan):** renaming a device's word in Settings ("office desktop"), and a
+`Device:` trailer on the person's own commits. The device word is fixed: phones are `phone`,
+everything else `laptop`.
+
+## 2026-10-18 — a recipe can be saved from a link, and any recipe's ingredient lines are matched to foods `#data` `#ui` `#vault`
+
+> Extends *a barcode may be looked up, once, when the person asks* (2026-10-12) to a second
+> person-initiated read, and *a recipe is one note* (same day). No HTTP client enters `fm-app`.
+
+**The ask.** The owner, after Artusi was dropped as too old (*"an old dataset is useless, it has very
+old ingredients"*): something modern, and recipes *"from popular food websites used in Italy"*, with
+ingredients that can be matched so they count.
+
+**Decision.**
+1. **The app carries none of those sites' recipes.** Their words and photos are theirs. A person
+   pastes a link; the shell fetches that one page once (`fm-serve` `/api/recipe_from_link`, the phone's
+   `recipe_from_link`, both behind the feature `fm-fetch` already rides); `fm_app::web_recipe` reads
+   only what the page publishes for search engines — schema.org `Recipe` in JSON-LD — and nothing
+   from its look. Read on 2026-10-18 from GialloZafferano, Misya, Sale&Pepe and Cookist: all four
+   gave ingredients and steps (pages kept nowhere; the ignored test reads a folder given at run time).
+2. **Only a public `https` page**: another scheme, a bare name, `localhost`, private and link-local
+   ranges are refused by `web_recipe::address`. **Refused to paired devices** (`REMOTE_DENIED`): a
+   name can still be pointed inside the network, and a guest does not make the host fetch.
+3. **It becomes the person's own recipe note** (`food/recipeText.ts`): *Ingredients* as written,
+   *Method*, *Times*, *Notes*, and a credit line linking the page and its photo — a link, never the
+   picture. Nothing is fetched to show it.
+4. **Matching, for every recipe**: the lines of a recipe note's *Ingredients* (or *Ingredienti*) list
+   are offered on its food-view screen until each is matched; a tap opens the food search on the name
+   the line gives (`guessFood`) and the amount on its grams. The ingredient keeps `line`, so a matched
+   line is not offered again. A line left unmatched (salt to taste) is simply not counted. The same
+   path serves a recipe typed by hand, one saved from a link, and **Make it mine** on a carried recipe.
+5. The recipe skeleton (`RECIPE_BODY`) now opens with *Ingredients*.
+
+## 2026-10-18 — a modern Italian collection is carried: Italian Wikibooks, under its own licence `#data` `#toolchain`
+
+> Extends *recipes from outside are carried word for word* (2026-10-12), which set Wikibooks aside
+> for share-alike. Pellegrino Artusi (1891, public domain) was built and **dropped the same day** at
+> the owner's word: *"an old dataset is useless, it has very old ingredients."*
+
+**Decision.** `ci/pack-wikibooks.py` carries the pages of it.wikibooks.org *Libro di cucina — Ricette*
+**filed under an Italian region** (the regional category tree, read from the API each run — never
+the title): 291 of 742 pages, 583 kB, word for word with wiki markup removed. Each recipe names its
+page and its history (the authors). Fields as the pages give them: `ingredients`, `steps`, `text`,
+`notes`, `yield`/`servings`, `region`, `times`, `image` as a Commons link. **No values**: logged only
+once made one's own and matched to foods.
+
+**The licence.** CC BY-SA 4.0 covers **the file**, a separate work carried beside the program, not
+the app (`THIRD-PARTY.md` says so); any copy of a recipe made with *Make it mine* carries the credit.
+**Widens what ships** by one 583 kB file. **Accepted losses:** 364 pages name no origin and are left
+out even where plainly Italian (*Brasato al Barolo*); group labels ("Prima ricetta") sit among the
+lines; 16 recipes have no ingredient list.
+
+## 2026-10-18 — a recipe from a recording: `@Myrme /recipe` `#agent` `#data`
+
+**The ask.** The owner recorded *Ricetta tiramisu* on the phone: *"an agentic command to generate a
+recipe from it that a user can accept or modify … exactly as a collaboration."*
+
+**Decision.** `/recipe` (also `/ricetta`) is a `Command` of its own. The runner transcribes the note's
+recordings not yet transcribed (or takes its text), the model shapes the words into JSON parts
+(`fm_agent::recipe::INSTRUCTION`), and **`keep_what_was_said` drops an ingredient none of whose words
+was heard, and a step or note most of whose words were not** — counted in the reply. It is proposed
+as a **new note** (`propose_note`, now also on the phone) tagged `recipe`, carrying a word and servings
+— the two properties a proposed note may now set besides dates and place — in the shape every recipe
+has, ending with *What was said*. Accepted, it is a recipe; its lines are matched in Food.
+
+**Found on the way, and not yet decided:** every device transcribes with **`ggml-base.en`, English
+only**. The owner's Italian recording came back as *"(speaking in foreign language)"* four times. The
+multilingual `ggml-base` (same size, 148 MB) heard it — 5 eggs, 500 g of mascarpone, 3 spoons of
+sugar — with mishearings and a repeated closing line. Changing the model is a download every user
+makes again; measured and offered, not done here. *(Decided the same day — next-but-one entry.)*
+
+## 2026-10-18 — each device names its Myrme `#agent` `#ui`
+
+Delivers what the Myrme entry left: `agent.json` `device` on each platform (`fm_agent::convo::device_word`:
+lower case, letters and digits, dashes, ≤24), set in Settings → Study assistant
+(`/api/set_assistant_name`, the phone's `set_assistant_name`; refused to paired devices), passed to the
+assistant at start (`--device` on a computer), reported by `agent_status`, and **the stamp on the
+messages written here** — learned before the first message of a session, so a renamed device never
+stamps its default. Applies when the assistant next starts.
+
+## 2026-10-18 — every device hears any language; *better listening* is a choice `#agent` `#ui` `#toolchain`
+
+**The ask.** After the measurement above, the owner chose *"base everywhere and small as an option"*.
+
+**Measured** on the owner's 2-minute Italian recording (laptop CPU): `base.en` — nothing usable;
+`base` (148 MB, multilingual) — ~40 s, the recipe's words with mishearings (*giuttiero* for
+zucchero), a looped closing line; `small` (488 MB) — 61 s, near-verbatim. Through `/recipe` on the
+laptop's model (10 s each): from base, a recipe to correct by hand; from small, the right one.
+
+**Decision.** `whisper_mobile = "ggml-base"` is the everyday speech model **on every device**
+(`whisper_desktop` reads it too); `whisper_better = "ggml-small"` is offered in Settings → *Better
+listening* (`agent.json` `"listening": "better"`, `/api/set_listening` refused to paired devices,
+the phone's `set_listening`), shown only once transcription is on, with its download. Both pinned to
+the same Hugging Face commit as base.en, checksums verified. **`-l` is now passed**:
+`manifest::whisper_language` — `en` for `.en` weights, `auto` otherwise — because `whisper-server`
+defaults to English and would translate an Italian recording instead of writing it down.
+
+**No device goes quiet while it changes.** `installed::whisper_on_disk` runs the chosen weights when
+present, else the earlier ones (base.en) while the chosen download — the desktop fetches it after
+the assistant starts, the phone at start; `sweep_whisper` removes the other catalogued speech
+weights only once the chosen ones are here, and `sweep` no longer touches a half-downloaded `.bin`.
+The desktop also stops hard-coding `ggml-base.en.bin` (the launch never passed `--whisper-model`).
+
+`/recipe` also keeps a repeated line once (`keep_what_was_said`): the recogniser loops, the cook did not.
+
+## 2026-10-18 — dictation: what is said is written at the caret `#agent` `#ui` `#seams`
+
+**The ask.** *"now the dictation of recipes and notes"* — after *"writing on phone is hard"*.
+
+**Four questions.** Subject `#agent` (the speech model), `#ui`. It **extends** the transcription
+exception rather than contradicting *insertion-only*: the words are the person's own, put in by
+their own action at their caret — an edit like typing, undoable like typing — not something an
+agent wrote, so **no proposal**. Widens what ships by two routes (below); nothing new is downloaded.
+
+**Decision.** A recording (the existing `record.ts` 16 kHz WAV) goes **by value** to the speech
+server the assistant already runs — desktop `/api/dictate` (refused to paired devices), phone
+`fm_dictate` (base64, the only door Android has; `agent::whisper_port`) — and the words come back
+through `fm_agent::transcribe::dictation_text`: segments joined (a segment without a leading space
+finishes the word the last one broke), sound annotations (`[BLANK_AUDIO]`, `(music)`) dropped, a
+segment repeated straight after itself kept once. Nothing else changes. **No data loss:** when
+nothing can be written down — transcription off, not started, nothing heard — the recording is
+ingested into the note as an ordinary clip, so `/transcribe` or `/recipe` can still read it.
+Five minutes at a time (`DICTATION_SECS`; ~10 MB of base64, inside one message). Entry points: the
+quick row's microphone (now six cells), the note's ＋ → **Dictate** on a computer, and Food →
+**Dictate a recipe**, which keeps what was said as a note of its own and asks `@Myrme /recipe` there —
+so a spoken recipe arrives as a proposal, and the words it came from stay findable.
+
+**Measured** on the laptop through the real route: 2 minutes of Italian in 13 s (base, `-l auto`).
+Not streamed: the words arrive after **Stop**. On the phone not yet measured.
 

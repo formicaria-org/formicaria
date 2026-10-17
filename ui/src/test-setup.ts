@@ -11,6 +11,11 @@
 /// bounds only *waiting*: a `findBy*` that will succeed is unaffected, and a genuine failure costs a
 /// few extra seconds once. Deliberately not a `testTimeout` bump — that would hide a hang.
 import { configure } from '@testing-library/svelte';
+import { setFirstView } from './lib/panes';
+
+// **Most of the suite was written against a first screen of Board.** Since 2026-10-18 the app opens
+// on Home; the tests about Home set it back themselves (`App.home.test.ts`).
+setFirstView('board');
 import { EditorView } from '@codemirror/view';
 
 configure({ asyncUtilTimeout: 5000 });

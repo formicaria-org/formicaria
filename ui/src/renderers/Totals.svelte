@@ -44,6 +44,8 @@
     ontargets?: () => void;
     /** A planned entry happened: count it. Offered only when its owner can do it. */
     onconfirm?: (row: ObjectMeta) => void;
+    /** Take one entry out, on its own — offered beside every entry when its owner can do it. */
+    onremove?: (row: ObjectMeta) => void;
     /** The day against what the person follows, when they follow something
      *  (`decisions.md#ui`, 2026-10-12, *the day says whether it follows the diet*). */
     plan?: PlanProgress | null;
@@ -69,6 +71,7 @@
     oncopy,
     ontargets,
     onconfirm,
+    onremove,
     plan = null,
     onnutrients,
     dishes = [],
@@ -431,6 +434,20 @@
                   <Icon name="check" size={18} />
                 </button>
               {/if}
+              <!-- **One entry out, on its own, in plain sight** (owner, 2026-10-18: two coffees
+                   added by mistake, and to fix it the whole breakfast was removed). Changing the
+                   amount was always a tap on the row; nothing said so. Each step can be undone. -->
+              {#if onremove}
+                <button
+                  type="button"
+                  class="drop"
+                  onclick={() => onremove(r)}
+                  aria-label={`remove ${r.title ?? 'entry'}`}
+                  title="Remove this one"
+                >
+                  <Icon name="close" size={16} />
+                </button>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -690,6 +707,23 @@
   li.planned .entry {
     color: var(--text-subtle);
     font-style: italic;
+  }
+  .drop {
+    flex: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: var(--space-1) var(--space-2) var(--space-1) 0;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .drop:hover {
+    background: var(--surface-hover);
+    color: var(--text);
   }
   .confirm {
     flex: none;

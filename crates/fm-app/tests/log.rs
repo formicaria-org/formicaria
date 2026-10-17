@@ -767,7 +767,7 @@ fn the_kitchen_is_the_notes_that_say_so_by_name() {
 /// value per serving is a whole number under a key a logged food uses.
 #[test]
 fn the_carried_recipes_read_and_are_whole() {
-    let lib = fm_app::log::recipe_library().unwrap();
+    let lib = fm_app::log::recipe_library("").unwrap();
     assert!(lib["source"].as_str().unwrap().contains("National Heart, Lung, and Blood Institute"));
     let recipes = lib["recipes"].as_array().unwrap();
     assert!(recipes.len() >= 40);
@@ -849,4 +849,23 @@ fn the_carried_exercises_read_and_are_whole() {
         }
     }
     assert!(lib["videos"].as_array().unwrap().len() >= 50);
+}
+
+/// **The Italian collection is Italian, credited, and says only what its pages say** (2026-10-18).
+#[test]
+fn the_wikibooks_collection_is_credited_and_carries_no_values() {
+    let lib = fm_app::log::recipe_library("wikibooks").unwrap();
+    assert_eq!(lib["licence"], "CC BY-SA 4.0", "its licence travels with it");
+    let recipes = lib["recipes"].as_array().unwrap();
+    assert!(recipes.len() >= 150, "{} recipes", recipes.len());
+    for r in recipes {
+        assert!(
+            r["url"].as_str().is_some_and(|u| u.starts_with("https://it.wikibooks.org/")),
+            "{}",
+            r["id"]
+        );
+        assert!(r["authors_url"].as_str().is_some(), "credited: {}", r["id"]);
+        assert!(r.get("per_serving").is_none(), "no values are worked out: {}", r["id"]);
+    }
+    assert!(recipes.iter().any(|r| r["title"] == "Risotto alla milanese"));
 }

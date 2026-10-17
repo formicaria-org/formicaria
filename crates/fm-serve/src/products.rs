@@ -8,6 +8,9 @@
 use serde_json::{json, Value};
 
 pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8]) -> Option<std::io::Result<()>> {
+    if path == "/api/recipe_from_link" {
+        return Some(recipe_from_link(stream, body));
+    }
     if path != "/api/product_lookup" {
         return None;
     }
@@ -25,4 +28,28 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8]) -> Option<st
     };
     let ctype = if status == "200 OK" { "application/json" } else { "text/plain" };
     Some(crate::write_response(stream, status, ctype, out.as_bytes()))
+}
+
+/// **A recipe from a page a person chose** (`decisions.md` 2026-10-18, *a recipe can be saved from a
+/// link*): one request to the address they pasted, once, when they ask. Which addresses may be read
+/// and how the recipe is read out are `fm_app::web_recipe`; this makes the request and writes
+/// nothing — the person's own recipe note is written by the app afterwards, as any note is.
+fn recipe_from_link(stream: &mut dyn crate::Conn, body: &[u8]) -> std::io::Result<()> {
+    let link = serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|v| v.get("link").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_default();
+    let read = fm_app::web_recipe::fetch(&link, &|url, agent| {
+        fm_fetch::request("GET", url, &[("User-Agent", agent)], None, fm_app::web_recipe::LIMIT)
+            .map_err(|e| e.to_string())
+    });
+    match read {
+        Ok(r) => crate::write_response(
+            stream,
+            "200 OK",
+            "application/json",
+            json!(r).to_string().as_bytes(),
+        ),
+        Err(e) => crate::write_response(stream, "400 Bad Request", "text/plain", e.as_bytes()),
+    }
 }

@@ -6,6 +6,7 @@
 // in a renderer, which is the invariant the CI grep enforces.
 import { parseStamp } from './stamp';
 import { GIT_ASSETS_CEILING, humanSize } from './size';
+import { isPhone } from './platform';
 import type {
   AssetStatus,
   BackupStatus,
@@ -504,6 +505,8 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
  */
 // The study-assistant on/off setting, mocked (the real one is a per-device launcher setting served
 // by fm-serve, not a vault command).
+/** This device's name for its Myrme, once one is set; until then the platform's own word. */
+let mockDeviceName: string | null = null;
 let mockAgentEnabled = false;
 let mockPaperSeq = 1;
 /** Themes the mock vault holds. Empty by default: a vault that has never been themed is the
@@ -520,6 +523,13 @@ let mockSavedViews: ViewInfo[] = [
 // Flip this to see the not-installed row the way a released build shows it.
 let mockAgentInstalled = true;
 let mockTranscribeEnabled = false;
+let mockListeningBetter = false;
+/** What the mock's speech model "hears" — tests set it with `setMockDictation`. */
+let mockDictation = 'Cinque uova, 500 grammi di mascarpone.';
+export function setMockDictation(text: string, transcribe = true) {
+  mockDictation = text;
+  mockTranscribeEnabled = transcribe;
+}
 // The whisper runtime is a **second** capability, and the panel branches on it separately: the
 // assistant can be perfectly installed while audio transcription still has nothing behind it.
 // Flip this to see the row that names what is missing instead of offering a switch.
@@ -1036,10 +1046,26 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return { restarting: true } as T;
     }
 
+    case 'set_assistant_name': {
+      // The rule `fm_agent::convo::device_word` applies on a real device.
+      const word =
+        String(args.name ?? '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 24)
+          .replace(/-+$/, '') || (isPhone() ? 'phone' : 'laptop');
+      mockDeviceName = word;
+      return { device: word } as T;
+    }
     case 'agent_status':
       return {
+        device: mockDeviceName ?? (isPhone() ? 'phone' : 'laptop'),
         enabled: mockAgentEnabled,
         transcribe: mockTranscribeEnabled,
+        listening_better: mockListeningBetter,
+        listening_better_bytes: 487_601_967,
         installed: mockAgentInstalled,
         why: mockAgentInstalled
           ? ''
@@ -1112,6 +1138,22 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       }
       if (!mockAgentEnabled) mockProvisioning = null;
       return { ok: true } as T;
+    case 'dictate': {
+      // The words a real speech model would answer; refused like the device when transcription
+      // is off (the wording is `fm_agent::transcribe::DICTATE_OFF`).
+      if (!mockTranscribeEnabled) {
+        throw new Error(
+          "Dictation uses the assistant's audio transcription. Turn it on in Settings → Study assistant → Audio transcription, then try again once the assistant has started.",
+        );
+      }
+      if (!Number(args.size)) throw new Error('Nothing was recorded.');
+      return { text: mockDictation } as T;
+    }
+
+    case 'set_listening':
+      mockListeningBetter = Boolean(args.better);
+      return { ok: true } as T;
+
     case 'set_transcribe':
       // Refuses like the server: without the runtime staged, turning this on transcribes nothing.
       if (args.transcribe && !mockTranscribeAvailable) {
@@ -1381,6 +1423,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         (isMessage(target) && (target.props.thread_of as string)) || `note:${target.id}`;
       const m = makeNote({ preview: body, vault: target.vault });
       m.props = { thread_of: rootRef, reply_to: `note:${target.id}` };
+      if (typeof args.device === 'string' && args.device) m.props.device = args.device;
       notes.unshift(m);
       return m as T;
     }
@@ -2281,7 +2324,50 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           '| Salt: | 0g | 0g (0%) |',
         ].join('\n'),
       } as T;
+    case 'recipe_from_link': {
+      // A page's recipe, in the shape the shell answers; the real reading is `fm_app::web_recipe`.
+      const link = String(args.link ?? '');
+      if (!link.startsWith('https://'))
+        throw new Error(
+          'Paste a link that starts with https:// — the address of the recipe’s page.',
+        );
+      return {
+        title: 'Spaghetti alla carbonara',
+        url: link,
+        site: 'Un sito di ricette',
+        ingredients: ['Spaghetti 320 g', 'Guanciale 150 g', 'Tuorli 6', 'Pecorino romano 50 g'],
+        steps: ['Tagliate il guanciale.', 'Sbattete i tuorli con il pecorino.', 'Unite tutto.'],
+        yield_text: '4 persone',
+        servings: 4,
+        prep_minutes: 10,
+        cook_minutes: 15,
+      } as T;
+    }
     case 'recipe_library':
+      // The Italian collection: one recipe, in the shape of `recipes-wikibooks.json`.
+      if (args.book === 'wikibooks')
+        return {
+          source: 'Wikibooks, Libro di cucina — Ricette (it.wikibooks.org)',
+          licence: 'CC BY-SA 4.0',
+          licence_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+          home: 'https://it.wikibooks.org/wiki/Libro_di_cucina/Ricette',
+          seen: '2026-10-18',
+          language: 'it',
+          recipes: [
+            {
+              id: 'wikibooks-risotto-alla-milanese',
+              title: 'Risotto alla milanese',
+              url: 'https://it.wikibooks.org/wiki/Libro_di_cucina/Ricette/Risotto_alla_milanese',
+              authors_url:
+                'https://it.wikibooks.org/w/index.php?title=Libro_di_cucina/Ricette/Risotto_alla_milanese&action=history',
+              region: 'Lombardia',
+              yield: 'Per 4 persone',
+              servings: 4,
+              ingredients: ['320 g di riso Carnaroli', '1 bustina di zafferano', '50 g di burro'],
+              steps: ['Tostare il riso nel burro.', 'Portare a cottura con il brodo.'],
+            },
+          ],
+        } as T;
       // One recipe, in the shape of the carried file; the real ones are `recipes-nhlbi.json`.
       return {
         source: 'National Heart, Lung, and Blood Institute',

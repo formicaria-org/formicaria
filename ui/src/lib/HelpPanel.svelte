@@ -75,10 +75,11 @@
     <p>
       Optionally, a small AI model runs <strong>on this device</strong> — your notes never leave it.
       Turn it on in <strong>Settings → Study assistant</strong>; the first time, it asks which model
-      and how much to download. Then, in any note's discussion, type <code>@</code> and pick it:
-      <code>@qwen3-vl-4b summarise this</code>. Add <code>/search</code> to let it look something up
-      first, or <code>/propose</code> to have it draft an edit you approve before anything changes. It
-      never edits a note on its own.
+      and how much to download. Then, in any note's discussion, write <code>@Myrme</code> — its name
+      on every device — and what you want: <code>@Myrme summarise this</code>. Add
+      <code>/search</code>
+      to let it look something up first, or <code>/propose</code> to have it draft an edit you approve
+      before anything changes. It never edits a note on its own.
     </p>
 
     <h3>Changing how it looks</h3>

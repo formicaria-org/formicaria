@@ -150,6 +150,28 @@ pub fn transcribe_enabled() -> bool {
     settings()["transcribe"].as_bool().unwrap_or(false)
 }
 
+/// Whether this person chose *better listening* (`agent.json` `"listening": "better"`, 2026-10-18):
+/// the larger speech model, slower and closer to what was said. Default: everyday listening.
+fn listening_better() -> bool {
+    settings()["listening"].as_str() == Some("better")
+}
+
+/// The speech weights this device should run, from the catalogue and the choice above.
+fn whisper_chosen(manifest: &fm_agent_run::manifest::Manifest) -> String {
+    manifest.whisper_for(listening_better()).unwrap_or_else(|| "ggml-base".to_string())
+}
+
+/// Whether the chosen speech weights still have to be downloaded — true after the move from
+/// base.en, or after choosing better listening, while the earlier weights keep transcribing.
+fn whisper_wanted_here() -> bool {
+    let (Some(dir), Some(m)) = (agents_dir(), read_manifest()) else { return false };
+    m.model(&whisper_chosen(&m)).is_some_and(|w| !dir.join("models").join(&w.file).is_file())
+}
+
+fn read_manifest() -> Option<fm_agent_run::manifest::Manifest> {
+    manifest_path().and_then(|p| fm_agent_run::manifest::Manifest::read(&p).ok())
+}
+
 /// Provision the assistant — fetch the runtime, the model, and the projector if one is wanted —
 /// then start it. Runs on its own thread; the caller returns immediately.
 ///
@@ -488,7 +510,7 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
             return;
         }
         // The weights are an ordinary catalogued model, fetched exactly as the phone fetches them.
-        let name = manifest.whisper_desktop().unwrap_or_else(|| "ggml-base.en".to_string());
+        let name = whisper_chosen(&manifest);
         if let Err(e) = fm_agent_run::fetch::ensure_model(
             &dir.join("models"),
             &manifest,
@@ -503,6 +525,14 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
         }
         if !live() {
             return;
+        }
+        // The chosen weights are here, so the earlier ones are spare — never in a checkout.
+        if !is_checkout(&dir) {
+            for gone in
+                fm_agent_run::installed::sweep_whisper(&manifest, &dir.join("models"), &name)
+            {
+                println!("study agent: removed unused speech model {}", gone.display());
+            }
         }
         let _ = set_transcribe(true);
         set("ready", 0, None, None);
@@ -563,13 +593,24 @@ pub fn spawn(port: u16) -> bool {
     let mut cmd = std::process::Command::new(&exe);
     cmd.arg("--agents-dir").arg(&dir).arg("--serve-port").arg(port.to_string());
     cmd.arg("--model").arg(&model);
+    // This device's name for its Myrme, as set in Settings (2026-10-18).
+    cmd.arg("--device").arg(device_name());
     // In-process HTTPS search, since there is no proxy to start without a shell.
     cmd.arg("--web-direct");
 
     // The whisper decision `agents/agent-serve.sh` used to make, from the predicate that already
     // existed here for the settings row — so the duplication `ci/checks.sh` polices goes away.
     if transcribe_enabled() && transcribe_staged_in(&dir) {
-        cmd.arg("--whisper-port").arg((WHISPER_PORT).to_string());
+        // The chosen speech weights, or the earlier ones while the chosen download (2026-10-18).
+        let ears = fm_agent_run::installed::whisper_on_disk(
+            &manifest,
+            &dir.join("models"),
+            &whisper_chosen(&manifest),
+        );
+        if let Some(ears) = ears {
+            cmd.arg("--whisper-port").arg((WHISPER_PORT).to_string());
+            cmd.arg("--whisper-model").arg(ears);
+        }
     }
 
     // The rolling log `start-agent.sh` kept, minus `tee`: a released app has no terminal to read.
@@ -814,9 +855,15 @@ fn log_file(dir: &std::path::Path) -> Option<std::fs::File> {
 }
 
 /// The predicate itself, against a named directory, so it can be tested without a staged runtime.
+/// Any catalogued speech weights count — `ggml-base.bin` everywhere since 2026-10-18, or the
+/// earlier `ggml-base.en.bin` until the new ones arrive.
 fn transcribe_staged_in(dir: &std::path::Path) -> bool {
+    let ears = |m: &fm_agent_run::manifest::Manifest| {
+        fm_agent_run::installed::whisper_on_disk(m, &dir.join("models"), "ggml-base").is_some()
+    };
     executable(&dir.join("runtime").join(whisper_bin()))
-        && dir.join("models").join("ggml-base.en.bin").is_file()
+        && (read_manifest().is_some_and(|m| ears(&m))
+            || dir.join("models").join("ggml-base.bin").is_file())
 }
 
 /// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
@@ -860,6 +907,15 @@ fn choice() -> (Option<String>, Option<String>) {
     let all = settings();
     let get = |k: &str| all[k].as_str().map(str::to_string);
     (get("model"), get("default_seen"))
+}
+
+/// This device's name for its Myrme (`agent.json` `device`), or `laptop` (2026-10-18). Read when the
+/// assistant starts; the app stamps the messages written here with the same word.
+fn device_name() -> String {
+    settings()["device"]
+        .as_str()
+        .and_then(fm_agent_run::fm_agent::convo::device_word)
+        .unwrap_or_else(|| "laptop".into())
 }
 
 fn remember_choice(model: Option<&str>, default_seen: &str) -> Result<(), String> {
@@ -917,6 +973,9 @@ pub fn spawn_at_launch(state: Arc<AppState>) {
         std::thread::sleep(std::time::Duration::from_secs(AGENT_WARMUP_DELAY_SECS));
         if !spawn(port) {
             state.agent.running.store(false, Ordering::Relaxed);
+        } else if transcribe_enabled() && whisper_wanted_here() && transcribe_fetchable() {
+            // The earlier speech weights run meanwhile; the chosen ones apply at the next start.
+            provision_transcribe(&state.agent);
         }
     });
 }
@@ -945,6 +1004,12 @@ pub fn route(
             serde_json::json!({
                 "enabled": enabled(),
                 "transcribe": transcribe_enabled(),
+                // Better listening (2026-10-18): chosen or not, and what choosing it downloads.
+                "listening_better": listening_better(),
+                "listening_better_bytes": read_manifest().and_then(|m| {
+                    let name = m.whisper_for(true)?;
+                    (name != m.whisper_for(false)?).then(|| m.model(&name)?.bytes).flatten()
+                }),
                 // `installed` is the capability; `enabled` is only the stored preference; `why`
                 // is what the row prints when the capability is absent, because "not available"
                 // with no cause is a dead end.
@@ -965,6 +1030,8 @@ pub fn route(
                 // newer one on offer with what it costs to download. `unsupported` means the
                 // weights on disk are no longer listed, so the offer is the only way forward.
                 "model": installed_now().and_then(|(_, _, f)| f.running),
+                // This device's name for its Myrme — what its messages are stamped with.
+                "device": device_name(),
                 "update": installed_now().and_then(|(_, _, f)| f.offer).map(|o| serde_json::json!({
                     "name": o.name, "bytes": o.bytes, "license": o.license, "replaces": o.replaces,
                 })),
@@ -1025,6 +1092,30 @@ pub fn route(
                 ),
                 Err(e) => ("409 Conflict", "text/plain; charset=utf-8", e.into_bytes()),
             }
+        }
+        // **Name this device's Myrme** (2026-10-18): `@Myrme-<name>` then asks this one, and the
+        // messages written here are stamped with it. Takes effect when the assistant next starts.
+        "/api/set_assistant_name" => {
+            let typed = serde_json::from_slice::<serde_json::Value>(body)
+                .ok()
+                .and_then(|v| v["name"].as_str().map(str::to_owned))
+                .unwrap_or_default();
+            let word = fm_agent_run::fm_agent::convo::device_word(&typed)
+                .unwrap_or_else(|| "laptop".into());
+            return Some(match write_keys(&[("device", word.clone().into())]) {
+                Ok(()) => crate::write_response(
+                    stream,
+                    "200 OK",
+                    "application/json",
+                    serde_json::json!({ "device": word }).to_string().as_bytes(),
+                ),
+                Err(e) => crate::write_response(
+                    stream,
+                    "500 Internal Server Error",
+                    "text/plain",
+                    e.as_bytes(),
+                ),
+            });
         }
         "/api/set_agent" => {
             let want = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default().enabled;
@@ -1106,6 +1197,66 @@ pub fn route(
         // The "Audio transcription" toggle. Persist only — whisper is chosen when the agent *starts*
         // (it is a launch flag on a separate process), so a change applies the next time the assistant
         // starts, exactly like turning the assistant off applies on the next app close. The UI says so.
+        // **Dictation** (2026-10-18): a recording in, the words out, for the note's editor to put
+        // at the caret — the person's own words by their own action, so no proposal. The audio is
+        // passed by value to the speech server the assistant already runs here and kept nowhere.
+        "/api/dictate" => {
+            use fm_agent_run::fm_agent::transcribe::{
+                dictation_text, Transcribe, WhisperServer, DICTATE_NOT_YET, DICTATE_OFF,
+            };
+            if !transcribe_enabled() {
+                return Some(crate::write_response(
+                    stream,
+                    "409 Conflict",
+                    "text/plain; charset=utf-8",
+                    DICTATE_OFF.as_bytes(),
+                ));
+            }
+            if body.is_empty() {
+                return Some(crate::write_response(
+                    stream,
+                    "400 Bad Request",
+                    "text/plain; charset=utf-8",
+                    b"Nothing was recorded.",
+                ));
+            }
+            let heard = WhisperServer::local(WHISPER_PORT, "dictation")
+                .with_timeout(std::time::Duration::from_secs(600))
+                .transcribe(body, "audio/wav");
+            match heard {
+                Ok(raw) => (
+                    "200 OK",
+                    "application/json",
+                    serde_json::json!({ "text": dictation_text(&raw) }).to_string().into_bytes(),
+                ),
+                Err(e) => {
+                    eprintln!("dictation: {e}");
+                    (
+                        "503 Service Unavailable",
+                        "text/plain; charset=utf-8",
+                        DICTATE_NOT_YET.as_bytes().to_vec(),
+                    )
+                }
+            }
+        }
+        // Better or everyday listening. Recorded, and when transcription is on the chosen weights
+        // are fetched now; they apply when the assistant next starts, like the switch above.
+        "/api/set_listening" => {
+            let better = serde_json::from_slice::<serde_json::Value>(body)
+                .ok()
+                .and_then(|v| v["better"].as_bool())
+                .unwrap_or(false);
+            let word = if better { "better" } else { "everyday" };
+            match write_keys(&[("listening", serde_json::Value::from(word))]) {
+                Ok(()) => {
+                    if transcribe_enabled() && whisper_wanted_here() && transcribe_fetchable() {
+                        provision_transcribe(&state.agent);
+                    }
+                    ("200 OK", "application/json", b"{\"ok\":true}".to_vec())
+                }
+                Err(e) => ("500 Internal Server Error", "text/plain", e.into_bytes()),
+            }
+        }
         "/api/set_transcribe" => {
             let want = serde_json::from_slice::<TranscribeReq>(body).unwrap_or_default().transcribe;
             // **Turning it on fetches it, if it can be fetched here.** This used to refuse
@@ -1360,7 +1511,7 @@ mod tests {
         }
         assert!(!transcribe_staged_in(root), "runtime but no model");
 
-        std::fs::write(root.join("models").join("ggml-base.en.bin"), b"x").unwrap();
+        std::fs::write(root.join("models").join("ggml-base.bin"), b"x").unwrap();
         assert!(transcribe_staged_in(root), "both staged");
     }
 

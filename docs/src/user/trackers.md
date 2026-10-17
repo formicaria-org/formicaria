@@ -68,8 +68,9 @@ belongs to; the app does not guess one from the time of day.
   as chips; the European tables give none.
 - **Quick add** — any name and its energy. Protein, carbohydrate and fat are optional.
 
-Tap a logged entry to change its amount or remove it. Removing one offers **Undo** at once; undo
-also works from the ↶ menu, one step for each thing you did.
+Tap a logged entry to change its amount. To take one entry out on its own, press the **✕** at the
+end of its row — the rest of the meal stays. Removing one offers **Undo** at once; undo also works
+from the ↶ menu, one step for each thing you did.
 
 An empty meal offers **Same as yesterday** when yesterday had something there.
 
@@ -88,10 +89,32 @@ foods from the list by weight.
 - **Change it** — tap a recipe and it is all there to change: the servings it makes, **Add an
   ingredient**, and each ingredient — tap one to change its amount or **Take out**. Each change
   can be undone. What you already logged from the recipe stays as it was.
+- **Write the method, times and notes** — opens the recipe as an ordinary note. Write anything
+  there: the method, how long it takes, the oven temperature, where it came from, what to do
+  differently next time; add pictures; format it as you like. None of it is counted — only the
+  ingredients are — and all of it is found by search.
+- **Save a recipe from a link** — paste the address of a recipe page (GialloZafferano, Cucchiaio
+  d'Argento, Fatto in casa da Benedetta, Misya, Sale&Pepe, Cookist and most recipe sites) and it
+  becomes a recipe of your own: its ingredients as the page lists them, the method, the times, and a
+  link back to the page and to its photo. On a computer or a phone — not from a device paired to a
+  computer, which cannot ask the computer to read a page.
+- **Dictate a recipe** — say it: its name, what goes in and how it is made, as you would tell
+  someone. What you said is kept as a note of its own, and Myrme is asked to sort it into a recipe;
+  it arrives in **Collaboration** to accept or change, and once accepted it is here with its lines
+  to match. Needs the assistant with *Audio transcription* on ([Dictating](./notes.md#dictating));
+  if what you said cannot be written down, the note keeps the recording, and nothing is lost.
+- **Choose the food for each ingredient** — a recipe whose note lists its *Ingredients* (saved from a
+  link, made from one that comes with the app, or typed in yourself) shows those lines here until
+  each is matched. Tap one: the food search opens on what it names, and the amount on the grams it
+  gives. Pick the food, check the amount, **Add to the recipe** — and that line counts. A line you
+  leave, such as salt to taste, is simply not counted.
 - **Remove this recipe** takes the recipe and its ingredients away in one step, and can be undone.
 
-**A recipe is a note.** It is in the Library, tagged `recipe`, and you can open it, write the
-method in it, and tag it further like any other note. You can also start one from the **Recipe**
+**A recipe is a note, and the same one from both sides.** It is in the Library, tagged `recipe`, so
+searching the Library finds it by anything you wrote in it, and you can tag it further like any
+other note. Opened as a note, it has **Ingredients and servings** at the top, which takes you here,
+to that recipe. Started here or from the template, it begins the same way: a *Method*, *Times* and
+*Notes* for you to fill in. You can also start one from the **Recipe**
 [starter template](./notes.md#templates) — it arrives empty, and you put the ingredients in from
 here. The ingredients themselves are kept out of your notes, the way logged meals are.
 
@@ -113,6 +136,16 @@ serving** logs it — or plans it, from the Menu — with the Institute's own fi
 
 Their amounts are in cups and spoons, so the app does not add their ingredients up: on the Menu
 and on a shopping list they are listed as the recipe gives them.
+
+**Italian recipes.** Below them, **Italiane, da Wikibooks** lists 291 Italian recipes from the
+Italian Wikibooks cookbook (*Libro di cucina*) — each one filed there under an Italian region. Search
+by dish, ingredient or region. They are shown word for word, credited to their authors and under
+their licence (Creative Commons BY-SA 4.0), with a link to their page and, where there is one, to a
+photo. They carry no nutrition figures, so to count one, make it yours.
+
+**Make it mine** under any of them copies it into a recipe of your own — the same text, credited — to
+change, photograph and time as you like, and to match its ingredients to foods so it counts in your
+own amounts.
 
 ## The day, and what it is measured against
 
@@ -151,6 +184,8 @@ are for it. **Scan a barcode** takes a picture of the barcode: a packet you have
 before opens straight away, and any other starts a form with its number filled in, from which
 you can look it up. **Photograph a label** has the assistant read the nutrition table off a
 picture and fill the form for you to check (see below; on a computer, not yet on a phone).
+Each of these opens the camera; **or choose one from the gallery**, beside it, uses a picture you
+already took.
 **Type in a label** opens the same form empty: copy the label as it is printed — energy is the
 only line needed.
 

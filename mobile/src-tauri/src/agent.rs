@@ -144,6 +144,8 @@ struct Control {
     /// The whisper-server off-switch, when audio transcription is on. Tripped alongside `stopper` so
     /// "off" (and app exit) frees the whisper model's memory too.
     whisper_stopper: Option<fm_agent::watchdog::StopFlag>,
+    /// Where that whisper-server listens, while it does — what dictation sends a recording to.
+    whisper_port: Option<u16>,
 }
 fn control() -> &'static std::sync::Mutex<Control> {
     static C: std::sync::OnceLock<std::sync::Mutex<Control>> = std::sync::OnceLock::new();
@@ -153,6 +155,7 @@ fn control() -> &'static std::sync::Mutex<Control> {
             generation: 0,
             stopper: None,
             whisper_stopper: None,
+            whisper_port: None,
         })
     })
 }
@@ -160,6 +163,12 @@ fn control() -> &'static std::sync::Mutex<Control> {
 /// Is `generation` still the launch the app wants? False once anything has stopped or restarted it.
 fn current(generation: u64) -> bool {
     control().lock().map(|c| c.running && c.generation == generation).unwrap_or(false)
+}
+
+/// The port of the speech server this phone runs, while it runs — `None` when transcription is off,
+/// did not fit, or the assistant has not started yet.
+pub fn whisper_port() -> Option<u16> {
+    control().lock().ok().and_then(|c| c.whisper_port)
 }
 
 /// Is a model running right now? (What Settings shows, and the guard against a double launch.)
@@ -182,6 +191,7 @@ fn clear_running(generation: u64) {
         c.running = false;
         c.stopper = None;
         c.whisper_stopper = None;
+        c.whisper_port = None;
     }
 }
 
@@ -224,6 +234,43 @@ fn write_keys(agents_dir: &std::path::Path, pairs: &[(&str, Value)]) {
 }
 
 /// Persist both switches together.
+/// This phone's name for its Myrme (`agent.json` `device`), or `phone` (2026-10-18). Read when the
+/// assistant starts; the app stamps the messages written here with the same word.
+pub fn device_name(agents_dir: &std::path::Path) -> String {
+    std::fs::read_to_string(agents_dir.join("agent.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v["device"].as_str().and_then(fm_agent::convo::device_word))
+        .unwrap_or_else(|| "phone".into())
+}
+
+/// Name this phone's Myrme; takes effect when the assistant next starts. Answers the word kept.
+pub fn set_device_name(agents_dir: &std::path::Path, typed: &str) -> String {
+    let word = fm_agent::convo::device_word(typed).unwrap_or_else(|| "phone".into());
+    write_keys(agents_dir, &[("device", Value::from(word.clone()))]);
+    word
+}
+
+/// Whether this person chose *better listening* (`"listening": "better"`, 2026-10-18) — the larger
+/// speech model, the same choice and key as the desktop's. Applies when the assistant next starts.
+pub fn listening_better(agents_dir: &std::path::Path) -> bool {
+    std::fs::read_to_string(agents_dir.join("agent.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .is_some_and(|v| v["listening"].as_str() == Some("better"))
+}
+
+pub fn set_listening(agents_dir: &std::path::Path, better: bool) {
+    write_keys(agents_dir, &[("listening", Value::from(if better { "better" } else { "everyday" }))]);
+}
+
+/// What choosing better listening downloads, when the catalogue offers a choice at all.
+pub fn listening_better_bytes() -> Option<u64> {
+    let m = Manifest::parse(EMBEDDED_MANIFEST);
+    let name = m.whisper_for(true)?;
+    (name != m.whisper_for(false)?).then(|| m.model(&name)?.bytes).flatten()
+}
+
 fn write_settings(agents_dir: &std::path::Path, enabled: bool, transcribe: bool) {
     write_keys(agents_dir, &[("enabled", enabled.into()), ("transcribe", transcribe.into())]);
 }
@@ -401,6 +448,7 @@ pub fn stop() {
         if let Some(s) = c.whisper_stopper.take() {
             s.stop();
         }
+        c.whisper_port = None;
         if let Some(s) = c.stopper.take() {
             s.stop();
         }
@@ -492,6 +540,27 @@ impl VaultAccess for DispatchVault {
             }),
         )
     }
+
+    /// A new note proposed by the assistant — a recipe made from a recording (`/recipe`,
+    /// 2026-10-18). The phone could not, until now: the trait's default refuses, which is right for
+    /// a vault that cannot, and wrong for this one, which reaches the same `dispatch` the desktop does.
+    fn propose_note(
+        &self,
+        about: &str,
+        note: &Value,
+        name: &str,
+        email: &str,
+        origin: &fm_agent_run::fmserve::Origin,
+    ) -> Result<Value, String> {
+        let mut args = note.clone();
+        args["about"] = json!(about);
+        args["authorName"] = json!(name);
+        args["authorEmail"] = json!(email);
+        args["tool"] = json!(origin.tool);
+        args["query"] = json!(origin.query);
+        args["sources"] = json!(origin.sources);
+        self.call("propose_note", args)
+    }
     fn blob_bytes(&self, reference: &str) -> Result<(Vec<u8>, String), String> {
         // In-process there is no HTTP blob route: resolve the path through the same `blob_path` fm-serve
         // uses, then read the bytes read-only. (Transcription itself is a later phone spike — the model
@@ -574,7 +643,12 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     let max_reply_chars = manifest.max_reply_chars;
     // Audio transcription is opt-in (Settings). Read it here (agents_dir isn't moved into the thread).
     let transcribe_on = is_transcribe_enabled(&agents_dir);
-    let whisper_name = manifest.mobile_whisper().unwrap_or("ggml-tiny.en").to_string();
+    // The same speech weights as every device, or the better ones when chosen (2026-10-18).
+    let whisper_name = manifest
+        .whisper_for(listening_better(&agents_dir))
+        .unwrap_or_else(|| "ggml-base".to_string());
+    // What actually listens — the chosen weights, or the earlier ones while those cannot be fetched.
+    let mut heard_with = whisper_name.clone();
 
     // Claim the running slot now, before the (possibly long) download, so a second start()/on-toggle
     // no-ops instead of racing a duplicate model. Cleared on every exit path of the thread below.
@@ -722,14 +796,43 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 log::info!("study agent: transcription runtime not bundled — skipping");
                 None
             } else {
-                match fm_agent_run::fetch::ensure_model(
+                let fetched = fm_agent_run::fetch::ensure_model(
                     &models_dir,
                     &manifest,
                     &whisper_name,
                     &|_, _| {},
                     &cancelled,
-                ) {
-                    Ok(wmodel) => {
+                );
+                let ears = match fetched {
+                    Ok(path) => {
+                        for gone in fm_agent_run::installed::sweep_whisper(
+                            &manifest,
+                            &models_dir,
+                            &whisper_name,
+                        ) {
+                            log::info!("study agent: removed unused speech model {}", gone.display());
+                        }
+                        Ok((path, whisper_name.clone()))
+                    }
+                    // Offline, or the download was cut: the earlier weights keep listening, and the
+                    // chosen ones are fetched again at the next start.
+                    Err(e) => match fm_agent_run::installed::whisper_on_disk(
+                        &manifest,
+                        &models_dir,
+                        &whisper_name,
+                    )
+                    .and_then(|n| Some((models_dir.join(&manifest.model(&n)?.file), n)))
+                    {
+                        Some(found) => {
+                            log::info!("study agent: {whisper_name} not here yet ({e}) — using {}", found.1);
+                            Ok(found)
+                        }
+                        None => Err(e),
+                    },
+                };
+                match ears {
+                    Ok((wmodel, wname)) => {
+                        heard_with = wname;
                         let wport = port + 1;
                         let mut wcmd = std::process::Command::new(&whisper_bin);
                         wcmd.arg("-m").arg(&wmodel).args([
@@ -739,6 +842,8 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                             &wport.to_string(),
                             "-t",
                             &threads.to_string(),
+                            "-l",
+                            fm_agent_run::manifest::whisper_language(&heard_with),
                         ]);
                         let wbytes =
                             std::fs::metadata(&wmodel).map(|m| m.len()).unwrap_or(80_000_000);
@@ -755,6 +860,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                                 match control().lock() {
                                     Ok(mut c) if c.running && c.generation == generation => {
                                         c.whisper_stopper = Some(wm.stopper());
+                                        c.whisper_port = Some(wport);
                                     }
                                     _ => {
                                         log::info!("study agent: cancelled — stopping whisper");
@@ -762,7 +868,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                                     }
                                 }
                                 whisper_port_val = Some(wport);
-                                log::info!("study agent: audio transcription on (whisper :{wport}, {whisper_name})");
+                                log::info!("study agent: audio transcription on (whisper :{wport}, {heard_with})");
                                 Some(wm)
                             }
                             Err(e) => {
@@ -788,20 +894,22 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             searxng_port: None,             // no local proxy on a phone…
             web_direct: true, // …so /research uses the in-process HTTPS multi-source search (websearch.rs)
             whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
-            whisper_model: whisper_name.clone(),
+            whisper_model: heard_with.clone(),
             vision: sees.is_some(),
             read_prompt,
             reads_labels,
             image_specialist: None,
             max_reply_chars,
             history_budget: 4000,
+            device: device_name(&agents_dir),
         };
         wait_ready(port);
         log::info!("study agent listening in-process — @{model_name}");
-        set_present(&model_name, true); // now the @-picker can suggest it
+        // As **Myrme**, the name a person types on every device (2026-10-18), not the model's.
+        set_present(fm_agent::convo::MYRME, true); // now the @-picker can suggest it
         let stopper = model.stopper();
         serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
-        set_present(&model_name, false);
+        set_present(fm_agent::convo::MYRME, false);
         if let Ok(mut g) = reader().lock() {
             *g = None;
         }

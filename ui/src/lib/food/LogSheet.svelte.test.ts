@@ -106,6 +106,99 @@ describe('the food sheet', () => {
     expect(await undo()).toBe('started the recipe “Rice bowl”');
   });
 
+  it('a picture can be taken with the camera or chosen from the gallery', async () => {
+    // The owner, 2026-10-18: only the gallery was ever offered. The camera is the default; the
+    // gallery is one press away beside it.
+    const { container } = render(LogSheet, {
+      view: 'Day',
+      def,
+      day: today(),
+      slot: 'lunch',
+      onclose: vi.fn(),
+      onwrote: vi.fn(),
+    });
+    const input = container.ownerDocument.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await fireEvent.click(
+      await screen.findByRole('button', { name: /use a picture from the gallery/ }),
+    );
+    expect(input.hasAttribute('capture')).toBe(false);
+    await fireEvent.click(screen.getByRole('button', { name: 'Photograph a label' }));
+    expect(input.getAttribute('capture')).toBe('environment');
+  });
+
+  it('a recipe saved from a link is matched to foods one line of its text at a time', async () => {
+    // The owner, 2026-10-18: recipes from the sites people in Italy use, and ingredients that can be
+    // matched so they count. The page's recipe arrives through the shell (`fm_app::web_recipe`).
+    open();
+    await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Save a recipe from a link' }));
+    await fireEvent.input(screen.getByLabelText("The recipe's link"), {
+      target: { value: 'https://www.example.org/carbonara' },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save the recipe' }));
+
+    // It is a recipe of one's own, opened on its screen, with the lines of its text to match.
+    expect(await screen.findByRole('heading', { name: 'Spaghetti alla carbonara' })).toBeTruthy();
+    await screen.findByText('From its text — choose the food for each');
+    await fireEvent.click(screen.getByRole('button', { name: /Guanciale 150 g/ }));
+
+    // The search starts on what the line names; whatever food is chosen starts at its grams.
+    const search = (await screen.findByLabelText('search foods')) as HTMLInputElement;
+    expect(search.value).toBe('Guanciale');
+    await fireEvent.input(search, { target: { value: 'Butter' } });
+    await fireEvent.click(await screen.findByText('Butter'));
+    expect(((await screen.findByLabelText('amount in grams')) as HTMLInputElement).value).toBe(
+      '150',
+    );
+    await fireEvent.click(screen.getByRole('button', { name: 'Add to the recipe' }));
+
+    // Matched: it counts, and the line is not offered again; the others still are.
+    await screen.findByText('From its text — choose the food for each');
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /Guanciale 150 g/ })).toBeNull(),
+    );
+    expect(screen.getByRole('button', { name: /Spaghetti 320 g/ })).toBeTruthy();
+  });
+
+  it("an Italian recipe is read as its page wrote it, credited, and made one's own to count", async () => {
+    open();
+    await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
+    await screen.findByText('Italiane, da Wikibooks (1)');
+    await fireEvent.input(screen.getByLabelText('search the Italian recipes'), {
+      target: { value: 'lombardia' },
+    });
+    await fireEvent.click(await screen.findByText('Risotto alla milanese'));
+    expect(await screen.findByText('320 g di riso Carnaroli')).toBeTruthy();
+    // Credited, under its licence; nothing to log until it is one's own.
+    expect(screen.getByRole('link', { name: 'CC BY-SA 4.0' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'its authors' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Add a serving/ })).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: /Make it mine/ }));
+    // One's own now, its lines waiting to be matched to foods.
+    await screen.findByText('From its text — choose the food for each');
+    expect(screen.getByRole('button', { name: /320 g di riso Carnaroli/ })).toBeTruthy();
+  });
+
+  it('a kept recipe opens as a note, for its method, times and pictures', async () => {
+    // The owner, 2026-10-18: a recipe needs notes, writing and pictures "as in any other note";
+    // only what is counted is structured. The rest is the recipe note's own text.
+    await handle('create_notes', {
+      notes: [{ title: 'Rice bowl', tags: ['recipe'], props: { recipe: 'w2', servings: 2 } }],
+    });
+    const id = (await handle<Recipe[]>('log_recipes', { view: 'Day' })).find(
+      (r) => r.recipe === 'w2',
+    )!.id;
+    const onopennote = vi.fn();
+    open({ onopennote });
+    await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
+    await fireEvent.click(await screen.findByText('Rice bowl'));
+    await fireEvent.click(
+      await screen.findByRole('button', { name: 'Write the method, times and notes' }),
+    );
+    expect(onopennote).toHaveBeenCalledWith(id);
+  });
+
   it('a kept recipe can be changed: what it makes, what goes in it, and how much', async () => {
     await handle('create_notes', {
       notes: [

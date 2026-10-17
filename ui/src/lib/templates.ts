@@ -29,6 +29,12 @@ const NEVER = new Set([
 
 /** The tag and the key of a recipe's own note (`decisions.md#ui`, 2026-10-12). */
 export const RECIPE = 'recipe';
+/** **One shape for a recipe's own note, however it is started** — from the Recipe template or from
+ *  the food view (owner, 2026-10-18: *"they should be the same"*). Only the ingredients are counted,
+ *  and they are kept apart; everything else a recipe is — its ingredients as written, method, times,
+ *  notes, pictures — is this text, free. Only the Ingredients list is read back, as lines to match
+ *  to foods (`food/recipeText.ts`). */
+export const RECIPE_BODY = '## Ingredients\n\n- \n\n## Method\n\n1. \n\n## Times\n\n\n## Notes\n\n';
 /** A fresh word for a recipe: what its note and its ingredients share, and nothing else does. */
 export const recipeWord = () =>
   globalThis.crypto?.randomUUID?.().slice(0, 13) ??
@@ -76,6 +82,6 @@ export function starters(firstStatus: string): NoteDraft[] {
       firstStatus ? { status: firstStatus } : {},
     ),
     made('Meeting', 'meeting', '# Meeting\n\n## Who\n\n\n## Notes\n\n\n## Actions\n\n- [ ] \n'),
-    made('Recipe', RECIPE, '# New recipe\n\n## Method\n\n1. \n', { servings: 1 }),
+    made('Recipe', RECIPE, `# New recipe\n\n${RECIPE_BODY}`, { servings: 1 }),
   ];
 }

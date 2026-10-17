@@ -34,3 +34,19 @@ export function showTrackers(on: boolean) {
 export function reload() {
   state.shown = read();
 }
+
+// **A recipe to open the food sheet on**, asked for from somewhere else — a recipe's own note
+// (2026-10-18). Held here until the food view is on screen to take it, then taken once.
+const asked = $state({ ref: null as string | null });
+/** Ask the food view to open its sheet on `recipe/<word>` when it next shows. */
+export function askToOpen(ref: string) {
+  asked.ref = ref;
+}
+/** What was asked for, once: the asker's request is spent by reading it. */
+export function takeAsked(): string | null {
+  const ref = asked.ref;
+  asked.ref = null;
+  return ref;
+}
+/** Whether something is waiting — reactive, so the food view can notice it arrive. */
+export const isAsked = () => asked.ref !== null;

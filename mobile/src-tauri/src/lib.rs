@@ -466,6 +466,36 @@ fn fm_ingest(
     String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
 }
 
+/// **Dictation** (2026-10-18): a recording in, the words out — `{"text": …}` — for the editor to put
+/// at the caret. The same request as the desktop's `/api/dictate`, to the speech server this phone's
+/// assistant runs; the audio is passed by value and kept nowhere. Base64 for the reason above.
+#[tauri::command(async)]
+fn fm_dictate(data: String) -> Result<String, String> {
+    #[cfg(agent_shell)]
+    {
+        use fm_agent::transcribe::{
+            dictation_text, Transcribe, WhisperServer, DICTATE_NOT_YET, DICTATE_OFF,
+        };
+        let Some(port) = agent::whisper_port() else {
+            return Err(DICTATE_OFF.into());
+        };
+        let bytes = b64_decode(&data).ok_or("Nothing was recorded.")?;
+        let raw = WhisperServer::local(port, "dictation")
+            .with_timeout(std::time::Duration::from_secs(600))
+            .transcribe(&bytes, "audio/wav")
+            .map_err(|e| {
+                log::error!("dictation: {e}");
+                DICTATE_NOT_YET.to_string()
+            })?;
+        Ok(serde_json::json!({ "text": dictation_text(&raw) }).to_string())
+    }
+    #[cfg(not(agent_shell))]
+    {
+        let _ = data;
+        Err("This build of the app was made without the assistant, which dictation needs.".into())
+    }
+}
+
 /// **One slice of a chunked upload.** The bytes arrive base64, exactly as [`fm_ingest`]'s do and
 /// for the same reason — Android has no other door — but the file is sliced first, so what is
 /// held in memory here is one chunk instead of the whole thing.
@@ -644,6 +674,8 @@ fn fm_blocking(
         || cmd == "set_agent"
         || cmd == "set_transcribe"
         || cmd == "update_agent_model"
+        || cmd == "set_assistant_name"
+        || cmd == "set_listening"
     {
         use tauri::Manager;
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
@@ -662,6 +694,18 @@ fn fm_blocking(
             agent::update_model(vault_state(&app_handle)?, dir, dismiss)?;
             return Ok("{\"ok\":true}".to_string());
         }
+        if cmd == "set_assistant_name" {
+            // This phone's name for its Myrme (2026-10-18); applies when the assistant next starts.
+            let typed = args.get("name").and_then(|v| v.as_str()).unwrap_or_default();
+            let word = agent::set_device_name(&dir, typed);
+            return Ok(serde_json::json!({ "device": word }).to_string());
+        }
+        if cmd == "set_listening" {
+            // Better or everyday listening (2026-10-18): fetched and used at the next start.
+            let better = args.get("better").and_then(|v| v.as_bool()).unwrap_or(false);
+            agent::set_listening(&dir, better);
+            return Ok("{\"ok\":true}".to_string());
+        }
         if cmd == "set_transcribe" {
             // Persist only — whisper is chosen at the next agent start (a launch flag on a separate
             // process), so it applies when the assistant next starts, exactly like the desktop.
@@ -675,6 +719,8 @@ fn fm_blocking(
         let found = agent::installed(&dir);
         return Ok(serde_json::json!({
             "enabled": agent::is_enabled(&dir), "transcribe": agent::is_transcribe_enabled(&dir),
+            "listening_better": agent::listening_better(&dir),
+            "listening_better_bytes": agent::listening_better_bytes(),
             "installed": installed, "why": why, "transcribe_available": transcribe_available,
             // Which model runs here, and the newer one on offer after an app update — the same
             // keys, from the same rule, as the desktop.
@@ -684,6 +730,8 @@ fn fm_blocking(
             })),
             "unsupported": found.as_ref().is_some_and(|f| f.unsupported),
             "provisioning": agent::update_progress(),
+            // This phone's name for its Myrme — what its messages are stamped with.
+            "device": agent::device_name(&dir),
         })
         .to_string());
     }
@@ -691,6 +739,7 @@ fn fm_blocking(
     if cmd == "agent_status"
         || cmd == "set_agent"
         || cmd == "set_transcribe"
+        || cmd == "set_listening"
         || cmd == "update_agent_model"
     {
         // A notes-only build: same shape again, and `why` says which kind of build this is rather
@@ -727,6 +776,32 @@ fn fm_blocking(
         {
             let _ = code;
             return Err("This build of the app cannot look a product up. Type the label in.".into());
+        }
+    }
+    // **A recipe from a page the person chose** (`decisions.md` 2026-10-18): one request to the
+    // address they pasted, made here for the same reason as the barcode above.
+    if cmd == "recipe_from_link" {
+        let link = args.get("link").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        #[cfg(feature = "update")]
+        {
+            let read = fm_app::web_recipe::fetch(&link, &|url, agent| {
+                fm_fetch::request(
+                    "GET",
+                    url,
+                    &[("User-Agent", agent)],
+                    None,
+                    fm_app::web_recipe::LIMIT,
+                )
+                .map_err(|e| e.to_string())
+            })?;
+            return serde_json::to_string(&read).map_err(|e| e.to_string());
+        }
+        #[cfg(not(feature = "update"))]
+        {
+            let _ = link;
+            return Err(
+                "This build of the app cannot read a web page. Copy the recipe into a note.".into(),
+            );
         }
     }
     // **Updating the app.** A transport concern, like the agent's rows above: fm-serve answers these on
@@ -1182,6 +1257,7 @@ pub fn run() {
             fm_ingest_chunk,
             fm_ingest_finish,
             fm_ingest_cancel,
+            fm_dictate,
             fm_log
         ])
         .build(tauri::generate_context!())

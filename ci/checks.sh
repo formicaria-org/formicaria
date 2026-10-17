@@ -2274,7 +2274,7 @@ done
 # `agent-serve` directly and decides whisper itself, but `agents/agent-serve.sh` is still what
 # `pixi run agent-serve` runs, so the dev loop has its own copy of the same condition. The guard
 # narrowed; it did not go away.
-for name in whisper-server ggml-base.en.bin; do
+for name in whisper-server ggml-base.bin; do
     if ! grep -q "$name" agents/agent-serve.sh || ! grep -q "$name" crates/fm-serve/src/agent.rs; then
         echo "  FAIL: '$name' is named in only one of agents/agent-serve.sh and"
         echo "        crates/fm-serve/src/agent.rs. They are the same condition in two languages:"

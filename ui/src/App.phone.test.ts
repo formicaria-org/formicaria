@@ -184,7 +184,7 @@ describe('the touch shell', () => {
 });
 
 // **The quick row** (`decisions.md#ui`, 2026-10-11): while a note's text is being edited on a touch
-// screen, five buttons sit under it — record, add a photo or file, checklist, bullet, text style —
+// screen, six buttons sit under it — dictate (2026-10-18), record, add a photo or file, checklist, bullet, text style —
 // so the things reached for while typing are one tap away instead of behind the ＋.
 //
 // jsdom has no layout, so *where* the row sits is for a phone to say. Pinned here: it exists only
@@ -205,10 +205,11 @@ describe('the quick row above the keyboard', () => {
     return el;
   }
 
-  it('appears while editing, with its five actions', async () => {
+  it('appears while editing, with its six actions', async () => {
     await editing('something to edit');
     const row = await screen.findByRole('toolbar', { name: 'quick actions' });
     for (const name of [
+      'dictate',
       'record audio',
       'add a photo or file',
       'checklist item',

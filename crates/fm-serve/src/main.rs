@@ -476,6 +476,10 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/calendar_remove",
     "/api/calendar_offset",
     "/api/calendar_pull",
+    // **A guest does not make the host fetch an address of its choosing** (2026-10-18). The link is
+    // checked to be a public `https` page, but a name can still be made to point inside this
+    // network; a recipe is saved from a link on the computer itself, or on a phone.
+    "/api/recipe_from_link",
     // **Mail is the most sensitive thing this app reads.** A guest neither sees whose mailbox is
     // connected, signs one in, nor makes the host read it — and the sign-in's return address is
     // here too, so a device on the network cannot complete (or probe) a sign-in.
@@ -489,6 +493,11 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/mail_heard",
     "/api/oauth_google",
     // Spawns a process, or writes host-level state.
+    // Naming this machine's Myrme is the host's own setting, like switching it on.
+    "/api/set_assistant_name",
+    "/api/set_listening",
+    // Dictation runs the host's speech model; a guest dictates on its own device.
+    "/api/dictate",
     "/api/set_agent",
     // What this machine says aloud, and whether its program stays. A guest decides neither.
     "/api/remind_set",
@@ -2187,6 +2196,9 @@ mod tests {
     fn a_paired_device_cannot_start_a_process_on_the_host() {
         for path in [
             "/api/set_agent",
+            "/api/set_assistant_name",
+            "/api/set_listening",
+            "/api/dictate",
             "/api/set_transcribe",
             "/api/agent_activity",
             "/api/update_agent_model",

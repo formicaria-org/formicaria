@@ -38,6 +38,7 @@ pub mod thread;
 pub mod vaultfile;
 pub mod vaults;
 pub mod views;
+pub mod web_recipe;
 // Encodings a shell needs on the way in — here rather than in the (workspace-excluded, untested)
 // mobile crate, so `cargo test --workspace` reaches them.
 pub mod wire;

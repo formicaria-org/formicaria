@@ -119,6 +119,12 @@ export function asPhone(): CountingBridge {
       calls.push({ cmd: 'ingest_cancel', bytes: JSON.stringify(args).length });
       return '';
     }
+    if (cmd === 'fm_dictate') {
+      const { data } = args as { data: string };
+      const size = decodeBase64(data).length;
+      calls.push({ cmd: 'dictate', bytes: JSON.stringify(args).length });
+      return JSON.stringify(await mock.handle('dictate', { size }));
+    }
     if (cmd === 'fm_ingest') {
       const { name, vault, data } = args as { name: string; vault: string; data: string };
       // The one place a test can see the bytes. `lib.rs` base64-decodes and hands them to

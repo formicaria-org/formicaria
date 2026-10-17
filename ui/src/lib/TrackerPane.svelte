@@ -34,7 +34,8 @@
   } from './ipc';
   import type { Dish } from './plan/measure';
   import { exercises } from './training/exercises';
-  import { createNotesUndoable, setPropertiesUndoable, undo } from './undo.svelte';
+  import * as trackers from './trackers.svelte';
+  import { createNotesUndoable, deleteUndoable, setPropertiesUndoable, undo } from './undo.svelte';
   import { addDays, clockOf, dayLabel, nowClock, today as todayNow } from './units';
   import type { Feed, Pane } from './panes';
   import type {
@@ -57,8 +58,10 @@
     tabs?: boolean;
     onchange: (patch: Partial<Pane>) => void;
     onsaved: () => void;
+    /** Open a note in the workspace — a recipe's own note, to write its method and times in. */
+    onopen?: (id: string) => void;
   }
-  let { pane, feed, addSignal = 0, tabs = false, onchange, onsaved }: Props = $props();
+  let { pane, feed, addSignal = 0, tabs = false, onchange, onsaved, onopen }: Props = $props();
 
   /// **What is on screen: a view's name with its own definition, changed together.** Stepping to
   /// another of the group's views leaves the feed empty for a moment; reading the definition
@@ -160,7 +163,7 @@
             title: r.title,
             from: 'NHLBI',
             ref: `nhlbi/${r.id}`,
-            per_serving: r.per_serving,
+            per_serving: r.per_serving ?? {},
           })),
         ];
       })
@@ -314,6 +317,25 @@
     await load();
     onsaved();
   }
+
+  /// One entry out, from the day itself, without opening anything — with Undo in the toast.
+  async function removeOne(r: ObjectMeta) {
+    const title = r.title ?? 'an entry';
+    try {
+      await deleteUndoable(r.id, title);
+    } catch (e) {
+      failed = String(e);
+      return;
+    }
+    await wrote({ removed: title });
+  }
+
+  // A recipe's note asked for its ingredients (`trackers.askToOpen`): open the sheet on it, once.
+  $effect(() => {
+    if (def?.add !== 'food' || !trackers.isAsked()) return;
+    const ref = trackers.takeAsked();
+    if (ref) sheet = { slot: null, entry: null, open: ref };
+  });
 
   async function copyYesterday(slot: string) {
     if (!def) return;
@@ -566,6 +588,7 @@
         oncopy={copyYesterday}
         ontargets={() => (targetsOpen = true)}
         onconfirm={confirm}
+        onremove={removeOne}
         plan={followed}
         {dishes}
         onexample={() => void wrote()}
@@ -657,6 +680,12 @@
         open={sheet.open}
         onclose={closeSheet}
         onwrote={wrote}
+        onopennote={onopen
+          ? (id) => {
+              closeSheet();
+              onopen(id);
+            }
+          : undefined}
       />
     {/await}
   {/if}

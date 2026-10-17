@@ -124,6 +124,7 @@
     type SpaceTab,
   } from './lib/spaces.svelte';
   import { trackersShown } from './lib/trackers.svelte';
+  import * as trackers from './lib/trackers.svelte';
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
 
@@ -807,8 +808,11 @@
     const grouped = new Set(BUILTIN_SPACES.flatMap((s) => s.tabs.map((t) => t.kind as string)));
     const rest = targetsFrom(RAIL_PANES.filter((b) => !grouped.has(b.kind)));
     const isGroup = (t: { key: string }) => t.key.startsWith('group:');
+    // **Home first, always** (2026-10-18): the place a newcomer starts and comes back to.
+    const isHome = (t: { key: string }) => t.key === 'home';
     // (A shipped view of Library or Tasks is in the group's own entry, added just below.)
     return [
+      ...rest.filter(isHome),
       ...BUILTIN_SPACES.map((s) => ({
         key: `group:${s.name}`,
         label: s.name,
@@ -817,7 +821,7 @@
         run: () => openSpace(s.name),
       })),
       ...rest.filter(isGroup),
-      ...rest.filter((t) => !isGroup(t)),
+      ...rest.filter((t) => !isGroup(t) && !isHome(t)),
     ];
   });
   /// The "Open …" actions: **the same places by the same names**, plus the rare one a column of
@@ -1751,6 +1755,19 @@
     return spaces.find((s) => s.tabs.some((t) => !t.viewName && t.kind === p.kind)) ?? null;
   });
   /// Go to a group: the window of it already open, else its first view. **A move.**
+  /// **A recipe's note to its ingredients** (owner, 2026-10-18: a recipe is one note, reached from
+  /// notes and from the food view). Opens the group whose view logs food, with its sheet on this
+  /// recipe; with the food views hidden on this device there is nowhere to go, and it says so.
+  function openRecipeInFood(word: string) {
+    // The shipped group whose views log food. Named, because the view list carries no definition.
+    const food = groupsOf(views ?? []).find((g) => g.name === 'Food');
+    if (!food) {
+      notice = 'The food views are switched off on this device — Settings, Food & reminders.';
+      return;
+    }
+    trackers.askToOpen(`recipe/${word}`);
+    openGroupView(food.views[0]);
+  }
   function openSpace(name: string) {
     const s = spaces.find((x) => x.name === name);
     if (!s || s.name === focusedSpace?.name) return;
@@ -3291,6 +3308,7 @@
                 if ('kind' in patch && i === focused) nav.replace(here());
               }}
               ontitle={(title) => nameWindow(pane.id, title)}
+              onopenrecipe={openRecipeInFood}
               onreorder={movePane}
               onresize={(patch) => resizePane(pane.id, patch)}
               onclose={() => closePane(pane.id)}

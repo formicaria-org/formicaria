@@ -566,6 +566,30 @@ if ! grep -q 'REQUEST_INSTALL_PACKAGES' "$manifest"; then
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
+# **The camera must be visible to the app, or "take a photo" opens the gallery** (owner, 2026-10-18:
+# food pictures could only come from the gallery). wry opens the camera only after asking Android
+# whether any app answers `ACTION_IMAGE_CAPTURE` (`RustWebChromeClient.kt`, `resolveActivity`), and
+# since Android 11 an app that targets API 30+ sees only the apps it declares it will talk to — so
+# the answer was "none", and wry fell back to the file picker without a word. This `<queries>`
+# block is that declaration, for photos and videos; it grants nothing and asks for no permission.
+# It sits beside `<application>`, as the manifest requires. Idempotent.
+if ! grep -q 'IMAGE_CAPTURE' "$manifest"; then
+    tmpf=$(mktemp)
+    awk '
+        /<application/ && !q {
+            print "    <queries>"
+            print "        <intent>"
+            print "            <action android:name=\"android.media.action.IMAGE_CAPTURE\" />"
+            print "        </intent>"
+            print "        <intent>"
+            print "            <action android:name=\"android.media.action.VIDEO_CAPTURE\" />"
+            print "        </intent>"
+            print "    </queries>"
+            q=1
+        }
+        { print }
+    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
+fi
 if ! grep -q 'AgentService' "$manifest"; then
     tmpf=$(mktemp)
     awk '

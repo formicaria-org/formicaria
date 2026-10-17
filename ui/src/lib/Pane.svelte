@@ -21,6 +21,7 @@
   import MailHeard from './MailHeard.svelte';
   import TagChips from './library/TagChips.svelte';
   import { spacesShown, type SpaceTab } from './spaces.svelte';
+  import Home from './Home.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, paneLabel, clampSpan, rendererKind } from './panes';
@@ -50,6 +51,8 @@
     /** A note window's title as the note reports it — a label only, so it does not go through
      *  `onchange`, which re-fetches every view. */
     ontitle?: (title: string | null) => void;
+    /** A recipe's note asks for its ingredients and servings, in the food view. */
+    onopenrecipe?: (word: string) => void;
     onreorder: (from: number, to: number) => void;
     onresize: (patch: { colSpan?: number; rowSpan?: number }) => void;
     onclose: () => void;
@@ -86,6 +89,7 @@
     onsaved,
     onchange,
     ontitle,
+    onopenrecipe,
     onreorder,
     onresize,
     onclose,
@@ -341,7 +345,9 @@
         {/each}
       </div>
     {/if}
-    {#if pane.kind === 'note'}
+    {#if pane.kind === 'home'}
+      <Home ongo={(kind) => onchange({ kind })} />
+    {:else if pane.kind === 'note'}
       {#if pane.noteId}
         {#await import('./NotePanel.svelte') then { default: NotePanel }}
           <NotePanel
@@ -356,6 +362,7 @@
             {onsaved}
             ontogglewide={toggleMax}
             {ontitle}
+            {onopenrecipe}
             hidden={!headed && !focused}
             canWiden={!!headed}
           />
@@ -385,7 +392,7 @@
       <Search {cards} {onopen} />
     {:else if pane.kind === 'view' && shownView?.renderer === 'totals'}
       <!-- A tracker's view asks for its own days; the feed only says which view it is. -->
-      <TrackerPane {pane} {feed} {addSignal} tabs={headed} {onchange} {onsaved} />
+      <TrackerPane {pane} {feed} {addSignal} tabs={headed} {onchange} {onsaved} {onopen} />
     {:else if pane.kind === 'activity'}
       <Activity {shown} {onopen} />
     {:else if pane.kind === 'discussions'}

@@ -671,6 +671,8 @@ export interface Recipe {
   /** The whole recipe, per value: the sum, and how many ingredients carried it. */
   sums: Record<string, MetricSum>;
   ingredients: ObjectMeta[];
+  /** The carried recipe it was made from — e.g. `nhlbi/<id>` — when it was. */
+  from?: string;
 }
 /** One vitamin or mineral of a day beside its reference (`log_nutrients`). */
 export interface NutrientRow {
@@ -721,21 +723,57 @@ export interface ProductFound {
 export interface CarriedRecipe {
   id: string;
   title: string;
-  url: string;
-  /** The page's own words for what it makes. */
+  /** Its own page, where the source has one. */
+  url?: string;
+  /** The source's own words for what it makes. */
   yield?: string;
   servings?: number;
-  ingredients: string[];
-  steps: string[];
+  /** Its ingredient lines, as printed, where the source lists them. */
+  ingredients?: string[];
+  steps?: string[];
   /** What the page prints under its directions: a tip, a note, a variation. */
   notes?: string[];
-  /** The source's own values for a serving, by the keys every food uses. */
-  per_serving: Record<string, number>;
+  /** The source's own values for a serving, by the keys every food uses — where it gives any. */
+  per_serving?: Record<string, number>;
+  /** A book's own: the recipe's number, its paragraphs, and the recipes it sends you to. */
+  number?: number;
+  text?: string[];
+  refs?: number[];
+  /** The source's own time fields, in its words ("preparazione": "20 minuti"). */
+  times?: Record<string, string>;
+  /** The region it names, when it names one. */
+  region?: string;
+  /** A link to a photo — never fetched or carried. */
+  image?: string;
+  /** Who wrote it, where the licence asks them to be credited (a wiki page's history). */
+  authors_url?: string;
+}
+/** A recipe read from a page a person chose (`recipe_from_link`): each field the page's own. */
+export interface WebRecipe {
+  title: string;
+  url: string;
+  site?: string;
+  author?: string;
+  ingredients: string[];
+  steps: string[];
+  yield_text?: string;
+  servings?: number;
+  prep_minutes?: number;
+  cook_minutes?: number;
+  total_minutes?: number;
+  /** A link to the page's photo; never fetched. */
+  image?: string;
 }
 export interface RecipeLibrary {
   source: string;
   home: string;
   seen: string;
+  /** Where the text was taken from, cited. */
+  taken_from?: string;
+  language?: string;
+  /** The collection's licence, where it is not public domain (Wikibooks: CC BY-SA 4.0). */
+  licence?: string;
+  licence_url?: string;
   recipes: CarriedRecipe[];
 }
 /** A moment a reminder is due (`reminders`), in the notes' own wall-clock time. */

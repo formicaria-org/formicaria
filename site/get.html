@@ -13,7 +13,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Get formicaria</title>
-<meta name="description" content="Download formicaria for Android, Windows, Mac or Linux with one button, and start it in a few taps.">
+<meta name="description" content="Download formicaria for Windows, Mac, Linux or Android with one button, and start it in a few clicks.">
 <link rel="icon" href="formicaria.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -25,34 +25,9 @@
 </header>
 
 <main>
-  <p class="lede">Pick your device. One button downloads it; a few taps or a double-click start it.
+  <p class="lede">Pick your device. One button downloads it; a few clicks or taps start it.
   No account, nothing to sign up for.</p>
 
-  <h2>On an Android phone or tablet</h2>
-  <p><a class="button big" href="https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk">Download for Android</a></p>
-  <!-- For someone reading this on a computer: the phone's camera opens the same download. Hidden on a
-       narrow screen, where the button above is the way. Made with segno and checked by decoding it;
-       it holds the link above and nothing else. -->
-  <figure class="qr">
-    <img src="android-qr.svg" width="180" height="180"
-         alt="A QR code. Point the phone's camera at it to download formicaria for Android.">
-    <figcaption>Reading this on a computer? Point your phone's camera here.</figcaption>
-  </figure>
-  <ol class="steps">
-    <li>Open this page <strong>on the phone</strong> and tap the button above. If the browser asks
-    whether to keep the file, tap <strong>Download</strong>.</li>
-    <li>When it has downloaded, tap <strong>Open</strong>.</li>
-    <li>Android says it cannot install apps from this source, because the app is not from the Play
-    Store. Tap <strong>Settings</strong>, switch on <strong>Allow from this source</strong>, and go
-    back.</li>
-    <li>Tap <strong>Install</strong>, then <strong>Open</strong>. Done.</li>
-  </ol>
-  <p class="small">If the phone shows one more screen — a virus check, or "Play Protect" — choose
-  <strong>Install anyway</strong> (sometimes under <em>More details</em>). It does this for any app from
-  outside its store. You only install once: after that the app tells you about new versions itself.
-  <a href="manual/user/android.html">More about Android</a>.</p>
-
-  <h2>On a computer</h2>
   <ul class="cards">
     <li>
       <h3>Windows</h3>
@@ -80,17 +55,39 @@
       <p class="small">64-bit, Ubuntu 22.04, Debian 12, Fedora 35 or newer.
       <a href="manual/user/setup.html">Step by step</a>.</p>
     </li>
+    <li>
+      <h3>Android</h3>
+      <p><a class="button" href="https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk">Download for Android</a></p>
+      <!-- For someone reading this on a computer: the phone's camera opens the same download. Hidden
+           on a narrow screen, where the button is the way. Made with segno and checked by decoding
+           it; it holds the link above and nothing else. -->
+      <figure class="qr">
+        <img src="android-qr.svg" width="150" height="150"
+             alt="A QR code. Point the phone's camera at it to download formicaria for Android.">
+        <figcaption>On a computer? Point your phone's camera here.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li>On the phone, tap the button. If asked, tap <strong>Download</strong>.</li>
+        <li>Tap <strong>Open</strong>.</li>
+        <li>Android asks to allow apps from this source: tap <strong>Settings</strong>, switch it
+        on, go back.</li>
+        <li>Tap <strong>Install</strong>, then <strong>Open</strong>.</li>
+      </ol>
+      <p class="small">A phone may add a virus check or "Play Protect" screen: choose
+      <strong>Install anyway</strong>. <a href="manual/user/android.html">More about Android</a>.</p>
+    </li>
+    <li>
+      <h3>iPhone or iPad</h3>
+      <p>Not simple yet, and we would rather say so. Apple only lets an app from outside the App
+      Store onto an iPhone if <em>you</em> sign it with your own Apple ID, using a computer and a
+      free tool — and that signature runs out after seven days.</p>
+      <p class="small"><a href="manual/user/iphone.html">The iPhone chapter</a> walks through it.</p>
+    </li>
   </ul>
-  <p class="small">Unpack before you start it — never run it from inside the zip, where Windows
-  would later delete your notes with the temporary folder. Closing the browser tab stops the app;
-  double-clicking <strong>Start formicaria</strong> starts it again. New versions install from inside
-  the app.</p>
-
-  <h2>On an iPhone or iPad</h2>
-  <p>Not simple yet, and we would rather say so. Apple only lets an app outside the App Store onto
-  an iPhone if <em>you</em> sign it with your own Apple ID, using a computer and a free tool — and
-  that signature runs out after seven days.
-  <a href="manual/user/iphone.html">The iPhone chapter</a> walks through it.</p>
+  <p class="small">On a computer: unpack before you start it — never run it from inside the zip,
+  where Windows would later delete your notes with the temporary folder. Closing the browser tab
+  stops the app; double-clicking <strong>Start formicaria</strong> starts it again. New versions
+  install from inside the app, on every device.</p>
 
   <p class="small">Looking for something else — an older version, or the files for checking a
   download? They are all on the <a href="https://github.com/formicaria-org/formicaria/releases/latest">release

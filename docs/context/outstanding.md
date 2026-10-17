@@ -954,8 +954,8 @@ Next, roughly in order:
 4. **A computer's model engine should follow the app** the way the catalogue now does
    (`known-issues.md`, same section).
 5. **A question about a picture in chat.** `/transcribe` is still the only thing that uses an image.
-6. **The Myrme name and one identity per device** (the plan's P2): one stable name, and exactly one
-   device answering a message that reaches two.
+6. **Renaming a device's word for Myrme in Settings** ("office desktop") — the rest of the plan's
+   naming half shipped 2026-10-18 (`decisions.md`, *the assistant is Myrme*).
 7. **Two commands with no button:** `clear_restic_password` and `clear_git_credential`. The owner
    has not said whether the Backup panel should offer them
    (`sessions/2026-10-10-stale-code-audit.md`).

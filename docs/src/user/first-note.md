@@ -14,6 +14,11 @@ The two buttons differ in one thing only: **Start writing** saves the name and e
 **Skip for now** goes in without saving them. Either way you land in the same place, and you will
 be asked again the first time it actually matters.
 
+Then you land on **Home**: four short pictures of what to do — write, switch between views, back
+up, and how to come back here. Its buttons open the Timeline, the Board or the Agenda directly.
+**Home is always the first entry in the list of views**, so whenever you are lost, open that list
+(on a phone, the stacked-squares button in the bottom bar) and choose Home.
+
 ## Write a note
 
 Click the **＋** button at the start of the sidebar — *make something new* — and choose **New

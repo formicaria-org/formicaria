@@ -42,6 +42,7 @@
     moveVault,
     setSupervision,
     agentStatus,
+    setAssistantName,
     agentModels,
     removeAgentModel,
     updateRollback,
@@ -50,6 +51,7 @@
     setAgent,
     updateAgentModel,
     setTranscribe,
+    setListening,
     alive,
     setShare,
     shareCode,
@@ -256,8 +258,11 @@
     // hides the row rather than showing a control that does nothing.
     try {
       const st = await agentStatus();
+      myrmeName = st.device ?? '';
       agentOn = st.enabled;
       transcribeOn = st.transcribe;
+      listeningBetter = st.listening_better ?? false;
+      listeningBetterBytes = st.listening_better_bytes ?? null;
       agentInstalled = st.installed;
       provisioned = st.provisioned;
       provisionedBytes = st.provisioned_bytes;
@@ -285,6 +290,19 @@
   // The local study assistant: whether it auto-starts with formicaria. Off by default; a change
   // takes effect at the next launch. `null` while unknown/unavailable.
   let agentOn = $state<boolean | null>(null);
+  /// This device's name for its Myrme (2026-10-18): `@Myrme-<name>` asks this one, and what is
+  /// written here is stamped with it. Applies when the assistant next starts.
+  let myrmeName = $state('');
+  let myrmeSaid = $state('');
+  async function saveMyrmeName() {
+    try {
+      const word = await setAssistantName(myrmeName);
+      myrmeName = word;
+      myrmeSaid = `Saved. @Myrme-${word} asks this one; it applies when the assistant next starts.`;
+    } catch (e) {
+      myrmeSaid = e instanceof Error ? e.message : String(e);
+    }
+  }
   // **Whether the assistant can actually run here** — not whether the switch is on. Separate from
   // `agentOn` on purpose: a stored preference cannot fail, so conflating them is how this panel came
   // to offer a switch that reported success and did nothing.
@@ -301,6 +319,18 @@
   // preference, report success, and transcribe nothing.
   let transcribeAvailable = $state(true);
   let transcribeFetchable = $state(false);
+  // Better listening (2026-10-18): a larger speech model, per device — slower, closer to what was
+  // said. Shown only where the catalogue offers it, with what it downloads.
+  let listeningBetter = $state(false);
+  let listeningBetterBytes = $state<number | null>(null);
+  async function toggleListening(next: boolean) {
+    try {
+      await setListening(next);
+      listeningBetter = next;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
   async function toggleTranscribe(next: boolean) {
     try {
       await setTranscribe(next);
@@ -1255,10 +1285,10 @@
           <details class="more">
             <summary>More</summary>
             <p class="muted">
-              A small local model that reads your notes and answers in discussions — mention it by
-              name (e.g. <code>@qwen3-vl-4b</code>) and it replies; it can propose edits you review,
-              and never touches your notes on its own. It runs entirely on this device, starts and
-              stops
+              <strong>Myrme</strong>, a small local model that reads your notes and answers in
+              discussions — write <code>@Myrme</code>, its name on every device, and it replies; it
+              can propose edits you review, and never touches your notes on its own. It runs
+              entirely on this device, starts and stops
               <strong>with formicaria</strong>, and is <strong>off by default</strong>. A change
               takes effect at the next launch.
             </p>
@@ -1295,6 +1325,31 @@
                   </span>
                 </label>
               </li>
+              {#if agentOn}
+                <!-- **One Myrme per device, each with a name** (2026-10-18). `@Myrme` is answered by
+                     the device a message was written on; this name lets a person ask one device's
+                     copy from another, and tells them apart in what they sign. -->
+                <li>
+                  <label class="choice">
+                    <span class="k">This device's Myrme</span>
+                    <input
+                      class="field"
+                      type="text"
+                      aria-label="this device's name for Myrme"
+                      placeholder="laptop, phone, office desktop…"
+                      bind:value={myrmeName}
+                      onkeydown={(e) => e.key === 'Enter' && void saveMyrmeName()}
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button type="button" onclick={() => void saveMyrmeName()}>Save</button>
+                  </label>
+                  <span class="muted">
+                    {myrmeSaid ||
+                      `@Myrme-${myrmeName || 'laptop'} asks this device's copy from another; plain @Myrme asks the one where you write.`}
+                  </span>
+                </li>
+              {/if}
 
               <!-- **Ask, with the numbers, before spending anything.** The size and the licence are
                  read from the catalogue rather than written here, so the figures cannot drift from
@@ -1451,6 +1506,23 @@
                     </span>
                   </label>
                 </li>
+                {#if transcribeOn && listeningBetterBytes}
+                  <li>
+                    <label class="choice">
+                      <input
+                        type="checkbox"
+                        checked={listeningBetter}
+                        onchange={(e) => toggleListening(e.currentTarget.checked)}
+                      />
+                      <span class="k">Better listening {listeningBetter ? 'on' : 'off'}</span>
+                      <span class="muted">
+                        {listeningBetter
+                          ? 'A larger speech model writes down more exactly what was said, in any language, and takes longer. Applies at the next assistant start.'
+                          : `Writes down more exactly what was said — good for dictated recipes and long recordings. Downloads about ${Math.round(listeningBetterBytes / 1_000_000)} MB and takes longer; applies at the next assistant start.`}
+                      </span>
+                    </label>
+                  </li>
+                {/if}
               {:else}
                 <!-- Speech-to-text is a second runtime, downloaded separately, and the assistant
                      starts it only when it is there. So this stops being a switch when it would be

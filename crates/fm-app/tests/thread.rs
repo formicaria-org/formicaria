@@ -218,3 +218,20 @@ fn a_thread_does_not_flood_the_activity_feed() {
     assert_eq!(events.len(), 1, "six files were touched; only the note is an edit worth showing");
     assert_eq!(events[0].id, note);
 }
+
+/// **A message keeps the device it was written on** (2026-10-18): `@Myrme` is answered by that
+/// device's assistant only, which reads the stamp back from the thread.
+#[test]
+fn a_message_keeps_the_device_it_was_written_on() {
+    let mut s = MemoryStore::new();
+    let note = capture(&mut s, "ricetta tiramisu", "").unwrap().id;
+    let from_phone =
+        fm_app::commands::reply_from(&mut s, &note, "@Myrme /transcribe", "Phone").unwrap();
+    let unstamped = reply(&mut s, &note, "a word of my own").unwrap();
+
+    assert_eq!(from_phone.props.get("device").unwrap(), &serde_json::json!("phone"));
+    assert!(!unstamped.props.contains_key("device"), "no stamp unless one was given");
+    let t = thread(&s, &note).unwrap();
+    let json = serde_json::to_value(&t.messages[0]).unwrap();
+    assert_eq!(json["props"]["device"], "phone", "the assistant reads it here: {json}");
+}

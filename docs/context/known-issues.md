@@ -4,6 +4,14 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## Pictures on the phone — the camera (2026-10-18)
+
+- **The camera never opened on Android before 0.9.1** — no `<queries>` for `IMAGE_CAPTURE`, so wry fell
+  back to the gallery (`decisions.md`, 2026-10-18). Fixed in the manifest injection; **not yet seen on
+  a phone**.
+- **Trap: the generated manifest is rebuilt every build.** Anything Android must be told goes in
+  `ci/android-inject-service.sh`, idempotently — an edit to `gen/android` is lost.
+
 ## The manual inside the app — limits (2026-10-18)
 
 - **Seen in a desktop browser, not on a device.** A real Chromium rendered the book in a sandboxed
@@ -2048,6 +2056,21 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
   uses it the loader can refuse that library — which would take out **audio transcription only**,
   leaving the rest of the app working, and would look like whisper silently never starting. Not
   investigated: the fix is in how that binary is produced (`ci/android-stage-whisper.sh`), not here.
+
+- **Neither new speech model has run on the phone yet** (2026-10-18). `ggml-base` is base.en's size,
+  so it should pass the same admission gate; `ggml-small` (*Better listening*) needs ~488 MB + 300 MB
+  headroom beside the text model, on a phone that has already said "not enough memory". When it does
+  not fit, the gate refuses whisper and transcription stays off for that start — it never takes the
+  assistant down — but nothing yet *tells the person* that better listening is why. Measure on the
+  device (`phone-test`) before recommending it there. Also untested anywhere: Windows' `-l auto`.
+
+- **Dictation is not streamed, and is unmeasured on the phone** (2026-10-18). The words arrive after
+  **Stop** — 13 s for 2 minutes on the laptop; on the Dimensity 7300 base may be slower than real
+  time. If it is, the fix is to send ~30 s pieces while listening (split on a pause, not mid-word),
+  not a smaller model. A five-minute dictation stops itself (`DICTATION_SECS`).
+
+- **The phone shell has one clippy warning `-D warnings` would fail on**: `body` unused in
+  `blob_response` (`mobile/src-tauri/src/lib.rs`). Older than 2026-10-18; no gate runs clippy there.
 
 - **Changing a `VaultAccess` method signature breaks the phone, and nothing local tells you.** The
   trait lives in `crates/fm-agent-run/src/fmserve.rs` (a workspace member, so it compiles in `pixi

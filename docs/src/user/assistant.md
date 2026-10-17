@@ -112,8 +112,16 @@ Then enable it in Settings as above.
 
 **Transcribing recordings.** Turn on *Audio transcription* under the assistant's own switch. It
 downloads about 170 MB — a speech-to-text runtime and its weights — and applies the next time the
-assistant starts. On macOS the switch is replaced by a line saying no such runtime is published for
-that platform yet; that is the whisper.cpp project's build list, not something on your machine.
+assistant starts. It hears **any language** and writes it down in that language — an Italian
+recipe comes back in Italian. On macOS the switch is replaced by a line saying no such runtime is
+published for that platform yet; that is the whisper.cpp project's build list, not something on
+your machine.
+
+**Better listening.** Once transcription is on, a second switch below it, *Better listening*, uses
+a larger speech model: about 490 MB more to download, slower (roughly a minute for a two-minute
+recording on a laptop), and much closer to what was said — worth it for dictated recipes and long
+recordings. Each device chooses for itself. Until the new model has downloaded, the one already
+there keeps transcribing; the earlier one is then removed to free the space.
 
 From a checkout, `pixi run fetch-whisper` still stages the same pieces by hand.
 
@@ -164,14 +172,27 @@ weights on first enable.
 
 ## Use it
 
-In a discussion — a note's own discussion thread, or a first-class discussion — type `@` and the
-picker suggests the assistant (and any collaborators in the vault). Pick it and ask:
+The assistant is called **Myrme** — after the *myrmecologist*, who keeps a formicarium — and that is
+its name on every device, whatever model it runs. In a discussion — a note's own discussion thread,
+or a first-class discussion — type `@` and the picker suggests it (and any collaborators in the
+vault). Pick it and ask:
 
 ```
-@qwen3-vl-4b what is the difference between mRNA and DNA vaccines?
+@Myrme what is the difference between mRNA and DNA vaccines?
 ```
 
-It replies in the thread, attributed to the model's own name, so you can always see who said what.
+It replies in the thread as **Myrme (laptop)** or **Myrme (phone)** — the copy that answered — so
+you can always see who said what. You can give each device's Myrme a name of its own in **Settings
+→ Study assistant → This device's Myrme** ("office desktop", "tablet"); `@Myrme-office-desktop` then
+asks that one, and it signs as *Myrme (office-desktop)*. The name applies when the assistant next
+starts.
+
+**Each device answers its own messages.** If your notes reach a computer and a phone, both run a
+Myrme, and a message is answered by the copy on the device you wrote it on — never twice. To ask a
+particular one, add its device: `@Myrme-laptop` (or `@Myrme·laptop`) — for something only that
+device can do, such as reading a photographed page with the computer's larger model. The model's own
+name (`@qwen3-vl-4b`) still works where that model runs; written on a device where it does not, the
+app says so and offers to ask `@Myrme` instead.
 
 **You do not have to remember the commands.** The composer shows them as buttons you can tap, each
 with a line saying what it does — which is the easier route on a phone.
@@ -182,6 +203,7 @@ with a line saying what it does — which is the easier route on a phone.
 | `/research` | The thorough version: search, write with quotes, and check every claim against its source. Drops the ones it cannot support. | **A note's discussion** |
 | `/propose` | Draft an **edit to that note** for you to review. | **A note's discussion** |
 | `/transcribe` | Turn this note's **recordings and images into text** — see below. | **A note's discussion** |
+| `/recipe` (or `/ricetta`) | Make a **recipe** of this note — a recording of you saying it, or its text — proposed as a new recipe note. | **A note's discussion** |
 
 Three of the four need a note to work on, so in a *first-class* discussion — one that belongs to no
 particular note — only `/search` applies; the rest quietly become an ordinary question. A command
@@ -195,8 +217,26 @@ See [Collaboration](./collaboration.md).
 Example:
 
 ```
-@qwen3-vl-4b summarize the key idea of Bayesian model selection in 3 bullet points /search
+@Myrme summarize the key idea of Bayesian model selection in 3 bullet points /search
 ```
+
+### A recipe from a recording
+
+Record yourself saying a recipe — on the phone, into a note — then, in that note's discussion:
+
+```
+@Myrme /recipe
+```
+
+Myrme listens to the recording (or reads the note's text, if there is no recording), sorts what you
+said into **ingredients**, **method**, **times** and **notes**, and proposes a **new recipe note**.
+It uses only what you said: anything it wrote that you did not say is left out, and it tells you
+how many lines that was. A word misheard stays misheard — correct it before accepting, or turn on
+*Better listening* (above), which mishears far less. The note ends with everything that was heard, under *What was said*, so you
+can check it.
+
+Accept it in **Collaboration** — or change it first — and it is a recipe like any other. In **Food**,
+its ingredients are then offered one by one to match to foods, so it counts.
 
 ### Once it has started, it finishes
 
@@ -213,7 +253,7 @@ you are unsure what you want, ask the short question first.
 a page, a whiteboard or a printout becomes something you can search and edit.
 
 ```
-@qwen3-vl-4b /transcribe
+@Myrme /transcribe
 ```
 
 Typed on its own it does **everything in the note that has not been done yet** — you never have to

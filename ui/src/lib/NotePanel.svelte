@@ -14,12 +14,14 @@
     streamsBlobs,
     openExternal,
     ingestFile,
+    dictate,
     search,
     recent,
     reply as ipcReply,
     thread as ipcThread,
     agentActivity as ipcAgentActivity,
     agentStatus,
+    thisDevice,
     onlineAgents as ipcOnlineAgents,
     proposalFor as ipcProposalFor,
     discussions as ipcDiscussions,
@@ -68,6 +70,7 @@
     statuses = [],
     vaults = [],
     startEditing = false,
+    onopenrecipe,
   }: {
     id: string;
     onclose: () => void;
@@ -94,7 +97,20 @@
     statuses?: string[];
     /** Open a fresh note straight into edit mode (the "New note" flow). */
     startEditing?: boolean;
+    /** This note is a recipe: open its ingredients and servings in the food view, by its word. */
+    onopenrecipe?: (word: string) => void;
   } = $props();
+
+  /// **A recipe is one note, reached from two places** (owner, 2026-10-18). Here it is the text —
+  /// method, times, pictures; the food view is the better place for what is counted, so a recipe's
+  /// note offers the way there, as the food view offers the way here.
+  const recipeOf = $derived.by(() => {
+    const word = note?.props?.recipe;
+    const servings = note?.props?.servings;
+    return typeof word === 'string' && word && typeof servings === 'number' && servings >= 1
+      ? word
+      : null;
+  });
 
   let note = $state<NoteDetail | null>(null);
   let content = $state<HTMLElement | undefined>(undefined);
@@ -1274,6 +1290,10 @@
   });
   // A gentle notice under the composer — e.g. you addressed an assistant that isn't running.
   let agentNotice = $state<string | null>(null);
+  /// The same message, addressed to the assistant that *is* on this device — offered when the one it
+  /// named lives on another (owner, 2026-10-18: `@qwen3-vl-4b /transcribe` on a phone, whose own
+  /// assistant was running under another name, and a message blaming memory).
+  let askInstead = $state<{ name: string; body: string } | null>(null);
 
   // The compose textarea, so a tapped command chip can return focus for typing the question.
   let discInputEl = $state<HTMLTextAreaElement | null>(null);
@@ -1480,9 +1500,24 @@
     // opening a discussion. A mention only matters when the message actually addresses a name.
     const mentioned = mentionedNames(body);
     let offline: string[] = [];
+    let here: string[] = [];
     if (mentioned.length) {
-      const online = (await ipcOnlineAgents()).map((n) => n.toLowerCase());
-      offline = mentioned.filter((n) => !online.includes(n.toLowerCase()));
+      here = await ipcOnlineAgents();
+      // Myrme answers to its own name, to `Myrme·<this device>`, and to the model it runs.
+      const model = here.length
+        ? await agentStatus()
+            .then((st) => st.model ?? null)
+            .catch(() => null)
+        : null;
+      const answers = (n: string) => {
+        const name = n.toLowerCase();
+        return (
+          here.some((h) => h.toLowerCase() === name) ||
+          (here.length > 0 && name.replace(/[·_-]/, '-') === `myrme-${thisDevice()}`) ||
+          (!!model && name === model.toLowerCase())
+        );
+      };
+      offline = mentioned.filter((n) => !answers(n));
     }
     try {
       // The target is the message being answered, or the note itself. Replying to a message
@@ -1496,12 +1531,26 @@
       // thing that is on is a loop they cannot leave. Ask which case this is, once, and only when
       // a mention actually went unanswered.
       agentNotice = null;
-      if (offline.length) {
+      askInstead = null;
+      if (offline.length && here.length) {
+        // **Another assistant is running here, under its own name.** The one asked for is not on
+        // this device — usually a name written on another (a computer's model, in a note that synced
+        // to the phone). Nothing is wrong with memory; say so, and offer the one that is here.
+        agentNotice = `“@${offline[0]}” isn’t on this device, so it won’t answer here. Ask “@${here[0]}” — the assistant on every device.`;
+        const at = body.toLowerCase().indexOf(`@${offline[0].toLowerCase()}`);
+        askInstead = {
+          name: here[0],
+          body:
+            at === -1
+              ? `@${here[0]} ${body}`
+              : `${body.slice(0, at)}@${here[0]}${body.slice(at + offline[0].length + 1)}`,
+        };
+      } else if (offline.length) {
         const enabled = await agentStatus()
           .then((st) => st.enabled)
           .catch(() => false); // unknown → the older, safer sentence
         agentNotice = enabled
-          ? `“@${offline[0]}” is switched on but did not start — most often there is not enough free memory for it right now. Close a few applications and ask again, or choose the smaller model in Settings.`
+          ? `The assistant is switched on but did not start on this device — most often there is not enough free memory for it right now. Close a few applications and ask again, or choose a smaller model in Settings.`
           : `“@${offline[0]}” isn’t running, so it won’t answer. Turn the assistant on in Settings, then ask again.`;
       }
       await loadThread();
@@ -2139,8 +2188,11 @@
   // exactly what `ingestFile` already takes. A Tauri plugin with a Kotlin `ActivityResultLauncher`
   // would reimplement, worse, what the WebView already brokers.
   //
-  // **Verified, not assumed** — wry 0.55.1 `src/android/kotlin/RustWebChromeClient.kt:272`
-  // implements `onShowFileChooser`, including multi-select and the capture Intent.
+  // wry 0.55.1 `src/android/kotlin/RustWebChromeClient.kt:272` implements `onShowFileChooser`,
+  // including multi-select and the capture Intent — **but it opens the camera only if Android says
+  // a camera app is there** (`resolveActivity`), and since Android 11 that answer is "none" unless
+  // the manifest declares `<queries>` for it. Without that, "Take a photo" quietly opened the
+  // gallery (owner, 2026-10-18). `ci/android-inject-service.sh` now declares it.
   //
   // And the permission works out in our favour. Its `isMediaCaptureSupported` reads:
   //
@@ -2198,14 +2250,30 @@
   let recording = $state<Recording | null>(null);
   let recordSecs = $state(0);
   let recordTimer: ReturnType<typeof setInterval> | undefined;
+  // **Dictation** (`decisions.md` 2026-10-18): the same recorder, but what was said is written at
+  // the caret instead of the clip being added. The person's own words by their own action, so no
+  // proposal; the clip is kept only when the words could not be written down — never lost.
+  let dictating = $state(false); // this recording is a dictation
+  let writingDown = $state(false); // the speech model is working on it
+  // A dictation stops itself here: the phone carries it in one message, and five minutes of
+  // speech is ~10 MB there, well inside what that message holds (`MAX_INGEST`).
+  const DICTATION_SECS = 300;
 
-  async function startRecordingFlow() {
+  function startDictation() {
+    return startRecordingFlow(true);
+  }
+
+  async function startRecordingFlow(dictation = false) {
     captureOpen = false;
     error = null;
     try {
       recording = await startRecording();
+      dictating = dictation;
       recordSecs = 0;
-      recordTimer = setInterval(() => (recordSecs += 1), 1000);
+      recordTimer = setInterval(() => {
+        recordSecs += 1;
+        if (dictating && recordSecs >= DICTATION_SECS) void finishRecording();
+      }, 1000);
     } catch (e) {
       recording = null;
       error = `Couldn't start recording — allow microphone access? (${e instanceof Error ? e.message : String(e)})`;
@@ -2224,17 +2292,46 @@
     if (!rec) return;
     recording = null;
     stopRecordTimer();
+    let file: File;
     try {
-      const file = await rec.stop();
-      await ingestAll([file]); // ingest + embed at the caret, exactly like a dropped/attached file
+      file = await rec.stop();
     } catch (e) {
       error = `Couldn't save the recording: ${e instanceof Error ? e.message : String(e)}`;
+      return;
     }
+    if (!dictating) {
+      await ingestAll([file]); // ingest + embed at the caret, exactly like a dropped/attached file
+      return;
+    }
+    dictating = false;
+    writingDown = true;
+    let words = '';
+    let why = '';
+    try {
+      words = await dictate(file);
+      if (!words) why = 'Nothing could be written down from that recording.';
+    } catch (e) {
+      why = e instanceof Error ? e.message : String(e);
+    } finally {
+      writingDown = false;
+    }
+    if (words) {
+      // A space between these words and what is before the caret, unless a line or a space is.
+      const before = draft.slice(0, editorEl?.selection().from ?? draft.length);
+      await insertAtCaret((before && !/\s$/.test(before) ? ' ' : '') + words);
+      flashNotice('Written down');
+      return;
+    }
+    // **Never lost**: what could not be written down is kept as a recording in the note, where
+    // `@Myrme /transcribe` (or `/recipe`) can still read it later.
+    await ingestAll([file]);
+    error = `${why} The recording is kept in the note.`;
   }
 
   function cancelRecording() {
     recording?.cancel();
     recording = null;
+    dictating = false;
     stopRecordTimer();
   }
 
@@ -2489,6 +2586,7 @@
 
                      **Opened in place, inside this window** — never a menu hanging off a menu, which is
                      how ＋ Media ended up half off the left edge of a phone. -->
+                <button class="opt" onclick={() => addMedia(startDictation)}>Dictate</button>
                 <button
                   class="opt"
                   aria-expanded={captureOpen}
@@ -2594,10 +2692,17 @@
       <div class="recording" role="status" aria-live="polite">
         <span class="rec-dot" aria-hidden="true"></span>
         <span class="rec-time"
-          >Recording {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(2, '0')}</span
+          >{dictating ? 'Listening' : 'Recording'}
+          {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(2, '0')}</span
         >
-        <button class="rec-stop" onclick={finishRecording}>Stop &amp; add</button>
+        <button class="rec-stop" onclick={finishRecording}
+          >{dictating ? 'Stop & write' : 'Stop & add'}</button
+        >
         <button class="rec-cancel" onclick={cancelRecording}>Cancel</button>
+      </div>
+    {:else if writingDown}
+      <div class="recording writing" role="status" aria-live="polite">
+        <span class="rec-time">Writing down what you said…</span>
       </div>
     {/if}
     <!-- One hidden input, reconfigured per source, and present whether or not the editor is open,
@@ -2995,6 +3100,14 @@
         {/if}
       </div>
     {:else}
+      {#if recipeOf && onopenrecipe}
+        <div class="recipe-bar">
+          <button type="button" class="recipe-go" onclick={() => onopenrecipe(recipeOf)}>
+            Ingredients and servings
+          </button>
+          <span class="muted">— counted in Food; everything else is this note.</span>
+        </div>
+      {/if}
       <!-- Chips are built by render.ts, so one delegated listener beats
              re-binding per chip on every render. The handler only acts on a
              .note-chip, and each chip is a real <button> — so the keyboard path
@@ -3165,7 +3278,26 @@
                 </button>
               {/each}
             </div>
-            {#if agentNotice}<p class="disc-agent-notice">{agentNotice}</p>{/if}
+            {#if agentNotice}
+              <p class="disc-agent-notice">
+                {agentNotice}
+                {#if askInstead}
+                  <button
+                    type="button"
+                    class="disc-ask-instead"
+                    disabled={discBusy}
+                    onclick={() => {
+                      const a = askInstead;
+                      if (!a) return;
+                      replyDraft = a.body;
+                      askInstead = null;
+                      agentNotice = null;
+                      void sendReply();
+                    }}>Ask @{askInstead.name} instead</button
+                  >
+                {/if}
+              </p>
+            {/if}
             <div class="disc-actions">
               {#if discError}<span class="disc-error">{discError}</span>{/if}
               <button
@@ -3235,6 +3367,22 @@
       onpointerdown={(e) => e.preventDefault()}
       use:clickOutside={closeQuick}
     >
+      <button
+        class="quick-btn"
+        aria-label="dictate"
+        title="Dictate — say it, and it is written here"
+        disabled={!!recording || writingDown}
+        onclick={() => {
+          closeQuick();
+          startDictation();
+        }}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><rect x="9" y="3" width="6" height="11" rx="3" /><path
+            d="M5 11a7 7 0 0 0 14 0M12 18v3"
+          /></svg
+        >
+      </button>
       <button
         class="quick-btn"
         aria-label="record audio"
@@ -3363,6 +3511,33 @@
 </article>
 
 <style>
+  .disc-ask-instead {
+    margin-left: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .recipe-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4) 0;
+    font-size: var(--text-sm);
+  }
+  .recipe-go {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
   /* Right-docked reading/editing sheet (Notion side-peek). The trail that holds this is a
      grid COLUMN of the app (App.svelte), no longer a modal overlay — so a pane fills its
      height (100%, not 100vh) and the trail column, not the viewport, sets the width. */
@@ -3751,6 +3926,12 @@
   .rec-time {
     font-variant-numeric: tabular-nums;
     color: var(--danger, #c0392b);
+  }
+  .recording.writing {
+    border-color: var(--border, currentColor);
+  }
+  .recording.writing .rec-time {
+    color: inherit;
   }
   .recording button {
     min-height: 1.9rem;
@@ -4519,7 +4700,8 @@
     z-index: 5;
     flex: none;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* Six one-tap cells — dictate, record, add, … — at least 53 px each at 320 px. */
+    grid-template-columns: repeat(6, 1fr);
     background: var(--surface);
     border-top: 1px solid var(--border);
   }

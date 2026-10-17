@@ -142,6 +142,44 @@ test('removing an entry takes it out of the day and offers to put it back', asyn
   expect(await screen.findByText('Oats, rolled')).toBeTruthy();
 });
 
+test('one entry comes out on its own from the day, the rest of the meal stays', async () => {
+  // The owner, 2026-10-18: two coffees added by mistake, and the whole breakfast removed to fix it.
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  await openFood();
+  const oats = await screen.findByText('Oats, rolled');
+  const meal = oats.closest('section') as HTMLElement;
+  const before = within(meal).getAllByRole('button', { name: /^remove / }).length;
+  expect(before).toBeGreaterThan(1);
+
+  await fireEvent.click(within(meal).getByRole('button', { name: 'remove Oats, rolled' }));
+  const said = await screen.findByText(/^Removed “Oats, rolled”$/);
+  await waitFor(() => expect(screen.queryByText('Oats, rolled')).toBeNull());
+  // Only that one: everything else in the meal is still there.
+  await waitFor(() =>
+    expect(within(meal).getAllByRole('button', { name: /^remove / })).toHaveLength(before - 1),
+  );
+  await fireEvent.click(
+    within(said.parentElement as HTMLElement).getByRole('button', { name: 'Undo' }),
+  );
+  expect(await screen.findByText('Oats, rolled')).toBeTruthy();
+});
+
+test('a recipe asked for from its note opens in Food, on its ingredients', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  const { handle } = await import('./lib/mock');
+  await handle('create_notes', {
+    notes: [{ title: 'Tiramisù', tags: ['recipe'], props: { recipe: 'w8', servings: 6 } }],
+  });
+  render(App);
+  trackers.askToOpen('recipe/w8');
+  await openFood();
+  expect(await screen.findByRole('heading', { name: 'Tiramisù' })).toBeTruthy();
+  expect(screen.getByLabelText('Servings it makes')).toBeTruthy();
+});
+
 test('logged entries stay out of the board', async () => {
   seedTrackerDemo();
   showTrackers();

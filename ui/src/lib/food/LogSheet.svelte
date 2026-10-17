@@ -9,7 +9,8 @@
   // The words for meals and values still come from the view's definition, and the units from the
   // keys. An amount is never rescaled from numbers that were already rounded: it is recomputed from
   // where the food came from, or from the values as they were when this sheet opened.
-  import { onMount, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
+  import { startRecording, type Recording } from '../record';
   import Icon from '../Icon.svelte';
   import {
     logRecent,
@@ -25,6 +26,9 @@
     updateBody,
     readLabelPhoto,
     recipeLibrary,
+    recipeFromLink,
+    dictate,
+    reply,
     foodSearch,
     foodGet,
   } from '../ipc';
@@ -48,7 +52,8 @@
     deleteNotesUndoable,
   } from '../undo.svelte';
   import { show, showWith, today, typed, whole, nowClock, clockOf, dayOf } from '../units';
-  import { RECIPE, recipeWord } from '../templates';
+  import { guessFood, ingredientLines, recipeBody, type RecipeSource } from './recipeText';
+  import { RECIPE, RECIPE_BODY, recipeWord } from '../templates';
   import type {
     CarriedRecipe,
     FoodHit,
@@ -76,8 +81,20 @@
     onclose: () => void;
     /** Something was written; `removed` names an entry that was taken away. */
     onwrote: (what?: { removed?: string }) => void;
+    /** Open a note as any note is opened — the recipe's own, for its method, times and pictures. */
+    onopennote?: (id: string) => void;
   }
-  let { view, def, day, slot, entry = null, open = '', onclose, onwrote }: Props = $props();
+  let {
+    view,
+    def,
+    day,
+    slot,
+    entry = null,
+    open = '',
+    onclose,
+    onwrote,
+    onopennote,
+  }: Props = $props();
 
   /// The food tables the list is made from, as a person would name them
   /// (`decisions.md#data`, 2026-10-11).
@@ -201,8 +218,16 @@
       () => (labelWhy = ''),
     );
   onMount(() => void askReader());
-  function pick(what: typeof wanted) {
+  /// The camera by default, the gallery when asked (owner, 2026-10-18: pictures could only come from
+  /// the gallery — the camera was never reached on the phone, see `ci/android-inject-service.sh`).
+  /// Set on the element itself, not through state: the picker must open in the same tap, before a
+  /// re-render could change the attribute.
+  function pick(what: typeof wanted, gallery = false) {
     wanted = what;
+    if (photo) {
+      if (gallery) photo.removeAttribute('capture');
+      else photo.setAttribute('capture', 'environment');
+    }
     photo?.click();
   }
   // A picture of a pack or a dish is kept, whole, in the food's own note
@@ -652,11 +677,39 @@
   // is first opened. A serving is logged with the Institute's own values; nothing is worked out.
   let carried = $state<RecipeLibrary | null>(null);
   let reading = $state<CarriedRecipe | null>(null);
+  /// The collection the recipe being read is from — what it is credited to and under which licence.
+  let readingFrom = $state<RecipeLibrary | null>(null);
+  /// **Italian recipes, from Wikibooks** (`decisions.md#data`, 2026-10-18): 291 pages filed under
+  /// an Italian region, word for word, CC BY-SA 4.0, credited per recipe. Asked for with the rest.
+  let italian = $state<RecipeLibrary | null>(null);
   $effect(() => {
     if (mode === 'recipes' && !carried)
       recipeLibrary()
         .then((r) => (carried = r))
         .catch(() => (carried = null));
+    if (mode === 'recipes' && !italian)
+      recipeLibrary('wikibooks')
+        .then((r) => (italian = r))
+        .catch(() => (italian = null));
+  });
+  const readFrom = (lib: RecipeLibrary | null, r: CarriedRecipe) => {
+    readingFrom = lib;
+    reading = r;
+  };
+  let seekIt = $state('');
+  /// The Italian recipes the words typed name — by dish, ingredient or region; at most 50 shown.
+  const foundIt = $derived.by(() => {
+    const text = seekIt.trim().toLowerCase();
+    const all = italian?.recipes ?? [];
+    const hits = text
+      ? all.filter(
+          (r) =>
+            r.title.toLowerCase().includes(text) ||
+            (r.region ?? '').toLowerCase().includes(text) ||
+            (r.ingredients ?? []).some((line) => line.toLowerCase().includes(text)),
+        )
+      : all;
+    return { shown: hits.slice(0, 50), of: hits.length };
   });
   /// Opened on a recipe — from a dish offered on the day screen.
   onMount(() => {
@@ -684,7 +737,7 @@
     return all.filter(
       (r) =>
         r.title.toLowerCase().includes(text) ||
-        r.ingredients.some((line) => line.toLowerCase().includes(text)),
+        (r.ingredients ?? []).some((line) => line.toLowerCase().includes(text)),
     );
   });
   const addCarried = () =>
@@ -767,7 +820,8 @@
       if (!f) throw new Error('that food is no longer in the list');
       portion = {
         title: f.name,
-        grams: f.portions[0]?.grams ?? 100,
+        // A line from the recipe's text said how much: start there (it is shown, and can change).
+        grams: pendingGrams ?? f.portions[0]?.grams ?? 100,
         unit: 'g',
         per100: f.per100,
         base: {},
@@ -775,6 +829,7 @@
         portions: f.portions,
         source: `${f.pack}/${f.id}`,
       };
+      pendingGrams = null;
     } catch (e) {
       failed = String(e);
     }
@@ -905,6 +960,8 @@
                 recipe: r.recipe,
                 ...props,
                 ...(p.source ? { source: p.source } : {}),
+                // The line of the recipe's text this was matched from, so it is not offered again.
+                ...(matchingLine ? { line: matchingLine } : {}),
               },
             },
           ],
@@ -913,6 +970,7 @@
         portion = null;
         picking = false;
         into = null;
+        matchingLine = null;
         await reopen(r.recipe);
         return;
       }
@@ -1107,6 +1165,177 @@
     if (r) openRecipe(r);
     else serving = null;
   }
+  // ── a recipe's text, matched to foods (2026-10-18) ──────────────────────────────────────────────
+  // A recipe's ingredients as written live in its note's **Ingredients** list — saved from a page,
+  // made from a carried recipe, or typed by hand. Each line is matched to a food here, one at a
+  // time: the search starts on the food the line names and the amount on the grams it gives, and
+  // the ingredient remembers its line, so a matched line is not offered again.
+  let pendingGrams: number | null = null;
+  let matchingLine: string | null = null;
+  let textLines = $state<string[]>([]);
+  $effect(() => {
+    const r = serving?.made;
+    textLines = [];
+    if (!r || entry) return;
+    void getNote(r.id)
+      .then((n) => {
+        if (serving?.made?.id === r.id) textLines = ingredientLines(n?.body ?? '');
+      })
+      .catch(() => undefined);
+  });
+  const unmatched = $derived.by(() => {
+    const r = serving?.made;
+    if (!r) return [];
+    const done = new Set(r.ingredients.map((i) => String(i.props?.line ?? '')));
+    return textLines.filter((l) => !done.has(l));
+  });
+  function matchLine(r: Recipe, line: string) {
+    const g = guessFood(line);
+    matchingLine = line;
+    pendingGrams = g.grams;
+    addIngredientTo(r);
+    q = g.name;
+  }
+
+  /// **A recipe of one's own from a source** — a page, or a carried recipe: its note written with
+  /// the source's text (`recipeText.ts`), opened on its screen, its lines ready to be matched.
+  const makeFrom = (src: RecipeSource & { title: string; servings?: number; from?: string }) =>
+    write(async () => {
+      const recipe = recipeWord();
+      await createNotesUndoable(
+        [
+          {
+            title: src.title,
+            body: recipeBody(src),
+            tags: [RECIPE],
+            props: {
+              recipe,
+              servings: Math.max(1, Math.floor(src.servings ?? 1)),
+              ...(src.from ? { from: src.from } : {}),
+            },
+          },
+        ],
+        `saved the recipe “${src.title}”`,
+      );
+      reading = null;
+      linkForm = null;
+      mode = 'recipes';
+      await loadRecipes();
+      const r = (recipes ?? []).find((x) => x.recipe === recipe);
+      if (r) openRecipe(r);
+    });
+
+  /// **Save a recipe from a link** (2026-10-18): the page's own recipe data, read by the shell
+  /// (`fm_app::web_recipe`), kept as the person's own recipe note. Nothing of the page is carried.
+  let linkForm = $state<{ link: string; said: string } | null>(null);
+  const saveFromLink = async () => {
+    const f = linkForm;
+    if (!f || !f.link.trim()) return;
+    f.said = 'Reading the page…';
+    try {
+      const w = await recipeFromLink(f.link.trim());
+      await makeFrom({
+        title: w.title,
+        servings: w.servings,
+        from: w.url,
+        ingredients: w.ingredients,
+        steps: w.steps,
+        prepMinutes: w.prep_minutes,
+        cookMinutes: w.cook_minutes,
+        totalMinutes: w.total_minutes,
+        yieldText: w.yield_text,
+        url: w.url,
+        credit: [w.site, w.author && w.author !== w.site ? `by ${w.author}` : '']
+          .filter(Boolean)
+          .join(', '),
+        image: w.image,
+      });
+    } catch (e) {
+      if (linkForm) linkForm.said = e instanceof Error ? e.message : String(e);
+    }
+  };
+
+  /// **Dictate a recipe** (2026-10-18; *"writing on phone is hard"*): say it, and what was said is
+  /// kept as a note of its own, and `@Myrme /recipe` is asked there — Myrme sorts it into a recipe
+  /// and proposes it, to accept or change in Collaboration. Nothing said is lost: when it cannot be
+  /// written down, the recording itself is what the note keeps.
+  let saying = $state<{
+    rec: Recording | null;
+    secs: number;
+    said: string;
+    source: string | null;
+  } | null>(null);
+  let sayTimer: ReturnType<typeof setInterval> | undefined;
+  const stopSayTimer = () => {
+    if (sayTimer) clearInterval(sayTimer);
+    sayTimer = undefined;
+  };
+  async function startSaying() {
+    saying = { rec: null, secs: 0, said: '', source: null };
+    try {
+      const rec = await startRecording();
+      if (!saying) return rec.cancel();
+      saying.rec = rec;
+      sayTimer = setInterval(() => {
+        if (!saying) return;
+        saying.secs += 1;
+        if (saying.secs >= 300) void stopSaying(); // the note editor's limit, for the same reason
+      }, 1000);
+    } catch (e) {
+      if (saying)
+        saying.said = `Couldn't start listening — allow microphone access? (${e instanceof Error ? e.message : String(e)})`;
+    }
+  }
+  function cancelSaying() {
+    saying?.rec?.cancel();
+    stopSayTimer();
+    saying = null;
+  }
+  onDestroy(cancelSaying); // never leave the microphone on behind a closed sheet
+  async function stopSaying() {
+    const s = saying;
+    const rec = s?.rec;
+    if (!s || !rec) return;
+    s.rec = null;
+    stopSayTimer();
+    s.said = 'Writing down what you said…';
+    let file: File;
+    try {
+      file = await rec.stop();
+    } catch (e) {
+      s.said = `Couldn't keep the recording: ${e instanceof Error ? e.message : String(e)}`;
+      return;
+    }
+    let words = '';
+    let why = '';
+    try {
+      words = await dictate(file);
+      if (!words) why = 'Nothing could be written down from that recording.';
+    } catch (e) {
+      why = e instanceof Error ? e.message : String(e);
+    }
+    const title = `Dictated recipe, ${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+    try {
+      let body = words + '\n';
+      if (!words) {
+        const meta = await ingestFile(file);
+        const hash = meta.assets[0]?.replace(/^sha256:/, '') ?? '';
+        body = `![${title}](asset:sha256-${hash})\n`;
+      }
+      const [made] = await createNotesUndoable([{ title, body, props: {} }], `dictated “${title}”`);
+      s.source = made?.id ?? null;
+      if (words && made) {
+        await reply(made.id, '@Myrme /recipe');
+        s.said =
+          'Myrme is sorting what you said into a recipe. It appears in Collaboration for you to accept or change; what you said is kept in a note of its own.';
+      } else {
+        s.said = `${why} The recording is kept in the note “${title}”; once it can be heard, ask @Myrme /recipe there.`;
+      }
+    } catch (e) {
+      s.said = `Couldn't keep what you said: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
   function addIngredientTo(r: Recipe) {
     into = r;
     serving = null;
@@ -1171,7 +1400,7 @@
       const servings = Math.max(1, Math.floor(Number(b.servings)) || 1);
       // The recipe's own note is an ordinary one: tagged, in the Library, with no `log`.
       await createNotesUndoable(
-        [{ title: name, tags: [RECIPE], props: { recipe, servings } }],
+        [{ title: name, body: RECIPE_BODY, tags: [RECIPE], props: { recipe, servings } }],
         `started the recipe “${name}”`,
       );
       building = null;
@@ -1262,6 +1491,13 @@
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+
+<!-- Beside every "take a picture": the same, from a picture already on the device. -->
+{#snippet fromGallery(what: typeof wanted, label = 'or choose one from the gallery')}
+  <button type="button" class="link gallery" onclick={() => pick(what, true)} disabled={busy}
+    >{label}</button
+  >
+{/snippet}
 
 <div class="log-overlay">
   <!-- One picker for the whole sheet, always there: the buttons that open it are in two places,
@@ -1522,9 +1758,42 @@
             <button type="button" class="link" onclick={() => addIngredientTo(r)}>
               Add an ingredient
             </button>
+            {#if unmatched.length}
+              <!-- The recipe's own Ingredients list, line by line, until each is a food that counts. -->
+              <h3 class="shelf">From its text — choose the food for each</h3>
+              <ul class="rows">
+                {#each unmatched as line (line)}
+                  <li>
+                    <button type="button" class="row" onclick={() => matchLine(r, line)}>
+                      <span class="t">{line}</span>
+                      <span class="a">Choose the food</span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+              <p class="hint">
+                Each opens the food search on what the line names, and the amount on the grams it
+                gives. A line you leave (salt to taste, say) is simply not counted.
+              </p>
+            {/if}
+            <!-- **The rest of a recipe is the note itself** (owner, 2026-10-18: *"notes, written and
+                 pictures as in any other note … times, methods … not codified"*). Only what is
+                 counted is structured — servings and ingredients; the method, times, tips and
+                 pictures are the recipe note's own text, written in the note editor like any other
+                 note and found by search and the Library. -->
+            {#if onopennote}
+              <button type="button" class="link" onclick={() => onopennote(r.id)}>
+                Write the method, times and notes
+              </button>
+              <p class="hint">
+                Opens the recipe as a note: write anything and add pictures, as in any note. Only
+                the ingredients are counted.
+              </p>
+            {/if}
             <button type="button" class="link" onclick={() => pick('dish')} disabled={busy}>
               Add a picture of the dish
             </button>
+            {@render fromGallery('dish')}
             {#if dishSaid}<p class="hint" role="status">{dishSaid}</p>{/if}
             <p class="hint">Saved as you go.</p>
           {/if}
@@ -1592,31 +1861,88 @@
       <section class="quick" aria-label="a recipe, as published">
         <h2>{reading.title}</h2>
         {#if reading.yield}<p class="hint">{reading.yield}</p>{/if}
-        <p class="comes-to">
-          {#each summary(reading.per_serving) as part, i (i)}
-            <span class:lead={i === 0}>{part}</span>
-          {/each}
-        </p>
-        <p class="hint">A serving, by the Institute's own figures. Nothing here is worked out.</p>
-        <h3>Ingredients</h3>
-        <ul class="asis">
-          {#each reading.ingredients as line, i (i)}<li>{line}</li>{/each}
-        </ul>
-        <h3>Directions</h3>
-        <ol class="asis">
-          {#each reading.steps as step, i (i)}<li>{step}</li>{/each}
-        </ol>
+        {#if reading.per_serving}
+          <p class="comes-to">
+            {#each summary(reading.per_serving) as part, i (i)}
+              <span class:lead={i === 0}>{part}</span>
+            {/each}
+          </p>
+          <p class="hint">A serving, by the source's own figures. Nothing here is worked out.</p>
+        {/if}
+        {#if reading.times && Object.keys(reading.times).length}
+          <p class="hint">
+            {Object.entries(reading.times)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(' · ')}
+          </p>
+        {/if}
+        {#if reading.ingredients?.length}
+          <h3>Ingredients</h3>
+          <ul class="asis">
+            {#each reading.ingredients as line, i (i)}<li>{line}</li>{/each}
+          </ul>
+        {/if}
+        {#if reading.steps?.length}
+          <h3>Directions</h3>
+          <ol class="asis">
+            {#each reading.steps as step, i (i)}<li>{step}</li>{/each}
+          </ol>
+        {/if}
+        {#each reading.text ?? [] as para, i (i)}<p class="asis-para">{para}</p>{/each}
         {#each reading.notes ?? [] as note, i (i)}<p class="hint">{note}</p>{/each}
         <p class="hint">
-          Source: {carried?.source ?? ''}. As published, on the
-          <a href={reading.url} target="_blank" rel="noreferrer noopener">recipe's own page</a>.
+          Source: {(readingFrom ?? carried)?.source ?? ''}{#if reading.region}, {reading.region}{/if}.
+          {#if reading.url}As published, on the
+            <a href={reading.url} target="_blank" rel="noreferrer noopener">recipe's own page</a
+            >.{/if}
+          {#if reading.image}<a href={reading.image} target="_blank" rel="noreferrer noopener"
+              >A photo</a
+            >.{/if}
+          {#if (readingFrom ?? carried)?.licence}Licence: <a
+              href={(readingFrom ?? carried)?.licence_url}
+              target="_blank"
+              rel="noreferrer noopener">{(readingFrom ?? carried)?.licence}</a
+            >{#if reading.authors_url}, by <a
+                href={reading.authors_url}
+                target="_blank"
+                rel="noreferrer noopener">its authors</a
+              >{/if}.{/if}
         </p>
         <div class="pair">
           <button type="button" class="quiet" onclick={() => (reading = null)}>Back</button>
-          <button type="button" class="go" onclick={addCarried} disabled={busy || unplaced}>
-            Add a serving{slotLabel ? ` to ${slotLabel}` : ''}
-          </button>
+          {#if reading.per_serving}
+            <button type="button" class="go" onclick={addCarried} disabled={busy || unplaced}>
+              Add a serving{slotLabel ? ` to ${slotLabel}` : ''}
+            </button>
+          {/if}
         </div>
+        <!-- **Make it mine** (2026-10-18): a copy of one's own, to change, photograph and count — its
+             text this recipe's, its ingredients then matched to foods one line at a time. -->
+        <button
+          type="button"
+          class="link"
+          disabled={busy}
+          onclick={() => {
+            const r = reading;
+            if (!r) return;
+            void makeFrom({
+              title: r.title,
+              servings: r.servings,
+              from: r.url ?? r.id,
+              ingredients: r.ingredients,
+              steps: r.steps,
+              text: r.text,
+              notes: r.notes,
+              yieldText: r.yield,
+              times: r.times,
+              image: r.image,
+              url: r.url,
+              credit: [(readingFrom ?? carried)?.source, carried?.licence]
+                .filter(Boolean)
+                .join(', '),
+            });
+          }}>Make it mine — a copy to change, photograph and count</button
+        >
       </section>
     {:else if labelling}
       <section class="quick" aria-label="a packaged food, from its label">
@@ -1645,6 +1971,7 @@
         <button type="button" class="quiet" onclick={() => pick('barcode')} disabled={reading2}>
           {reading2 ? 'Reading…' : 'Photograph the barcode'}
         </button>
+        {@render fromGallery('barcode')}
         {#if badCode}
           <p class="hint">
             That is not a barcode number: its last digit does not check. Leave it empty if unsure.
@@ -1672,6 +1999,7 @@
               ? 'Photograph the label again'
               : 'Photograph the label'}
         </button>
+        {@render fromGallery('label')}
         {#if readingLabel}
           <p class="hint" role="status">
             The assistant on this device is reading it, which can take a minute.
@@ -1706,6 +2034,7 @@
         <button type="button" class="quiet" onclick={() => pick('picture')}>
           Add a picture of the pack
         </button>
+        {@render fromGallery('picture')}
         <p class="hint">
           Pictures are kept with this food, at full size, and go into your backup with it.
           {#if labelValues.kcal === undefined}
@@ -1891,6 +2220,7 @@
         </button>
         <button type="button" class="quiet" onclick={() => pick('label')}>Photograph a label</button
         >
+        {@render fromGallery('label', 'or use a picture from the gallery')}
         <button type="button" class="quiet" onclick={startLabel}>Type in a label</button>
       </div>
       {#if scanned}<p class="hint">{scanned}</p>{/if}
@@ -2007,6 +2337,84 @@
           >
             New recipe
           </button>
+          <!-- From any recipe site — GialloZafferano, Cucchiaio d'Argento, Benedetta, Misya and the
+               rest publish their recipe for search engines, and that is what is read (2026-10-18). -->
+          {#if linkForm}
+            <div class="quick link-form">
+              <label>
+                <span>The recipe's link</span>
+                <input
+                  class="field"
+                  type="url"
+                  inputmode="url"
+                  placeholder="https://www.giallozafferano.it/…"
+                  bind:value={linkForm.link}
+                  onkeydown={(e) => e.key === 'Enter' && void saveFromLink()}
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </label>
+              <p class="hint">
+                Works with most recipe sites. It becomes a recipe of your own — the text, the times
+                and a link to the page and its photo — and each ingredient is then matched to a food
+                so it counts.
+              </p>
+              {#if linkForm.said}<p class="hint" role="status">{linkForm.said}</p>{/if}
+              <div class="pair">
+                <button type="button" class="quiet" onclick={() => (linkForm = null)}>Cancel</button
+                >
+                <button
+                  type="button"
+                  class="go"
+                  onclick={() => void saveFromLink()}
+                  disabled={busy || !linkForm.link.trim()}>Save the recipe</button
+                >
+              </div>
+            </div>
+          {:else}
+            <button
+              type="button"
+              class="quiet wide"
+              onclick={() => (linkForm = { link: '', said: '' })}
+            >
+              Save a recipe from a link
+            </button>
+          {/if}
+          {#if saying}
+            <div class="quick say" role="status" aria-live="polite">
+              {#if saying.rec}
+                <p>
+                  <span class="rec-dot" aria-hidden="true"></span>
+                  Listening {Math.floor(saying.secs / 60)}:{String(saying.secs % 60).padStart(
+                    2,
+                    '0',
+                  )}
+                  — say its name, what goes in, and how it is made.
+                </p>
+                <div class="pair">
+                  <button type="button" class="quiet" onclick={cancelSaying}>Cancel</button>
+                  <button type="button" class="go" onclick={() => void stopSaying()}
+                    >Stop &amp; make the recipe</button
+                  >
+                </div>
+              {:else}
+                <p class="hint">{saying.said}</p>
+                <div class="pair">
+                  {#if saying.source && onopennote}
+                    {@const id = saying.source}
+                    <button type="button" class="quiet" onclick={() => onopennote?.(id)}
+                      >Open what you said</button
+                    >
+                  {/if}
+                  <button type="button" class="go" onclick={() => (saying = null)}>Done</button>
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <button type="button" class="quiet wide" onclick={() => void startSaying()}>
+              Dictate a recipe
+            </button>
+          {/if}
           {#if carried?.recipes.length}
             <h3 class="shelf">From the NHLBI ({carried.recipes.length})</h3>
             <input
@@ -2023,14 +2431,46 @@
             <ul class="rows">
               {#each found as r (r.id)}
                 <li>
-                  <button type="button" class="row" onclick={() => (reading = r)}>
+                  <button type="button" class="row" onclick={() => readFrom(carried, r)}>
                     <span class="t">{r.title}</span>
                     <span class="a">1 serving{r.servings ? ` of ${r.servings}` : ''}</span>
-                    <span class="v">{show(primary.key, r.per_serving[primary.key] ?? 0).text}</span>
+                    <span class="v"
+                      >{show(primary.key, r.per_serving?.[primary.key] ?? 0).text}</span
+                    >
                   </button>
                 </li>
               {/each}
             </ul>
+          {/if}
+          {#if italian?.recipes.length}
+            <h3 class="shelf">Italiane, da Wikibooks ({italian.recipes.length})</h3>
+            <input
+              class="field"
+              type="search"
+              placeholder="Un piatto, un ingrediente, una regione"
+              aria-label="search the Italian recipes"
+              bind:value={seekIt}
+              spellcheck="false"
+            />
+            {#if seekIt.trim() && foundIt.of === 0}
+              <p class="hint">None of them names that.</p>
+            {/if}
+            <ul class="rows">
+              {#each foundIt.shown as r (r.id)}
+                <li>
+                  <button type="button" class="row" onclick={() => readFrom(italian, r)}>
+                    <span class="t">{r.title}</span>
+                    <span class="a">{r.region ?? ''}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+            {#if foundIt.of > foundIt.shown.length}
+              <p class="hint">
+                {foundIt.of - foundIt.shown.length} more — type a dish, an ingredient or a region to find
+                them.
+              </p>
+            {/if}
           {/if}
         {/if}
       {:else}
@@ -2072,6 +2512,10 @@
 </div>
 
 <style>
+  .asis-para {
+    margin: 0 0 var(--space-2);
+    line-height: var(--lh-base);
+  }
   /* A link is the accent's colour: the browser's own blue cannot be read on a dark theme. */
   a {
     color: var(--accent);
@@ -2432,6 +2876,9 @@
   .packet .quiet {
     flex: 1 1 9rem;
   }
+  .gallery {
+    font-size: var(--text-sm);
+  }
   .link {
     align-self: flex-start;
     padding: var(--space-1) 0;
@@ -2604,5 +3051,18 @@
   .range .field {
     width: 100%;
     box-sizing: border-box;
+  }
+  .say p {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.5rem;
+  }
+  .say .rec-dot {
+    flex: none;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--danger, #c0392b);
   }
 </style>

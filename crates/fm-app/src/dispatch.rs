@@ -1183,7 +1183,9 @@ fn dispatch_inner(
         // vault of the note it is about, because a vault is an audience.
         "reply" => {
             let mut g = lock()?;
-            let meta = commands::reply(&mut g.store(scope), &s("id"), &s("body")).map_err(err)?;
+            let meta =
+                commands::reply_from(&mut g.store(scope), &s("id"), &s("body"), &s("device"))
+                    .map_err(err)?;
             // A collaborator identity (the agent passes its model's) commits *this one message* under
             // it right now, so its authorship is the agent, not the vault's default — the same
             // git-author provenance a human collaborator gets from their own clone (Ruling 14).
@@ -1316,6 +1318,21 @@ fn dispatch_inner(
                 let v = s(key);
                 if !v.is_empty() {
                     fm_core::apply_property(&mut draft, key, &v).map_err(err)?;
+                }
+            }
+            // **A proposed recipe carries what makes it one** (2026-10-18, `/recipe`): its word and
+            // its servings, so once accepted it is a recipe in Food like any other. These two and
+            // nothing else — a proposal may not set an arbitrary property on a note it creates.
+            if let Some(props) = args.get("props").and_then(Value::as_object) {
+                for key in [crate::log::RECIPE, "servings"] {
+                    let v = match props.get(key) {
+                        Some(Value::String(s)) => s.clone(),
+                        Some(Value::Number(n)) => n.to_string(),
+                        _ => continue,
+                    };
+                    if !v.trim().is_empty() {
+                        fm_core::apply_property(&mut draft, key, &v).map_err(err)?;
+                    }
                 }
             }
             let author = args
@@ -2378,7 +2395,7 @@ fn dispatch_inner(
             let store = g.store(scope);
             json(crate::nutrients::log_nutrients(&store, &def, &s("day")).map_err(err)?)
         }
-        "recipe_library" => json(crate::log::recipe_library().map_err(err)?),
+        "recipe_library" => json(crate::log::recipe_library(&s("book")).map_err(err)?),
         "exercise_library" => json(crate::log::exercise_library().map_err(err)?),
         // The moments a reminder is due, from a day on. Read-only; what shows them is the shell's.
         "reminders" => {

@@ -532,6 +532,17 @@ The Institute states that information on its website is in the public domain unl
 otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's
 tips and notes are carried with it.
 
+Italian recipes from Wikibooks, *Libro di cucina — Ricette*, the pages filed under an Italian
+region (`crates/fm-app/src/shipped/recipes-wikibooks.json`, made by `ci/pack-wikibooks.py`),
+their text word for word with wiki markup removed. Source: Wikibooks contributors,
+<https://it.wikibooks.org/wiki/Libro_di_cucina/Ricette>; each recipe names its page and its
+page history, which lists its authors. Licensed under the **Creative Commons
+Attribution-ShareAlike 4.0 International** licence,
+<https://creativecommons.org/licenses/by-sa/4.0/>. **That licence covers this file, not the
+app:** it is a separate work carried beside the program, which stays under its own licence; the
+file, and any copy or change of it, is under CC BY-SA 4.0. No photograph is carried; a recipe
+may link to one on Wikimedia Commons, under that file's own licence.
+
 ## Exercise instructions carried in the binary
 
 Information from the NHS website (<https://www.nhs.uk/live-well/exercise/>), copied

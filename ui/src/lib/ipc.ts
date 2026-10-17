@@ -41,6 +41,7 @@ import type {
   Recipe,
   Reminder,
   RecipeLibrary,
+  WebRecipe,
   Routine,
   PlanLibrary,
   PlanPreview,
@@ -291,7 +292,25 @@ export const activity = () => invoke<EditEvent[]>('activity');
 // `reply` takes the note OR another message: replying to a message re-roots to the same
 // discussion server-side, so the natural "reply to this comment" gesture cannot create a
 // thread nothing can reach.
-export const reply = (id: string, body: string) => invoke<ObjectMeta>('reply', { id, body });
+/** The device a message is written on, kept in it: `@Myrme` is answered by this device's assistant
+ *  only, so a message that syncs to a phone and a computer is answered once (2026-10-18). A paired
+ *  tablet writes through the computer, whose assistant is the one that answers it. It is the name
+ *  set in Settings when one was (learned from `agent_status`), else `phone` or `laptop`. */
+let deviceName: string | null = null;
+function rememberDevice(d?: string | null) {
+  if (d) deviceName = d;
+}
+export const thisDevice = () => deviceName ?? (isPhone() ? 'phone' : 'laptop');
+/** For tests, which play a phone and a computer in one process: forget what was learned. */
+export const forgetDevice = () => {
+  deviceName = null;
+};
+export const reply = async (id: string, body: string) => {
+  // The first message of a session waits to learn this device's name, so a renamed device never
+  // stamps the default — which its own Myrme would then not answer.
+  if (deviceName === null) await agentStatus().catch(() => undefined);
+  return invoke<ObjectMeta>('reply', { id, body, device: thisDevice() });
+};
 export const thread = (id: string) => invoke<ThreadView>('thread', { id });
 
 // **Every thread's message count, in one pass.** The feed needs to say "3 replies" per post, and
@@ -474,45 +493,63 @@ export const proposals = () => invoke<ObjectMeta[]>('proposals');
  *  `transcribe_available` is the **sub**-capability: whisper is a separate runtime, and without it
  *  the audio toggle stored a preference and transcribed nothing. */
 export const agentStatus = () =>
-  invoke<{
-    enabled: boolean;
-    transcribe: boolean;
-    installed: boolean;
-    why: string;
-    transcribe_available: boolean;
-    /** Not here yet, but downloadable on this platform. False alongside `transcribe_available`
-     *  means upstream publishes no build — nothing the user can do. */
-    transcribe_fetchable: boolean;
-    /** Whether the model and runtime are already here — the difference between "turn it on" and
-     *  "download a few gigabytes, then turn it on". */
-    provisioned: boolean;
-    /** What removing the model would free, in bytes — so the control can name the figure. */
-    provisioned_bytes: number;
-    /** A first-enable download in flight, or how the last one ended; null when idle. `total` is
-     *  null where the server sends no length, and the line must then say bytes rather than invent
-     *  a percentage. */
-    /** The model this device runs, when one is here. */
-    model?: string | null;
-    /** A newer model that came with an app update, offered and never fetched unasked: what it is,
-     *  what accepting downloads (weights and image reader together), and what it would replace. */
-    update?: {
-      name: string;
-      bytes: number | null;
-      license: string | null;
-      replaces: string | null;
-    } | null;
-    /** The model on this device is no longer listed by this version, so it cannot be started and
-     *  the offer is the only way forward. */
-    unsupported?: boolean;
-    /** `restart` is a newer model fully downloaded on a computer: it takes over at the next
-     *  launch. */
-    provisioning: {
-      stage: 'runtime' | 'model' | 'projector' | 'ready' | 'restart' | 'failed';
-      done: number;
-      total: number | null;
-      error: string | null;
-    } | null;
-  }>('agent_status');
+  invoke<AgentStatus>('agent_status').then((st) => {
+    rememberDevice(st.device);
+    return st;
+  });
+type AgentStatus = {
+  enabled: boolean;
+  transcribe: boolean;
+  installed: boolean;
+  why: string;
+  transcribe_available: boolean;
+  /** Not here yet, but downloadable on this platform. False alongside `transcribe_available`
+   *  means upstream publishes no build — nothing the user can do. */
+  transcribe_fetchable: boolean;
+  /** Whether the model and runtime are already here — the difference between "turn it on" and
+   *  "download a few gigabytes, then turn it on". */
+  provisioned: boolean;
+  /** What removing the model would free, in bytes — so the control can name the figure. */
+  provisioned_bytes: number;
+  /** A first-enable download in flight, or how the last one ended; null when idle. `total` is
+   *  null where the server sends no length, and the line must then say bytes rather than invent
+   *  a percentage. */
+  /** The model this device runs, when one is here. */
+  model?: string | null;
+  /** A newer model that came with an app update, offered and never fetched unasked: what it is,
+   *  what accepting downloads (weights and image reader together), and what it would replace. */
+  update?: {
+    name: string;
+    bytes: number | null;
+    license: string | null;
+    replaces: string | null;
+  } | null;
+  /** The model on this device is no longer listed by this version, so it cannot be started and
+   *  the offer is the only way forward. */
+  unsupported?: boolean;
+  /** `restart` is a newer model fully downloaded on a computer: it takes over at the next
+   *  launch. */
+  provisioning: {
+    stage: 'runtime' | 'model' | 'projector' | 'ready' | 'restart' | 'failed';
+    done: number;
+    total: number | null;
+    error: string | null;
+  } | null;
+  /** This device's name for its Myrme — what the messages written here are stamped with. */
+  device?: string;
+  /** Better listening (2026-10-18): the larger speech model, chosen per device, and what choosing
+   *  it downloads — `null` when the catalogue offers no such choice. */
+  listening_better?: boolean;
+  listening_better_bytes?: number | null;
+};
+
+/** Name this device's Myrme ("office desktop"); it applies when the assistant next starts. Answers
+ *  the word kept (`office-desktop`), which `@Myrme-<word>` then asks (2026-10-18). */
+export const setAssistantName = (name: string) =>
+  invoke<{ device: string }>('set_assistant_name', { name }).then((r) => {
+    rememberDevice(r.device);
+    return r.device;
+  });
 /** Turn the assistant on or off.
  *
  *  `model` and `vision` matter only on a first enable, when nothing is provisioned yet: they say
@@ -549,6 +586,11 @@ export const agentModels = () =>
  *  next assistant start, and needs the runtime staged (`pixi run fetch-whisper`). */
 export const setTranscribe = (transcribe: boolean) =>
   invoke<{ ok: boolean }>('set_transcribe', { transcribe });
+
+/** Choose better or everyday listening; the chosen speech model is fetched and used when the
+ *  assistant next starts. */
+export const setListening = (better: boolean) =>
+  invoke<{ ok: boolean }>('set_listening', { better });
 
 /** What the study agent is doing *right now* in a discussion — a transient, in-memory status served
  *  by fm-serve (not a vault command), so the discussion view can show a live "working…" wheel with
@@ -868,6 +910,23 @@ function base64(file: File): Promise<string> {
     };
     r.readAsDataURL(file);
   });
+}
+
+/** **Dictation** (2026-10-18): a recording in, the words that were said out — by this device's own
+ *  speech model, which the assistant runs when Audio transcription is on. Nothing is kept: the
+ *  caller puts the words at the caret, and keeps the recording in the note only if this fails.
+ *  Rejects with a sentence to show when transcription is off or not running yet. */
+export async function dictate(file: File): Promise<string> {
+  if (isPhone()) {
+    const data = await base64(file);
+    return (await shellInvoke<{ text: string }>('fm_dictate', { data })).text;
+  }
+  if (import.meta.env.PROD) {
+    const res = await fetch('/api/dictate', { method: 'POST', body: file });
+    if (!res.ok) throw new Error((await res.text()) || res.statusText);
+    return ((await res.json()) as { text: string }).text;
+  }
+  return (await mock.handle<{ text: string }>('dictate', { size: file.size })).text;
 }
 
 export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
@@ -1301,7 +1360,10 @@ export const labelReader = () =>
  *  model read it. The picture (a JPEG, base64) is kept nowhere and nothing is written. */
 export const readLabelPhoto = (data: string) =>
   invoke<{ text: string; model: string }>('read_label', { data });
-export const recipeLibrary = () => invoke<RecipeLibrary>('recipe_library', {});
+/** A recipe read from a page the person chose, to be kept as their own (2026-10-18). */
+export const recipeFromLink = (link: string) => invoke<WebRecipe>('recipe_from_link', { link });
+/** The carried recipes, by collection; only the NHLBI's is carried today. */
+export const recipeLibrary = (book = '') => invoke<RecipeLibrary>('recipe_library', { book });
 /** Hand the computer's program the reminders it says itself when no page is open. */
 export const remindSet = (items: { title: string; text: string; at: number }[]) =>
   invoke<void>('remind_set', { items });

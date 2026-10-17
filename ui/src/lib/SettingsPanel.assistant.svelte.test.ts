@@ -15,15 +15,15 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
 
-const { agentStatus, agentModels, setAgent, removeAgentModel, updateAgentModel } = vi.hoisted(
-  () => ({
+const { agentStatus, agentModels, setAgent, removeAgentModel, updateAgentModel, setListening } =
+  vi.hoisted(() => ({
     agentStatus: vi.fn(),
     agentModels: vi.fn(),
     setAgent: vi.fn(),
     removeAgentModel: vi.fn(),
     updateAgentModel: vi.fn(),
-  }),
-);
+    setListening: vi.fn(),
+  }));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   agentStatus,
@@ -31,6 +31,7 @@ vi.mock('./ipc', async (importOriginal) => ({
   setAgent,
   removeAgentModel,
   updateAgentModel,
+  setListening,
 }));
 
 function panel() {
@@ -290,5 +291,39 @@ describe('a newer assistant model that came with an update', () => {
 
     expect(await screen.findByText(/takes over the next time you open formicaria/i)).toBeTruthy();
     expect(screen.queryByText(/downloading the model/i)).toBeNull();
+  });
+});
+
+// **Better listening** (2026-10-18): every device hears any language with the everyday speech
+// model; a larger one is a choice, offered with what it downloads, only once transcription is on.
+describe('better listening', () => {
+  const on = (over: Record<string, unknown> = {}) =>
+    status({
+      enabled: true,
+      provisioned: true,
+      transcribe: true,
+      transcribe_available: true,
+      listening_better: false,
+      listening_better_bytes: 487_601_967,
+      ...over,
+    });
+
+  it('is offered with its download once transcription is on, and sends the choice', async () => {
+    agentStatus.mockResolvedValue(on());
+    setListening.mockResolvedValue({ ok: true });
+    panel();
+
+    const box = await screen.findByRole('checkbox', { name: /better listening/i });
+    expect(screen.getByText(/about 488 MB/)).toBeTruthy();
+    await fireEvent.click(box);
+    expect(setListening).toHaveBeenCalledWith(true);
+  });
+
+  it('is not offered while transcription is off', async () => {
+    agentStatus.mockResolvedValue(on({ transcribe: false }));
+    panel();
+
+    await screen.findByRole('checkbox', { name: /audio transcription/i });
+    expect(screen.queryByRole('checkbox', { name: /better listening/i })).toBeNull();
   });
 });

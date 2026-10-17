@@ -179,11 +179,12 @@ Colour · Link**, and a **¶ block menu** for **headings, bullet and numbered li
 Inline options wrap the selection in the plain-Markdown (or `[…]{.token}`) form; the block menu
 re-formats the whole line or lines. Press an option again over the same text to remove it.
 
-**On a phone or tablet, a row of five buttons sits just above the keyboard** while you write, for
+**On a phone or tablet, a row of six buttons sits just above the keyboard** while you write, for
 the things you reach for mid-sentence:
 
 | Button | What it does |
 |---|---|
+| **Dictate** (the microphone) | listens; press **Stop & write** and what you said is written where the cursor is — see [Dictating](#dictating) |
 | **Record audio** | starts recording; the clip lands in the note where the cursor is |
 | **Add a photo or file** | take a photo, record a video, or pick one from the library or your files |
 | **Checklist item** | turns the line you are on into a tick-box line; again to turn it back |
@@ -195,6 +196,19 @@ keep typing. On a phone or tablet this row is where media is added: the **＋** 
 media**, since the row does it in one tap. The line styles are also on the selection toolbar. With a
 mouse and keyboard there is no row: the marks are quick to type and there is no on-screen keyboard
 to put it above.
+
+### Dictating
+
+Say it instead of typing it. **Dictate** — the microphone above the keyboard on a phone, or in the
+note's **＋** on a computer — listens until you press **Stop & write**, then writes what you said
+into the note where the cursor is, as ordinary text you can change. It understands any language
+and writes it down in that language; up to five minutes at a time.
+
+It uses the speech-to-text of the [study assistant](./assistant.md#the-two-extras), on this device —
+nothing you say leaves it — so *Audio transcription* has to be on; until it is, Dictate says so.
+On a computer it takes a few seconds per minute spoken; on a phone longer. **What was said is never
+lost**: if it cannot be written down, the recording is kept in the note instead, where
+`@Myrme /transcribe` can read it later. For more exact words, turn on *Better listening*.
 
 On top of standard Markdown there are three light additions, each chosen so the raw text stays
 readable in **any** Markdown editor (nothing here is app-only HTML):

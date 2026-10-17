@@ -270,6 +270,20 @@ const MAX_DEPTH: u8 = 4;
 /// audience; a reply that landed elsewhere would be invisible to the discussion or visible to
 /// people the note was never shared with, and that is not a choice to leave to a UI.
 pub fn reply(store: &mut dyn Store, target: &str, body: &str) -> Result<ObjectMeta, StoreError> {
+    reply_from(store, target, body, "")
+}
+
+/// The device a message was written on, kept in it (2026-10-18): `@Myrme` is answered by that
+/// device's assistant only, so a message that syncs to a phone and a computer is answered once.
+pub const DEVICE: &str = "device";
+
+/// [`reply`], stamping the device it was written on (`phone`, `laptop`; empty for none).
+pub fn reply_from(
+    store: &mut dyn Store,
+    target: &str,
+    body: &str,
+    device: &str,
+) -> Result<ObjectMeta, StoreError> {
     let target_id: Id =
         target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
     let target_obj = store.get(target_id)?.ok_or(StoreError::NotFound(target_id))?;
@@ -294,6 +308,9 @@ pub fn reply(store: &mut dyn Store, target: &str, body: &str) -> Result<ObjectMe
         .insert(crate::thread::THREAD_OF.into(), PropertyValue::Text(fm_model::note_ref(root)));
     obj.extra
         .insert(crate::thread::REPLY_TO.into(), PropertyValue::Text(fm_model::note_ref(target_id)));
+    if !device.trim().is_empty() {
+        obj.extra.insert(DEVICE.into(), PropertyValue::Text(device.trim().to_lowercase()));
+    }
     store.put(&obj)?;
     Ok(ObjectMeta::from(&obj))
 }

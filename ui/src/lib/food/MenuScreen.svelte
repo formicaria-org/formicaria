@@ -271,7 +271,7 @@
           .map(
             (r) =>
               `\n\nFor ${r.title} (${r.yield ?? 'as published'}), as its source lists them:\n\n` +
-              r.ingredients.map((line) => `- [ ] ${line}`).join('\n'),
+              (r.ingredients ?? []).map((line) => `- [ ] ${line}`).join('\n'),
           )
           .join('') +
         '\n',

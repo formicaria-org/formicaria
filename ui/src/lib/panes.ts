@@ -18,7 +18,15 @@ import type {
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
 export type PaneKind =
-  'board' | 'agenda' | 'timeline' | 'activity' | 'collaboration' | 'discussions' | 'note' | 'view';
+  | 'home'
+  | 'board'
+  | 'agenda'
+  | 'timeline'
+  | 'activity'
+  | 'collaboration'
+  | 'discussions'
+  | 'note'
+  | 'view';
 
 export interface Pane {
   id: string;
@@ -134,8 +142,17 @@ export function autoCols(n: number, w: Pick<Workspace, 'colMode' | 'cols'>): num
  *  starting with a single pane, and `cols` was only ever recomputed inside `addPane`/`closePane`
  *  — so a fresh session on a wide screen laid one pane into a two-column grid and left the second
  *  column blank. `panes.test.ts` pinned that as a feature. */
+/** What a first launch opens on: **Home** (2026-10-18) — a newcomer's first screen says what this
+ *  is and where to go; a saved workspace keeps whatever its owner had. A variable only so the
+ *  suite, most of which was written against a first screen of Board, can say so once
+ *  (`test-setup.ts`); the tests about Home set it back. */
+let firstView: PaneKind = 'home';
+export function setFirstView(kind: PaneKind) {
+  firstView = kind;
+}
+
 export function defaultWorkspace(): Workspace {
-  const panes = [newPane('board')];
+  const panes = [newPane(firstView)];
   return {
     v: SCHEMA,
     cols: autoCols(panes.length, { colMode: 'auto', cols: 1 }),
@@ -251,6 +268,8 @@ export function feedKey(p: Pane): string | null {
       return 'discussions';
     case 'view':
       return p.viewName ? `view:${p.viewName}` : null;
+    case 'home':
+    // Home is a page of the app, not of the notebook: it reads nothing.
     case 'note':
     case 'activity':
       // No feed: `note` self-fetches by id; `activity` reads the reactive activity module,
@@ -353,6 +372,8 @@ export interface BuiltinPane {
 export const VIEWS_MENU_ICON = 'views';
 
 export const BUILTIN_PANES: BuiltinPane[] = [
+  // **First, always** (2026-10-18): what this is and where to go, and the place to come back to.
+  { kind: 'home', label: 'Home', icon: 'home' },
   { kind: 'board', label: 'Board', icon: 'board' },
   { kind: 'agenda', label: 'Agenda', icon: 'calendar' },
   { kind: 'timeline', label: 'Timeline', icon: 'timeline' },
