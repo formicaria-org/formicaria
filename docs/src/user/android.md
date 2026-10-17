@@ -1,44 +1,26 @@
 # formicaria on an Android phone
 
-The Android app is on the
-[releases page](https://github.com/formicaria-org/formicaria/releases), as a `.apk` file beside the
-Windows, Mac and Linux downloads. There is no Play Store version.
-
-Android is one of the two systems formicaria is used on every day, so of everything here it is the
-best tested — alongside Linux, and unlike the rest.
+It takes about two minutes and a few taps. You need nothing but the phone.
 
 ## Installing it
 
-Download `formicaria-…-android-arm64.apk` on the phone and open it. Android will ask whether to
-allow installing apps from wherever you downloaded it — your browser, usually — because the app did
-not come from the Play Store. Allow it, and the install proceeds normally.
+1. **On the phone, open this link and tap it once:**
+   **[Download formicaria for Android](https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk)**
+   (about 30 MB). If the browser asks whether to keep the file, tap **Download** or **Download anyway**.
+2. **When the download finishes, tap Open** (or find *formicaria-android.apk* in your Downloads and
+   tap it).
+3. **Allow the install.** Android says it cannot install apps from this source, because the app did
+   not come from the Play Store. Tap **Settings**, switch on **Allow from this source**, then go back.
+4. **Tap Install**, then **Open**. That is all.
 
-To update later you normally need not download anything yourself — see [Updating](#updating).
-Downloading a newer file and opening it still works too, and either way your notes stay where they are.
+Some phones add one more screen of their own — a "Play Protect" or virus check that asks whether you
+are sure. Choose **Install anyway** (on some phones it is under **More details**). It is the phone being
+careful about any app from outside its store, not a sign that something is wrong.
 
-## Checking that you got the real thing
+You only do this once. After that, formicaria tells you itself when there is a newer version and
+installs it in two taps — see [Updating](#updating).
 
-Every formicaria APK is signed with the same certificate. Its fingerprint is:
-
-```text
-de040b95933b491e3fb26966025001a8d7c052a526a56ea789e330c1f937bc20
-```
-
-You can read that back out of any file you download:
-
-```sh
-apksigner verify --print-certs formicaria-<version>-android-arm64.apk
-```
-
-The `SHA-256 digest` it prints should match, character for character. If it does not, do not
-install it — tell us.
-
-**Why bother.** Android already protects you *after* the first install: it refuses to replace the
-app with one signed by a different key, so nobody can push you a fake update. What it cannot do is
-protect the first install, because your phone has nothing to compare against yet. Downloads on a
-release page can be replaced by anyone with write access to the project, and nothing about how the
-app is built changes that. This fingerprint is the baseline that closes the gap, and it is the only
-part of the chain that depends on you rather than on us.
+There is no Play Store version yet.
 
 ## Updating
 
@@ -89,3 +71,30 @@ Everything the desktop has for writing: notes, search, dates and boards, attachm
 and backing up. **The study assistant is included too** — it downloads its model on first enable and
 runs on the phone itself, with nothing sent anywhere. (That is the one thing the iPhone build cannot
 have; iOS does not let an app start a second program.)
+
+## For the careful: checking that you got the real thing
+
+Every formicaria APK is signed with the same certificate. Its fingerprint is:
+
+```text
+de040b95933b491e3fb26966025001a8d7c052a526a56ea789e330c1f937bc20
+```
+
+You can read that back out of any file you download:
+
+```sh
+apksigner verify --print-certs formicaria-<version>-android-arm64.apk
+```
+
+The `SHA-256 digest` it prints should match, character for character. If it does not, do not
+install it — tell us.
+
+**Why bother.** Android already protects you *after* the first install: it refuses to replace the
+app with one signed by a different key, so nobody can push you a fake update. What it cannot do is
+protect the first install, because your phone has nothing to compare against yet. Downloads on a
+release page can be replaced by anyone with write access to the project, and nothing about how the
+app is built changes that. This fingerprint is the baseline that closes the gap, and it is the only
+part of the chain that depends on you rather than on us.
+
+*You do not need this to install or use formicaria.* It is for anyone who wants to confirm, with a
+computer, that the file is the one we built.

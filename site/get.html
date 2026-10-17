@@ -13,7 +13,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Get formicaria</title>
-<meta name="description" content="Download formicaria for Linux, macOS, Windows, Android or iPhone, and how to start it.">
+<meta name="description" content="Download formicaria for Android, Windows, Mac or Linux with one button, and start it in a few taps.">
 <link rel="icon" href="formicaria.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -25,57 +25,68 @@
 </header>
 
 <main>
-  <p>Download the archive for your system from the latest release, unpack it, and
-  double-click the launcher. Your browser opens by itself.</p>
+  <p class="lede">Pick your device. One button downloads it; a few taps or a double-click start it.
+  No account, nothing to sign up for.</p>
+
+  <h2>On an Android phone or tablet</h2>
+  <p><a class="button big" href="https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk">Download for Android</a></p>
+  <ol class="steps">
+    <li>Open this page <strong>on the phone</strong> and tap the button above. If the browser asks
+    whether to keep the file, tap <strong>Download</strong>.</li>
+    <li>When it has downloaded, tap <strong>Open</strong>.</li>
+    <li>Android says it cannot install apps from this source, because the app is not from the Play
+    Store. Tap <strong>Settings</strong>, switch on <strong>Allow from this source</strong>, and go
+    back.</li>
+    <li>Tap <strong>Install</strong>, then <strong>Open</strong>. Done.</li>
+  </ol>
+  <p class="small">If the phone shows one more screen — a virus check, or "Play Protect" — choose
+  <strong>Install anyway</strong> (sometimes under <em>More details</em>). It does this for any app from
+  outside its store. You only install once: after that the app tells you about new versions itself.
+  <a href="manual/user/android.html">More about Android</a>.</p>
+
+  <h2>On a computer</h2>
   <ul class="cards">
     <li>
-      <h3>Linux</h3>
-      <p>Unpack the <code>linux-x86_64</code> archive and double-click
-      <code>Start formicaria.sh</code>.</p>
-      <p class="small">64-bit x86, glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, Fedora 35+).</p>
-      <ul class="links">
-        <li><a class="go" href="https://github.com/formicaria-org/formicaria/releases/latest">Download for Linux</a></li>
-        <li><a class="go" href="manual/user/setup.html">Setting up on Linux</a></li>
-      </ul>
-    </li>
-    <li>
-      <h3>macOS</h3>
-      <p>Unpack the <code>macos-arm64</code> archive and double-click
-      <code>Start formicaria.command</code>.</p>
-      <p class="small">Apple silicon. The first time, macOS warns about unsigned software: System
-      Settings → Privacy &amp; Security → Open Anyway.</p>
-      <ul class="links">
-        <li><a class="go" href="https://github.com/formicaria-org/formicaria/releases/latest">Download for macOS</a></li>
-        <li><a class="go" href="manual/user/setup-macos.html">Setting up on macOS</a></li>
-      </ul>
-    </li>
-    <li>
       <h3>Windows</h3>
-      <p>Unpack the <code>windows-x86_64</code> zip and double-click
-      <code>Start formicaria.vbs</code>.</p>
-      <p class="small">Windows 10 or 11, 64-bit. The setting-up chapter says what to do about the
-      security warning.</p>
-      <ul class="links">
-        <li><a class="go" href="https://github.com/formicaria-org/formicaria/releases/latest">Download for Windows</a></li>
-        <li><a class="go" href="manual/user/setup-windows.html">Setting up on Windows</a></li>
-      </ul>
+      <p><a class="button" href="https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-windows.zip">Download for Windows</a></p>
+      <p>Right-click the downloaded file, choose <strong>Extract All</strong>, then open the new
+      folder and double-click <strong>Start formicaria</strong>. Your browser opens: that is the
+      app.</p>
+      <p class="small">Windows 10 or 11, 64-bit. Windows warns about an app it does not know —
+      <a href="manual/user/setup-windows.html">what to click</a>.</p>
     </li>
     <li>
-      <h3>Android and iPhone</h3>
-      <p>The same release carries an Android <code>.apk</code> and an iPhone <code>.ipa</code>.
-      Both need a little more than a double-click, and each has its own chapter.</p>
-      <p class="small">The iPhone chapter is not optional reading: Apple's free signing expires
-      after seven days.</p>
-      <ul class="links">
-        <li><a class="go" href="manual/user/android.html">On an Android phone</a></li>
-        <li><a class="go" href="manual/user/iphone.html">On an iPhone</a></li>
-      </ul>
+      <h3>Mac</h3>
+      <p><a class="button" href="https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-macos.tar.gz">Download for Mac</a></p>
+      <p>Double-click the downloaded file to unpack it, then open the new folder and double-click
+      <strong>Start formicaria</strong>. Your browser opens: that is the app.</p>
+      <p class="small">Macs with Apple silicon (2020 or later). The first time, macOS refuses an app
+      it does not know: <strong>System Settings → Privacy &amp; Security → Open Anyway</strong>.
+      <a href="manual/user/setup-macos.html">Step by step</a>.</p>
+    </li>
+    <li>
+      <h3>Linux</h3>
+      <p><a class="button" href="https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-linux.tar.gz">Download for Linux</a></p>
+      <p>Unpack it, open the new folder and double-click <strong>Start formicaria</strong>. Your
+      browser opens: that is the app.</p>
+      <p class="small">64-bit, Ubuntu 22.04, Debian 12, Fedora 35 or newer.
+      <a href="manual/user/setup.html">Step by step</a>.</p>
     </li>
   </ul>
-  <p>All you need besides is a current web browser — Firefox, Chrome, Safari or Edge. Closing the
-  tab stops the app about a minute and a half later, unless a reminder is waiting. Later versions
-  are installed from inside the app: Settings, <em>Check now</em>. Each archive also carries the
-  whole manual, to read offline.</p>
+  <p class="small">Unpack before you start it — never run it from inside the zip, where Windows
+  would later delete your notes with the temporary folder. Closing the browser tab stops the app;
+  double-clicking <strong>Start formicaria</strong> starts it again. New versions install from inside
+  the app.</p>
+
+  <h2>On an iPhone or iPad</h2>
+  <p>Not simple yet, and we would rather say so. Apple only lets an app outside the App Store onto
+  an iPhone if <em>you</em> sign it with your own Apple ID, using a computer and a free tool — and
+  that signature runs out after seven days.
+  <a href="manual/user/iphone.html">The iPhone chapter</a> walks through it.</p>
+
+  <p class="small">Looking for something else — an older version, or the files for checking a
+  download? They are all on the <a href="https://github.com/formicaria-org/formicaria/releases/latest">release
+  page</a>, which is made for developers.</p>
   <p><a class="home" href="index.html">← Back to the first page</a></p>
 </main>
 

@@ -265,6 +265,23 @@ jobs:
         run: |
           rm -f dist/unsigned-*
           ls -la dist
+      # **A name a button can point at for ever** (2026-10-18). The website's Download buttons go
+      # straight to `releases/latest/download/<name>`, which only works for a name that does not
+      # change between releases — so each download is also attached under a plain one. The release
+      # page and its file list were the barrier: a newcomer sent there met source code, commit
+      # history and seven technical file names, and could not tell which was theirs. Copies, so the
+      # versioned files (which the updater's signed manifest names) are untouched; a platform whose
+      # build failed simply has no plain copy, and its button says so by failing to download.
+      - name: plain names for the website's buttons
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          for pair in android-arm64.apk:android.apk windows-x86_64.zip:windows.zip \
+                      macos-arm64.tar.gz:macos.tar.gz linux-x86_64.tar.gz:linux.tar.gz; do
+            from="dist/formicaria-${tag}-${pair%%:*}"
+            to="dist/formicaria-${pair##*:}"
+            if [ -f "$from" ]; then cp "$from" "$to"; else echo "no $from — no plain copy"; fi
+          done
+          ls -la dist
       # **The one screen every single downloader sees, and it was a list of commit titles.**
       #
       # Everything we have written about installing formicaria lives *inside* the archive — the
@@ -285,12 +302,15 @@ jobs:
 
             ### Get started
 
+            **Not sure which file?** The website has one button per device and three plain steps:
+            **https://formicaria-org.github.io/formicaria/get.html**
+
             | Your system | Download | Then |
             |---|---|---|
-            | Windows 10/11 (64-bit) | `…-windows-x86_64.zip` | double-click `Start formicaria.vbs` |
-            | Mac, Apple silicon | `…-macos-arm64.tar.gz` | double-click `Start formicaria.command` |
-            | Linux, x86-64 | `…-linux-x86_64.tar.gz` | double-click `Start formicaria.sh` |
-            | Android phone or tablet | `…-android-arm64.apk` | open it on the device and allow the install |
+            | Windows 10/11 (64-bit) | `formicaria-windows.zip` | double-click `Start formicaria.vbs` |
+            | Mac, Apple silicon | `formicaria-macos.tar.gz` | double-click `Start formicaria.command` |
+            | Linux, x86-64 | `formicaria-linux.tar.gz` | double-click `Start formicaria.sh` |
+            | Android phone or tablet | `formicaria-android.apk` | open it on the device and allow the install |
             | iPhone or iPad | `…-ios-arm64.ipa` | sign it with your own free Apple ID — [how](https://github.com/formicaria-org/formicaria/blob/main/docs/src/user/iphone.md) |
 
             **Unpack it first** — do not run it from inside the zip. Windows opens zips in a

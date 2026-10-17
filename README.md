@@ -139,8 +139,13 @@ no Windows machine here. The reports come with real problems attached. See
 
 ## Install
 
-Download the archive for your platform from
-[Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
+**Not a developer? Go to [the Get it page](https://formicaria-org.github.io/formicaria/get.html)** —
+one button per device, and a few plain steps. On an Android phone it is
+**[Download for Android](https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk)**,
+then *Open*, allow the install, *Install*.
+
+The rest of this section is the same thing in more detail. Download the archive for your platform
+from [Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
 double-click the launcher for your system — `Start formicaria.vbs` on Windows,
 `Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
 itself; closing the tab stops the app about a minute and a half later (unless a reminder is
@@ -148,7 +153,7 @@ waiting: then it stays, quietly, until that has been said). Later versions are i
 inside the app: Settings, *Check now*.
 
 **On a phone**, the same page carries an Android `.apk` and an iPhone `.ipa`, built by the same
-release. Both need a little more than a double-click, and each has a chapter:
+release. Android is a few taps; the iPhone needs a computer. Each has a chapter:
 [Android](docs/src/user/android.md) · [iPhone](docs/src/user/iphone.md) — the iPhone one is not
 optional reading, because Apple's free signing expires after seven days.
 

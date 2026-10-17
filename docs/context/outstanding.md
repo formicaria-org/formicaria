@@ -113,6 +113,15 @@ The honest statement is shipped; the destination is not.
 Shipped as `decisions.md` 2026-10-18 (two entries). Left: a WebView trace on the phone before and
 after; proposal pushes outside the vault lock (`known-issues.md`, *A backup and everything else*).
 
+### 1.4 Android in a store — the owner's decision (2026-10-18)
+
+Installing from the website is now one button and four taps (`decisions.md` 2026-10-18), but
+Android's *allow from this source* step stays for as long as the app is not in a store. **Google
+Play**: one-off fee, identity check, and a new personal account must run a 14-day closed test with
+testers before publishing; keeps our signing key via Play App Signing. **F-Droid**: free, built from
+source by F-Droid with its key (so not an update to our APK), and the bundled model runtime would
+need to be built or declared. Neither is started; both need the owner's accounts.
+
 ## 2. Not started
 
 ### 2.0 The papers tool — the reader is the part that is still missing
