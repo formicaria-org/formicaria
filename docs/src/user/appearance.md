@@ -15,6 +15,22 @@ travels with your notes.
 Answering any of them creates a theme called *My appearance* in your vault and switches to it. There
 is no save button: the change is written as you make it.
 
+## Starting from a suggestion
+
+Under **Start from a suggestion** are four ready-made themes. **Use** copies one into your vault as a
+theme of your own and switches it on — from then on it is yours, and **Edit** changes it like any
+other. Using one again, or after you have changed your copy, makes a second copy (*Paper 2*); it
+never overwrites the first.
+
+| Theme | What it is | Dark / light |
+|---|---|---|
+| **Paper** | warm off-white, brown accent, a serif — like a printed page | always light |
+| **Night ink** | deep blue-black with a soft blue accent, for working at night | always dark |
+| **High contrast** | black on white (or white on black), clear borders, a strong accent | follows your choice |
+| **Large and calm** | bigger text, more space between lines, a shorter line to read | keeps your colours |
+
+They are also the quickest way to learn the format: open one with **Edit** and change a line.
+
 ## Writing your own
 
 Under the same heading is a list of your themes, each with **Edit** and **Delete**. Edit opens the
@@ -63,20 +79,86 @@ your theme files without being forced to wear them.
 A theme is capped at 128 KB — the entire built-in design system is about 14 KB, so this is not a
 limit you will meet by accident.
 
+## Themes and dark/light
+
+A theme that sets colours under `:root` uses them whatever **Settings → Look → Theme** says — *Paper*
+stays light even when the app is set to dark. To follow the choice instead, give each mode its own
+block, as *High contrast* does:
+
+```css
+:root[data-theme='dark']  { --bg: #000000; --text: #ffffff; }
+:root[data-theme='light'] { --bg: #ffffff; --text: #000000; }
+```
+
+A theme that sets no colours at all — only sizes and fonts, like *Large and calm* — keeps whichever
+built-in colours are in use. (Before version 0.8.9, colours in a theme were ignored in light mode.
+They now apply in both.)
+
 ## The names you can set
 
 These are the app's own design tokens. **They are a promise**: they will keep meaning the same thing
-as the app changes.
+as the app changes. Anything you leave out keeps its built-in value.
 
-`--bg` · `--surface` · `--surface-elevated` · `--surface-hover` · `--border` · `--border-strong` ·
-`--text` · `--text-muted` · `--text-subtle` · `--accent` · `--accent-hover` · `--accent-contrast` ·
-`--accent-subtle` · `--link` · `--focus-ring` · `--shadow-sm` · `--shadow-md` · `--shadow-lg` ·
-`--tint-a` · `--tint-b` · `--tint-c` · `--u-overdue` · `--u-soon` · `--u-week` · `--u-later` ·
-`--u-none` · `--danger-bg` · `--danger-fg` · `--ok-bg` · `--ok-fg` · `--font-sans` · `--font-mono` ·
-`--measure` · `--text-xs` · `--text-sm` · `--text-base` · `--text-md` · `--text-lg` · `--text-xl` ·
-`--text-2xl` · `--lh-xs` · `--lh-sm` · `--lh-base` · `--lh-md` · `--lh-lg` · `--lh-xl` · `--lh-2xl` ·
-`--radius-sm` · `--radius-md` · `--radius-lg` · `--radius-pill` · `--space-1` · `--space-2` ·
-`--space-3` · `--space-4` · `--space-5` · `--space-6` · `--space-7` · `--space-8`
+**Backgrounds and text**
+
+| Name | What it colours |
+|---|---|
+| `--bg` | the page behind everything |
+| `--surface` | panels, the side bar, board columns |
+| `--surface-elevated` | cards, menus, dialogs — anything that sits on top |
+| `--surface-hover` | a row or button under the pointer; also tags, counts and dates |
+| `--border` | ordinary dividing lines |
+| `--border-strong` | the edges of inputs and buttons |
+| `--text` | the main text |
+| `--text-muted` | secondary text — dates, counts, descriptions |
+| `--text-subtle` | the faintest text — hints and placeholders |
+
+**Accent and links**
+
+| Name | What it colours |
+|---|---|
+| `--accent` | the main buttons, chosen items and highlights |
+| `--accent-hover` | the same, under the pointer |
+| `--accent-contrast` | text drawn on the accent (keep it readable against it) |
+| `--accent-subtle` | a faint wash of the accent behind a chosen item |
+| `--link` | links in notes |
+| `--focus-ring` | the outline round whatever the keyboard is on |
+| `--shadow-sm` · `--shadow-md` · `--shadow-lg` | the shadow under cards, menus and dialogs (any CSS `box-shadow` value) |
+
+**Highlights and meaning**
+
+| Name | What it colours |
+|---|---|
+| `--tint-a` · `--tint-b` · `--tint-c` | three highlight colours — coloured text and callouts in notes, charts; `--tint-c` is also the highlighter |
+| `--u-overdue` | a date that has passed (in the agenda and on the calendar) |
+| `--u-soon` | due in the next few days |
+| `--u-week` | due this week |
+| `--u-later` | due later |
+| `--u-none` | no date |
+| `--danger-bg` · `--danger-fg` | warnings and anything that deletes: background and text |
+| `--ok-bg` · `--ok-fg` | confirmations: background and text |
+
+**Type**
+
+| Name | What it sets |
+|---|---|
+| `--font-sans` | the font for everything you read and write |
+| `--font-mono` | the font for code |
+| `--measure` | how long a line of a note may grow (for example `68ch`, about 68 characters) |
+| `--text-base` | the size of ordinary text — the one to change first |
+| `--text-xs` · `--text-sm` · `--text-md` · `--text-lg` · `--text-xl` · `--text-2xl` | the smaller and larger sizes, smallest first: labels, then headings |
+| `--lh-xs` · `--lh-sm` · `--lh-base` · `--lh-md` · `--lh-lg` · `--lh-xl` · `--lh-2xl` | the space between lines for each size (a number such as `1.6`) |
+
+**Shape and spacing**
+
+| Name | What it sets |
+|---|---|
+| `--radius-sm` · `--radius-md` · `--radius-lg` | how rounded corners are: small controls, cards, dialogs (`0` for square) |
+| `--radius-pill` | fully rounded chips and tags |
+| `--space-1` … `--space-8` | the spacing steps, from 4px to 64px (`--space-2`, `--space-3`, `--space-4`, `--space-5`, `--space-6` and `--space-7` between) |
+
+Larger spacing takes room from a phone's narrow screen; change the small steps a little rather than
+the large ones a lot.
 
 You can of course write any CSS you like, including rules aimed at the app's own elements. That
 works — but those are internal and may change between versions, and the names above will not.

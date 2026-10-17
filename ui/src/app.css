@@ -152,8 +152,12 @@
 }
 
 /* ---- (2) Semantic tokens — dark (default) ---- */
-:root,
-:root[data-theme='dark'] {
+/* **`:where()`, so a theme always wins** (2026-10-18). These blocks were `:root[data-theme=…]`,
+   more specific than a theme's `:root`, and in light mode every colour a theme set was ignored.
+   At zero specificity a theme's `:root` beats both, and light still beats dark by coming later.
+   `ci/checks.sh` fails if a palette climbs back above zero. */
+:where(:root),
+:where(:root[data-theme='dark']) {
   --bg: #16161d;
   --surface: #1c1c25;
   --surface-elevated: #23232e;
@@ -193,7 +197,7 @@
 }
 
 /* ---- (2) Semantic tokens — warm light ---- */
-:root[data-theme='light'] {
+:where(:root[data-theme='light']) {
   --bg: #f7f6f3;
   --surface: #ffffff;
   --surface-elevated: #ffffff;

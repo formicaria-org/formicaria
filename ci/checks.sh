@@ -2105,6 +2105,17 @@ if [ -f ui/src/lib/Appearance.svelte ]; then
         fail=1
     fi
 
+    # **A theme wins in light mode too** (2026-10-18). The built-in palettes were
+    # `:root[data-theme=…]`, more specific than a theme's `:root`, so in light mode every colour a
+    # theme set was ignored. A palette block must sit at zero specificity, wrapped in `:where()`; the
+    # shapes that outrank a theme are `:root,` and `:root[data-theme=…] {` opening a block.
+    outranked=$(grep -nE "^:root(\[data-theme=[^]]*\])? *,|^:root\[data-theme=[^]]*\] *\{" ui/src/app.css)
+    if [ -n "$outranked" ]; then
+        echo "  FAIL: a built-in palette in ui/src/app.css outranks a user theme: $outranked"
+        echo "        Wrap it in :where() so a theme's :root always wins, in dark and in light."
+        fail=1
+    fi
+
     # The manual promises these names will not move under a theme author. A promise the code has
     # quietly stopped keeping is worse than no promise, so the two lists are compared rather than
     # trusted: every token in SUPPORTED must appear in the page, and vice versa.

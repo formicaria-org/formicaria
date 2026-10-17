@@ -21,6 +21,7 @@
   /// filter richer than one tag, for the same reason.
   import { listThemes, readTheme, saveTheme, deleteTheme, renameTheme } from './ipc';
   import * as appearance from './appearance';
+  import { STARTERS, freeName, slug, type Starter } from './starterThemes';
   import type { ThemeInfo } from './types';
 
   interface Props {
@@ -106,6 +107,28 @@
         const made = themes.find((t) => t.name === 'my-appearance') ?? themes[0];
         if (made) onselect({ vault: made.vault ?? '', name: made.name });
       }
+    } catch (e) {
+      problem = e instanceof Error ? e.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  /// **Start from a suggestion** (2026-10-18): the starter is copied into the vault as an ordinary
+  /// theme and worn, so it can be edited like any other. A name already taken gets a number —
+  /// choosing a starter twice, or after editing the first copy, never overwrites anything.
+  async function startFrom(st: Starter) {
+    busy = true;
+    try {
+      const vault = selected?.vault ?? themes[0]?.vault ?? '';
+      const name = freeName(
+        st.name,
+        themes.map((t) => t.name),
+      );
+      themes = await saveTheme(name, st.css, vault);
+      problem = '';
+      const made = themes.find((t) => t.name === slug(name));
+      if (made) onselect({ vault: made.vault ?? '', name: made.name });
     } catch (e) {
       problem = e instanceof Error ? e.message : String(e);
     } finally {
@@ -268,6 +291,22 @@
         {/each}
       </span>
     </li>
+  </ul>
+
+  <p class="group">Start from a suggestion</p>
+  <p class="muted">
+    Each is copied into your vault as a theme of your own, switched on, and yours to edit.
+  </p>
+  <ul class="caps">
+    {#each STARTERS as st (st.name)}
+      <li>
+        <span class="k">{st.name}</span>
+        <span class="muted">{st.says}</span>
+        <span class="row">
+          <button class="binding" disabled={busy} onclick={() => startFrom(st)}>Use</button>
+        </span>
+      </li>
+    {/each}
   </ul>
 
   <p class="group">Your own themes</p>

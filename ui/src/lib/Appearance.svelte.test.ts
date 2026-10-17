@@ -132,3 +132,23 @@ test('deleting the theme in use takes it off first', async () => {
   await waitFor(() => expect(onselect).toHaveBeenCalledWith(null));
   expect(deleteTheme).toHaveBeenCalledWith('writing-desk', 'personal');
 });
+
+test('a starter is copied in as a theme of your own and worn, never over one you already have', async () => {
+  // A "Paper" exists already — perhaps edited. Choosing the starter again must not replace it.
+  listThemes.mockResolvedValue([{ name: 'paper', vault: 'personal', bytes: 900 }]);
+  saveTheme.mockResolvedValue([
+    { name: 'paper', vault: 'personal', bytes: 900 },
+    { name: 'paper-2', vault: 'personal', bytes: 900 },
+  ]);
+  const onselect = vi.fn();
+  render(Appearance, { selected: null, onselect });
+
+  await screen.findByText('Paper');
+  const uses = await screen.findAllByRole('button', { name: 'Use' });
+  await fireEvent.click(uses[0]);
+
+  await waitFor(() =>
+    expect(saveTheme).toHaveBeenCalledWith('Paper 2', expect.stringContaining('--bg'), 'personal'),
+  );
+  expect(onselect).toHaveBeenCalledWith({ vault: 'personal', name: 'paper-2' });
+});
