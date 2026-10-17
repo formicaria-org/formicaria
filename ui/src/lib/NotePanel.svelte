@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
+  import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
   import {
     getNote,
     updateBody,
@@ -346,31 +347,103 @@
     getNote(which)
       .then((n) => {
         if (cancelled) return;
-        note = n;
-        draft = n?.body ?? '';
-        base = n?.version ?? '';
-        ontitle?.(n ? noteName(n) : null);
-        if (n) {
-          pTitle = n.title ?? '';
-          pStatus = n.status ?? '';
-          const start = parseStamp(n.start);
-          const due = parseStamp(n.due);
-          pStart = start?.day ?? '';
-          pStartTime = start?.time ?? '';
-          pDue = due?.day ?? '';
-          pDueTime = due?.time ?? '';
-          pHard = n.hard;
-          pTags = n.tags.join(', ');
-          if (startEditing) editing = true; // "New note" opens straight in the editor
-        }
+        adopt(n);
+        if (n && startEditing) editing = true; // "New note" opens straight in the editor
       })
       .catch((e) => {
         if (!cancelled) error = String(e);
       });
     return () => {
       cancelled = true;
+      // **Leaving a note that was written in sends it soon** (`keepLevel.svelte.ts`), so the
+      // other device has it before it is picked up.
+      if (wroteIn !== null) leftNote(wroteIn);
+      wroteIn = null;
     };
   });
+
+  /// What the property form shows for a note — one definition, so loading a note and checking
+  /// whether the form holds unsaved edits can never disagree about it.
+  function formOf(n: ObjectMeta) {
+    const start = parseStamp(n.start);
+    const due = parseStamp(n.due);
+    return {
+      pTitle: n.title ?? '',
+      pStatus: n.status ?? '',
+      pStart: start?.day ?? '',
+      pStartTime: start?.time ?? '',
+      pDue: due?.day ?? '',
+      pDueTime: due?.time ?? '',
+      pHard: n.hard,
+      pTags: n.tags.join(', '),
+    };
+  }
+
+  /// Show `n`: its text, the version the next save is checked against, and its form.
+  function adopt(n: NoteDetail | null) {
+    note = n;
+    draft = n?.body ?? '';
+    base = n?.version ?? '';
+    ontitle?.(n ? noteName(n) : null);
+    if (n) ({ pTitle, pStatus, pStart, pStartTime, pDue, pDueTime, pHard, pTags } = formOf(n));
+  }
+
+  /// Nothing typed here that the file lacks — text or form. The one condition under which a note
+  /// may be swapped for what arrived, because then there is nothing to lose.
+  function holdsNothingUnsaved(n: NoteDetail): boolean {
+    if (draft !== n.body) return false;
+    const f = formOf(n);
+    return (
+      pTitle === f.pTitle &&
+      pStatus === f.pStatus &&
+      pStart === f.pStart &&
+      pStartTime === f.pStartTime &&
+      pDue === f.pDue &&
+      pDueTime === f.pDueTime &&
+      pHard === f.pHard &&
+      pTags === f.pTags
+    );
+  }
+
+  /// **Changes arrived: take them, when this note holds nothing unsaved** (2026-10-17,
+  /// `decisions.md#sync`). Without this a note opened before a get kept the old version, and the
+  /// first keystroke after it was refused as stale and shown as *"someone else changed this
+  /// note"* — between the owner's own two devices. With unsaved text the old behaviour stands:
+  /// both versions shown, nothing lost.
+  let arrivalsSeen = untrack(() => arrivals.count);
+  $effect(() => {
+    const count = arrivals.count;
+    if (count === arrivalsSeen) return;
+    arrivalsSeen = count;
+    untrack(() => void takeWhatArrived());
+  });
+  async function takeWhatArrived() {
+    const held = note;
+    if (!held || !holdsNothingUnsaved(held)) return;
+    const fresh = await getNote(held.id).catch(() => null);
+    // Re-checked after the wait: a keystroke in between makes this no longer safe.
+    if (!fresh || note?.id !== held.id || !holdsNothingUnsaved(held)) return;
+    if (fresh.version !== base || formChanged(held, fresh)) adopt(fresh);
+  }
+  function formChanged(a: ObjectMeta, b: ObjectMeta): boolean {
+    return JSON.stringify(formOf(a)) !== JSON.stringify(formOf(b));
+  }
+
+  /// **About to edit: be level first.** The loop backs up now if another device has sent to this
+  /// vault, and `takeWhatArrived` puts the newest text in front of the first keystroke.
+  $effect(() => {
+    if (editing && note) {
+      const vault = note.vault;
+      untrack(() => startingToEdit(vault));
+    }
+  });
+
+  /// The vault this note was written in during this visit, if any — what leaving it should send.
+  let wroteIn: string | null = null;
+  function reportSaved() {
+    if (note) wroteIn = note.vault;
+    onsaved?.();
+  }
 
   // Render the read view when not editing (a textarea holds the literal bytes).
   // Revoke the previous render's object URLs first — innerHTML is about to
@@ -706,7 +779,7 @@
       if ((await writeBody(id, body)) === null || note?.id !== id) return;
       note = { ...note, body };
       saved = draft === body;
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       if (note?.id !== id) return;
       if (String(e).includes('changed on disk')) {
@@ -967,7 +1040,7 @@
       // Saved only if nothing was typed while the write was in flight. If something was, the
       // debounce has already scheduled the next write, and `flushPendingSave` must still see it.
       saved = draft === body;
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       if (note?.id === id) await onSaveRejected(e);
     }
@@ -1129,7 +1202,7 @@
       }
     }
     void loadThread();
-    onsaved?.();
+    reportSaved();
   }
 
   // Rejecting never touches the note body (main is untouched), so no reload — just clear the chip and
@@ -1338,7 +1411,7 @@
     try {
       await setPropertyUndoable(note.id, 'title', title, `renamed “${noteName(note)}”`);
       note = { ...note, title: title || null };
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       discError = String(e);
     }
@@ -1400,7 +1473,7 @@
       }
       // A message is a file write like any other, so it rides the same signal the editor
       // uses — which is what schedules the debounced commit. No second path.
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       discError = String(e);
     } finally {
@@ -1498,7 +1571,7 @@
       // as two autosaves did, and here the loser reloads the scene and drops the latest strokes.
       if ((await writeBody(id, json)) === null || note?.id !== id) return;
       note = { ...note, body: json };
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       if (note?.id !== id) return;
       // A canvas cannot show conflict markers, so a board says what happened and reloads
@@ -1549,7 +1622,7 @@
       );
       applyLocal(key, value);
       if (key === 'title' && note) ontitle?.(noteName({ ...note, title: value || null }));
-      onsaved?.();
+      reportSaved();
       error = null;
     } catch (e) {
       error = String(e);
@@ -1883,7 +1956,7 @@
     if (!note) return;
     try {
       await deleteUndoable(note.id, noteName(note) ?? 'a note');
-      onsaved?.();
+      reportSaved();
       onclose();
     } catch (e) {
       error = String(e);
@@ -1944,7 +2017,7 @@
       copyUndo = { id: r.meta.id, vault: target, blobs: r.new_blobs, replaced: r.replaced };
       clearTimeout(copyUndoTimer);
       copyUndoTimer = setTimeout(() => (copyUndo = null), 12000);
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       error = String(e);
     }
@@ -1956,7 +2029,7 @@
     clearTimeout(copyUndoTimer);
     try {
       await uncopyNote(u.id, u.vault, u.blobs);
-      onsaved?.();
+      reportSaved();
     } catch (e) {
       error = String(e);
     }
@@ -2151,7 +2224,7 @@
         await insertAtCaret(assetRef(meta) + '\n');
         copied.push(meta.title ?? f.name);
       }
-      onsaved?.();
+      reportSaved();
       // The bytes are copied into the vault's blob store; the original file on
       // disk is untouched. Confirm that plainly, as the user asked.
       flashNotice(

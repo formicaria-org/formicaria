@@ -1258,7 +1258,11 @@ by each table's own-language names. Limits: `known-issues.md` (*A label from any
 5. A range for an amount in millilitres; a choice of which tables a search shows; the Swiss
    table's densities, the only honest bridge from millilitres to grams.
 
-### 2.26 One person's devices kept level — what is left after 0.8.5 (2026-10-17)
+### 2.26 One person's devices kept level — items 1–4 DONE 2026-10-17; item 5 left
+
+> Items 1–4 shipped the same day (`decisions.md#sync`, *one person's devices are kept level*):
+> the *N not sent* chip, occasions besides the tick, an open note taking what arrived, no write
+> when nothing changed. **Left: item 5**, and getting by itself is still untested (behind `PROD`).
 
 The owner uses the phone and the laptop as one person on two devices, and the conflicts that
 annoy are a stale device's, not a disagreement. 0.8.5 fixed the phone never sending by itself

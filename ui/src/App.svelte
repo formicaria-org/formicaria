@@ -92,7 +92,19 @@
   import { isRemote } from './lib/remote';
   import { isPhone } from './lib/platform';
   import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
-  import { TICK_MS, autoBackupOn, dueVaults, runsByItself, type Attempt } from './lib/autoBackup';
+  import {
+    RETURN_AFTER_MS,
+    TICK_MS,
+    autoBackupOn,
+    dueVaults,
+    runsByItself,
+    unsentLabel,
+    unsentTitle,
+    unsentVaults,
+    type Attempt,
+    type Occasion,
+  } from './lib/autoBackup';
+  import { setLevelHooks } from './lib/keepLevel.svelte';
   import { isTyping } from './lib/typing';
   import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
   import { unreachable } from './lib/reachable.svelte';
@@ -1211,49 +1223,98 @@
 
   // **Backing up by itself** (`lib/autoBackup.ts` holds the when and the why; `decisions.md`,
   // 2026-10-11). It presses Back up — `syncVault`, which saves, gets their changes and sends — for
-  // each vault that is due. Never while someone is typing: getting changes under an open editor
-  // is a thing to do between sentences, not during one. Leaving the app is the exception, because
-  // on a phone there may be no later. A failure says nothing here; the Back up panel and the
-  // "not sent" chip already say it, and a laptop on a train is not news every two minutes.
-  const autoAttempts: Record<string, Attempt> = {};
+  // each vault that is due. Never mid-sentence: on the tick, getting changes under an open editor
+  // is a thing to do between sentences, not during one. Since 2026-10-17 (`decisions.md#sync`,
+  // *one person's devices are kept level*) there are occasions besides the tick — leaving the app,
+  // coming back, starting to edit, leaving a note, the network returning — each relaxing its own
+  // wait (`Occasion` in `autoBackup.ts`). **A failure is no longer quiet**: it is kept below and
+  // shown as the "not sent" chip, once, not as a message every two minutes.
+  const autoAttempts = $state<Record<string, Attempt>>({});
   let autoRunning = false;
+  /// An occasion that came while a backup was running, taken up when it ends — dropping it would
+  /// leave a note just left, or a device just come back, to the next tick.
+  let autoAgain: Occasion | null = null;
   function typing(): boolean {
     const el = document.activeElement as HTMLElement | null;
     return isTyping(el);
   }
-  async function autoBackup(leaving = false) {
-    if (autoRunning || savingLabel || !autoBackupOn() || isRemote()) return;
+  /// Occasions on which nobody is mid-sentence, so the typing guard is lifted: the app is going
+  /// away, has just come back, or an edit is about to start.
+  const NOT_MID_SENTENCE: Occasion[] = ['leaving', 'returning', 'editing'];
+  async function autoBackup(occasion: Occasion = 'tick') {
+    if (!runsByItself() || savingLabel || !autoBackupOn() || isRemote()) return;
     if (!vaults?.length || syncingPhase() !== null || navigator.onLine === false) return;
-    if (!leaving && typing()) return;
+    if (!NOT_MID_SENTENCE.includes(occasion) && typing()) return;
+    if (autoRunning) {
+      autoAgain = occasion;
+      return;
+    }
     autoRunning = true;
     try {
       const rows = await lastCommits().catch(() => []);
-      const due = dueVaults(rows, movedVaults, autoAttempts, Date.now(), leaving);
+      // The same reading feeds the "not sent" chip, so it is never more than a tick out of date.
+      if (rows.length) lastSaves = rows;
+      const due = dueVaults(rows, movedVaults, autoAttempts, Date.now(), occasion);
       if (!due.length) return;
       const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
       for (const v of due) {
         const phase = await syncVault(v, `backup: ${stamp}`, () => refresh());
-        autoAttempts[v] = { at: Date.now(), ok: phase === 'synced' };
+        autoAttempts[v] = {
+          at: Date.now(),
+          ok: phase === 'synced',
+          phase,
+          error: syncFor(v).error,
+        };
         if (phase !== 'failed') movedVaults = movedVaults.filter((m) => m !== v);
         await sayWhatCameBack(v, phase);
       }
       await Promise.all([loadDemoted(), loadKept(), loadLastSaves()]);
     } finally {
       autoRunning = false;
+      const again = autoAgain;
+      autoAgain = null;
+      if (again) void autoBackup(again);
     }
   }
+  /// Back after a real absence: ask whether another device has sent, then back up at once — past
+  /// the phone's five-minute floor, which exists for a lit screen and not for a person returning.
+  async function cameBack() {
+    await checkRemotes();
+    await autoBackup('returning');
+  }
+  // The open notes tell the loop when an edit starts and when a note is left (`keepLevel.svelte.ts`).
+  // **Leaving waits a moment** so the note's own last save lands before the backup reads the disk.
+  const LEFT_NOTE_SETTLE_MS = 1500;
+  setLevelHooks({
+    editing: (vault) => {
+      if (movedVaults.includes(vault)) void autoBackup('editing');
+    },
+    left: () => {
+      setTimeout(() => void autoBackup('left-note'), LEFT_NOTE_SETTLE_MS);
+    },
+  });
   $effect(() => {
     if (!runsByItself()) return; // the mock has nowhere to send, unless a test says otherwise
     const id = setInterval(() => {
       if (!document.hidden) void autoBackup();
     }, TICK_MS);
-    const onHide = () => {
-      if (document.hidden) void autoBackup(true);
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        void autoBackup('leaving');
+        return;
+      }
+      if (hiddenAt && Date.now() - hiddenAt >= RETURN_AFTER_MS) void cameBack();
+      hiddenAt = 0;
     };
-    document.addEventListener('visibilitychange', onHide);
+    const onOnline = () => void autoBackup('online');
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
     return () => {
       clearInterval(id);
-      document.removeEventListener('visibilitychange', onHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
     };
   });
 
@@ -2058,7 +2119,19 @@
   /// is not a reactive dependency, so this is as fresh as `lastSaves` is: the vault-list cadence,
   /// plus after every backup. At a threshold measured in weeks that is ample, and the alternative
   /// — a ticking clock behind a chip — is a re-render every second to change nothing.
-  const quiet = $derived(quietVaults(lastSaves, Date.now()));
+  /// **Changes that are not leaving this device** — a failed automatic send, or changes that have
+  /// waited past the point a working loop would have sent them (`autoBackup.ts`, `unsentVaults`).
+  /// The second does not depend on the loop running at all, which is what five silent days on the
+  /// owner's phone needed (2026-10-17).
+  const unsentNow = $derived(
+    unsentVaults(lastSaves, autoAttempts, Date.now(), runsByItself() && autoBackupOn()),
+  );
+  /// The three-day "without a backup" reading steps aside for a vault the sharper chip already names.
+  const quiet = $derived(
+    quietVaults(lastSaves, Date.now()).filter(
+      (q) => !(q.kind === 'sent' && unsentNow.some((u) => u.vault === q.vault)),
+    ),
+  );
   /// **Something is happening and you should wait.** The app had no such surface at all: every
   /// slow thing it does — commit, a pull over the network, a push — ran with nothing on screen.
   ///
@@ -2843,6 +2916,22 @@
         >
           <Icon name="clock" size={14} />
           <span class="lbl">{quietLabel(quiet, labelFor)}</span>
+        </button>
+      {/if}
+
+      {#if unsentNow.length}
+        <!-- **Changes that are not leaving this device** (2026-10-17, `decisions.md#sync`). Filled
+           like the quiet chip: it is an invitation to act, and Back up is where the reason is seen
+           and the send can be made now. The label is short; the hover says why — the failure in
+           plain words, or how long the changes have waited. -->
+        <button
+          class="tb-chip moved alert"
+          onclick={onBackup}
+          title={unsentTitle(unsentNow, labelFor, plainError)}
+          aria-label={unsentLabel(unsentNow, labelFor)}
+        >
+          <Icon name="backup" size={14} />
+          <span class="lbl">{unsentLabel(unsentNow, labelFor)}</span>
         </button>
       {/if}
 

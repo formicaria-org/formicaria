@@ -29,7 +29,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
-- **`#git` / `#sync`** (git, merge, collaboration): ***The backup's squash stops at a commit an open proposal stands on*** (2026-10-15; read before changing `newest_foreign` or where `create_proposal` branches from) · ***The body merge stops shelling out where there is no shell*** (read before touching `merge::text_3way`, `vcs`'s hand-written arms, or either backend's `commit_all*` — it is a shipped vault-freezing bug and its two guards) · ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
+- **`#git` / `#sync`** (git, merge, collaboration): ***One person's devices are kept level: a stuck send is shown, and leaving, returning and reconnecting back up*** (2026-10-17; amends *formicaria backs up by itself* — read before changing when `autoBackup` runs, what a write does when nothing changed, or how an open note meets arriving changes) · ***The backup's squash stops at a commit an open proposal stands on*** (2026-10-15; read before changing `newest_foreign` or where `create_proposal` branches from) · ***The body merge stops shelling out where there is no shell*** (read before touching `merge::text_3way`, `vcs`'s hand-written arms, or either backend's `commit_all*` — it is a shipped vault-freezing bug and its two guards) · ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
   exception is now "any device with no git binary" — read before touching `deny.toml`'s scope or
   `fm-serve`'s target-gated dependency) · ***A backend that cannot finish a merge must
   refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
@@ -8949,6 +8949,10 @@ notes that only have a start.
 
 ## Formicaria backs up by itself (2026-10-11, `#sync` `#git` `#ui`)
 
+> AMENDED 2026-10-17 by *one person's devices are kept level* (below): a failed or stuck
+> automatic send is now shown, and leaving a note, coming back and the network returning are
+> occasions of their own. "A failure is quiet here" no longer holds.
+
 > Amends *auto-push is explicit, never silent* (2026-07) and the comment in `App.svelte` that
 > *"pushing is a thing worth doing on purpose"*. Completes *backing up is both halves*
 > (2026-09-09), which removed the thinking from the press and left the remembering.
@@ -11487,3 +11491,52 @@ runs, to fix functions we do not call. It was tried: it compiles and `fm-fetch`'
 **Costs:** a future zip 2 bug in the paths we *do* use would not be fixed upstream. **What ends the
 waiver:** moving to zip 9 once it has settled (from about 2026-11-01), with `THIRD-PARTY.md`
 regenerated and the three ignores removed.
+
+## 2026-10-17 — one person's devices are kept level: a stuck send is shown, and leaving, returning and reconnecting back up `#sync` `#ui` `#git`
+
+> Amends *formicaria backs up by itself* (2026-10-11), whose "a failure is quiet here" and
+> once-a-minute-only schedule this replaces in part. `outstanding.md` §2.26, items 1–4.
+
+**What prompted it.** The owner uses the phone and the laptop as one person, and the conflicts
+that annoy are a stale device's, not a disagreement: *"it was enough that the two are kept as
+uptodate as possible."* The same day the phone was found to have held 46 changes for five days
+(`isRemote`, fixed in 0.8.5) — and nothing on screen had said so in a way that was seen.
+
+**The four questions.** `#sync` `#ui` `#git`. Read: *backs up by itself*; *backing up is both
+halves* (2026-09-09); *an alert that measures saving cannot see sending*; *a conflict blocks its own
+notes*; *the app speaks the user's words*. Verdict: **amends a standing decision** in two named
+places (the quiet failure, the schedule) and keeps its rules otherwise — **one path** (every
+occasion below calls `syncVault`; none only gets, none only sends), never a first backup, the
+switch per device. Nothing new ships.
+
+**Decision.**
+1. **A send that has not happened is shown, on the device holding the changes.** Two signals,
+   because one of them must not depend on the backup loop working: *the last automatic send
+   failed* (with the reason in plain words), and *changes have waited longer than ten minutes*
+   while backing up by itself is on — which a working loop (half a minute's quiet, a minute's
+   tick, two minutes' gap) cannot produce, so it reports a broken loop whatever broke it. The
+   five days would have shown on the first morning. With the switch off, the three-day chip is
+   still the signal; the person chose to press.
+2. **Occasions besides the tick.** *Coming back* after half a minute away backs up at once, past
+   the quiet wait, the gap and the phone's five-minute floor — a shade or a lock screen is shorter
+   than that. *Starting to edit* a note in a vault another device has sent to backs up first.
+   *Leaving a note* backs up past the quiet wait, with a twenty-second gap rather than two
+   minutes. *The network coming back* backs up past the failure wait. The typing guard stays for
+   the tick, and is lifted for coming back and starting to edit, where nothing is being typed.
+3. **An open note takes what arrived, when it holds nothing unsaved.** After a get that brought
+   changes, an open note whose text equals what it loaded reloads itself. That was the conflict
+   the owner kept meeting: a note opened before the get, typed into after it, refused as stale.
+   A note with unsaved text keeps today's behaviour — both versions shown, nothing lost.
+4. **A write that changes nothing is not made.** `update_body`, `set_property` and
+   `set_properties` compare before writing; an identical note keeps its file and its `updated`.
+   A note opened and left on one device no longer makes the other device behind.
+
+**The two guarantees.** *Nothing is lost*: no new operation exists; the reload in 3 happens only
+when the open note holds nothing the file lacks; a skipped write in 4 is one whose result would
+equal the file. *There is a way back*: the switch, and everything history already offers.
+
+**Not done, and why.** *A device name in each commit* (wording that says "your phone"; a gentler
+conflict between one person's devices) enters shared history and waits for its own entry. *The
+desktop window closing* has no handler: a browser cannot hold a tab open for three round trips; the
+next opening sends. *Android's leaving send*: `WebView.onPause()` does not pause JavaScript and the
+`DATA_SYNC` foreground service already runs, so no change was made — unverified on a device.

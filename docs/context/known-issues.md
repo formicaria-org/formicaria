@@ -1217,13 +1217,22 @@ Decision: `decisions.md#sync`, *formicaria backs up by itself*.
   them, so this needs a hand-seeded repo — but the app then says only *could not get changes*.
 - **Only while the app is open.** A phone in a pocket sends nothing; the backup made on leaving is
   best effort, and Android may stop the app first.
-- **The phone learns of incoming changes only when it comes to the front**, at most every five
-  minutes (`remotePoll.ts`), so "gets their changes by itself" is prompt on the desktop and
-  coarse on the phone.
+- **The phone learns of incoming changes when it comes back** — at once after half a minute away
+  (`RETURN_AFTER_MS`, since 2026-10-17), otherwise at most every five minutes on focus
+  (`remotePoll.ts`). The desktop also polls every 45 s.
+- **Since 2026-10-17 a stuck or failed send is shown** (`unsentVaults`, the *N not sent* chip):
+  the last automatic try failed, or changes have waited over ten minutes with the switch on.
+  **Limit:** the attempts are kept in memory, so a failure from a previous session shows only
+  through the ten-minute reading, not with its reason.
+- **An open note takes arriving changes only when it holds nothing unsaved** (`NotePanel`,
+  `takeWhatArrived`). With unsaved text the old behaviour stands — both versions in the editor.
+- **No send when a desktop window closes.** A browser cannot hold a tab open for three round trips;
+  the next opening sends. **Android's leaving send is unverified on a device**: `WebView.onPause()`
+  does not pause JavaScript and the `DATA_SYNC` service runs, so it should finish.
 - **Trap: the switch is per device and lives in the browser's storage.** Clearing site data, or a
   new browser profile, turns it back on.
-- **Trap: typing in any field holds it off**, including the search box. A cursor left in a field
-  for hours means no automatic backup for hours, until the app is left.
+- **Trap: typing in any field holds the tick off**, including the search box. Leaving a note,
+  leaving the app, coming back and starting to edit are not held off (2026-10-17).
 - **A release older than this one does none of it.** A device still on 0.6.6 sends only on a press.
 
 ## Updating on the desktop — what is proven and what is not (2026-10-11)

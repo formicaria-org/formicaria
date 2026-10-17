@@ -74,12 +74,27 @@ repository, with an expiry date.
 
 ## Backing up
 
-**formicaria backs up by itself.** A little after you stop writing, and when you leave the app, it
-gets the changes from your other devices and sends yours: the same thing the **Back up** button
-does. It never does it while you are typing, and never for a vault you have not backed up once
+**formicaria backs up by itself.** It gets the changes from your other devices and sends yours —
+the same thing the **Back up** button does — at these moments:
+
+- a little after you stop writing;
+- when you leave a note you wrote in, so your other device has it before you pick that one up;
+- when you leave the app, and when you come back to it after more than half a minute away;
+- when you start editing a note that another device has changed, so you edit the newest text;
+- when the connection comes back after a failed try.
+
+It never does it in the middle of a sentence, and never for a vault you have not backed up once
 yourself. If two devices changed the same sentence, it says which notes to look at, exactly as
 after a backup you pressed. **Settings → Vaults & backup** has the switch if you would rather press.
 It works while the app is open; a device that is closed sends when you next open it.
+
+**A note you have open takes the changes that arrive**, as long as you have nothing unsaved in it.
+If you do, your text is kept and theirs is shown beside it, for you to combine.
+
+**If your changes are not leaving this device, a chip says so** — *"notes: 3 not sent"*. It appears
+when the last try failed (hover over it for the reason: no connection, a refused sign-in, notes with
+conflicting edits to settle first), or when changes have waited more than ten minutes, which should
+not happen while backing up by itself is on. Press it to open **Back up**, see why, and send now.
 **On a phone this works from version 0.8.5.** Before it, the phone sent only when you pressed
 **Back up**, while still getting your other devices' changes, so a note written there could stay on
 the phone for days. After updating, the switch is in **Settings → Vaults & backup** on the phone too.

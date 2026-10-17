@@ -25,6 +25,7 @@
 
 import { assetBatches, backupStatus, commit, push, pull } from './ipc';
 import type { AssetBatch, CommitResult, PullResult } from './types';
+import { changesArrived } from './keepLevel.svelte';
 
 /**
  * The three operations the sequence is made of, injectable so every branch of it can be
@@ -441,11 +442,13 @@ async function syncOnce(
     if (early.kept.length > 0) set(vault, { kept: early.kept });
     if (early.merged > 0) {
       set(vault, { merged: early.merged });
+      changesArrived();
       await onChanged?.();
     }
     // Conflict markers must never be published, so this stops here exactly as the post-rejection
     // pull does.
     if (early.conflicts.length > 0) {
+      changesArrived();
       await onChanged?.();
       set(vault, { phase: 'conflicts', conflicts: early.conflicts });
       return 'conflicts';
@@ -484,6 +487,7 @@ async function syncOnce(
     if (pulled.kept.length > 0) set(vault, { kept: pulled.kept });
 
     if (pulled.conflicts.length > 0) {
+      changesArrived();
       // A result, not an error — the notes still open, with markers in the body. But the
       // sequence stops here: pushing now would publish the markers.
       await onChanged?.();
@@ -491,7 +495,10 @@ async function syncOnce(
       return 'conflicts';
     }
 
-    if (pulled.merged > 0) await onChanged?.();
+    if (pulled.merged > 0) {
+      changesArrived();
+      await onChanged?.();
+    }
 
     if (pulled.merged === 0) {
       // Nothing came down, so the remote had not moved and the push failed for its own
@@ -548,9 +555,13 @@ export async function pullVault(
   set(vault, { phase: 'pulling' });
   try {
     const pulled = await ops.pull(vault);
-    if (pulled.merged > 0) await onChanged?.();
+    if (pulled.merged > 0) {
+      changesArrived();
+      await onChanged?.();
+    }
     if (pulled.kept.length > 0) set(vault, { kept: pulled.kept });
     if (pulled.conflicts.length > 0) {
+      changesArrived();
       await onChanged?.();
       set(vault, { phase: 'conflicts', conflicts: pulled.conflicts });
       return 'conflicts';
