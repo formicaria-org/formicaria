@@ -88,6 +88,15 @@ ignore = [
     # not a change to make because a gate turned red on a release day. Waived until that
     # migration is decided (`outstanding.md`, *the YAML parser*). Remove this entry with it.
     { id = "RUSTSEC-2024-0449", reason = "unmaintained, no safe upgrade; replacing the YAML parser is a planned migration, see decisions.md 2026-10-12 #toolchain" },
+    # **Three on `zip` 2.4.2, waived together on 2026-10-17** (`decisions.md#toolchain`, that date).
+    # All three are about `ZipArchive::extract` / `ZipStreamReader::extract`, which nothing here
+    # calls: `fm-fetch` and `fm-agent-run` walk entries with `by_index` + `enclosed_name`, refuse
+    # links, and write regular files themselves. The one that applied in spirit — SUID/SGID kept —
+    # is fixed in `fm-fetch`'s own code (`m & 0o777`, tar `preserve_permissions(false)`) and tested.
+    # The fixed line, zip 9, was eight days old on that date. Remove all three on moving to it.
+    { id = "RUSTSEC-2026-0367", reason = "extract() only, never called; our own unpack masks to 0o777 since 2026-10-17; move to zip 9 once settled, see decisions.md 2026-10-17 #toolchain" },
+    { id = "RUSTSEC-2026-0368", reason = "extract() only, never called; links are refused; move to zip 9 once settled, see decisions.md 2026-10-17 #toolchain" },
+    { id = "RUSTSEC-2026-0369", reason = "extract()/ZipStreamReader only, never called; links are refused; move to zip 9 once settled, see decisions.md 2026-10-17 #toolchain" },
 ]
 
 [bans]

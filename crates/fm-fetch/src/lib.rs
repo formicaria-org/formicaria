@@ -99,10 +99,16 @@ pub struct Download<'a> {
 /// - **More than `MAX_BYTES` or `MAX_ENTRIES`.** An archive that expands without bound is a disk
 ///   filled on a machine whose owner asked for a 15 MB download.
 ///
-/// **Mode is preserved through `entry.unpack()`, byte for byte.** On macOS an arm64 Mach-O carries
-/// an ad-hoc signature that AMFI requires in order to `execve` it at all, so any transformation of
-/// the bytes produces a binary that dies with `Killed: 9` and no message a user can see. Copying is
-/// the only safe operation on an executable here.
+/// **Bytes are preserved through `entry.unpack()`, exactly.** On macOS an arm64 Mach-O carries an
+/// ad-hoc signature that AMFI requires in order to `execve` it at all, so any transformation of the
+/// bytes produces a binary that dies with `Killed: 9` and no message a user can see. Copying is the
+/// only safe operation on an executable here.
+///
+/// **The mode keeps its permission bits and nothing above them** (2026-10-17, RUSTSEC-2026-0367).
+/// Read, write and execute survive — the binaries must stay runnable — but setuid, setgid and sticky
+/// never do: no release needs them, and keeping them is how an archive becomes a privilege
+/// escalation. Both paths had kept them: tar's `preserve_permissions` passes the mode unmasked, and
+/// the zip arm applied `unix_mode()` as it came.
 pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), String> {
     /// A release is ~15 MB packed and well under 100 MB unpacked; these bound the pathological
     /// case without being near the real one.
@@ -186,7 +192,7 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
             #[cfg(unix)]
             if let Some(m) = e.unix_mode() {
                 use std::os::unix::fs::PermissionsExt;
-                let _ = fs::set_permissions(&out, fs::Permissions::from_mode(m));
+                let _ = fs::set_permissions(&out, fs::Permissions::from_mode(m & 0o777));
             }
         }
         return Ok(());
@@ -194,7 +200,8 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
 
     let f = File::open(archive).map_err(|e| format!("open {name}: {e}"))?;
     let mut ar = tar::Archive::new(flate2::read::GzDecoder::new(f));
-    ar.set_preserve_permissions(true);
+    // `false` is tar's `mode & 0o777`: the permission bits, never setuid/setgid/sticky.
+    ar.set_preserve_permissions(false);
     ar.set_unpack_xattrs(false);
     for entry in ar.entries().map_err(|e| format!("read {name}: {e}"))? {
         let mut e = entry.map_err(|err| format!("read {name}: {err}"))?;
@@ -959,6 +966,51 @@ mod tests {
         let out = dir.join("staged");
         unpack_tree(&arc, &out, top).expect("a root directory entry is not a refusal");
         assert_eq!(fs::read(out.join("program/fm-serve")).unwrap(), b"binary");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// RUSTSEC-2026-0367's shape, in both archive kinds: a setuid, setgid, sticky executable.
+    /// What lands keeps `rwxr-xr-x` and loses the three bits above it.
+    #[cfg(unix)]
+    #[test]
+    fn setuid_and_setgid_bits_never_survive_unpacking() {
+        use std::io::Write as _;
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch("setuid");
+        let top = "formicaria-v0.8.5-linux-x86_64";
+        let mode_of = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+
+        let tgz = dir.join("r.tar.gz");
+        {
+            let enc = flate2::write::GzEncoder::new(
+                fs::File::create(&tgz).unwrap(),
+                flate2::Compression::fast(),
+            );
+            let mut ar = tar::Builder::new(enc);
+            let mut h = tar::Header::new_gnu();
+            h.set_size(6);
+            h.set_mode(0o7755);
+            h.set_cksum();
+            ar.append_data(&mut h, format!("{top}/program/fm-serve"), &b"binary"[..]).unwrap();
+            ar.into_inner().unwrap().finish().unwrap();
+        }
+        let out = dir.join("from-tar");
+        unpack_tree(&tgz, &out, top).unwrap();
+        assert_eq!(mode_of(&out.join("program/fm-serve")), 0o755);
+
+        let zip_path = dir.join("r.zip");
+        {
+            let mut z = zip::ZipWriter::new(fs::File::create(&zip_path).unwrap());
+            let opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored)
+                .unix_permissions(0o7755);
+            z.start_file(format!("{top}/program/fm-serve"), opts).unwrap();
+            z.write_all(b"binary").unwrap();
+            z.finish().unwrap();
+        }
+        let out = dir.join("from-zip");
+        unpack_tree(&zip_path, &out, top).unwrap();
+        assert_eq!(mode_of(&out.join("program/fm-serve")), 0o755);
         let _ = fs::remove_dir_all(&dir);
     }
 
