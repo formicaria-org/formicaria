@@ -1258,6 +1258,27 @@ by each table's own-language names. Limits: `known-issues.md` (*A label from any
 5. A range for an amount in millilitres; a choice of which tables a search shows; the Swiss
    table's densities, the only honest bridge from millilitres to grams.
 
+### 2.26 One person's devices kept level — what is left after 0.8.5 (2026-10-17)
+
+The owner uses the phone and the laptop as one person on two devices, and the conflicts that
+annoy are a stale device's, not a disagreement. 0.8.5 fixed the phone never sending by itself
+(`known-issues.md`, *Backing up by itself*). Left, in the order agreed:
+
+1. **A failed automatic send says so, on the device that holds the changes.** `autoBackup` says
+   nothing on failure by design; five silent days showed the chip and the *Last sent* line are not
+   enough. Something like *"Not sent since 11 Oct: …"*.
+2. **Get on a real return and before the first keystroke.** The phone checks at most every five
+   minutes on focus (`PHONE_FOREGROUND_GAP_MS`), then waits for a tick; typing holds the get off.
+   Use the time hidden (over ~30 s) to get at once; get a moved vault before an edit starts.
+3. **Send on leaving a note; let the phone's leaving send finish** (the foreground service is
+   started only for the assistant); desktop: no handler on window close; retry on `online`.
+4. **Do not save a note whose text and fields did not change** — the laptop sent a note with only
+   `updated:` changed, making the other device behind for nothing.
+5. **Later: a device name in each commit**, so "self on another device" can be told from
+   "another person" — wording (*"your phone changed this note"*) and a softer, newest-wins
+   conflict with the loser kept under *N decided for you*. Needs a `decisions.md` entry first:
+   it enters shared history. **Getting by itself** (`remotePoll`) is still untested (behind `PROD`).
+
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
 `deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12

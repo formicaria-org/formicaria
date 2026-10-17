@@ -80,6 +80,9 @@ does. It never does it while you are typing, and never for a vault you have not 
 yourself. If two devices changed the same sentence, it says which notes to look at, exactly as
 after a backup you pressed. **Settings → Vaults & backup** has the switch if you would rather press.
 It works while the app is open; a device that is closed sends when you next open it.
+**On a phone this works from version 0.8.5.** Before it, the phone sent only when you pressed
+**Back up**, while still getting your other devices' changes, so a note written there could stay on
+the phone for days. After updating, the switch is in **Settings → Vaults & backup** on the phone too.
 
 Press **Back up**, then **Back up notes** — that is the whole action. It saves anything
 outstanding, **gets the changes from your other devices and collaborators first, merges them**,
