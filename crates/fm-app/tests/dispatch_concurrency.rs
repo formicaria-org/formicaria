@@ -235,3 +235,118 @@ fn an_activity_revwalk_does_not_block_every_other_command() {
         "another command was blocked while activity was inside a git revwalk"
     );
 }
+
+/// **A backup on the network must not block reading** (2026-10-18), and must still keep every
+/// other history writer out. `push` and `pull`'s fetch held the vault lock across the transfer, so
+/// on the phone opening a note, every view, the poll and the pictures all waited for the backup.
+/// Same rendezvous, with a stub `git` that blocks only in the network step named.
+#[cfg(all(unix, not(feature = "native-git")))]
+fn a_backup_step_on_the_network_blocks_writers_but_not_readers(step: &str, cmd: &str) {
+    let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+    if std::process::Command::new("git").arg("--version").output().is_err() {
+        eprintln!("skipping: no git");
+        return;
+    }
+    let (_home, vault, app) = app_with_vault();
+    let remote = tempdir().unwrap();
+    let g = |dir: &Path, args: &[&str]| {
+        std::process::Command::new("git").arg("-C").arg(dir).args(args).output().unwrap()
+    };
+    g(remote.path(), &["init", "-q", "--bare", "-b", "main"]);
+    g(vault.path(), &["init", "-q", "-b", "main"]);
+    g(vault.path(), &["config", "user.name", "Ada"]);
+    g(vault.path(), &["config", "user.email", "ada@example.org"]);
+    std::fs::create_dir_all(vault.path().join("notes")).unwrap();
+    std::fs::write(vault.path().join("notes/a.md"), "---\nid: 01AAAAAAAAAAAAAAAAAAAAAAAA\ntype: note\ntitle: a\ncreated: 2026-09-01T00:00:00Z\nupdated: 2026-09-01T00:00:00Z\n---\n\nx\n").unwrap();
+    g(vault.path(), &["add", "-A"]);
+    g(vault.path(), &["commit", "-qm", "one"]);
+    g(vault.path(), &["remote", "add", "origin", remote.path().to_str().unwrap()]);
+    g(vault.path(), &["push", "-q", "-u", "origin", "main"]);
+    // Something to send, for the push.
+    std::fs::write(vault.path().join("notes/a.md"), "---\nid: 01AAAAAAAAAAAAAAAAAAAAAAAA\ntype: note\ntitle: a\ncreated: 2026-09-01T00:00:00Z\nupdated: 2026-09-02T00:00:00Z\n---\n\ny\n").unwrap();
+    g(vault.path(), &["commit", "-qam", "auto: two"]);
+    dispatch("ping", &json!({}), &[], &app, &NoHost).unwrap();
+
+    let bin = tempdir().unwrap();
+    let started = bin.path().join("started");
+    let go = bin.path().join("go");
+    let real = String::from_utf8_lossy(
+        &std::process::Command::new("sh").arg("-c").arg("command -v git").output().unwrap().stdout,
+    )
+    .trim()
+    .to_string();
+    let script = bin.path().join("git");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\nfor a in \"$@\"; do if [ \"$a\" = '{step}' ]; then touch '{}'; \
+             while [ ! -f '{}' ]; do sleep 0.05; done; fi; done\nexec '{}' \"$@\"\n",
+            started.display(),
+            go.display(),
+            real
+        ),
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let old_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", format!("{}:{old_path}", bin.path().display()));
+
+    let backing_up = {
+        let app = std::sync::Arc::clone(&app);
+        let cmd = cmd.to_string();
+        std::thread::spawn(move || {
+            dispatch(&cmd, &json!({ "vault": "notes", "message": "backup" }), &[], &app, &NoHost)
+        })
+    };
+    let mut waited = 0;
+    while !started.exists() && waited < 200 {
+        std::thread::sleep(Duration::from_millis(50));
+        waited += 1;
+    }
+    let armed = started.exists();
+
+    // Readers: what opening a note and drawing a view ask for, and the poll.
+    let ask = |c: &'static str, args: serde_json::Value| {
+        let (tx, rx) = mpsc::channel();
+        let app = std::sync::Arc::clone(&app);
+        std::thread::spawn(move || {
+            let _ = tx.send(dispatch(c, &args, &[], &app, &NoHost).is_ok());
+        });
+        rx
+    };
+    let read = ask("get", json!({ "id": "01AAAAAAAAAAAAAAAAAAAAAAAA" }))
+        .recv_timeout(Duration::from_secs(5));
+    let recent = ask("recent", json!({})).recv_timeout(Duration::from_secs(5));
+    let ping = ask("ping", json!({})).recv_timeout(Duration::from_secs(5));
+    // A writer of history must wait: it is still blocked a second later.
+    let commit = ask("commit", json!({ "vault": "notes", "message": "auto: three" }));
+    let commit_early = commit.recv_timeout(Duration::from_secs(1));
+
+    std::fs::write(&go, b"").unwrap();
+    let backed_up = backing_up.join().unwrap();
+    let commit_late = commit.recv_timeout(Duration::from_secs(10));
+    std::env::set_var("PATH", old_path);
+
+    assert!(armed, "the stub git never reached `{step}` — the rendezvous is not armed");
+    assert_eq!(read, Ok(true), "opening a note waited for `{cmd}` on the network");
+    assert_eq!(recent, Ok(true), "a view waited for `{cmd}` on the network");
+    assert_eq!(ping, Ok(true), "the poll waited for `{cmd}` on the network");
+    assert!(commit_early.is_err(), "a commit ran while `{cmd}` was on the network");
+    assert_eq!(commit_late, Ok(true), "the commit ran once `{cmd}` was done");
+    assert!(backed_up.is_ok(), "`{cmd}` itself failed: {:?}", backed_up.err());
+}
+
+#[cfg(all(unix, not(feature = "native-git")))]
+#[test]
+fn a_push_on_the_network_blocks_writers_but_not_readers() {
+    a_backup_step_on_the_network_blocks_writers_but_not_readers("push", "push");
+}
+
+#[cfg(all(unix, not(feature = "native-git")))]
+#[test]
+fn a_fetch_on_the_network_blocks_writers_but_not_readers() {
+    a_backup_step_on_the_network_blocks_writers_but_not_readers("fetch", "pull");
+}

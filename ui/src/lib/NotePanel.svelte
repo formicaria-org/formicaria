@@ -379,8 +379,11 @@
     };
   }
 
+  /** Bumped whenever the note comes fresh from the server; the read view redraws on it. */
+  let loaded = 0;
   /// Show `n`: its text, the version the next save is checked against, and its form.
   function adopt(n: NoteDetail | null) {
+    loaded++;
     note = n;
     draft = n?.body ?? '';
     base = n?.version ?? '';
@@ -448,14 +451,48 @@
   // Render the read view when not editing (a textarea holds the literal bytes).
   // Revoke the previous render's object URLs first — innerHTML is about to
   // replace the elements that hold them.
+  //
+  // **Drawn again only when there is something new to draw** (2026-10-18). Changing a date or a tag
+  // gives `note` a new value with the same text, and that used to rebuild the whole view — images
+  // asked for again, the page jumping. The key is what the drawing depends on: the element (a new
+  // one after every edit, which must be drawn), the note, its text, and `loaded` — bumped whenever
+  // the note comes fresh from the server, so a reload still redraws embeds and newly arrived
+  // pictures exactly as before. And when it is drawn again, the reader stays where they were.
+  let drawn: { el: HTMLElement; id: string; body: string; loaded: number } | null = null;
   $effect(() => {
     if (note && content && !editing) {
+      const el = content;
+      const key = { el, id: note.id, body: note.body, loaded };
+      if (
+        drawn &&
+        drawn.el === el &&
+        drawn.id === key.id &&
+        drawn.body === key.body &&
+        drawn.loaded === key.loaded
+      )
+        return;
+      const scroller = scrollerOf(el);
+      const top = drawn?.el === el && drawn.id === key.id ? scroller?.scrollTop : undefined;
       revokeAssets();
-      renderInto(content, note.body, resolveAsset, resolveNote, resolveEmbed)
-        .then(enableReadWidgets)
+      drawn = null;
+      renderInto(el, note.body, resolveAsset, resolveNote, resolveEmbed)
+        .then(() => {
+          drawn = key;
+          if (top !== undefined && scroller) scroller.scrollTop = top;
+          enableReadWidgets();
+        })
         .catch((e) => (error = String(e)));
     }
   });
+
+  /** The element that scrolls the read view: itself, or the nearest ancestor that scrolls. */
+  function scrollerOf(el: HTMLElement): HTMLElement | null {
+    for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+      const y = getComputedStyle(n).overflowY;
+      if (y === 'auto' || y === 'scroll') return n;
+    }
+    return null;
+  }
 
   // Make this note's own read-view widgets interactive after each render. **Embedded notes' widgets
   // stay inert** — `![](note:id)` renders another file's atom inline; it is read-only here (its owner
@@ -785,6 +822,7 @@
       if (String(e).includes('changed on disk')) {
         const fresh = await getNote(id).catch(() => null);
         if (fresh && note?.id === id) {
+          loaded++;
           note = fresh;
           draft = fresh.body;
           base = fresh.version;
@@ -1066,6 +1104,7 @@
       error = String(e);
       return;
     }
+    loaded++;
     note = fresh;
     // **`version`, not `updated`.** The server compares `base` against `version_of(body)` — a
     // content hash — so an RFC3339 stamp can never match. Assigning it here meant the *next*
@@ -1192,6 +1231,7 @@
     if (cur) {
       const fresh = await getNote(cur).catch(() => null);
       if (fresh) {
+        loaded++;
         note = fresh; // reactive → the read-view effect re-renders the merged body
         if (!editing) {
           // Don't clobber an in-progress edit; a reviewer usually accepts from the discussion, not
@@ -1580,6 +1620,7 @@
       if (String(e).includes('changed on disk')) {
         const fresh = await getNote(id).catch(() => null);
         if (fresh && note?.id === id) {
+          loaded++;
           note = fresh;
           // `version` (the body hash), not `updated` — see `onSaveRejected`. A board has no
           // markers to show the damage with, so getting this wrong just refused every later

@@ -11,9 +11,15 @@ const state = $state<{ events: EditEvent[]; byId: Record<string, EditEvent> }>({
   byId: {},
 });
 
+/** The last array handed in, before `$state` wrapped it. */
+let raw: EditEvent[] | null = null;
+
 /** Replace the activity with the latest fetch. `events` is newest-first, so the first time a note
  *  id appears is its last edit — exactly what `byId` keeps. */
 export function setActivity(events: EditEvent[]): void {
+  // The same reply is the same array (`parseReply` in `ipc.ts`): nothing to tell the readers.
+  if (events === state.events || events === raw) return;
+  raw = events;
   const byId: Record<string, EditEvent> = {};
   for (const e of events) byId[e.id] ??= e;
   state.events = events;

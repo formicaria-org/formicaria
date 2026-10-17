@@ -108,6 +108,11 @@ The honest statement is shipped; the destination is not.
 
 ---
 
+### 1.3 Smoothness on the phone — built 2026-10-18; a device check is what is left
+
+Shipped as `decisions.md` 2026-10-18 (two entries). Left: a WebView trace on the phone before and
+after; proposal pushes outside the vault lock (`known-issues.md`, *A backup and everything else*).
+
 ## 2. Not started
 
 ### 2.0 The papers tool — the reader is the part that is still missing

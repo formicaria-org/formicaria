@@ -511,8 +511,25 @@ use fm_app::wire::b64_decode;
 ///   - the `pagehide` flush weakens from effectively-synchronous to fire-and-forget;
 ///   - replies can now interleave, so `NotePanel`'s note-loading effect needs the stale-response
 ///     guard it always should have had.
+///
+/// **On a thread meant for waiting** (2026-10-18). `(async)` ran the body on one of tokio's few
+/// worker threads, and a command waiting for the vault lock kept its worker; opening a note during
+/// a backup sends ten or so, enough to leave none for commands that need no lock at all. So the
+/// command is now an `async fn` whose only `.await` is on `spawn_blocking`, and the work is the
+/// plain function below, unchanged — still sync, still holding no guard across any `.await`,
+/// which keeps the reasoning above true by construction rather than by care.
 #[tauri::command(async)]
-fn fm(
+async fn fm(
+    cmd: String,
+    args: serde_json::Value,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || fm_blocking(cmd, args, app_handle))
+        .await
+        .map_err(|e| format!("the command stopped part-way: {e}"))?
+}
+
+fn fm_blocking(
     cmd: String,
     args: serde_json::Value,
     app_handle: tauri::AppHandle,

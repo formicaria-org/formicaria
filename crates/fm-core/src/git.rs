@@ -193,6 +193,11 @@ fn git_cmd() -> Command {
     // a command. `file`/local paths stay, because cloning a vault from a USB stick or another
     // directory is a supported way to acquire one and is what the `acquire` tests do.
     c.args(["-c", "protocol.ext.allow=never"]);
+    // **A read never takes the index lock** (2026-10-18). `git status` refreshes the index when it
+    // can, which takes `index.lock`; reads now run beside a backup that is committing, and a read
+    // holding that lock made the backup's commit fail. Optional locks are exactly those a read
+    // would take; nothing that writes depends on them.
+    c.env("GIT_OPTIONAL_LOCKS", "0");
     c
 }
 
@@ -1899,11 +1904,24 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
                 // index identical to the remote's tree. Committing that would
                 // fail and strand HEAD mid-squash, so skip it: we are already at
                 // the remote's state and the push below is simply a no-op.
-                let status = git(vault).args(["status", "--porcelain"]).output().map_err(spawn)?;
-                if !status.stdout.is_empty() {
+                //
+                // **What is staged, not what is on disk** (2026-10-18). This asked `git status`,
+                // which also sees a note saved since the last record — and now that a save may run
+                // beside a push, that answered "changes" over an index identical to `base`; the
+                // commit then found nothing staged and failed, with HEAD left squashed. The index
+                // is the question, as the libgit2 backend already asks it (`write_tree`). And a
+                // commit that fails puts the history back rather than stranding it.
+                let same = git(vault)
+                    .args(["diff", "--cached", "--quiet", &base])
+                    .output()
+                    .map_err(spawn)?;
+                if !same.status.success() {
                     let out =
                         git(vault).arg("commit").arg("-m").arg(message).output().map_err(spawn)?;
                     if !out.status.success() {
+                        if let Some(h) = &head_before {
+                            let _ = git(vault).args(["reset", "--soft", h]).output();
+                        }
                         return Err(failed("git commit", &out));
                     }
                 }
@@ -2056,6 +2074,14 @@ pub fn remote_moved(vault: &Path) -> Result<Option<bool>, StoreError> {
 /// different paragraphs of one note is a non-event rather than a conflict on the
 /// `updated:` line we rewrite on every save.
 pub fn pull(vault: &Path) -> Result<Pulled, StoreError> {
+    fetch(vault)?;
+    merge_fetched(vault)
+}
+
+/// The network half of [`pull`]: bring their history here, touching neither the notes nor the
+/// index. Split out (2026-10-18) so the app can do it without holding the vault lock — only
+/// [`merge_fetched`] changes what a reader sees.
+pub fn fetch(vault: &Path) -> Result<(), StoreError> {
     ensure_repo(vault)?;
     if remote(vault)?.is_none() {
         return Err(StoreError::Io(
@@ -2070,6 +2096,16 @@ pub fn pull(vault: &Path) -> Result<Pulled, StoreError> {
     let out = git(vault).args(["fetch", REMOTE]).output().map_err(spawn)?;
     if !out.status.success() {
         return Err(failed("git fetch", &out));
+    }
+    Ok(())
+}
+
+/// The local half of [`pull`]: merge what [`fetch`] brought into ours.
+pub fn merge_fetched(vault: &Path) -> Result<Pulled, StoreError> {
+    if unmerged_paths(vault)?.is_some() {
+        return Err(StoreError::Io(
+            "there is already a merge to finish here — resolve the conflicts first".into(),
+        ));
     }
     let Some(track) = tracking(vault)? else {
         // Nothing of ours is up there yet, so there is nothing of theirs to merge into.

@@ -92,7 +92,37 @@ async function shellInvoke<T>(cmd: string, args: Record<string, unknown>): Promi
     tauriInvoke = core.invoke;
   }
   const text = (await tauriInvoke(cmd, args)) as string;
-  return (text ? JSON.parse(text) : undefined) as T;
+  return parseReply(cmd === 'fm' ? String(args.cmd) : cmd, args, text) as T;
+}
+
+/// The whole-notebook reads a refresh asks for, again and again, mostly getting the same answer.
+const REREAD = new Set([
+  'board',
+  'agenda',
+  'recent',
+  'run_view',
+  'proposals',
+  'conflicts',
+  'activity',
+  'thread_roots',
+]);
+const lastReply = new Map<string, { text: string; value: unknown }>();
+
+/// **The same answer is the same object** (2026-10-18). A refresh follows every backup and every
+/// save, and almost always reads back exactly what is already on screen; parsed afresh, it was a
+/// new object every time, and the views drew it all again — on a phone, the stutter. For the reads
+/// above, a reply whose text is the one last seen for the same question hands back the object
+/// parsed then, so nothing downstream sees a change, and the parse itself is skipped. Callers must
+/// treat these replies as read-only — none writes into them.
+export function parseReply(name: string, args: unknown, text: string): unknown {
+  if (!text) return undefined;
+  if (!REREAD.has(name)) return JSON.parse(text);
+  const key = `${name} ${JSON.stringify(args)}`;
+  const last = lastReply.get(key);
+  if (last && last.text === text) return last.value;
+  const value = JSON.parse(text);
+  lastReply.set(key, { text, value });
+  return value;
 }
 
 /// The ordinary path: **one Rust command, `fm`**, taking a dispatch name and the same JSON body
@@ -201,7 +231,7 @@ async function http<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
   if (cmd === 'resolve_asset') return (await res.arrayBuffer()) as T;
   const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  return parseReply(cmd, args, text) as T;
 }
 
 // Argument keys are camelCase; fm-serve maps them to the Rust snake_case params

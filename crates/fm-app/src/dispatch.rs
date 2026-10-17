@@ -97,6 +97,13 @@ pub struct App {
     /// that is not on [`READ_ONLY`]. Not a lock, because it is only ever read and incremented
     /// — a client that misses one increment sees the next.
     generation: AtomicU64,
+    /// **The history lock** (2026-10-18, `decisions.md#seams`). Held for the whole of every command
+    /// that may write a vault's `.git`, so those still run one at a time exactly as before. What it
+    /// buys is that `push`, and `pull` while it fetches, can let go of `vaults` during the network:
+    /// opening a note, every view, the poll and the pictures no longer wait for a backup to cross
+    /// the network — the phone's stall-then-jump. Always taken **before** `vaults`, at the top of
+    /// [`dispatch_as`], so the order cannot be got wrong inside an arm. See [`takes_history`].
+    history: Mutex<()>,
 }
 
 /// What a transport must supply that the command library cannot: the one operation whose
@@ -242,6 +249,7 @@ impl App {
     ) -> Self {
         App {
             vaults: Mutex::new(Vaults { all: store, list }),
+            history: Mutex::new(()),
             config,
             config_writable,
             generation: AtomicU64::new(0),
@@ -347,6 +355,10 @@ pub fn dispatch_as(
     host: &dyn Host,
     scope: &Scope,
 ) -> Result<Output, String> {
+    // Before anything else, so it is always taken ahead of `vaults`. Recovered like `vaults`: what
+    // it guards is git's own state on disk, which a panicked command leaves no worse for this.
+    let _history =
+        takes_history(cmd).then(|| app.history.lock().unwrap_or_else(|p| p.into_inner()));
     let out = dispatch_inner(cmd, args, body, app, host, scope);
     // **Only on success**, so a rejected write (a stale `base`, an unknown vault) does not
     // send every other client off to re-query for a change that never landed.
@@ -505,6 +517,30 @@ fn notes_rel_of(root: &std::path::Path) -> String {
 ///
 /// `open_external`/`open_skipped` hand a file to another program and change nothing here; if
 /// that program then edits the note, the drift check is what catches it.
+/// Which commands hold the history lock: **every command that is not a read**, so a new command
+/// that writes `.git` cannot be forgotten — it is a writer unless someone lists it as a read. Plus
+/// `proposal_shown`, the one read that records something, and minus the saves.
+///
+/// **The saves are out on purpose.** They write a note's file and the index, never `.git`, and
+/// typing while a backup runs must not wait for the network. That is safe because both halves of a
+/// backup that could meet a save are covered: `push` stages nothing and asks only what is staged
+/// (`git diff --cached`, not `git status`), and `pull` merges under `vaults` after recording what
+/// was saved. A command added here must not reach `vcs::` at all.
+fn takes_history(cmd: &str) -> bool {
+    const SAVES: &[&str] = &[
+        "update_body",
+        "set_property",
+        "set_properties",
+        "capture",
+        "create_notes",
+        "delete",
+        "restore_note",
+        "ingest",
+        "ingest_chunk",
+    ];
+    cmd == "proposal_shown" || !(READ_ONLY.contains(&cmd) || SAVES.contains(&cmd))
+}
+
 const READ_ONLY: &[&str] = &[
     "deleted_notes",
     "mail_conversations",
@@ -1744,18 +1780,57 @@ fn dispatch_inner(
             nothing()
         }
         "push" => {
-            // Same reason as `commit`: don't let a push snapshot the vault mid-write.
-            let g = lock()?;
-            let path = g.config(scope, &s("vault"))?.path;
+            // **The vault lock only to find the vault** (2026-10-18). A push used to hold it across
+            // the whole network transfer, so every read waited for the backup. It needs only the
+            // history lock (held from `dispatch_as`): the record it sends was made by `commit`, and
+            // the squash, the push, the check and any rollback are all history — no save can
+            // touch them, and every other history writer waits.
+            let path = lock()?.config(scope, &s("vault"))?.path;
             json(vcs::push_squashed(&path, &s("message")).map_err(err)?)
         }
         // Bring a collaborator's work home. Holds the lock for the same reason push does
         // — a merge rewrites notes under the app's feet, and the very next incremental
         // reindex is what makes them visible.
         "pull" => {
+            // **Fetched without the vault lock; merged under it** (2026-10-18). Fetching is the
+            // network, and touches neither the notes nor the index, so readers carry on meanwhile;
+            // the history lock (from `dispatch_as`) keeps every other history writer out. The merge
+            // rewrites notes under the app's feet and must be followed by the reindex that makes
+            // them visible, so that half holds the vault lock as the whole pull used to.
+            let name = s("vault");
+            let path = lock()?.config(scope, &name)?.path;
+            vcs::fetch(&path).map_err(err)?;
             let mut g = lock()?;
-            let path = g.config(scope, &s("vault"))?.path;
-            let outcome = vcs::pull(&path).map_err(err)?;
+            // The vault list may have changed while we fetched (forgotten, moved): ask again, and
+            // do nothing to a vault that is no longer where we fetched it.
+            let cfg = g.config(scope, &name)?;
+            if cfg.path != path {
+                return Err(format!(
+                    "{name} moved while its changes were being fetched — try again"
+                ));
+            }
+            // **What was saved is recorded before anything of theirs is checked out.** A backup
+            // records and then pulls as two calls, and saves carry on during the fetch; a merge
+            // must never meet unrecorded work, because the safe answer to it — refusing — is a
+            // failed backup, and the forced one (libgit2, until 2026-10-18) put the note back.
+            // Under this guard nothing can be saved between the record and the merge. The same
+            // list `commit` takes: what this process wrote plus anything outstanding in the notes
+            // dir. Never during an unfinished merge, which `commit_all` refuses anyway.
+            if !path.join(".git/MERGE_HEAD").exists() {
+                let mut paths = g.all.written(&cfg.name);
+                for extra in adoptable(&path) {
+                    if !paths.contains(&extra) {
+                        paths.push(extra);
+                    }
+                }
+                if !paths.is_empty() {
+                    let message = "auto: recorded before getting their changes";
+                    if vcs::commit_all(&path, message, &paths).map_err(err)? {
+                        g.all.clear_written(&cfg.name);
+                    }
+                }
+            }
+            let outcome = vcs::merge_fetched(&path).map_err(err)?;
             // The merge just wrote files behind the index's back. Re-read now rather
             // than leave the user staring at pre-pull content until the next heartbeat.
             g.store(scope).reindex(Reindex::Incremental).map_err(err)?;

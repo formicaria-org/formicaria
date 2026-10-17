@@ -220,7 +220,7 @@
     focused = workspace.panes.length - 1;
     persistWorkspace();
     moved();
-    void refresh();
+    refreshIfSaved();
   }
   /** **Reuse before you add.** With one view at a time as the default, tapping a view's name
    *  means "show me that" — appending a window answers a question nobody asked, and on a phone
@@ -231,9 +231,9 @@
    *  pane. `matchesTarget` owns what counts as "the same thing". See `decisions.md`, 2026-08-31 —
    *  it reverses the previous entry's "a window can no longer be re-pointed".
    *
-   *  The `changed` guard is not an optimisation detail: `changePane` calls `refresh()`, so
-   *  re-focusing an already-correct board would otherwise cost a fetch every time you tapped its
-   *  name. `App.phone.test.ts` budgets exactly that. */
+   *  The `changed` guard is not an optimisation detail: a changed pane is fetched again (through
+   *  its feed key), so re-focusing an already-correct board would otherwise cost a fetch every time
+   *  you tapped its name. `App.phone.test.ts` budgets exactly that. */
   function focusOrOpen(kind: PaneKind, over: Partial<PaneT> = {}) {
     let at = workspace.panes.findIndex((p) => matchesTarget(p, kind, over));
     if (at === -1 && kind !== 'note') {
@@ -269,15 +269,29 @@
     else if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
     persistWorkspace();
     moved();
-    void refresh();
+    refreshIfSaved();
   }
+  /** **No fetch of its own** (2026-10-18). Every patch that changes what a view shows changes its
+   *  feed key, and the feed-key effect below fetches on that; calling `refresh()` here as well
+   *  fetched everything twice on every change of view. */
   function changePane(id: string, patch: Partial<PaneT>) {
     workspace = {
       ...workspace,
       panes: workspace.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     };
     persistWorkspace();
-    void refresh();
+  }
+  /** A note saved since the views were last fetched. Opening or closing a window fetches them again
+   *  only then (2026-10-18): closing a note you wrote in is what puts its new title on the board,
+   *  and opening one beside nothing new re-read the whole notebook — behind a backup, on a phone,
+   *  the wait before the note appeared. */
+  let savedSinceRefresh = false;
+  function noteSaved() {
+    savedSinceRefresh = true;
+    scheduleCommit();
+  }
+  function refreshIfSaved() {
+    if (savedSinceRefresh) void refresh();
   }
   /// **A note window's name**, reported by the note once it has loaded or been renamed, so a list of
   /// windows can show the title rather than "Note" (the owner, 2026-09-11). **Not `changePane`**: that
@@ -1016,7 +1030,28 @@
     return {};
   }
 
+  let lastRoots: unknown = null;
+  /** The feeds as they came back, before `$state` wrapped them — what `sameFeed` compares. */
+  const rawFeeds: Record<string, Feed> = {};
+  function sameFeed(a: Feed, b: Feed): boolean {
+    const ka = Object.keys(a);
+    const kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    return ka.every((k) => {
+      const x = (a as Record<string, unknown>)[k];
+      const y = (b as Record<string, unknown>)[k];
+      if (x === y) return true;
+      // A saved view's description is rebuilt per call from parts of the reply.
+      if (k === 'view' && x && y && typeof x === 'object' && typeof y === 'object')
+        return Object.keys(x).every(
+          (j) => (x as Record<string, unknown>)[j] === (y as Record<string, unknown>)[j],
+        );
+      return false;
+    });
+  }
+
   async function refresh() {
+    savedSinceRefresh = false;
     // Whatever changed may have moved a date: the reminders are asked for again (it waits and
     // asks once, and is nothing when they are off).
     void syncReminders();
@@ -1034,7 +1069,12 @@
     // one pass and is already what the study agent watches. Fired here, beside `activity`, and for
     // the same reasons: it enriches the feed and must never hold up the notes.
     void threadRoots()
-      .then((rs) => (threadCounts = Object.fromEntries(rs.map((r) => [r.id, r.count]))))
+      .then((rs) => {
+        // The same reply is the same array (`parseReply`): then the counts are as they were.
+        if (rs === lastRoots) return;
+        lastRoots = rs;
+        threadCounts = Object.fromEntries(rs.map((r) => [r.id, r.count]));
+      })
       .catch(() => {});
     const keys = distinctFeeds(workspace.panes);
     try {
@@ -1056,7 +1096,15 @@
             ] as const,
         ),
       );
-      feeds = Object.fromEntries(entries);
+      // A feed whose every part is the very object it was last time (`parseReply`: the same
+      // answer is the same object) keeps the value already on screen, so its view draws nothing.
+      feeds = Object.fromEntries(
+        entries.map(([k, f]) => {
+          const was = rawFeeds[k];
+          rawFeeds[k] = f;
+          return [k, was && sameFeed(was, f) && k in feeds ? feeds[k] : f] as const;
+        }),
+      );
       // Clear only what *this* function put there. It used to clear unconditionally, which
       // meant a sync failure the user had not read yet was wiped by unrelated background
       // activity — and `refresh()` runs on every pane change and every `changed` beat, so
@@ -3227,7 +3275,7 @@
               onstatus={onSetStatus}
               counts={threadCounts}
               onnavigate={openNoteInPane}
-              onsaved={scheduleCommit}
+              onsaved={noteSaved}
               onchange={(patch) => {
                 changePane(pane.id, patch);
                 // A tab of the group this window is in: the same place, another view of it.

@@ -164,7 +164,9 @@ export function apply(css: string): void {
     el.id = STYLE_ID;
     document.head.appendChild(el);
   }
-  el.textContent = css;
+  // Only when it differs: the same text written again is still a new stylesheet, and the whole
+  // page's style is worked out again — a flicker on the phone after every refresh (2026-10-18).
+  if (el.textContent !== css) el.textContent = css;
 }
 
 export function clear(): void {

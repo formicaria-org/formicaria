@@ -34,6 +34,10 @@
 
   let over = $state<string | null>(null);
 
+  /// Where a card can be moved to from its menu — one list for the whole board, made when the
+  /// board changes. Built inside the loop it was a new list per card per redraw (2026-10-18).
+  const choices = $derived(board.columns.map((c) => ({ value: c.value, label: c.label })));
+
   /// **The board no longer carries a column rail** (2026-08-31). It named every column with its
   /// card count, marked the one at the edge and jumped to any of them — the answer to the owner's
   /// *"my last column is not showing up"* (`decisions.md` 2026-08-24). They asked for it removed,
@@ -154,7 +158,7 @@
                 {onopen}
                 {statuses}
                 {onstatus}
-                columns={board.columns.map((c) => ({ value: c.value, label: c.label }))}
+                columns={choices}
                 column={col.value}
                 onmoveto={(id, value) => onmove(id, value, null)}
               />

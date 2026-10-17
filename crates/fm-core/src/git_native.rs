@@ -1086,8 +1086,12 @@ fn merged_text(
 /// as it does on a desktop. A note they genuinely disagreed about comes back with markers **in
 /// the body**, which is what keeps it parseable and openable in the editor.
 pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
-    use crate::git::Pulled;
+    fetch(vault)?;
+    merge_fetched(vault)
+}
 
+/// Mirrors [`crate::git::fetch`]: the network half of [`pull`], touching neither notes nor index.
+pub fn fetch(vault: &Path) -> Result<(), StoreError> {
     ensure_repo(vault)?;
     if remote(vault)?.is_none() {
         return Err(StoreError::Io(
@@ -1099,15 +1103,25 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
             "there is already a merge to finish here — resolve the conflicts first".into(),
         ));
     }
-
     let repo = Repository::open(vault).map_err(map)?;
-    {
-        let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
-        // Through the shared builder, so this cannot drift from the others.
-        let mut opts = fetch_options();
-        // Empty refspec list = the remote's configured default, same as `git fetch origin`.
-        rem.fetch(&[] as &[&str], Some(&mut opts), None).map_err(map)?;
+    let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
+    // Through the shared builder, so this cannot drift from the others.
+    let mut opts = fetch_options();
+    // Empty refspec list = the remote's configured default, same as `git fetch origin`.
+    rem.fetch(&[] as &[&str], Some(&mut opts), None).map_err(map)?;
+    Ok(())
+}
+
+/// Mirrors [`crate::git::merge_fetched`]: the local half of [`pull`].
+pub fn merge_fetched(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
+    use crate::git::Pulled;
+
+    if !conflicts(vault)?.is_empty() {
+        return Err(StoreError::Io(
+            "there is already a merge to finish here — resolve the conflicts first".into(),
+        ));
     }
+    let repo = Repository::open(vault).map_err(map)?;
 
     let head = repo.head().map_err(map)?;
     let branch = head.shorthand().unwrap_or("main").to_string();
@@ -1135,12 +1149,21 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
     let (analysis, _) = repo.merge_analysis(&[&annotated]).map_err(map)?;
 
     if analysis.is_fast_forward() {
-        // Nothing of ours to preserve: move the branch and check their tree out.
+        // No commit of ours to preserve — but perhaps a **saved note not yet recorded**, and it is
+        // kept, as real `git merge` keeps it (2026-10-18). This used to move the branch and then
+        // check out with *force*, which resets every tracked file to the new HEAD: a note saved a
+        // moment before the pull went back to its last recorded text, even one the incoming
+        // commits never touched. Now their tree is checked out *safely* first — files they did
+        // not change are left as they are, and one they did change that also holds unrecorded
+        // work refuses the pull, the desktop's answer — and only then does the branch move.
+        let their_tree = their_commit.as_object();
+        repo.checkout_tree(their_tree, Some(git2::build::CheckoutBuilder::default().safe()))
+            .map_err(map)?;
         let mut r = repo.find_reference(&format!("refs/heads/{branch}")).map_err(map)?;
         r.set_target(their_oid, "pull: fast-forward").map_err(map)?;
         repo.set_head(&format!("refs/heads/{branch}")).map_err(map)?;
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
-        return Ok(Pulled::Merged { incoming: 0, kept: Vec::new() });
+        // How much arrived, as the desktop says it: the open note and the views refresh on it.
+        return Ok(Pulled::Merged { incoming, kept: Vec::new() });
     }
 
     // A real merge.
@@ -1268,7 +1291,9 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
     // Clears MERGE_HEAD; without it the repo stays "mid-merge" forever and the next pull
     // refuses.
     repo.cleanup_state().map_err(map)?;
-    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
+    // Safe, not forced, for the reason the fast-forward gives: a forced checkout here put back
+    // every note saved since the last record.
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().safe())).map_err(map)?;
     kept.sort();
     Ok(Pulled::Merged { incoming, kept })
 }

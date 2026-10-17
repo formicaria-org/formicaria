@@ -255,3 +255,33 @@ fn a_first_backup_on_a_device_with_no_git_binary_creates_the_repository() {
     assert_eq!(out["committed"], serde_json::json!(true), "a first commit records the note");
     assert_eq!(unrecorded_count(&app), 0, "nothing may be left outstanding after a first backup");
 }
+
+/// **A pull records what was saved before it takes anything of theirs** (2026-10-18). A backup
+/// records and pulls as two calls; a note saved between them used to meet the merge unrecorded,
+/// which on the phone put it back to its last recorded text. Under the pull's own guard it is
+/// recorded first, so nothing outstanding is left for a merge to meet.
+#[test]
+fn a_pull_records_what_was_saved_since_the_last_record() {
+    if !have_git() {
+        eprintln!("skipping: no git on PATH");
+        return;
+    }
+    let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempdir().unwrap();
+    let (dir, vault) = vault_with_orphans(0);
+    let bare = dir.path().join("remote.git");
+    Command::new("git").args(["init", "-q", "--bare", "-b", "main"]).arg(&bare).output().unwrap();
+    git(&vault, &["remote", "add", "origin", bare.to_str().unwrap()]);
+    git(&vault, &["push", "-q", "origin", "main"]);
+    git(&vault, &["branch", "-q", "--set-upstream-to=origin/main", "main"]);
+
+    let app = boot(&home, &vault);
+    let id = write_note(&vault.join("notes"), "saved a moment before the backup's pull");
+    assert_eq!(unrecorded_count(&app), 1, "the saved note starts outstanding");
+
+    call(&app, "pull", serde_json::json!({ "vault": "v" })).expect("pull must not error");
+
+    assert_eq!(unrecorded_count(&app), 0, "the pull left a saved note unrecorded");
+    let on_disk = std::fs::read_to_string(vault.join(format!("notes/{id}.md"))).unwrap();
+    assert!(on_disk.contains("saved a moment before"), "the note is as it was saved:\n{on_disk}");
+}

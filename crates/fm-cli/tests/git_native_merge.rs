@@ -227,3 +227,68 @@ fn a_genuine_conflict_is_reported_the_same_way_on_both_backends() {
             .unwrap_or_else(|e| panic!("{backend} left a readable note: {e}\n{text}"));
     }
 }
+
+/// **A pull never puts back a note saved but not yet recorded** (found 2026-10-18; data loss on the
+/// phone). The libgit2 pull checked out with *force*, which resets every tracked file to the new
+/// HEAD — including a note the incoming commits never touched, saved a moment before the pull. Real
+/// git's merge leaves such a file alone. Both backends must, on a fast-forward and on a real merge,
+/// and the fast-forward must say how much arrived (it said nothing on the phone).
+#[test]
+fn a_pull_keeps_a_note_saved_since_the_last_record_on_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    for backend in ["subprocess", "native"] {
+        for local_commit in [false, true] {
+            let (_bare, mine, theirs, _url) = diverged(backend);
+            let native = backend == "native";
+            let commit = if native { git_native::commit_all } else { git::commit_all };
+            let mine_note = mine.path().join("notes/02.md");
+
+            // A second note of ours, recorded and sent, so it is tracked on every side.
+            fs::write(&mine_note, note("2026-07-17T10:30:00Z", "todo", "Mine, as sent.\n"))
+                .unwrap();
+            commit(mine.path(), "auto: second", std::slice::from_ref(&mine_note)).unwrap();
+            let send = if native { git_native::push_squashed } else { git::push_squashed };
+            send(mine.path(), "second").unwrap();
+            Command::new("git")
+                .arg("-C")
+                .arg(theirs.path())
+                .args(["pull", "--no-rebase", "origin", "main"])
+                .output()
+                .unwrap();
+            their_push(theirs.path(), "Their change to the first note.\n", "todo");
+
+            if local_commit {
+                // Something of ours not yet sent, so the pull is a real merge.
+                let third = mine.path().join("notes/03.md");
+                fs::write(&third, note("2026-07-17T10:40:00Z", "todo", "Third.\n")).unwrap();
+                commit(mine.path(), "auto: third", &[third]).unwrap();
+            }
+            // Saved, not yet recorded: the gap between a backup's record and its pull.
+            let saved = note("2026-07-17T13:00:00Z", "todo", "Mine, saved just now.\n");
+            fs::write(&mine_note, &saved).unwrap();
+
+            let pulled =
+                if native { git_native::pull(mine.path()) } else { git::pull(mine.path()) }
+                    .unwrap_or_else(|e| {
+                        panic!("{backend} (merge: {local_commit}) pull failed: {e}")
+                    });
+            assert_eq!(
+                fs::read_to_string(&mine_note).unwrap(),
+                saved,
+                "{backend} (merge: {local_commit}) put back a note saved since the last record"
+            );
+            let first = fs::read_to_string(mine.path().join("notes/01.md")).unwrap();
+            assert!(first.contains("Their change"), "{backend} took their change:\n{first}");
+            match pulled {
+                git::Pulled::Merged { incoming, .. } => assert!(
+                    incoming >= 1,
+                    "{backend} (merge: {local_commit}) must say something arrived"
+                ),
+                other => panic!("{backend} (merge: {local_commit}): {other:?}"),
+            }
+        }
+    }
+}

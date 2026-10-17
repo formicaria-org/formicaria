@@ -4,6 +4,16 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## A backup and everything else at once — what is left (2026-10-18)
+
+- **Proposal pushes still hold the vault lock across the network** (`push_branch` inside the
+  proposal arms, `commands.rs`). Opening something while a proposal is being sent still waits.
+- **Saves still wait for a commit or a merge**, which hold the vault lock as before — short, local.
+- **Nothing here was measured on a phone.** A WebView trace of a backup plus opening a note is the
+  check (`gui-smoothness-plan-2026-10-18.md`, *Measuring*).
+- **Trap: a whole-notebook reply is shared** (`parseReply`): writing into one changes what every
+  later identical reply returns. Copy before changing.
+
 ## Study assistant — current gaps (2026-07-22; agent shipped on-device, see overview.md)
 
 - **`/research` on the phone covers 3 sources, not the general web (yet).** Mobile web search was

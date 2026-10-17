@@ -137,6 +137,8 @@ route!(last_sent(vault: &Path) -> Result<Option<i64>, StoreError>);
 route!(kept_notes(vault: &Path) -> Result<Vec<String>, StoreError>);
 route!(mark_kept_seen(vault: &Path) -> Result<(), StoreError>);
 route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
+route!(fetch(vault: &Path) -> Result<(), StoreError>);
+route!(merge_fetched(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);
 route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);
 route!(activity(vault: &Path, since: &str) -> Result<Vec<crate::git::Touch>, StoreError>);
