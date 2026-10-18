@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// (`pixi run myrme-bump`). Another major does not build, and the message below says why, rather
 /// than an error about a missing function. `ci/checks.sh` holds this pair equal in the two crates
 /// that link Myrme. `decisions.md#agent`, 2026-10-18.
-pub const MYRME_CONTRACT: (u32, u32) = (1, 0);
+pub const MYRME_CONTRACT: (u32, u32) = (1, 1);
 // While the minor this app needs is 0, `>= 0` is always true and clippy says so; it is kept so the
 // check is already in place for the day this app needs a later minor.
 #[allow(clippy::absurd_extreme_comparisons)]
@@ -182,8 +182,18 @@ fn whisper_chosen(manifest: &fm_agent_run::manifest::Manifest) -> String {
 /// Whether the chosen speech weights still have to be downloaded — true after the move from
 /// base.en, or after choosing better listening, while the earlier weights keep transcribing.
 fn whisper_wanted_here() -> bool {
-    let (Some(dir), Some(m)) = (agents_dir(), read_manifest()) else { return false };
-    m.model(&whisper_chosen(&m)).is_some_and(|w| !dir.join("models").join(&w.file).is_file())
+    let (Some(tools), Some(m)) = (tools(), read_manifest()) else { return false };
+    tools.speech_wanted(&m, &whisper_chosen(&m))
+}
+
+/// Myrme's view of the tools folder (`fm_agent_run::host::Tools`, contract 1.1): everything about
+/// what is installed there, fetched into it, removed from it, or started from it is Myrme's to
+/// know. A checkout's `agents/` is marked as one, so nothing in it is removed or swept.
+fn tools() -> Option<fm_agent_run::host::Tools> {
+    agents_dir().map(|d| {
+        let checkout = is_checkout(&d);
+        fm_agent_run::host::Tools::new(d, checkout)
+    })
 }
 
 fn read_manifest() -> Option<fm_agent_run::manifest::Manifest> {
@@ -229,22 +239,22 @@ fn provision(state: &Arc<AgentState>, model: Option<String>, want_vision: bool, 
         let live = || st.generation.load(Ordering::SeqCst) == gen;
         let cancelled = || !live();
 
-        let Some(dir) = agents_dir() else {
+        let Some(tools) = tools() else {
             set("failed", 0, None, Some("no place to keep the assistant on this machine".into()));
             return;
         };
-        if let Err(e) = std::fs::create_dir_all(dir.join("models")) {
-            set("failed", 0, None, Some(format!("cannot create {}: {e}", dir.display())));
-            return;
-        }
         // The catalogue: whatever is already in the tools directory, else the copy shipped beside
         // the binary — copied in on first use, exactly as the phone writes its embedded one.
         let Some(mpath) = manifest_path() else {
             set("failed", 0, None, Some("the assistant has no model catalogue here".into()));
             return;
         };
-        if mpath != dir.join("models.toml") {
-            let _ = std::fs::copy(&mpath, dir.join("models.toml"));
+        if let Err(e) = std::fs::create_dir_all(tools.dir()) {
+            set("failed", 0, None, Some(format!("cannot create {}: {e}", tools.dir().display())));
+            return;
+        }
+        if mpath != tools.dir().join("models.toml") {
+            let _ = std::fs::copy(&mpath, tools.dir().join("models.toml"));
         }
         let manifest = match fm_agent_run::manifest::Manifest::read(&mpath) {
             Ok(m) => m,
@@ -255,90 +265,23 @@ fn provision(state: &Arc<AgentState>, model: Option<String>, want_vision: bool, 
         };
         let name = model.unwrap_or_else(|| manifest.default.clone());
 
-        // 1. The runtime. Skipped where a platform has no verified archive pinned — which is a
-        //    capability to report, never a reason to fetch something unverified.
-        let progress = |stage: &'static str| {
-            let st = Arc::clone(&st);
-            move |done: u64, total: Option<u64>| {
+        // The runtime, the weights, and the projector when asked for — Myrme's to fetch
+        // (`host::Tools::provision`); the progress shown and the cancel are this app's.
+        let progress = fm_agent_run::host::Progress {
+            step: &|stage| set(stage.word(), 0, None, None),
+            bytes: &|stage, done, total| {
                 if st.generation.load(Ordering::SeqCst) == gen {
                     *st.provisioning.lock().unwrap() =
-                        Some(Provision { stage: stage.into(), done, total, error: None });
+                        Some(Provision { stage: stage.word().into(), done, total, error: None });
                 }
-            }
+            },
+            cancelled: &cancelled,
         };
-        if !dir.join("runtime").join(server_bin()).exists() {
-            let Some(key) = fm_agent_run::manifest::Manifest::platform_key() else {
-                set(
-                    "failed",
-                    0,
-                    None,
-                    Some(
-                        "no model runtime has been published for this kind of computer yet".into(),
-                    ),
-                );
-                return;
-            };
-            let Some(rt) = manifest.runtime(key) else {
-                set(
-                    "failed",
-                    0,
-                    None,
-                    Some(format!("no verified model runtime is pinned for {key} yet")),
-                );
-                return;
-            };
-            if !set("runtime", 0, None, None) {
-                return;
-            }
-            if let Err(e) = fm_agent_run::fetch::ensure_runtime(
-                &dir.join("runtime"),
-                rt,
-                server_bin(),
-                &progress("runtime"),
-                &cancelled,
-            ) {
-                if live() {
-                    set("failed", 0, None, Some(e));
-                }
-                return;
-            }
-        }
-
-        // 2. The weights.
-        if !set("model", 0, None, None) {
-            return;
-        }
-        if let Err(e) = fm_agent_run::fetch::ensure_model(
-            &dir.join("models"),
-            &manifest,
-            &name,
-            &progress("model"),
-            &cancelled,
-        ) {
+        if let Err(e) = tools.provision(&manifest, &name, want_vision, &progress) {
             if live() {
                 set("failed", 0, None, Some(e));
             }
             return;
-        }
-
-        // 3. The projector, only when asked for: it is another download and buys exactly one
-        //    capability. Its absence disables image reading and nothing else.
-        if want_vision {
-            if !set("projector", 0, None, None) {
-                return;
-            }
-            if let Err(e) = fm_agent_run::fetch::ensure_mmproj(
-                &dir.join("models"),
-                &manifest,
-                &name,
-                &progress("projector"),
-                &cancelled,
-            ) {
-                if live() {
-                    set("failed", 0, None, Some(e));
-                }
-                return;
-            }
         }
 
         if !live() {
@@ -371,79 +314,19 @@ fn provision(state: &Arc<AgentState>, model: Option<String>, want_vision: bool, 
 /// default can change under an installation that already has a perfectly good model, and
 /// re-downloading 2.5 GB because a default moved would be the wrong answer.
 pub fn provisioned() -> bool {
-    agents_dir().is_some_and(|d| provisioned_in(&d))
+    let (chosen, seen) = choice();
+    tools().is_some_and(|t| t.is_provisioned(chosen.as_deref(), seen.as_deref()))
 }
 
-/// The predicate itself, against a named directory, so it is tested without a 2.5 GB download —
-/// the same shape as [`transcribe_staged_in`] below and for the same reason.
-fn provisioned_in(dir: &std::path::Path) -> bool {
-    if !dir.join("runtime").join(server_bin()).exists() {
-        return false;
-    }
-    // With a catalogue, "is a model here" means *a model the catalogue still lists*: one it has
-    // dropped has no settings to run with. The default may move freely, though — an older listed
-    // model keeps counting, so a changed default alone never costs a download.
-    if let Ok(manifest) = fm_agent_run::manifest::Manifest::read(&dir.join("models.toml")) {
-        let (chosen, seen) = choice();
-        return fm_agent_run::installed::resolve(
-            &manifest,
-            &dir.join("models"),
-            &manifest.default,
-            chosen.as_deref(),
-            seen.as_deref(),
-        )
-        .running
-        .is_some();
-    }
-    std::fs::read_dir(dir.join("models")).is_ok_and(|mut d| {
-        d.any(|e| {
-            e.is_ok_and(|e| e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("gguf")))
-        })
-    })
-}
-
-/// How much disk the downloaded model and runtime are using, in bytes.
+/// Delete the downloaded model and runtime, and nothing else — Myrme's `Tools::remove`, which also
+/// refuses in a source checkout.
 ///
-/// Reported so the removal control can say what it will free — "delete 2.5 GB" is a decision
-/// someone can make, "delete the model" is a leap of faith.
-fn provisioned_bytes_in(dir: &std::path::Path) -> u64 {
-    ["models", "runtime"]
-        .iter()
-        .filter_map(|sub| std::fs::read_dir(dir.join(sub)).ok())
-        .flatten()
-        .filter_map(|e| e.ok())
-        .filter_map(|e| e.metadata().ok())
-        .filter(|m| m.is_file())
-        .map(|m| m.len())
-        .sum()
-}
-
-/// Delete the downloaded model and runtime, and nothing else.
-///
-/// **Only inside the tools directory, and only its two subdirectories.** A checkout's `agents/` is
-/// the same shape and holds files a developer put there by hand, so this refuses to run against one
-/// — `looks_like_a_checkout` is the same tell `agents_dir` uses to prefer it.
-///
-/// Notes are never touched: they are not in this directory and this function names the only two
-/// subdirectories it will remove.
+/// Until 2026-10-18 this refused whenever the folder held a `models.toml`, taking that for a
+/// checkout. But provisioning copies the catalogue into the per-user tools folder, so on every
+/// installed copy the removal control refused with "runs from a source checkout". The checkout
+/// test is now the one `agents_dir` makes: is this the per-user tools folder or not.
 fn remove_provisioned() -> Result<u64, String> {
-    let dir = agents_dir().ok_or("no tools directory on this machine")?;
-    if looks_like_a_checkout(&dir) {
-        return Err(
-            "this installation runs from a source checkout, so the model in `agents/` is yours to \
-             manage — formicaria will not delete it for you"
-                .into(),
-        );
-    }
-    let freed = provisioned_bytes_in(&dir);
-    for sub in ["models", "runtime"] {
-        let p = dir.join(sub);
-        if p.exists() {
-            std::fs::remove_dir_all(&p)
-                .map_err(|e| format!("could not remove {}: {e}", p.display()))?;
-        }
-    }
-    Ok(freed)
+    tools().ok_or("no tools directory on this machine")?.remove()
 }
 
 /// Is this directory a **checkout's** `agents/` rather than the per-user tools directory?
@@ -476,17 +359,7 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
                     Some(Provision { stage: stage.into(), done, total, error });
             }
         };
-        let progress = {
-            let st = Arc::clone(&st);
-            move |done: u64, total: Option<u64>| {
-                if st.generation.load(Ordering::SeqCst) == gen {
-                    *st.provisioning.lock().unwrap() =
-                        Some(Provision { stage: "transcribe".into(), done, total, error: None });
-                }
-            }
-        };
-
-        let Some(dir) = agents_dir() else {
+        let Some(tools) = tools() else {
             set("failed", 0, None, Some("no place to keep the assistant on this machine".into()));
             return;
         };
@@ -501,41 +374,20 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
                 return;
             }
         };
-        let Some(rt) = whisper_runtime_key().and_then(|k| manifest.runtime(k)) else {
-            set(
-                "failed",
-                0,
-                None,
-                Some(
-                    "no speech-to-text runtime has been published for this kind of computer yet"
-                        .into(),
-                ),
-            );
-            return;
+        let progress = fm_agent_run::host::Progress {
+            step: &|stage| {
+                set(stage.word(), 0, None, None);
+                live()
+            },
+            bytes: &|_, done, total| {
+                if st.generation.load(Ordering::SeqCst) == gen {
+                    *st.provisioning.lock().unwrap() =
+                        Some(Provision { stage: "transcribe".into(), done, total, error: None });
+                }
+            },
+            cancelled: &cancelled,
         };
-
-        set("transcribe", 0, None, None);
-        if let Err(e) = fm_agent_run::fetch::ensure_runtime(
-            &dir.join("runtime"),
-            rt,
-            whisper_bin(),
-            &progress,
-            &cancelled,
-        ) {
-            if live() {
-                set("failed", 0, None, Some(e));
-            }
-            return;
-        }
-        // The weights are an ordinary catalogued model, fetched exactly as the phone fetches them.
-        let name = whisper_chosen(&manifest);
-        if let Err(e) = fm_agent_run::fetch::ensure_model(
-            &dir.join("models"),
-            &manifest,
-            &name,
-            &progress,
-            &cancelled,
-        ) {
+        if let Err(e) = tools.provision_speech(&manifest, &whisper_chosen(&manifest), &progress) {
             if live() {
                 set("failed", 0, None, Some(e));
             }
@@ -544,26 +396,9 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
         if !live() {
             return;
         }
-        // The chosen weights are here, so the earlier ones are spare — never in a checkout.
-        if !is_checkout(&dir) {
-            for gone in
-                fm_agent_run::installed::sweep_whisper(&manifest, &dir.join("models"), &name)
-            {
-                println!("study agent: removed unused speech model {}", gone.display());
-            }
-        }
         let _ = set_transcribe(true);
         set("ready", 0, None, None);
     });
-}
-
-/// The model server's filename on this platform.
-fn server_bin() -> &'static str {
-    if cfg!(windows) {
-        "llama-server.exe"
-    } else {
-        "llama-server"
-    }
 }
 
 /// Spawn the local study agent — the opt-in script in `agents/`, told which fm-serve port to watch.
@@ -574,7 +409,6 @@ pub fn spawn(port: u16) -> bool {
         eprintln!("study agent: enabled, but it cannot run here — {why}");
         return false;
     }
-    let Some(dir) = agents_dir() else { return false };
     let Some(exe) = agent_serve_path() else { return false };
 
     // **No shell.** This ran `bash agents/start-agent.sh`, which started `search-proxy.py`, trapped
@@ -596,53 +430,22 @@ pub fn spawn(port: u16) -> bool {
         );
         return false;
     };
-    // Weights that belong to neither the model about to run nor the one on offer are an earlier
-    // model's, left behind by an accepted update. Never in a checkout, where they are a developer's.
-    if !is_checkout(&dir) {
-        for gone in fm_agent_run::installed::sweep(
-            &manifest,
-            &dir.join("models"),
-            &[&model, &manifest.default],
-        ) {
-            println!("study agent: removed unused model file {}", gone.display());
-        }
-    }
-
-    let mut cmd = std::process::Command::new(&exe);
-    cmd.arg("--agents-dir").arg(&dir).arg("--serve-port").arg(port.to_string());
-    // Whose assistant it is: it leaves when another formicaria answers on this port (2026-10-18).
-    cmd.arg("--serve-instance").arg(crate::instance_id());
-    cmd.arg("--model").arg(&model);
-    // This device's name for its Myrme, as set in Settings (2026-10-18).
-    cmd.arg("--device").arg(device_name());
-    // In-process HTTPS search, since there is no proxy to start without a shell.
-    cmd.arg("--web-direct");
-
-    // The whisper decision `agents/agent-serve.sh` used to make, from the predicate that already
-    // existed here for the settings row — so the duplication `ci/checks.sh` polices goes away.
-    if transcribe_enabled() && transcribe_staged_in(&dir) {
-        // The chosen speech weights, or the earlier ones while the chosen download (2026-10-18).
-        let ears = fm_agent_run::installed::whisper_on_disk(
-            &manifest,
-            &dir.join("models"),
-            &whisper_chosen(&manifest),
-        );
-        if let Some(ears) = ears {
-            cmd.arg("--whisper-port").arg((WHISPER_PORT).to_string());
-            cmd.arg("--whisper-model").arg(ears);
-        }
-    }
-
-    // The rolling log `start-agent.sh` kept, minus `tee`: a released app has no terminal to read.
-    match log_file(&dir) {
-        Some(f) => {
-            let Ok(err) = f.try_clone() else { return false };
-            cmd.stdout(std::process::Stdio::from(f)).stderr(std::process::Stdio::from(err));
-        }
-        // No log is not a reason to refuse to start; it is a reason to say so.
-        None => eprintln!("study agent: could not open its log — running without one"),
-    }
-
+    // The command is Myrme's to build (`host::Tools::launch`): it sweeps an earlier model's files
+    // (never in a checkout), passes this app's port and instance, the device's name, in-process web
+    // search, and speech when it is on and staged, and logs to `runtime/agent.log`.
+    let Some(tools) = tools() else { return false };
+    let mut cmd = tools.launch(
+        &manifest,
+        &fm_agent_run::host::Launch {
+            exe: &exe,
+            serve_port: port,
+            serve_instance: crate::instance_id(),
+            model: &model,
+            device: &device_name(),
+            speech: transcribe_enabled(),
+            speech_weights: &whisper_chosen(&manifest),
+        },
+    );
     match cmd.spawn() {
         Ok(_) => {
             println!("study agent: starting — it comes up in a few seconds");
@@ -728,17 +531,6 @@ fn refresh_catalogue(shipped: &std::path::Path, in_tools: &std::path::Path) {
     }
 }
 
-#[cfg(unix)]
-fn executable(p: &std::path::Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-}
-
-#[cfg(not(unix))]
-fn executable(p: &std::path::Path) -> bool {
-    p.is_file()
-}
-
 /// **Why the assistant cannot run on this machine** — or `None` when it can.
 ///
 /// A *reason*, not a bool, because the settings row has to print it: "not available" with no cause
@@ -771,13 +563,8 @@ pub fn unavailable() -> Option<String> {
     // sample fails or returns something implausible, and this refuses with a reason. The bad
     // outcome — a believable-but-wrong number letting a model onto a machine with no room — is
     // caught by `plausible()` inside the monitor, which *is* compiled and tested here.
-    if let Err(e) = fm_agent_run::fm_agent::watchdog::ResourceMonitor::sample(
-        &fm_agent_run::fm_agent::watchdog::SystemMonitor,
-    ) {
-        return Some(format!(
-            "The study assistant cannot run on this computer: {e} Everything else in formicaria \
-             works normally — your notes, search, boards and backup are unaffected."
-        ));
+    if let Some(why) = fm_agent_run::host::unsupported() {
+        return Some(why);
     }
     // The supervisor itself, which ships in the archive beside `fm-serve`. Everything else — the
     // model, the runtime — is fetched on first enable, so its absence is not a reason to refuse.
@@ -813,32 +600,7 @@ pub fn unavailable() -> Option<String> {
 /// **The condition is a copy of the one in `agents/agent-serve.sh`** — the same two paths — because
 /// a shell script cannot export a predicate. `ci/checks.sh` asserts the two stay in step.
 pub fn transcribe_available() -> bool {
-    agents_dir().is_some_and(|d| transcribe_staged_in(&d))
-}
-
-/// The port the audio runtime listens on, as `agents/agent-serve.sh` chose it.
-const WHISPER_PORT: u16 = 8082;
-
-/// The speech-to-text server's filename on this platform.
-fn whisper_bin() -> &'static str {
-    if cfg!(windows) {
-        "whisper-server.exe"
-    } else {
-        "whisper-server"
-    }
-}
-
-/// The catalogue key for this platform's whisper archive, or `None` where upstream publishes none.
-///
-/// **macOS has no build at whisper.cpp v1.9.1**, which is a different fact from "this machine is
-/// missing a file" and has to be reported differently — a user cannot fix an archive that does not
-/// exist, and telling them to try would waste their time.
-fn whisper_runtime_key() -> Option<&'static str> {
-    match fm_agent_run::manifest::Manifest::platform_key()? {
-        "linux_x64" => Some("whisper_linux_x64"),
-        "windows_x64" => Some("whisper_windows_x64"),
-        _ => None,
-    }
+    tools().is_some_and(|t| t.speech_staged())
 }
 
 /// Could audio transcription be provisioned here, if the user asked for it?
@@ -846,11 +608,7 @@ fn whisper_runtime_key() -> Option<&'static str> {
 /// Distinct from [`transcribe_available`], which asks whether it is already here. The switch needs
 /// both: *here* means turn it on, *fetchable* means offer to fetch it, and neither means say why.
 pub fn transcribe_fetchable() -> bool {
-    whisper_runtime_key().is_some_and(|k| {
-        manifest_path()
-            .and_then(|p| fm_agent_run::manifest::Manifest::read(&p).ok())
-            .is_some_and(|m| m.runtime(k).is_some())
-    })
+    read_manifest().is_some_and(|m| fm_agent_run::host::Tools::speech_fetchable(&m))
 }
 
 /// `agent-serve` beside the running binary — the same idiom as `fm_core::git::merge_command`, and
@@ -859,31 +617,6 @@ pub fn agent_serve_path() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let bin = exe.parent()?.join(if cfg!(windows) { "agent-serve.exe" } else { "agent-serve" });
     bin.exists().then_some(bin)
-}
-
-/// The agent's rolling log, `<agents-dir>/runtime/agent.log`, rolled at 5 MB exactly as
-/// `start-agent.sh` did — an assistant that has been enabled for months should not have written an
-/// unbounded file into a user's config directory.
-fn log_file(dir: &std::path::Path) -> Option<std::fs::File> {
-    let runtime = dir.join("runtime");
-    std::fs::create_dir_all(&runtime).ok()?;
-    let log = runtime.join("agent.log");
-    if std::fs::metadata(&log).is_ok_and(|m| m.len() > 5_000_000) {
-        let _ = std::fs::rename(&log, runtime.join("agent.log.1"));
-    }
-    std::fs::OpenOptions::new().create(true).append(true).open(&log).ok()
-}
-
-/// The predicate itself, against a named directory, so it can be tested without a staged runtime.
-/// Any catalogued speech weights count — `ggml-base.bin` everywhere since 2026-10-18, or the
-/// earlier `ggml-base.en.bin` until the new ones arrive.
-fn transcribe_staged_in(dir: &std::path::Path) -> bool {
-    let ears = |m: &fm_agent_run::manifest::Manifest| {
-        fm_agent_run::installed::whisper_on_disk(m, &dir.join("models"), "ggml-base").is_some()
-    };
-    executable(&dir.join("runtime").join(whisper_bin()))
-        && (read_manifest().is_some_and(|m| ears(&m))
-            || dir.join("models").join("ggml-base.bin").is_file())
 }
 
 /// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
@@ -922,7 +655,7 @@ fn write_settings(enabled: bool, transcribe: bool) -> Result<(), String> {
 }
 
 /// The model this person picked or accepted, and the catalogue default at that moment (or when
-/// they last said "not now"). See `fm_agent_run::installed::resolve` for what each is for.
+/// they last said "not now"). See Myrme's `host::Tools::installed` for what each is for.
 fn choice() -> (Option<String>, Option<String>) {
     let all = settings();
     let get = |k: &str| all[k].as_str().map(str::to_string);
@@ -946,21 +679,14 @@ fn remember_choice(model: Option<&str>, default_seen: &str) -> Result<(), String
     write_keys(&pairs)
 }
 
-/// The catalogue, where the models are kept, and what [`resolve`](fm_agent_run::installed::resolve)
-/// makes of them. `None` when this machine has no catalogue to read.
+/// The catalogue, where the models are kept, and what Myrme's `Tools::installed` makes of them. `None` when this machine has no catalogue to read.
 fn installed_now(
 ) -> Option<(fm_agent_run::manifest::Manifest, PathBuf, fm_agent_run::installed::Installed)> {
-    let dir = agents_dir()?;
+    let tools = tools()?;
     let manifest = fm_agent_run::manifest::Manifest::read(&manifest_path()?).ok()?;
     let (chosen, seen) = choice();
-    let found = fm_agent_run::installed::resolve(
-        &manifest,
-        &dir.join("models"),
-        &manifest.default,
-        chosen.as_deref(),
-        seen.as_deref(),
-    );
-    Some((manifest, dir, found))
+    let found = tools.installed(&manifest, chosen.as_deref(), seen.as_deref());
+    Some((manifest, tools.dir().to_path_buf(), found))
 }
 
 fn set_enabled(enabled: bool) -> Result<(), String> {
@@ -1061,7 +787,7 @@ pub fn route(
                 })),
                 "unsupported": installed_now().is_some_and(|(_, _, f)| f.unsupported),
                 // What removing it would free, so the control can say so rather than ask for faith.
-                "provisioned_bytes": agents_dir().map(|d| provisioned_bytes_in(&d)).unwrap_or(0),
+                "provisioned_bytes": tools().map(|t| t.bytes()).unwrap_or(0),
                 // A download in flight, or how the last one ended. Null when nothing is happening.
                 "provisioning": *state.agent.provisioning.lock().unwrap(),
             })
@@ -1244,7 +970,7 @@ pub fn route(
                     b"Nothing was recorded.",
                 ));
             }
-            let heard = WhisperServer::local(WHISPER_PORT, "dictation")
+            let heard = WhisperServer::local(fm_agent_run::host::WHISPER_PORT, "dictation")
                 .with_timeout(std::time::Duration::from_secs(600))
                 .transcribe(body, "audio/wav");
             match heard {
@@ -1397,25 +1123,6 @@ mod tests {
         d
     }
 
-    /// **The difference between "turn it on" and "download a few gigabytes".** Half a stack is not
-    /// a stack: a runtime with no weights, or weights with no runtime, must both read as not
-    /// provisioned, or the first enable would skip the question and start a model that is not there.
-    #[test]
-    fn a_half_provisioned_directory_is_not_provisioned() {
-        let dir = scratch("provisioned");
-        std::fs::create_dir_all(dir.join("runtime")).unwrap();
-        std::fs::create_dir_all(dir.join("models")).unwrap();
-        assert!(!provisioned_in(&dir), "an empty pair of directories is nothing at all");
-
-        std::fs::write(dir.join("runtime").join(server_bin()), b"#!/bin/true").unwrap();
-        assert!(!provisioned_in(&dir), "a runtime with no weights cannot answer anything");
-
-        std::fs::write(dir.join("models").join("some-model.gguf"), b"weights").unwrap();
-        assert!(provisioned_in(&dir), "runtime + weights is the whole condition");
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
     /// A shipped catalogue replaces the copy in the tools directory when it differs, and keeps the
     /// old one. This is what lets an app update change the assistant's model or its settings: the
     /// copy used to be made once and read for ever.
@@ -1442,22 +1149,6 @@ mod tests {
         std::fs::write(dir.join("models.toml.previous"), b"marker").unwrap();
         refresh_catalogue(&shipped, &in_tools);
         assert_eq!(std::fs::read(dir.join("models.toml.previous")).unwrap(), b"marker");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// With no catalogue to consult, the weights are matched by **extension, not by name**. With
-    /// one, `provisioned_in` asks `installed::resolve` instead (tested there): a default that moved
-    /// still never costs a download, because an older listed model keeps counting — but weights the
-    /// catalogue has dropped no longer do.
-    #[test]
-    fn any_gguf_counts_as_weights_whatever_the_catalogue_now_prefers() {
-        let dir = scratch("provisioned-any");
-        std::fs::create_dir_all(dir.join("runtime")).unwrap();
-        std::fs::create_dir_all(dir.join("models")).unwrap();
-        std::fs::write(dir.join("runtime").join(server_bin()), b"x").unwrap();
-        std::fs::write(dir.join("models").join("a-model-nobody-ships-today.GGUF"), b"w").unwrap();
-        assert!(provisioned_in(&dir), "case-insensitive, and not tied to a filename we chose");
-
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1513,30 +1204,6 @@ mod tests {
             let exe = std::env::current_exe().unwrap();
             assert_eq!(p.parent(), exe.parent(), "only ever beside the running binary");
         }
-    }
-
-    /// The toggle used to store a preference, answer `{"ok":true}`, and change nothing: whisper is
-    /// started by `agents/agent-serve.sh` only when **both** of these are staged. Neither file on
-    /// its own is a capability — half a runtime transcribes nothing.
-    #[test]
-    fn audio_transcription_needs_the_runtime_and_the_model_together() {
-        let dir = tempfile::tempdir().unwrap();
-        let root = dir.path();
-        std::fs::create_dir_all(root.join("runtime")).unwrap();
-        std::fs::create_dir_all(root.join("models")).unwrap();
-        assert!(!transcribe_staged_in(root), "nothing staged");
-
-        let server = root.join("runtime").join("whisper-server");
-        std::fs::write(&server, b"#!/bin/sh\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&server, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        assert!(!transcribe_staged_in(root), "runtime but no model");
-
-        std::fs::write(root.join("models").join("ggml-base.bin"), b"x").unwrap();
-        assert!(transcribe_staged_in(root), "both staged");
     }
 
     /// A capability must mean "this will work". On a machine that can run it, `unavailable` must

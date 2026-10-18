@@ -26,8 +26,10 @@ echo "myrme-bump: pinned $current; releases: $(echo $tags)"
 
 pin() {
     for f in $MANIFESTS; do sed -i.bak "s/myrme\.git\", tag = \"v[0-9.]*\"/myrme.git\", tag = \"$1\"/" "$f" && rm -f "$f.bak"; done
-    cargo update -q -p fm-agent-run -p fm-agent
-    (cd mobile/src-tauri && cargo update -q -p fm-agent-run -p fm-agent)
+    # A changed tag is re-resolved by any resolve; naming the packages (`cargo update -p`) fails when
+    # the lockfile holds them from somewhere else, such as a developer's local `[patch]`.
+    cargo metadata -q --format-version 1 >/dev/null
+    (cd mobile/src-tauri && cargo metadata -q --format-version 1 >/dev/null)
 }
 
 for tag in $(echo "$tags" | sort -rV); do

@@ -2304,32 +2304,12 @@ for f in "$myrme_run/src/fmserve.rs" crates/fm-serve/src/main.rs; do
 done
 
 # ---------------------------------------------------------------------------------------------
-# "Audio transcription" must mean audio gets transcribed.
+# "Audio transcription" must mean audio gets transcribed — **now Myrme's guard** (2026-10-18).
 #
-# `agent-serve.sh` starts whisper only when **both** its runtime binary and its model are staged.
-# `fm-serve` predicts that in Rust so the settings row can refuse instead of storing a preference
-# and answering `{"ok":true}` — which is what it did, and why a user could tick the box, restart,
-# and find no transcription and no explanation anywhere.
-#
-# A shell script cannot export a predicate, so the condition is written twice. If the script starts
-# looking for a different file, the Rust check goes on saying yes about a machine that says no.
-#
-# **Still two deciders after the app stopped using the shell (2026-09-02).** `fm-serve` now spawns
-# `agent-serve` directly and decides whisper itself, but `agents/agent-serve.sh` is still what
-# `pixi run agent-serve` runs, so the dev loop has its own copy of the same condition. The guard
-# narrowed; it did not go away.
-# The script is Myrme's now (its `agents/agent-serve.sh`, at the pinned tag); the Rust is ours.
-myrme_script="$myrme_run/../../agents/agent-serve.sh"
-for name in whisper-server ggml-base.bin; do
-    if ! grep -q "$name" "$myrme_script" || ! grep -q "$name" crates/fm-serve/src/agent.rs; then
-        echo "  FAIL: '$name' is named in only one of Myrme's agents/agent-serve.sh and"
-        echo "        crates/fm-serve/src/agent.rs. They are the same condition in two languages:"
-        echo "        the script decides whether whisper starts, the Rust decides whether the"
-        echo "        settings row offers the switch. Out of step, the row promises what the script"
-        echo "        will not do."
-        fail=1
-    fi
-done
+# This compared the speech files `agents/agent-serve.sh` starts whisper on with the Rust that
+# predicts it for the settings row. Both now live in Myrme (the script, and `host::Tools::
+# speech_staged`), so the comparison is Myrme's test `the_dev_script_and_this_code_name_the_same_
+# speech_files`, run by its gate. Moved, not dropped: `decisions.md#agent`, 2026-10-18 (the facade).
 
 # ---------------------------------------------------------------------------------------------
 # The front page has to point at the app, and at the right copy of it.

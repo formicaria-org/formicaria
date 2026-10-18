@@ -20,7 +20,7 @@ use crate::MobileHost;
 /// (`pixi run myrme-bump`). Another major does not build, and the message below says why, rather
 /// than an error about a missing function. `ci/checks.sh` holds this pair equal in the two crates
 /// that link Myrme. `decisions.md#agent`, 2026-10-18.
-pub const MYRME_CONTRACT: (u32, u32) = (1, 0);
+pub const MYRME_CONTRACT: (u32, u32) = (1, 1);
 // While the minor this app needs is 0, `>= 0` is always true and clippy says so; it is kept so the
 // check is already in place for the day this app needs a later minor.
 #[allow(clippy::absurd_extreme_comparisons)]
