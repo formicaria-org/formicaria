@@ -13,4 +13,4 @@ name = "agent-serve"
 path = "src/main.rs"
 
 [dependencies]
-fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.1.0", features = ["download"] }
+fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.1.1", features = ["download"] }
