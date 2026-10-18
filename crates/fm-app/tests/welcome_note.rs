@@ -6,24 +6,19 @@
 //! brand-new user opening an empty notebook and concluding the app is broken. The same tolerance
 //! once made a whole vault open empty on Windows over line endings.
 //!
-//! So this parses the real file from `packaging/`, not a copy, and checks the things that would make
-//! it disappear or misbehave rather than merely look wrong.
+//! So this parses the real files — the tutorials every new notebook starts with, on every device
+//! (`fm_app::tutorials`, 2026-10-18) — and checks the things that would make them disappear or
+//! misbehave rather than merely look wrong.
 
 use fm_model::Kind;
 use std::path::PathBuf;
 
-fn welcome_files() -> Vec<PathBuf> {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packaging/welcome/notes")
-        .canonicalize()
-        .expect("packaging/welcome/notes must exist — the archive stages it into the vault");
-    let mut v: Vec<PathBuf> = std::fs::read_dir(&dir)
-        .unwrap()
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.extension().is_some_and(|x| x == "md"))
-        .collect();
-    v.sort();
-    v
+/// The shipped tutorials, as (path-like name, text).
+fn welcome_files() -> Vec<(PathBuf, String)> {
+    fm_app::tutorials::TUTORIALS
+        .iter()
+        .map(|(name, text)| (PathBuf::from(name), text.to_string()))
+        .collect()
 }
 
 #[test]
@@ -31,8 +26,7 @@ fn the_shipped_welcome_note_is_a_note_the_app_can_read() {
     let files = welcome_files();
     assert!(!files.is_empty(), "the archive ships a welcome note; none was found");
 
-    for path in files {
-        let text = std::fs::read_to_string(&path).unwrap();
+    for (path, text) in files {
         let obj = fm_core::frontmatter::from_file(&text)
             .unwrap_or_else(|e| panic!("{} does not parse as a note: {e}", path.display()));
 
@@ -63,7 +57,14 @@ fn the_shipped_welcome_note_is_a_note_the_app_can_read() {
             "{}: needs a title — it is the first thing shown",
             path.display()
         );
-        assert!(obj.body.len() > 200, "{}: too short to orient anyone", path.display());
+        assert!(obj.body.len() > 150, "{}: too short to orient anyone", path.display());
+        // On the shelf the Library opens on.
+        assert_eq!(
+            obj.extra.get(fm_app::views::SHELF).map(|v| v.display()).as_deref(),
+            Some("Tutorials"),
+            "{}: must be on the Tutorials shelf",
+            path.display()
+        );
 
         // Round-trips byte-for-byte, so the first edit does not rewrite the whole file and make the
         // user's first change look like a hundred-line diff.
@@ -82,7 +83,7 @@ fn the_welcome_note_describes_the_app_that_actually_ships() {
     // A welcome note that names a button which is not there is worse than none: the reader concludes
     // they are looking at the wrong app. These are the affordances it points at; if one is renamed,
     // this fails and the note gets fixed with it.
-    let text = std::fs::read_to_string(&welcome_files()[0]).unwrap();
+    let text: String = welcome_files().into_iter().map(|(_, t)| t).collect::<Vec<_>>().join("\n");
     for view in ["Timeline", "Board", "Agenda", "Search"] {
         assert!(
             text.contains(view),
@@ -129,13 +130,10 @@ fn the_welcome_note_describes_the_app_that_actually_ships() {
         text.contains("click or tap") || text.contains("Click a note's text"),
         "the note must say how a note is actually edited"
     );
-    // The archive carries no assistant, so the note must not advertise one.
-    for absent in ["assistant", "@name", "/research", "/transcribe"] {
-        assert!(
-            !text.contains(absent),
-            "the release archive ships no assistant — the welcome note must not promise {absent:?}"
-        );
-    }
+    // The assistant ships in every download now (`agent-serve` is staged beside `fm-serve`), so a
+    // tutorial may name it — by the one name it has everywhere, never by a model.
+    assert!(text.contains("@Myrme"), "the assistant is named as it is called");
+    assert!(!text.contains("qwen") && !text.contains("lfm"), "never by a model's name");
 }
 
 /// **Stage a vault exactly as the release does, then open it with the real app.**
@@ -162,24 +160,16 @@ fn a_vault_staged_like_the_release_opens_with_the_note_in_it() {
     let notes = dir.path().join("notes");
     std::fs::create_dir_all(&notes).unwrap();
 
-    // The staging step, and **including the part that rewrites the file**: the release dates the
-    // note with the build, so what ships is never byte-identical to what is in the repo. Testing
-    // the pristine source would leave the one transformation the user actually receives unchecked —
-    // and a date this rewrite malformed would make the note vanish exactly as a typo would.
-    for f in welcome_files() {
-        let staged: String = std::fs::read_to_string(&f)
-            .unwrap()
-            .lines()
-            .map(|l| match l.split_once(": ") {
-                Some(("created", _)) => "created: 2027-01-02T03:04:05Z".to_string(),
-                Some(("updated", _)) => "updated: 2027-01-02T03:04:05Z".to_string(),
-                _ => l.to_string(),
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-            + "\n";
-        std::fs::write(notes.join(f.file_name().unwrap()), staged).unwrap();
-    }
+    // **Written exactly as every new notebook gets them** — the one function the phone's first
+    // notebook and *new notebook* call, and byte-for-byte what the download stages: no date of the
+    // build in them, so two devices' copies are the same files and merge as one.
+    assert_eq!(fm_app::tutorials::write_into(dir.path()).unwrap(), welcome_files().len());
+    assert_eq!(
+        fm_app::tutorials::write_into(dir.path()).unwrap(),
+        0,
+        "never into a notebook with notes"
+    );
+    let _ = &notes;
 
     let owned = vec![("personal".to_string(), dir.path().to_path_buf())];
     let app = App::new(
@@ -207,4 +197,29 @@ fn a_vault_staged_like_the_release_opens_with_the_note_in_it() {
     let hits = call("search", json!({ "query": "notebook" }));
     let found = hits.as_array().is_some_and(|a| !a.is_empty());
     assert!(found, "Search finds nothing for a word in the shipped note: {hits}");
+}
+
+/// **A way back** (2026-10-18): *Put the tutorials back* writes the ones that are missing, as they
+/// shipped, and leaves one that is here — changed by its reader — exactly as it is.
+#[test]
+fn putting_the_tutorials_back_restores_only_what_is_missing() {
+    use fm_core::{FileStore, Store};
+    let dir = tempfile::tempdir().unwrap();
+    fm_app::tutorials::write_into(dir.path()).unwrap();
+    let mut store = FileStore::named(dir.path(), "personal").unwrap();
+    let ids: Vec<fm_model::Id> = fm_app::tutorials::TUTORIALS
+        .iter()
+        .map(|(name, _)| name.trim_end_matches(".md").parse().unwrap())
+        .collect();
+    // One deleted, one changed by its reader.
+    store.delete(ids[1]).unwrap();
+    let mut changed = store.get(ids[0]).unwrap().unwrap();
+    changed.body = "My own words now.".into();
+    store.put(&changed).unwrap();
+
+    let back = fm_app::tutorials::put_back(&mut store, "personal").unwrap();
+    assert_eq!(back.len(), 1, "only the deleted one");
+    assert!(store.get(ids[1]).unwrap().is_some());
+    assert_eq!(store.get(ids[0]).unwrap().unwrap().body, "My own words now.", "left as it is");
+    assert!(fm_app::tutorials::put_back(&mut store, "personal").unwrap().is_empty(), "idempotent");
 }

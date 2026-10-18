@@ -2173,17 +2173,17 @@ done
 [ -s "$man_fail" ] && fail=1
 rm -f "$man_fail"
 
-# The first note a new user reads has to actually be in the archive. It is also the one file whose
+# The first notes a new user reads have to actually be in the archive. They are also the files whose
 # failure is guaranteed to be invisible: the note loader is tolerant by design, so a note that does
 # not parse does not error — it disappears, and the newcomer opens an empty notebook. `welcome_note.rs`
-# proves the file parses; this proves the release still puts it where the app will look.
-if ! grep -qF 'packaging/welcome/notes/.' .github/workflows/desktop.yml; then
-    echo "  FAIL: desktop.yml no longer stages the welcome note into the vault. A first-time user"
+# proves the tutorials parse; this proves the release still puts them where the app will look.
+if ! grep -qF 'crates/fm-app/src/shipped/tutorials/*.md' .github/workflows/desktop.yml; then
+    echo "  FAIL: desktop.yml no longer stages the tutorials into the vault. A first-time user"
     echo "        would open an empty notebook with nothing telling them what to do."
     fail=1
 fi
-if ! ls packaging/welcome/notes/*.md >/dev/null 2>&1; then
-    echo "  FAIL: packaging/welcome/notes holds no note, but release.yml stages it."
+if ! ls crates/fm-app/src/shipped/tutorials/*.md >/dev/null 2>&1; then
+    echo "  FAIL: crates/fm-app/src/shipped/tutorials holds no note, but desktop.yml stages it."
     fail=1
 fi
 

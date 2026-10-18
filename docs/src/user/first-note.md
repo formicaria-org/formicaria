@@ -14,10 +14,12 @@ The two buttons differ in one thing only: **Start writing** saves the name and e
 **Skip for now** goes in without saving them. Either way you land in the same place, and you will
 be asked again the first time it actually matters.
 
-Then you land on **Home**: four short pictures of what to do — write, switch between views, back
-up, and how to come back here. Its buttons open the Timeline, the Board or the Agenda directly.
-**Home is always the first entry in the list of views**, so whenever you are lost, open that list
-(on a phone, the stacked-squares button in the bottom bar) and choose Home.
+Then you land on the **Library's shelves**: your notes as books, one above another. A new
+notebook starts with a few short **tutorials** on the **Tutorials** shelf — what to do first, how to
+find things again, how to keep them safe, how to ask the assistant. Tap one to read it. They are
+ordinary notes: change them, or delete them when you are done (Help → **Put the tutorials back**
+brings them back). Whenever you are lost, open the list of views (on a phone, the stacked-squares
+button in the bottom bar) and choose **Library** — it always opens on the shelves.
 
 ## Write a note
 

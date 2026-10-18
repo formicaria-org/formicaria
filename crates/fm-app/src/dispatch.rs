@@ -535,6 +535,7 @@ fn takes_history(cmd: &str) -> bool {
         "create_notes",
         "delete",
         "restore_note",
+        "put_back_tutorials",
         "ingest",
         "ingest_chunk",
     ];
@@ -603,6 +604,7 @@ const READ_ONLY: &[&str] = &[
     "log_products",
     "log_kitchen",
     "recipe_library",
+    "recipe_libraries",
     "exercise_library",
     "reminders",
     "log_nutrients",
@@ -1563,6 +1565,12 @@ fn dispatch_inner(
             json(commands::delete_keeping(&mut lock()?.store(scope), &s("id")).map_err(err)?)
         }
         // **Put a deleted note back** — the session undo's path. Refuses an id that exists again.
+        // Help → *Put the tutorials back* (2026-10-18): the missing ones, as shipped.
+        "put_back_tutorials" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            json(crate::tutorials::put_back(&mut g.store(scope), &cfg.name).map_err(err)?)
+        }
         "restore_note" => {
             let mut g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
@@ -2396,6 +2404,7 @@ fn dispatch_inner(
             json(crate::nutrients::log_nutrients(&store, &def, &s("day")).map_err(err)?)
         }
         "recipe_library" => json(crate::log::recipe_library(&s("book")).map_err(err)?),
+        "recipe_libraries" => json(crate::log::recipe_libraries().map_err(err)?),
         "exercise_library" => json(crate::log::exercise_library().map_err(err)?),
         // The moments a reminder is due, from a day on. Read-only; what shows them is the shell's.
         "reminders" => {
@@ -3666,6 +3675,9 @@ fn create_vault(
     for d in [&path, &path.join("blobs"), &path.join("derived")] {
         std::fs::create_dir_all(d).map_err(|e| format!("could not create {}: {e}", d.display()))?;
     }
+    // A notebook this person has just made starts with the tutorials on its shelf — only when it
+    // holds no note yet (`tutorials::write_into`). Best effort: a notebook without them still works.
+    let _ = crate::tutorials::write_into(&path);
 
     // Open it. On failure we leave the directory alone — it may have pre-existed, and this
     // codebase does not delete user data on a failure path.

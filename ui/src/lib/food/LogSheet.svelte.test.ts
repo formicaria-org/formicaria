@@ -73,7 +73,7 @@ describe('the food sheet', () => {
   it('a recipe is foods by weight and its servings, and a serving of it is logged as their sum', async () => {
     open();
     await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
-    expect(await screen.findByText(/No recipes yet/)).toBeTruthy();
+    expect(await screen.findByText(/No recipes of your own yet/)).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Rice bowl' } });
     await fireEvent.input(screen.getByLabelText('Servings it makes'), { target: { value: '2' } });
@@ -163,11 +163,14 @@ describe('the food sheet', () => {
   it("an Italian recipe is read as its page wrote it, credited, and made one's own to count", async () => {
     open();
     await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
-    await screen.findByText('Italiane, da Wikibooks (1)');
-    await fireEvent.input(screen.getByLabelText('search the Italian recipes'), {
+    // Not a shelf of its own: the one recipe search finds it, by region too, labelled by source.
+    await screen.findByText(/that come with the app — .*1 from Wikibooks/);
+    await fireEvent.input(screen.getByLabelText('search recipes'), {
       target: { value: 'lombardia' },
     });
-    await fireEvent.click(await screen.findByText('Risotto alla milanese'));
+    const row = await screen.findByRole('button', { name: /Risotto alla milanese/ });
+    expect(row.textContent).toMatch(/Wikibooks · Lombardia/);
+    await fireEvent.click(row);
     expect(await screen.findByText('320 g di riso Carnaroli')).toBeTruthy();
     // Credited, under its licence; nothing to log until it is one's own.
     expect(screen.getByRole('link', { name: 'CC BY-SA 4.0' })).toBeTruthy();

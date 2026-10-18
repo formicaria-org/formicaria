@@ -283,7 +283,15 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
-    let shipped = shipped_views();
+    let all = shipped_views();
+    // The Library's shelves (2026-10-18), and the trackers' views.
+    let shelves: Vec<_> = all.iter().filter(|v| v.renderer == Some(Renderer::Shelf)).collect();
+    assert_eq!(shelves.len(), 1);
+    assert_eq!(
+        (shelves[0].name.as_str(), shelves[0].group.as_deref()),
+        ("Shelves", Some("Library"))
+    );
+    let shipped: Vec<_> = all.iter().filter(|v| v.renderer != Some(Renderer::Shelf)).collect();
     // Day, Menu, Trends and Diet for food; Week, Exercises and Regime for training. A day's
     // session is opened from the week and the volume is a line of it: neither is a view.
     assert_eq!(shipped.len(), 7);
@@ -501,7 +509,16 @@ fn a_recipe_note_is_a_visible_note_and_its_ingredients_are_not() {
 fn the_front_end_names_the_shipped_groups_and_views_as_the_files_do() {
     let mock = include_str!("../../../ui/src/lib/mockTracker.ts");
     let settings = include_str!("../../../ui/src/lib/TrackersSection.svelte");
-    let shipped = shipped_views();
+    // The trackers' views; the Library's shelves are not a tracker, and the in-memory backend
+    // lists them beside its other views (`mock.ts`).
+    let all = shipped_views();
+    let shelves = all.iter().find(|v| v.renderer == Some(Renderer::Shelf)).unwrap();
+    assert!(
+        include_str!("../../../ui/src/lib/mock.ts").contains(&format!("name: '{}'", shelves.name)),
+        "the in-memory backend lists the shelves by their shipped name"
+    );
+    let shipped: Vec<_> =
+        all.into_iter().filter(|v| v.renderer == Some(Renderer::Totals)).collect();
     assert!(!shipped.is_empty());
     for v in &shipped {
         let group = v.group.as_deref().unwrap();
@@ -868,4 +885,22 @@ fn the_wikibooks_collection_is_credited_and_carries_no_values() {
         assert!(r.get("per_serving").is_none(), "no values are worked out: {}", r["id"]);
     }
     assert!(recipes.iter().any(|r| r["title"] == "Risotto alla milanese"));
+}
+
+/// **Every carried collection names itself** (2026-10-18, *one recipe search*): a key a logged
+/// serving's source starts with, a label its rows carry, a source — so no code names one.
+#[test]
+fn every_carried_collection_says_what_it_is_called() {
+    let all = fm_app::log::recipe_libraries().unwrap();
+    assert!(all.len() >= 2);
+    let mut keys = std::collections::HashSet::new();
+    for lib in &all {
+        let key = lib["key"].as_str().expect("a key");
+        assert!(keys.insert(key.to_string()), "keys are unique: {key}");
+        assert!(lib["label"].as_str().is_some_and(|l| !l.is_empty()), "{key} has a label");
+        assert!(lib["source"].as_str().is_some(), "{key} names its source");
+        assert!(lib["recipes"].as_array().is_some_and(|r| !r.is_empty()), "{key} has recipes");
+    }
+    assert_eq!(fm_app::log::recipe_library("").unwrap()["key"], all[0]["key"]);
+    assert_eq!(fm_app::log::recipe_library("wikibooks").unwrap()["key"], "wikibooks");
 }

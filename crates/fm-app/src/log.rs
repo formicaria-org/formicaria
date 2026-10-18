@@ -600,11 +600,27 @@ pub const RECIPES_NHLBI: &str = include_str!("shipped/recipes-nhlbi.json");
 /// `ci/pack-wikibooks.py` makes the file.
 pub const RECIPES_WIKIBOOKS: &str = include_str!("shipped/recipes-wikibooks.json");
 
-/// A carried collection by name: `wikibooks`, or anything else (and nothing) for the NHLBI's.
-pub fn recipe_library(book: &str) -> Result<serde_json::Value, StoreError> {
-    let text = if book == "wikibooks" { RECIPES_WIKIBOOKS } else { RECIPES_NHLBI };
-    serde_json::from_str(text)
-        .map_err(|e| StoreError::Parse(format!("the carried recipes do not read: {e}")))
+/// **Every collection carried in the app, in the order they are offered.** Each file says what it
+/// is called — its `key` (a logged serving's source is `<key>/<id>`) and its `label` — so nothing
+/// here or in the UI names one (2026-10-18, *one recipe search: every source equal*).
+const CARRIED: &[&str] = &[RECIPES_NHLBI, RECIPES_WIKIBOOKS];
+
+/// Every carried collection, as its file holds it.
+pub fn recipe_libraries() -> Result<Vec<serde_json::Value>, StoreError> {
+    CARRIED
+        .iter()
+        .map(|text| {
+            serde_json::from_str(text)
+                .map_err(|e| StoreError::Parse(format!("the carried recipes do not read: {e}")))
+        })
+        .collect()
+}
+
+/// One carried collection by its `key`; nothing named is the first.
+pub fn recipe_library(key: &str) -> Result<serde_json::Value, StoreError> {
+    let all = recipe_libraries()?;
+    let found = all.iter().position(|l| l["key"].as_str() == Some(key)).unwrap_or(0);
+    Ok(all.into_iter().nth(found).unwrap_or_default())
 }
 
 // ── how an exercise is done ──────────────────────────────────────────────────────────────────────

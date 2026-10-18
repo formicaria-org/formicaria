@@ -740,6 +740,7 @@ fn fm_blocking(
         || cmd == "set_agent"
         || cmd == "set_transcribe"
         || cmd == "set_listening"
+        || cmd == "set_assistant_name"
         || cmd == "update_agent_model"
     {
         // A notes-only build: same shape again, and `why` says which kind of build this is rather
@@ -924,7 +925,13 @@ fn configure_paths(handle: &tauri::AppHandle) -> Result<(), String> {
             // path, and only a fresh install starts inside the root.
             let legacy = dir.join("vault");
             let vault = if legacy.exists() { legacy } else { root.join("notes") };
+            // A first notebook, made here: it starts with the tutorials on its shelf, exactly as
+            // the computer download's does (`fm_app::tutorials`). Only into an empty one.
+            let fresh = !vault.join("notes").exists();
             let _ = std::fs::create_dir_all(vault.join("notes"));
+            if fresh {
+                let _ = fm_app::tutorials::write_into(&vault);
+            }
             std::env::set_var("FM_VAULT", &vault);
         }
     }

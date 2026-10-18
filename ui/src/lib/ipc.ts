@@ -1364,6 +1364,11 @@ export const readLabelPhoto = (data: string) =>
 export const recipeFromLink = (link: string) => invoke<WebRecipe>('recipe_from_link', { link });
 /** The carried recipes, by collection; only the NHLBI's is carried today. */
 export const recipeLibrary = (book = '') => invoke<RecipeLibrary>('recipe_library', { book });
+/** Help → *Put the tutorials back*: the missing tutorials, written again into this notebook. */
+export const putBackTutorials = (vault = '') =>
+  invoke<ObjectMeta[]>('put_back_tutorials', { vault });
+/** Every collection carried in the app, each naming itself (2026-10-18). */
+export const recipeLibraries = () => invoke<RecipeLibrary[]>('recipe_libraries', {});
 /** Hand the computer's program the reminders it says itself when no page is open. */
 export const remindSet = (items: { title: string; text: string; at: number }[]) =>
   invoke<void>('remind_set', { items });

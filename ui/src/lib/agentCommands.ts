@@ -5,11 +5,19 @@
 // The chip-insert logic is a pure string transform so it is unit-tested without the (huge) NotePanel
 // component: given the current draft, the tapped command, and who to address, it returns the new draft.
 
+/** The assistant's one name on every device (`fm_agent::convo::MYRME`, 2026-10-18). */
+export const MYRME = 'Myrme';
+
+/** What every assistant signs its writing with — a participant on it is Myrme, whatever it was
+ *  called when it wrote (`fm_app::thread::AGENT_DOMAIN`). */
+export const AGENT_DOMAIN = '@fm-agents.local';
+
 export const AGENT_COMMANDS = [
   { cmd: '/research', hint: 'Grounded web research → a cited proposal on this note' },
   { cmd: '/search', hint: 'Ground the reply in a web search' },
   { cmd: '/propose', hint: 'Propose an edit to this note' },
   { cmd: '/transcribe', hint: 'Recordings and handwriting in this note → text, as a proposal' },
+  { cmd: '/recipe', hint: 'A recipe from this note’s recording or text, as a new recipe note' },
 ] as const;
 
 /**

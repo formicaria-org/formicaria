@@ -30,7 +30,7 @@
     logRecipes,
     logRoutines,
     planProgress,
-    recipeLibrary,
+    recipeLibraries,
   } from './ipc';
   import type { Dish } from './plan/measure';
   import { exercises } from './training/exercises';
@@ -139,8 +139,8 @@
     const off = followed?.checks.some((c) => c.per === 'day' && c.state === 'under');
     if (!off || !view || dishesFor === view) return;
     dishesFor = view;
-    void Promise.all([logRecipes(view), recipeLibrary(), logKitchen()])
-      .then(([own, lib, kitchen]) => {
+    void Promise.all([logRecipes(view), recipeLibraries(), logKitchen()])
+      .then(([own, libs, kitchen]) => {
         const names = new Set(kitchen.map((k) => k.title.trim().toLowerCase()));
         dishes = [
           ...own.map((r) => ({
@@ -159,12 +159,17 @@
               of: r.ingredients.length,
             },
           })),
-          ...lib.recipes.map((r) => ({
-            title: r.title,
-            from: 'NHLBI',
-            ref: `nhlbi/${r.id}`,
-            per_serving: r.per_serving ?? {},
-          })),
+          // Every carried collection the same; only a recipe with figures can be a dish here.
+          ...libs.flatMap((lib) =>
+            lib.recipes
+              .filter((r) => r.per_serving)
+              .map((r) => ({
+                title: r.title,
+                from: lib.label,
+                ref: `${lib.key}/${r.id}`,
+                per_serving: r.per_serving ?? {},
+              })),
+          ),
         ];
       })
       .catch(() => (dishes = []));

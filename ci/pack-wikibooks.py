@@ -647,6 +647,10 @@ def main(argv):
         return 1
 
     pack = {
+        # What the app calls this collection: `key` prefixes a logged serving's source
+        # (`wikibooks/<id>`), `label` is what each of its rows is labelled with (2026-10-18).
+        "key": "wikibooks",
+        "label": "Wikibooks",
         "source": SOURCE,
         "licence": LICENCE,
         "licence_url": LICENCE_URL,

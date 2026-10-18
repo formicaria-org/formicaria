@@ -1657,6 +1657,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       });
       return { id, vault: gone.vault, file } as T;
     }
+    case 'put_back_tutorials':
+      // The stand-in has no shipped tutorials to write; it answers that none were missing.
+      return [] as T;
+
     case 'restore_note':
     case 'restore_deleted': {
       const file =
@@ -2274,6 +2278,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // The views that come with the app are always listed, as the server lists them; whether
       // their groups are *shown* is the device's choice (`trackersShown` in `App.svelte`).
       views.push(...tracker.TRACKER_VIEWS);
+      // The Library's shelves, as `crates/fm-app/src/shipped/library-shelves.view` ships them.
+      views.push({
+        name: 'Shelves',
+        renderer: 'shelf',
+        group_by: 'shelf',
+        group: 'Library',
+        shipped: true,
+      });
       return views as T;
     }
     case 'log_days': {
@@ -2343,10 +2355,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         cook_minutes: 15,
       } as T;
     }
+    case 'recipe_libraries':
+      // Every carried collection, each naming itself — as `fm_app::log::recipe_libraries`.
+      return [
+        await handle('recipe_library', { book: 'nhlbi' }),
+        await handle('recipe_library', { book: 'wikibooks' }),
+      ] as T;
+
     case 'recipe_library':
       // The Italian collection: one recipe, in the shape of `recipes-wikibooks.json`.
       if (args.book === 'wikibooks')
         return {
+          key: 'wikibooks',
+          label: 'Wikibooks',
           source: 'Wikibooks, Libro di cucina — Ricette (it.wikibooks.org)',
           licence: 'CC BY-SA 4.0',
           licence_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
@@ -2370,6 +2391,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         } as T;
       // One recipe, in the shape of the carried file; the real ones are `recipes-nhlbi.json`.
       return {
+        key: 'nhlbi',
+        label: 'NHLBI',
         source: 'National Heart, Lung, and Blood Institute',
         home: 'https://www.nhlbi.nih.gov/',
         seen: '2026-10-12',
@@ -2529,6 +2552,25 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'pack_status':
       return tracker.packStatus() as T;
     case 'run_view': {
+      // The Library's shelves: grouped by `shelf`, named shelves by name, the rest last as Other —
+      // what `views::run_file` answers for `view: shelf`.
+      if (String(args.name ?? '') === 'Shelves') {
+        const b = buildBoard('shelf');
+        const columns = b.columns
+          .map((c) => (c.value === '' ? { ...c, label: 'Other' } : c))
+          .sort((x, y) =>
+            x.value === '' ? 1 : y.value === '' ? -1 : x.label.localeCompare(y.label),
+          );
+        const result: ViewResult = {
+          name: 'Shelves',
+          renderer: 'shelf',
+          group_by: 'shelf',
+          filters: [],
+          board: { group_by: 'shelf', columns },
+          group: { name: 'Library', views: ['Shelves'] },
+        };
+        return result as T;
+      }
       const def = tracker.trackerDef(String(args.name ?? ''));
       if (def) {
         const result: ViewResult = {

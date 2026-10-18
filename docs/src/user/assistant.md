@@ -190,9 +190,9 @@ starts.
 **Each device answers its own messages.** If your notes reach a computer and a phone, both run a
 Myrme, and a message is answered by the copy on the device you wrote it on — never twice. To ask a
 particular one, add its device: `@Myrme-laptop` (or `@Myrme·laptop`) — for something only that
-device can do, such as reading a photographed page with the computer's larger model. The model's own
-name (`@qwen3-vl-4b`) still works where that model runs; written on a device where it does not, the
-app says so and offers to ask `@Myrme` instead.
+device can do, such as reading a photographed page with the computer's larger model. Its replies are
+signed **Myrme (laptop)**, **Myrme (phone)** — the device's name — and what an assistant wrote before
+it was called Myrme reads as Myrme too.
 
 **You do not have to remember the commands.** The composer shows them as buttons you can tap, each
 with a line saying what it does — which is the easier route on a phone.
@@ -205,11 +205,11 @@ with a line saying what it does — which is the easier route on a phone.
 | `/transcribe` | Turn this note's **recordings and images into text** — see below. | **A note's discussion** |
 | `/recipe` (or `/ricetta`) | Make a **recipe** of this note — a recording of you saying it, or its text — proposed as a new recipe note. | **A note's discussion** |
 
-Three of the four need a note to work on, so in a *first-class* discussion — one that belongs to no
+All but `/search` need a note to work on, so in a *first-class* discussion — one that belongs to no
 particular note — only `/search` applies; the rest quietly become an ordinary question. A command
 can go anywhere in the sentence, beginning or end.
 
-Nothing the assistant writes lands in a note by itself. `/propose`, `/research` and `/transcribe`
+Nothing the assistant writes lands in a note by itself. `/propose`, `/research`, `/transcribe` and `/recipe`
 each produce a **proposal**: it appears on the note it belongs to, and in the **Collaboration**
 view, where you see exactly what would change and then accept it, edit it first, or turn it down.
 See [Collaboration](./collaboration.md).
@@ -234,6 +234,11 @@ It uses only what you said: anything it wrote that you did not say is left out, 
 how many lines that was. A word misheard stays misheard — correct it before accepting, or turn on
 *Better listening* (above), which mishears far less. The note ends with everything that was heard, under *What was said*, so you
 can check it.
+
+On a note that **is already a recipe** — one you dictated in Food, or started yourself — it proposes
+the sorted recipe *in that note* instead, keeping its recordings and pictures and quoting what it
+said before. If audio transcription is off on this device, it says it did not listen to the
+recording and works from the note's text.
 
 Accept it in **Collaboration** — or change it first — and it is a recipe like any other. In **Food**,
 its ingredients are then offered one by one to match to foods, so it counts.

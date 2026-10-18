@@ -34,7 +34,14 @@ export const RECIPE = 'recipe';
  *  and they are kept apart; everything else a recipe is — its ingredients as written, method, times,
  *  notes, pictures — is this text, free. Only the Ingredients list is read back, as lines to match
  *  to foods (`food/recipeText.ts`). */
-export const RECIPE_BODY = '## Ingredients\n\n- \n\n## Method\n\n1. \n\n## Times\n\n\n## Notes\n\n';
+export const RECIPE_PARTS = {
+  ingredients: 'Ingredients',
+  method: 'Method',
+  times: 'Times',
+  notes: 'Notes',
+} as const;
+const P = RECIPE_PARTS;
+export const RECIPE_BODY = `## ${P.ingredients}\n\n- \n\n## ${P.method}\n\n1. \n\n## ${P.times}\n\n\n## ${P.notes}\n\n`;
 /** A fresh word for a recipe: what its note and its ingredients share, and nothing else does. */
 export const recipeWord = () =>
   globalThis.crypto?.randomUUID?.().slice(0, 13) ??

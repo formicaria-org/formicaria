@@ -49,6 +49,11 @@ pub enum Renderer {
     /// (`decisions.md#ui`, 2026-10-11). Its rows come from `log_days`, which is asked for a span of
     /// days; `run_view` answers only what the view *is* ([`TotalsDef`]).
     Totals,
+    /// **Notes as books on shelves** (`decisions.md#ui`, 2026-10-18, *Home is the Library's
+    /// shelves*): the Board's grouping, by the `shelf` property unless `group_by` says otherwise,
+    /// drawn as stacked rows of spines. Putting a book on a shelf sets the property, as moving a
+    /// card sets `status`; a note on no shelf is under the view's `rest` label.
+    Shelf,
 }
 
 /// One `.view` file, as written. Everything but `name`/`view` is optional, so the simplest
@@ -60,6 +65,9 @@ struct ViewFile {
     /// Board only — the property to group columns by.
     #[serde(default)]
     group_by: Option<String>,
+    /// Shelf only — what the notes on no shelf are called (`rest: Other`).
+    #[serde(default)]
+    rest: Option<String>,
     /// Overrides the renderer's default sort when present.
     #[serde(default)]
     sort: Vec<SortDto>,
@@ -358,6 +366,12 @@ fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query 
         Renderer::Board => Query {
             filter: notes(),
             group_by: Some(group_by.unwrap_or("status").to_string()),
+            sort: vec![SortKey::desc("created")],
+            ..Default::default()
+        },
+        Renderer::Shelf => Query {
+            filter: notes(),
+            group_by: Some(group_by.unwrap_or(SHELF).to_string()),
             sort: vec![SortKey::desc("created")],
             ..Default::default()
         },
@@ -709,6 +723,7 @@ pub fn save_view(
         Renderer::Search => "search",
         Renderer::Gallery => "gallery",
         Renderer::Totals => "totals",
+        Renderer::Shelf => "shelf",
     };
     // Written as the same YAML a person would write by hand — this is a file they own, in their
     // vault, tracked by git and read by collaborators, not an opaque app artifact.
@@ -849,9 +864,9 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
     let filters: Vec<String> = file.filter.iter().map(|p| describe_pred(p, false)).collect();
 
     Ok(match file.view {
-        Renderer::Board => {
+        Renderer::Board | Renderer::Shelf => {
             let group_by = q.group_by.clone().unwrap_or_default();
-            let columns = res
+            let mut columns: Vec<Column> = res
                 .groups
                 .unwrap_or_default()
                 .into_iter()
@@ -861,6 +876,19 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
                     cards: g.rows.iter().map(ObjectMeta::from).collect(),
                 })
                 .collect();
+            // Shelves read in order, named ones by name, and the notes on none last, under the
+            // view's own word for them.
+            if file.view == Renderer::Shelf {
+                columns.sort_by(|a, b| {
+                    (a.value.is_empty(), a.label.to_lowercase())
+                        .cmp(&(b.value.is_empty(), b.label.to_lowercase()))
+                });
+                if let Some(rest) = file.rest.as_ref().filter(|r| !r.trim().is_empty()) {
+                    for c in columns.iter_mut().filter(|c| c.value.is_empty()) {
+                        c.label = rest.clone();
+                    }
+                }
+            }
             ViewResult {
                 name: file.name,
                 renderer: file.view,
@@ -903,7 +931,11 @@ fn parse_view(text: &str, origin: &str) -> Result<ViewFile, String> {
 /// build that predates a renderer never meets a file naming it, and turning a feature on writes
 /// nothing into anybody's notes. A vault file of the same name wins — that is how a person changes
 /// what a shipped view calls things.
+/// The property a note's shelf is kept in (`view: shelf`).
+pub const SHELF: &str = "shelf";
+
 const SHIPPED: &[(&str, &str)] = &[
+    ("library-shelves", include_str!("shipped/library-shelves.view")),
     ("food-day", include_str!("shipped/food-day.view")),
     ("food-menu", include_str!("shipped/food-menu.view")),
     ("food-trends", include_str!("shipped/food-trends.view")),
@@ -1101,6 +1133,42 @@ mod tests {
         // Two lab notes across two status columns; the personal note is filtered out.
         let total: usize = board.columns.iter().map(|c| c.cards.len()).sum();
         assert_eq!(total, 2, "only the two lab notes");
+    }
+
+    /// **The Library's shelves** (2026-10-18): notes grouped by `shelf`, named shelves in order and
+    /// the notes on none last under the view's own word — the shipped view, run as it ships.
+    #[test]
+    fn shelves_are_the_shelf_property_with_the_rest_last() {
+        let d = tempdir().unwrap();
+        let mut s = FileStore::named(d.path(), "v").unwrap();
+        for (title, shelf) in
+            [("Start here", Some("Tutorials")), ("Cooking", Some("Kitchen")), ("A thought", None)]
+        {
+            let mut o = Object::new(Kind::Note, title);
+            if let Some(sh) = shelf {
+                o.extra.insert(SHELF.into(), PropertyValue::Text(sh.into()));
+            }
+            s.put(&o).unwrap();
+        }
+        let r = run_shipped(&s, "Shelves").expect("it ships").unwrap();
+        assert_eq!(r.renderer, Renderer::Shelf);
+        let listed = shipped_views();
+        let info = listed.iter().find(|v| v.name == "Shelves").unwrap();
+        assert_eq!(info.group.as_deref(), Some("Library"), "it is one of the Library's views");
+        let shelves = r.board.unwrap();
+        assert_eq!(shelves.group_by, SHELF);
+        let labels: Vec<_> = shelves.columns.iter().map(|c| c.label.as_str()).collect();
+        assert_eq!(labels, ["Kitchen", "Tutorials", "Other"]);
+        assert!(shelves.columns[2].value.is_empty(), "the rest is the notes with no shelf");
+    }
+
+    /// The UI opens a first launch on this view by name (`HOME_VIEW`, ui/src/lib/panes.ts); a
+    /// rename on either side would open on nothing.
+    #[test]
+    fn the_home_view_the_ui_names_is_the_shipped_shelves() {
+        let ui = include_str!("../../../ui/src/lib/panes.ts");
+        let name = shipped_name(include_str!("shipped/library-shelves.view")).unwrap();
+        assert!(ui.contains(&format!("export const HOME_VIEW = '{name}';")), "HOME_VIEW is {name}");
     }
 
     #[test]

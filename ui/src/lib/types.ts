@@ -539,7 +539,7 @@ export interface ImportReport {
 }
 
 /** The renderer a `.view` draws through — the same set the built-in nav offers. */
-export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery' | 'totals';
+export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery' | 'totals' | 'shelf';
 
 /** One saved `.view`, as the sidebar lists it. A view that would not parse still appears,
  *  with `error` set and `renderer` null — a broken view names itself, never vanishes. */
@@ -765,6 +765,10 @@ export interface WebRecipe {
   image?: string;
 }
 export interface RecipeLibrary {
+  /** What a logged serving's source starts with: `<key>/<id>`. */
+  key: string;
+  /** What each of its recipes is labelled with in the one recipe search. */
+  label: string;
   source: string;
   home: string;
   seen: string;

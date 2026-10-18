@@ -17,7 +17,7 @@ The views are gathered into four groups, and they are all ways of looking at the
 
 | Group | What it is for | Its views |
 |---|---|---|
-| **Library** | everything you have written, browsed by tag | Timeline |
+| **Library** | everything you have written: on shelves, or browsed by tag | Shelves, Timeline |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |
@@ -35,6 +35,13 @@ The views are gathered into four groups, and they are all ways of looking at the
   [templates](./notes.md#templates).
 - **Back** returns to where you came from. Stepping between a group's own views does not add a
   step to walk back through.
+
+**The Library opens on its shelves** — the place to come back to. Each note is a book, lying on its
+side so its title reads across; books stand on the shelf their **`shelf`** property names, and the
+ones with no shelf are on **Other** (its newest thirty; every note is in the Timeline). To put a book
+on a shelf, give it a `shelf` in the note's details (a new name is a new shelf); with a mouse you can
+also drag it onto another shelf, which sets the same property. A new notebook starts with a few short guides on
+**Tutorials**.
 
 In the Library, the row of tags above the timeline shows every tag on your notes and how many
 carry it; tap one to see only those notes, and again to see them all. Otherwise the Library is
@@ -133,8 +140,8 @@ A filtered, grouped board:
 
 ```yaml
 name: Lab board
-view: board          # board | agenda | timeline  (see the note below)
-group_by: status     # board only
+view: board          # board | agenda | timeline | shelf  (see the note below)
+group_by: status     # board and shelf (a shelf groups by `shelf` unless told otherwise)
 filter:              # every entry is ANDed onto the renderer's own filter
   - tag: lab
 ```

@@ -122,6 +122,17 @@ testers before publishing; keeps our signing key via Play App Signing. **F-Droid
 source by F-Droid with its key (so not an update to our APK), and the bundled model runtime would
 need to be built or declared. Neither is started; both need the owner's accounts.
 
+### 1.5 The rest of the 2026-10-18 audit — folded later, by the owner's choice
+
+Phase 6 of `~/.claude/plans/reactive-wandering-tulip.md`: **one `fm_agent_run::settings`** for the
+assistant settings the two shells still each implement (device name, listening, and their routes);
+**one `installed::whisper_plan`** (the desktop fetches the chosen speech weights in the background,
+the phone blocks at start); **`fm_agent::transcribe::dictate(port, bytes)`** (the dictation body is
+copied in `crates/fm-serve/src/agent.rs` and `mobile/src-tauri/src/lib.rs`, and they answer
+"off" differently). Deferred as low value for the risk: the `trackers.askToOpen` mailbox, the
+`'Food'` literal in `App.svelte`, `propose_note`'s recipe-specific allow-list, the per-shell
+`recipe_from_link` fetch closures.
+
 ## 2. Not started
 
 ### 2.0 The papers tool — the reader is the part that is still missing

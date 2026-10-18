@@ -15,11 +15,16 @@
   }
   let { example, today, onsaved }: Props = $props();
 
+  // The example days name recipes of the first carried collection — the one with figures.
   let recipes = $state<CarriedRecipe[]>([]);
+  let key = $state('');
   $effect(() => {
     if (!example.recipes) return;
     void recipeLibrary()
-      .then((l) => (recipes = l.recipes))
+      .then((l) => {
+        recipes = l.recipes;
+        key = l.key;
+      })
       .catch(() => (recipes = []));
   });
   const titleOf = (id: string) => recipes.find((r) => r.id === id)?.title ?? id;
@@ -59,7 +64,7 @@
                   log: 'food',
                   slot: slotOf(x.meal),
                   planned: 1,
-                  source: `nhlbi/${r.id}`,
+                  source: `${key}/${r.id}`,
                   ...r.per_serving,
                 },
               },

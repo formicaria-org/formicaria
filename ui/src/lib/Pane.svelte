@@ -7,6 +7,7 @@
     dropTargetForElements,
   } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import Board from '../renderers/Board.svelte';
+  import Shelf from '../renderers/Shelf.svelte';
   import Agenda from '../renderers/Agenda.svelte';
   import Calendar from '../renderers/Calendar.svelte';
   import Timeline from '../renderers/Timeline.svelte';
@@ -21,7 +22,6 @@
   import MailHeard from './MailHeard.svelte';
   import TagChips from './library/TagChips.svelte';
   import { spacesShown, type SpaceTab } from './spaces.svelte';
-  import Home from './Home.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, paneLabel, clampSpan, rendererKind } from './panes';
@@ -345,9 +345,7 @@
         {/each}
       </div>
     {/if}
-    {#if pane.kind === 'home'}
-      <Home ongo={(kind) => onchange({ kind })} />
-    {:else if pane.kind === 'note'}
+    {#if pane.kind === 'note'}
       {#if pane.noteId}
         {#await import('./NotePanel.svelte') then { default: NotePanel }}
           <NotePanel
@@ -369,6 +367,13 @@
         {/await}
       {:else}
         <p class="pane-empty">No note.</p>
+      {/if}
+    {:else if pane.kind === 'view' && shownView?.renderer === 'shelf'}
+      <!-- The Library's shelves: the board's grouping, as a bookcase (2026-10-18). -->
+      {#if board}
+        <Shelf {board} onmove={(id, value) => onmove(board.group_by, id, value, null)} {onopen} />
+      {:else}
+        <p class="pane-empty">Loading…</p>
       {/if}
     {:else if pane.kind === 'board' || (pane.kind === 'view' && board)}
       {#if board}

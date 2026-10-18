@@ -806,10 +806,10 @@ test('a recipe carried in the app is shown as published and logged by its source
   await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
   const sheet = await screen.findByRole('dialog');
   await fireEvent.click(within(sheet).getByRole('button', { name: 'Recipes' }));
-  // They are searched by dish or by ingredient.
-  const seek = await within(sheet).findByLabelText('search the recipes that come with the app');
+  // They are searched by dish or by ingredient, in the one search every recipe is in.
+  const seek = await within(sheet).findByLabelText('search recipes');
   await fireEvent.input(seek, { target: { value: 'lasagne' } });
-  expect(await within(sheet).findByText('None of them names that.')).toBeTruthy();
+  expect(await within(sheet).findByText('No recipe names that.')).toBeTruthy();
   await fireEvent.input(seek, { target: { value: 'diced tomatoes' } });
   await fireEvent.click(await within(sheet).findByRole('button', { name: /Vegetable Stew/ }));
   const recipe = await within(sheet).findByRole('region', { name: 'a recipe, as published' });

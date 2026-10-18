@@ -99,10 +99,11 @@ foods from the list by weight.
   link back to the page and to its photo. On a computer or a phone — not from a device paired to a
   computer, which cannot ask the computer to read a page.
 - **Dictate a recipe** — say it: its name, what goes in and how it is made, as you would tell
-  someone. What you said is kept as a note of its own, and Myrme is asked to sort it into a recipe;
-  it arrives in **Collaboration** to accept or change, and once accepted it is here with its lines
-  to match. Needs the assistant with *Audio transcription* on ([Dictating](./notes.md#dictating));
-  if what you said cannot be written down, the note keeps the recording, and nothing is lost.
+  someone. It is a recipe straight away, here under Recipes, with what you said in its notes; and
+  Myrme is asked to sort it into ingredients and method **in that same recipe** — a proposal in
+  **Collaboration** to accept or change. Needs the assistant with *Audio transcription* on
+  ([Dictating](./notes.md#dictating)); if what you said cannot be written down, the recipe keeps the
+  recording, and nothing is lost.
 - **Choose the food for each ingredient** — a recipe whose note lists its *Ingredients* (saved from a
   link, made from one that comes with the app, or typed in yourself) shows those lines here until
   each is matched. Tap one: the food search opens on what it names, and the amount on the grams it
@@ -128,24 +129,24 @@ An ingredient has to be a food from the list.
 
 ### Recipes that come with the app
 
-Under your own recipes, **From the NHLBI** lists 54 recipes — search them by dish or by
-ingredient — from the U.S. National Heart, Lung,
-and Blood Institute, which publishes them in the public domain. Open one to read its ingredients
-directions, tips and notes exactly as published, with a link to its own page. **Add a
-serving** logs it — or plans it, from the Menu — with the Institute's own figures for a serving.
+**One search finds every recipe** — yours and the 345 that come with the app — by dish, by
+ingredient or by region, with or without accents (*tiramisu* finds *Tiramisù*). Each row says where
+the recipe is from: **Yours**, **NHLBI** or **Wikibooks** (with its region). With nothing typed, the
+list is your own recipes, and a line says how many more the search reaches.
 
-Their amounts are in cups and spoons, so the app does not add their ingredients up: on the Menu
-and on a shopping list they are listed as the recipe gives them.
+- **NHLBI** — 54 recipes from the U.S. National Heart, Lung, and Blood Institute, in the public
+  domain. They come with the Institute's figures for a serving, so **Add a serving** logs one
+  straight away — or plans it, from the Menu. Their amounts are in cups and spoons, so on the Menu
+  and on a shopping list they are listed as the recipe gives them.
+- **Wikibooks** — 291 Italian recipes from the Italian Wikibooks cookbook (*Libro di cucina*), each
+  filed there under an Italian region, shown word for word, credited to their authors and under
+  their licence (Creative Commons BY-SA 4.0), with a link to their page and, where there is one, to a
+  photo. Their pages give no nutrition figures, so one counts once its ingredients are matched to
+  foods — the one extra step, below.
 
-**Italian recipes.** Below them, **Italiane, da Wikibooks** lists 291 Italian recipes from the
-Italian Wikibooks cookbook (*Libro di cucina*) — each one filed there under an Italian region. Search
-by dish, ingredient or region. They are shown word for word, credited to their authors and under
-their licence (Creative Commons BY-SA 4.0), with a link to their page and, where there is one, to a
-photo. They carry no nutrition figures, so to count one, make it yours.
-
-**Make it mine** under any of them copies it into a recipe of your own — the same text, credited — to
-change, photograph and time as you like, and to match its ingredients to foods so it counts in your
-own amounts.
+Open any of them to read it as published. **Make it mine** copies it into a recipe of your own —
+the same text, credited — to change, photograph and time as you like, and to match its ingredients
+to foods so it counts in your own amounts.
 
 ## The day, and what it is measured against
 

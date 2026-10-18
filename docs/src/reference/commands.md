@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 120 of them are below**, grouped by what they are for. If you add an arm to
+**All 122 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -49,6 +49,7 @@ dispatch no longer has fails too.)
 | `update_body`    | `id`, `body`, `base`         | the new `version`      | byte-for-byte body write; `base` is the `version` you last saw — a mismatch is refused (see below). `''` opts out |
 | `delete`         | `id`                         | `DeletedNote`          | unlinks the file and both index rows, and answers the note's file and notebook so the UI's undo can put it back |
 | `restore_note`   | `vault`, `file`              | `ObjectMeta`           | put a deleted note back from its file; refused if a note with that id exists again |
+| `put_back_tutorials` | `vault?`                 | `ObjectMeta[]`         | Help → *Put the tutorials back*: write again each shipped tutorial missing from the notebook; one that is there, changed or not, is left |
 | `deleted_notes`  | `days` (default 30)          | `DeletedRow[]`         | read-only: notes deleted in the last `days`, read from each notebook's own history (git, or libgit2 on the phone), skipping ones that exist again |
 | `restore_deleted` | `vault`, `id`, `days`       | `ObjectMeta`           | bring back a note listed by `deleted_notes`, exactly as it was before it was deleted |
 | `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — parsed locally, never looked up online |
@@ -177,7 +178,8 @@ and so did their tests. See [Views](../user/views.md#saved-views).
 | `log_recipes`    | `view`                       | `Recipe[]`             | the recipes saved in a log, by name. Each: `servings`, its ingredient entries, `of` (how many), and `sums` — every whole-number value the ingredients carry, added up, with how many of them carried it. Nothing is adjusted for cooking |
 | `log_nutrients`  | `view`, `day`                | `Nutrients`            | every vitamin and mineral of one day: per value its `sum`, how many entries carried it, the `reference` for an adult of the person's sex and age where there is one figure (EFSA 2017), an `upper` level where it applies to food, and the day's entries. `needs_sex` when figures were left out for want of it |
 | `exercise_library` | —                          | `{ seen, sources, exercises, videos, videos_seen }` | how each exercise is done, as its source wrote it: per card its `steps`, and `about`, `start`, `dose`, `notes` where the source has them, its page and reference, and where the app files it (`equipment`, `area`). `sources` carry each body's credit line and licence. `videos` are links, each a known body's (`tier: body`) or a trainer's (`tier: trainer`) |
-| `recipe_library` | `book?`                      | `{ source, home, seen, recipes }` | the recipes carried in the app, as published: each with its `ingredients` and `steps` word for word, its page, and its publisher's own values `per_serving`. `book: wikibooks` gives Italian Wikibooks' Italian recipes (CC BY-SA 4.0): `ingredients`, `steps`, `text`, `notes`, `yield`/`servings`, `region`, `times`, `image` as a link, `authors_url` — and no values |
+| `recipe_library` | `book?`                      | `{ key, label, source, home, seen, recipes }` | one collection carried in the app, by its `key` (none: the first), as published: each recipe with its `ingredients` and `steps` word for word and its page; NHLBI's carry their publisher's values `per_serving`, Italian Wikibooks' (`wikibooks`, CC BY-SA 4.0) carry `text`, `notes`, `yield`/`servings`, `region`, `times`, `image` as a link, `authors_url` — and no values |
+| `recipe_libraries` | —                          | the same, one per collection | every collection carried in the app, in the order offered; each names itself (`key` starts a logged serving's source, `<key>/<id>`; `label` labels its rows) |
 | `log_kitchen`    | —                            | `{ id, title }[]`      | what the person says they have at home: notes carrying `kitchen`, by name. No amounts |
 | `log_products`   | —                            | `Product[]`            | the packaged foods a person wrote down from their labels: notes carrying `product`, each with its `per100` values (the keys every food uses), and `barcode` and `serving_g` when given. In no log and no day |
 | `log_routines`   | `view`                       | `Routine[]`            | the sessions kept under a name in a log: each with the `weekdays` it is meant for (`mon` … `sun`) and its `sets` — entries that name the routine instead of a day, so they are in no day until planned onto one |

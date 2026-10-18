@@ -14,7 +14,6 @@
     streamsBlobs,
     openExternal,
     ingestFile,
-    dictate,
     search,
     recent,
     reply as ipcReply,
@@ -45,9 +44,10 @@
   import type { EditorHandle } from './editor/handle';
   import { KEYBOARD_EVENT } from './keyboard';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
-  import { AGENT_COMMANDS, withCommand } from './agentCommands';
+  import { AGENT_COMMANDS, AGENT_DOMAIN, MYRME, withCommand } from './agentCommands';
   import { beatMs, POLL_BUSY_MS } from './pollBeat';
   import { startRecording, type Recording } from './record';
+  import { DICTATION_SECS, hear } from './dictation';
   import { isRemote } from './remote';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
@@ -1388,7 +1388,12 @@
         // Every collaborator who has posted in the vault — humans AND agents, current or past. None
         // are forgotten; the ones you can chat with *right now* are marked active in the picker (a
         // green dot) vs. inactive (red), from the live `agentsOnline` list.
-        for (const d of ds) for (const p of d.participants ?? []) if (p.name) names.add(p.name);
+        // Every assistant is offered once, as Myrme — whichever device or model signed what it
+        // wrote; `@Myrme` is answered by the device it is written on (2026-10-18).
+        for (const d of ds)
+          for (const p of d.participants ?? [])
+            if (p.email?.endsWith(AGENT_DOMAIN)) names.add(MYRME);
+            else if (p.name) names.add(p.name);
         collaborators = [...names];
       })
       .catch(() => {});
@@ -1604,7 +1609,9 @@
   // the user types the question next. The string transform is the tested `withCommand` helper; typing
   // the command still works too.
   function insertCommand(cmd: string) {
-    replyDraft = withCommand(replyDraft, cmd, agentsOnline[0] ?? mentionCandidates[0]);
+    // Never someone else's name: a command is for the assistant, Myrme, whether or not it has
+    // come up yet (the send path says so if it has not).
+    replyDraft = withCommand(replyDraft, cmd, agentsOnline[0] ?? MYRME);
     discInputEl?.focus();
   }
 
@@ -2255,9 +2262,6 @@
   // proposal; the clip is kept only when the words could not be written down — never lost.
   let dictating = $state(false); // this recording is a dictation
   let writingDown = $state(false); // the speech model is working on it
-  // A dictation stops itself here: the phone carries it in one message, and five minutes of
-  // speech is ~10 MB there, well inside what that message holds (`MAX_INGEST`).
-  const DICTATION_SECS = 300;
 
   function startDictation() {
     return startRecordingFlow(true);
@@ -2305,16 +2309,8 @@
     }
     dictating = false;
     writingDown = true;
-    let words = '';
-    let why = '';
-    try {
-      words = await dictate(file);
-      if (!words) why = 'Nothing could be written down from that recording.';
-    } catch (e) {
-      why = e instanceof Error ? e.message : String(e);
-    } finally {
-      writingDown = false;
-    }
+    const { words, why } = await hear(file);
+    writingDown = false;
     if (words) {
       // A space between these words and what is before the caret, unless a line or a space is.
       const before = draft.slice(0, editorEl?.selection().from ?? draft.length);

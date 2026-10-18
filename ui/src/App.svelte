@@ -808,11 +808,8 @@
     const grouped = new Set(BUILTIN_SPACES.flatMap((s) => s.tabs.map((t) => t.kind as string)));
     const rest = targetsFrom(RAIL_PANES.filter((b) => !grouped.has(b.kind)));
     const isGroup = (t: { key: string }) => t.key.startsWith('group:');
-    // **Home first, always** (2026-10-18): the place a newcomer starts and comes back to.
-    const isHome = (t: { key: string }) => t.key === 'home';
     // (A shipped view of Library or Tasks is in the group's own entry, added just below.)
     return [
-      ...rest.filter(isHome),
       ...BUILTIN_SPACES.map((s) => ({
         key: `group:${s.name}`,
         label: s.name,
@@ -821,7 +818,7 @@
         run: () => openSpace(s.name),
       })),
       ...rest.filter(isGroup),
-      ...rest.filter((t) => !isGroup(t) && !isHome(t)),
+      ...rest.filter((t) => !isGroup(t)),
     ];
   });
   /// The "Open …" actions: **the same places by the same names**, plus the rare one a column of
@@ -1726,10 +1723,11 @@
     const shipped = groupsOf(views ?? []).map(spaceOfGroup);
     const named = (n: string) => BUILTIN_SPACES.some((s) => s.name === n);
     return [
-      // A shipped view may belong to one of these too: the Library's *Everything*.
+      // A shipped view may belong to one of these too — and comes **first**: the Library's
+      // *Shelves* is where it opens, the place to come back to (2026-10-18).
       ...BUILTIN_SPACES.map((s) => ({
         ...s,
-        tabs: [...s.tabs, ...(shipped.find((g) => g.name === s.name)?.tabs ?? [])],
+        tabs: [...(shipped.find((g) => g.name === s.name)?.tabs ?? []), ...s.tabs],
       })),
       ...shipped.filter((g) => !named(g.name)),
     ];

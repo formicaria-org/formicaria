@@ -1,6 +1,6 @@
 // **Dictate a recipe** (2026-10-18; the owner: *"writing on phone is hard"*). In Food, a recipe can be
-// said: what was said becomes a note of its own, and `@Myrme /recipe` is asked there, so the recipe
-// arrives as a proposal to accept or change. Nothing said is lost — when it cannot be written down,
+// said: it is a recipe note at once, what was said under its Notes, and `@Myrme /recipe` is asked
+// there to sort it in place — a proposal to accept or change. Nothing said is lost — when it cannot be written down,
 // the note keeps the recording, and no question is put to Myrme that it could not answer.
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
@@ -52,11 +52,14 @@ const dictated = async () =>
 it('keeps what was said as a note and asks Myrme to make the recipe of it', async () => {
   setMockDictation('Tiramisù per sei. Cinque uova, 500 grammi di mascarpone.');
   await said();
-  expect(await screen.findByText(/Myrme is sorting what you said into a recipe/)).toBeTruthy();
+  expect(await screen.findByText(/It is a recipe now/)).toBeTruthy();
   const note = await dictated();
   expect(note).toBeTruthy();
+  // A recipe at once, in the one recipe shape — found in Recipes, not waiting on a proposal.
+  expect(note!.tags).toContain('recipe');
+  expect(note!.props.recipe).toBeTruthy();
   const body = (await handle<{ body: string }>('get', { id: note!.id })).body;
-  expect(body).toContain('Cinque uova, 500 grammi di mascarpone.');
+  expect(body).toMatch(/^## Ingredients[\s\S]*## Notes\n\nTiramisù per sei\. Cinque uova/);
   expect(reply).toHaveBeenCalledWith(note!.id, '@Myrme /recipe');
 });
 

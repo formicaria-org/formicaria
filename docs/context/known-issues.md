@@ -4,6 +4,21 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## Shelves, tutorials and the assistant's app — limits (2026-10-18)
+
+- **A book cannot be dragged on a touch screen.** `Shelf.svelte` uses the same HTML5 drag as the
+  Board, which never fires on touch; the Board has a card menu as its touch stand-in, the shelf has
+  none yet. On a phone a book moves by its `shelf` in the note's details — the same on every device,
+  but the drag is a mouse extra. A stand-in (a menu on the book) is the next step.
+- **An assistant from a build before 2026-10-18 must be stopped by hand once** — it does not know
+  `--serve-instance` and still treats any app on :8765 as its own. Stop it by its pid (`ss -ltnp`).
+- **A tutorial deleted before a second device's own new notebook is joined can come back once**
+  (the other device's identical copy merges in). Delete it again; it stays deleted.
+- **A message's "edited by" is always empty**: `resolve_touches` skips messages, so `EditedBy` under
+  a reply shows nothing. Found by the 2026-10-18 audit, not fixed.
+- **None of it has run on the phone yet** — the shelves, the seeded tutorials on a fresh install,
+  *Put the tutorials back*.
+
 ## Pictures on the phone — the camera (2026-10-18)
 
 - **The camera never opened on Android before 0.9.1** — no `<queries>` for `IMAGE_CAPTURE`, so wry fell

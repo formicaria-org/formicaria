@@ -1215,6 +1215,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
         let mut payload = share::status_json(state);
         if let Some(obj) = payload.as_object_mut() {
             obj.insert("build".into(), serde_json::Value::String(build_id()));
+            obj.insert("instance".into(), serde_json::Value::String(instance_id().to_string()));
         }
         let body = payload.to_string();
         return write_response(reader.get_mut(), "200 OK", "application/json", body.as_bytes());
@@ -1350,6 +1351,20 @@ fn env_flag(key: &str, default: bool) -> bool {
 /// question being asked — "is the thing running the same file as me?". Not a version string: the
 /// crate version is `0.0.0` and never moves, so it would call every build identical, which is the
 /// bug this exists to stop.
+/// **This run of formicaria**, made in the process when it starts (2026-10-18) — never from the pid
+/// or the OS, which an update's `exec` restart keeps. The assistant it starts is told it, and leaves
+/// when `/api/alive` answers with another one: an app that has gone no longer keeps it alive.
+pub fn instance_id() -> &'static str {
+    static ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    ID.get_or_init(|| {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        format!("{:x}-{:x}", std::process::id(), nanos)
+    })
+}
+
 fn build_id() -> String {
     std::env::current_exe()
         .and_then(std::fs::metadata)
@@ -1869,6 +1884,9 @@ mod tests {
         let id = v.get("build").and_then(|b| b.as_str()).unwrap_or_default();
         assert!(!id.is_empty(), "a build id has to be there to compare: {body}");
         assert_eq!(id, build_id(), "and it has to be *this* process's");
+        // And this *run*: the assistant it starts leaves when another one answers here.
+        assert_eq!(v["instance"].as_str(), Some(instance_id()));
+        assert_eq!(instance_id(), instance_id(), "one id for the life of the process");
     }
 
     /// A closing tab can say so, and a beacon cannot set headers — so the id rides in the query.

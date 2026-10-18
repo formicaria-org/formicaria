@@ -3,9 +3,12 @@
 // the ingredients as written, the method, the times, the notes, where it came from. What is counted
 // is the ingredients matched to foods, kept apart, each remembering the line it was matched from.
 //
-// Pure: no store, no network. The text is written once, when a recipe is made from a page or a
+// Pure: no store, no network. Its headings are the template's (`RECIPE_PARTS`), so a recipe made
+// from a page and one started by hand have one shape. The text is written once, when a recipe is made from a page or a
 // carried recipe, and read back for its ingredient lines whenever its screen opens — so lines added
 // or edited by hand in the note are matched the same way.
+
+import { RECIPE_PARTS } from '../templates';
 
 /** What a recipe can come with, from wherever it came. Every field the source's own text. */
 export interface RecipeSource {
@@ -33,10 +36,10 @@ const minutes = (n: number) =>
 /** The note's text for a recipe from a source: Ingredients, Method, Times, Notes, then the credit. */
 export function recipeBody(s: RecipeSource): string {
   const out: string[] = [];
-  out.push('## Ingredients', '');
+  out.push(`## ${RECIPE_PARTS.ingredients}`, '');
   for (const line of s.ingredients ?? []) out.push(`- ${line}`);
   if (!(s.ingredients ?? []).length) out.push('- ');
-  out.push('', '## Method', '');
+  out.push('', `## ${RECIPE_PARTS.method}`, '');
   if (s.steps?.length) s.steps.forEach((step, i) => out.push(`${i + 1}. ${step}`));
   else if (s.text?.length) out.push(s.text.join('\n\n'));
   else out.push('1. ');
@@ -47,8 +50,8 @@ export function recipeBody(s: RecipeSource): string {
     times.push(`In all: ${minutes(s.totalMinutes)}`);
   for (const [k, v] of Object.entries(s.times ?? {})) times.push(`${k}: ${v}`);
   if (s.yieldText) times.push(`Makes: ${s.yieldText}`);
-  out.push('', '## Times', '', times.join(' · '));
-  out.push('', '## Notes', '');
+  out.push('', `## ${RECIPE_PARTS.times}`, '', times.join(' · '));
+  out.push('', `## ${RECIPE_PARTS.notes}`, '');
   for (const n of s.notes ?? []) out.push(n, '');
   const from: string[] = [];
   if (s.url) from.push(`From [${s.credit ?? s.url}](${s.url}).`);

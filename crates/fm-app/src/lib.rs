@@ -35,6 +35,7 @@ pub mod scope;
 pub mod secrets;
 pub mod themes;
 pub mod thread;
+pub mod tutorials;
 pub mod vaultfile;
 pub mod vaults;
 pub mod views;

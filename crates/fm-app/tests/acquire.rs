@@ -367,10 +367,13 @@ fn ingesting_bytes_stores_a_blob_and_returns_a_note() {
     );
 
     // And a real note file on disk — files-as-truth applies to an asset's note like any other.
+    // (A notebook made here starts with the tutorials on its shelf; they are not the asset's.)
+    let tutorial = |n: &std::ffi::OsStr| fm_app::tutorials::TUTORIALS.iter().any(|(t, _)| n == *t);
     let notes: Vec<_> = std::fs::read_dir(vault.join("notes"))
         .unwrap()
         .flatten()
         .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+        .filter(|e| !tutorial(&e.file_name()))
         .collect();
     assert_eq!(notes.len(), 1, "one asset, one note file");
     let body = std::fs::read_to_string(notes[0].path()).unwrap();

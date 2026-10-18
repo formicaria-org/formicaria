@@ -8,12 +8,13 @@
   // ordinary note with a box to tick on each line.
   import { entryAmount, shownAmount, shownAs, type AmountUnit } from './amount';
   import Icon from '../Icon.svelte';
-  import { logDays, logKitchen, logRecipes, planProgress, recipeLibrary } from '../ipc';
+  import { logDays, logKitchen, logRecipes, planProgress, recipeLibraries } from '../ipc';
   import { dayAgainst, gap } from '../plan/measure';
   import { createNotesUndoable, deleteNotesUndoable } from '../undo.svelte';
   import { addDays, dayLabel, show, showWith, whole } from '../units';
   import type {
     CarriedRecipe,
+    RecipeLibrary,
     DayTotals,
     NoteDraft,
     ObjectMeta,
@@ -233,20 +234,18 @@
 
   /// Planned dishes from the recipes carried in the app: their ingredient lines as published —
   /// in cups and spoons, tied to no food, so they are listed and not added up.
-  let library = $state<CarriedRecipe[]>([]);
+  let libraries = $state<RecipeLibrary[]>([]);
   $effect(() => {
-    recipeLibrary()
-      .then((r) => (library = r.recipes))
-      .catch(() => (library = []));
+    recipeLibraries()
+      .then((all) => (libraries = all))
+      .catch(() => (libraries = []));
   });
+  /// Planned dishes from any carried collection — a source of `<key>/<id>`.
   const asPublished = $derived.by(() => {
-    const ids = new Set<string>();
+    const refs = new Set<string>();
     for (const d of days)
-      for (const r of d.rows ?? []) {
-        const s = String(r.props.source ?? '');
-        if (r.props.planned && s.startsWith('nhlbi/')) ids.add(s.slice('nhlbi/'.length));
-      }
-    return library.filter((r) => ids.has(r.id));
+      for (const r of d.rows ?? []) if (r.props.planned) refs.add(String(r.props.source ?? ''));
+    return libraries.flatMap((lib) => lib.recipes.filter((r) => refs.has(`${lib.key}/${r.id}`)));
   });
 
   let busy = $state(false);

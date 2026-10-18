@@ -3334,6 +3334,11 @@ Pinned by `fm-app/tests/unrecorded_after_restart.rs` (notes outstanding *and* a 
 
 ## 2026-08-30 — the archive ships one note, and a test reads it back `#ui`
 
+> SUPERSEDED IN PART (2026-10-18, *Home is the Library's shelves; tutorials are notes*): the
+> archive now ships the **tutorials** from `crates/fm-app/src/shipped/tutorials/`, and the app also
+> writes them into a notebook a person **creates** (phone first run, *new notebook*). They are no
+> longer dated with the build — fixed bytes, so two devices' copies are the same files.
+
 The archive already opened into a ready vault rather than asking a stranger to invent a location
 (2026-08-28). But a ready vault is an **empty** one, and an empty notebook answers none of *what is
 this, and where do I click*. `Welcome.svelte` does not answer it either — by design it asks the one
@@ -11728,6 +11733,10 @@ reviews what a build downloads (the bundled model runtime is the question). Eith
 
 ## 2026-10-18 — a Home a newcomer starts on and can always come back to `#ui`
 
+> SUPERSEDED (2026-10-18, *Home is the Library's shelves; tutorials are notes*): the owner,
+> after 0.9.1 — *"the home page is fine but should not be a view but a note"*. The `home` pane kind,
+> `Home.svelte` and its special ordering are gone; the place to come back to is Library → Shelves.
+
 > Extends *the archive ships a welcome note* (2026-08-30) without reversing it: the app still
 > writes no note into anyone's notebook.
 
@@ -11784,7 +11793,8 @@ where we have a better interface … But they should be the same."* Later: dicta
 **Decision.**
 - **One shape.** `RECIPE_BODY` (*Method*, *Times*, *Notes*) is the body of a recipe started from the
   template **and** from the food view; only the ingredients are structured (and counted), kept as
-  before. Nothing in the body is read back as fields.
+  before. Nothing in the body is read back as fields. *(Amended the same day by "save from link +
+  matching": the Ingredients list's lines are read back, as lines to match to foods — nothing else.)*
 - **Each side leads to the other.** The food view's kept recipe has *Write the method, times and
   notes* (opens the note); a recipe's note — any note with a `recipe` word and `servings` — has
   *Ingredients and servings* (opens the Food group's sheet on it, through `trackers.askToOpen`,
@@ -11947,4 +11957,99 @@ so a spoken recipe arrives as a proposal, and the words it came from stay findab
 
 **Measured** on the laptop through the real route: 2 minutes of Italian in 13 s (base, `-l auto`).
 Not streamed: the words arrive after **Stop**. On the phone not yet measured.
+
+## 2026-10-18 — one recipe search: every source equal, each labelled `#ui` `#data`
+
+**The ask.** After 0.9.1: *"italian recipes are not a different thing than the others … All the
+recipes can have the label of the source but they must be equally searchable and usable."* The
+Wikibooks collection was a shelf of its own with its own search box, at the bottom of Recipes, and
+the owner could not find it when searching.
+
+**Decision.** Food → Recipes has **one search** (`food/recipeSearch.ts`): the person's own recipes
+and every carried collection, matched on name, ingredients and region, accents folded, every word
+typed counting; own recipes first; each row labelled *Yours* / *NHLBI* / *Wikibooks · region*. Empty,
+it lists the person's own and says how many more the search reaches (a 345-row list would bury the
+add buttons). **Usable equally** within what each source carries: every row opens the same reading
+view with **Make it mine**; *Add a serving* needs figures, which only NHLBI publishes — a recipe
+without them says so and names the step (match its lines). Figures are never estimated for it.
+
+## 2026-10-18 — the assistant follows its own app, not the port `#agent`
+
+**What happened.** After 0.9.1 the owner still saw the assistant named after its model, and no
+recipe came back from *Dictate a recipe*. The assistant answering was a **build from 16 October**:
+started by an earlier app, it outlived it — its test of "my app is alive" was "does :8765 answer",
+which the next formicaria satisfied — and it held the model's port, so 0.9.1's own assistant died
+on "couldn't bind 8081", silently.
+
+**Decision.** fm-serve makes an **instance id in the process at start** (`main::instance_id`, not
+the pid: an update's `exec` restart keeps that) and reports it in `/api/alive`; it starts the
+assistant with `--serve-instance`. `FmServe::alive` is false when **another** instance answers
+(`fmserve::same_app`; none expected — a dev run adopts the first it sees — or none reported, an
+older build, is ours). A **watchdog thread** in `agent-serve` checks every 2 s, so an assistant busy
+in a long turn still leaves: it trips its models' stoppers and exits. A new assistant **waits up to
+30 s** for the model and speech ports instead of failing once. The phone runs it in process and is
+untouched. Verified on this laptop: a hard-killed app's assistant left 3 s after the next app came up,
+and the new one held the port at 6 s. A build from before this has to be stopped by hand once.
+
+## 2026-10-18 — Myrme is the name shown; `/recipe` is a command like the others `#agent` `#ui`
+
+- **Shown, not rewritten.** Identity stays the email (2026-07-31, *a contributor is an email*).
+  `fm_app::thread::shown_author` labels writing signed `*@fm-agents.local` — before the name, by the
+  model — as **Myrme**, and keeps `Myrme (laptop)`; applied where git authors become names
+  (`discussion_participants`, `resolve_touches`). The `@` list offers every assistant **once**, as
+  Myrme (`AGENT_DOMAIN` in `agentCommands.ts`); a command button addresses Myrme even before it is up.
+  `Agent::signature` is the one place the signature is made.
+- **`/recipe` is in `AGENT_COMMANDS`**, the one list behind the composer's buttons — it never was,
+  which is why the owner could not find it on a computer. Help names it.
+- **It says what it did not hear**: the recordings are found whether or not this device can listen,
+  so a recipe from the text alone says so, and a photo is no longer taken for a recording.
+- **On a note that is already a recipe** it proposes the sorted recipe *in that note* — its embeds
+  kept, all its text quoted under *What was said* — never a second recipe.
+
+## 2026-10-18 — recipes fold back into what exists `#data` `#ui`
+
+From the audit of the day's work (the owner: *"many ad hoc custom paths"*):
+- **Each carried collection names itself** (`key`, `label` in its own JSON; `pack-*.py` write them):
+  `recipe_libraries` returns them all, `recipe_library(key)` one. No code names NHLBI or Wikibooks; a
+  logged serving's source is `<key>/<id>` (NHLBI's key stays `nhlbi`, so what is logged still reads).
+  The one search, the day screen's dishes, the Menu and the example days all read the collections.
+- **One heading set** (`RECIPE_PARTS`, `templates.ts`) for the template and a recipe made from a page;
+  the assistant's writer is pinned to it by a Rust test reading that file.
+- **Dictation once** (`ui/src/lib/dictation.ts`): the cap, the writing-down and why-not — used by the
+  note and by Food. *Dictate a recipe* makes a **recipe note at once** (findable in Recipes), what was
+  said under its Notes, and asks `/recipe` there; the recording is kept when nothing could be written.
+- `recipeSearch.ts` stays the one matcher: FTS `search` has no tag filter, matches prefixes, and
+  cannot see an own recipe's ingredient notes.
+
+## 2026-10-18 — Home is the Library's shelves; tutorials are notes `#ui` `#vault`
+
+> Supersedes *a Home a newcomer starts on* (this day) and, in part, *the archive ships one note*
+> (2026-08-30).
+
+**The ask.** *"the home page … should not be a view but a note … a library shelf … added to the
+library view as a subview … shelves with some notes as tutorials … like books … positioned
+horizontally one over the other"* — and the owner chose: a shelf is a **`shelf:` property**; the
+tutorials are **ordinary notes in the notebook**.
+
+**Decision.**
+1. **A shelf is the Board's grouping.** `view: shelf` (`Renderer::Shelf`) runs the Board's query
+   grouped by `shelf`; the notes on none are the view's `rest:` (a new key, the only one). Named
+   shelves by name, the rest last. Dropping a book on a shelf sets `shelf`, as a card drop sets
+   `status`. `Shelf.svelte` draws spines stacked one above another, labels only from the view
+   (a test greps it for shelf words). The shipped `library-shelves.view` (`group: Library`) is the
+   Library's **first** tab — shipped tabs now come first in a built-in group — and a first launch
+   opens on it (`HOME_VIEW`, pinned to the file by a Rust test). A saved `home` pane becomes it.
+2. **Tutorials are five short notes** (`shelf: Tutorials`, `crates/fm-app/src/shipped/tutorials/`),
+   the welcome note's id kept for *Start here*. Written **only into a notebook a person makes**:
+   the computer download's (staged by `desktop.yml`), the phone's first notebook, *new notebook*
+   (`tutorials::write_into`, only when `notes/` holds no note). Never into one cloned, joined,
+   restored or imported — that is the reason 2026-08-30 refused app-written notes, answered.
+3. **Fixed ids and fixed bytes**, never dated with the build: two devices' notebooks joined later
+   hold each tutorial once.
+4. **A way back:** they are notes (Recently deleted), and Help → *Put the tutorials back* rewrites
+   the missing ones (`tutorials::put_back`), leaving any that are there, changed or not.
+
+**Lost from Home, said:** buttons that acted. The tutorials name where to go instead; the views
+list and Library are always there. **Known limit:** a tutorial deleted before a second device's own
+new notebook is joined to this one can come back once.
 

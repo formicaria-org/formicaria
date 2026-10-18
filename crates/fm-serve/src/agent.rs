@@ -592,6 +592,8 @@ pub fn spawn(port: u16) -> bool {
 
     let mut cmd = std::process::Command::new(&exe);
     cmd.arg("--agents-dir").arg(&dir).arg("--serve-port").arg(port.to_string());
+    // Whose assistant it is: it leaves when another formicaria answers on this port (2026-10-18).
+    cmd.arg("--serve-instance").arg(crate::instance_id());
     cmd.arg("--model").arg(&model);
     // This device's name for its Myrme, as set in Settings (2026-10-18).
     cmd.arg("--device").arg(device_name());

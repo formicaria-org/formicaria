@@ -235,3 +235,16 @@ fn a_message_keeps_the_device_it_was_written_on() {
     let json = serde_json::to_value(&t.messages[0]).unwrap();
     assert_eq!(json["props"]["device"], "phone", "the assistant reads it here: {json}");
 }
+
+/// **Myrme is the name shown** (2026-10-18): writing the assistant signed before it had one — named
+/// after its model — reads as Myrme; a device's own name is kept; a person is shown as they are.
+#[test]
+fn the_assistant_is_shown_as_myrme_whatever_it_signed_before() {
+    use fm_app::thread::shown_author;
+    assert_eq!(shown_author("qwen3-vl-4b".into(), "qwen3-vl-4b@fm-agents.local"), "Myrme");
+    assert_eq!(
+        shown_author("Myrme (laptop)".into(), "myrme+laptop@fm-agents.local"),
+        "Myrme (laptop)"
+    );
+    assert_eq!(shown_author("qwen3-vl-4b".into(), "ada@example.org"), "qwen3-vl-4b");
+}

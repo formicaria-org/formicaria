@@ -1,0 +1,5 @@
+name: Shelves
+view: shelf
+group: Library
+group_by: shelf
+rest: Other

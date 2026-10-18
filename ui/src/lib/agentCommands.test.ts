@@ -39,6 +39,7 @@ describe('withCommand — tapping a command chip', () => {
       '/search',
       '/propose',
       '/transcribe',
+      '/recipe',
     ]);
   });
 });

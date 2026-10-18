@@ -11,6 +11,8 @@
   // where the food came from, or from the values as they were when this sheet opened.
   import { onDestroy, onMount, untrack } from 'svelte';
   import { startRecording, type Recording } from '../record';
+  import { DICTATION_SECS, hear } from '../dictation';
+  import { MYRME } from '../agentCommands';
   import Icon from '../Icon.svelte';
   import {
     logRecent,
@@ -25,9 +27,8 @@
     setProperties,
     updateBody,
     readLabelPhoto,
-    recipeLibrary,
+    recipeLibraries,
     recipeFromLink,
-    dictate,
     reply,
     foodSearch,
     foodGet,
@@ -53,6 +54,7 @@
   } from '../undo.svelte';
   import { show, showWith, today, typed, whole, nowClock, clockOf, dayOf } from '../units';
   import { guessFood, ingredientLines, recipeBody, type RecipeSource } from './recipeText';
+  import { searchRecipes, type Shelf } from './recipeSearch';
   import { RECIPE, RECIPE_BODY, recipeWord } from '../templates';
   import type {
     CarriedRecipe,
@@ -76,7 +78,7 @@
     slot: string | null;
     /** An entry to change, instead of adding one. */
     entry?: ObjectMeta | null;
-    /** A recipe to open on: `recipe/<word>` (the person's own) or `nhlbi/<id>` (carried). */
+    /** A recipe to open on: `recipe/<word>` (the person's own) or `<collection key>/<id>`. */
     open?: string;
     onclose: () => void;
     /** Something was written; `removed` names an entry that was taken away. */
@@ -673,79 +675,52 @@
   }
 
   // ── recipes carried in the app ─────────────────────────────────────────────────────────────────
-  // The NHLBI's, word for word (`decisions.md#data`, 2026-10-12). Asked for when the Recipes tab
-  // is first opened. A serving is logged with the Institute's own values; nothing is worked out.
-  let carried = $state<RecipeLibrary | null>(null);
+  // Word for word, each collection under its own source and licence (`decisions.md#data`). **Every
+  // collection the same** (2026-10-18): each file says what it is called, so none is named here.
+  // Asked for when the Recipes tab is first opened. A serving is logged with its source's own
+  // values where it gives them; nothing is worked out.
+  let libraries = $state<RecipeLibrary[] | null>(null);
   let reading = $state<CarriedRecipe | null>(null);
   /// The collection the recipe being read is from — what it is credited to and under which licence.
   let readingFrom = $state<RecipeLibrary | null>(null);
-  /// **Italian recipes, from Wikibooks** (`decisions.md#data`, 2026-10-18): 291 pages filed under
-  /// an Italian region, word for word, CC BY-SA 4.0, credited per recipe. Asked for with the rest.
-  let italian = $state<RecipeLibrary | null>(null);
   $effect(() => {
-    if (mode === 'recipes' && !carried)
-      recipeLibrary()
-        .then((r) => (carried = r))
-        .catch(() => (carried = null));
-    if (mode === 'recipes' && !italian)
-      recipeLibrary('wikibooks')
-        .then((r) => (italian = r))
-        .catch(() => (italian = null));
+    if (mode === 'recipes' && !libraries)
+      recipeLibraries()
+        .then((all) => (libraries = all))
+        .catch(() => (libraries = []));
   });
-  const readFrom = (lib: RecipeLibrary | null, r: CarriedRecipe) => {
+  const readFrom = (lib: RecipeLibrary, r: CarriedRecipe) => {
     readingFrom = lib;
     reading = r;
   };
-  let seekIt = $state('');
-  /// The Italian recipes the words typed name — by dish, ingredient or region; at most 50 shown.
-  const foundIt = $derived.by(() => {
-    const text = seekIt.trim().toLowerCase();
-    const all = italian?.recipes ?? [];
-    const hits = text
-      ? all.filter(
-          (r) =>
-            r.title.toLowerCase().includes(text) ||
-            (r.region ?? '').toLowerCase().includes(text) ||
-            (r.ingredients ?? []).some((line) => line.toLowerCase().includes(text)),
-        )
-      : all;
-    return { shown: hits.slice(0, 50), of: hits.length };
-  });
   /// Opened on a recipe — from a dish offered on the day screen.
   onMount(() => {
-    if (open.startsWith('nhlbi/'))
-      void recipeLibrary()
-        .then((lib) => {
-          carried = lib;
-          reading = lib.recipes.find((r) => `nhlbi/${r.id}` === open) ?? null;
-        })
-        .catch(() => undefined);
-    else if (open.startsWith('recipe/'))
+    if (open.startsWith('recipe/'))
       void logRecipes(view)
         .then((own) => {
           const r = own.find((x) => `recipe/${x.recipe}` === open);
           if (r) openRecipe(r);
         })
         .catch(() => undefined);
-  });
-  /// The carried recipes that the words typed name, by title or by an ingredient.
-  let seek = $state('');
-  const found = $derived.by(() => {
-    const text = seek.trim().toLowerCase();
-    const all = carried?.recipes ?? [];
-    if (!text) return all;
-    return all.filter(
-      (r) =>
-        r.title.toLowerCase().includes(text) ||
-        (r.ingredients ?? []).some((line) => line.toLowerCase().includes(text)),
-    );
+    // A carried one is `<collection key>/<id>`.
+    else if (open)
+      void recipeLibraries()
+        .then((all) => {
+          libraries = all;
+          for (const lib of all) {
+            const r = lib.recipes.find((x) => `${lib.key}/${x.id}` === open);
+            if (r) return readFrom(lib, r);
+          }
+        })
+        .catch(() => undefined);
   });
   const addCarried = () =>
     write(async () => {
       const r = reading;
-      if (!r) return;
+      const lib = readingFrom;
+      if (!r || !lib) return;
       await createNotesUndoable(
-        [draft(r.title, { ...r.per_serving, source: `nhlbi/${r.id}` })],
+        [draft(r.title, { ...r.per_serving, source: `${lib.key}/${r.id}` })],
         `logged a serving of “${r.title}”`,
       );
       added += 1;
@@ -1028,6 +1003,20 @@
   // (`decisions.md#data`, 2026-10-11). A serving logged from it is an ordinary entry.
   const PCT = 'servings_pct';
   let recipes = $state<Recipe[] | null>(null);
+  /// **Every recipe in one search** — the person's own and each carried collection's, by the same
+  /// words (`recipeSearch.ts`). Nothing typed: the person's own, and a line saying how many more
+  /// the search reaches.
+  let seek = $state('');
+  const shelves = $derived<Shelf[]>((libraries ?? []).map((lib) => ({ label: lib.label, lib })));
+  const rows = $derived(
+    seek.trim()
+      ? searchRecipes(seek, recipes ?? [], shelves)
+      : searchRecipes('', recipes ?? [], []),
+  );
+  const carriedCount = $derived(shelves.reduce((n, x) => n + x.lib.recipes.length, 0));
+  const shelfNames = $derived(
+    shelves.map((x) => `${x.lib.recipes.length} from ${x.label}`).join(' and '),
+  );
   const loadRecipes = () =>
     logRecipes(view)
       .then((r) => (recipes = r))
@@ -1255,10 +1244,11 @@
     }
   };
 
-  /// **Dictate a recipe** (2026-10-18; *"writing on phone is hard"*): say it, and what was said is
-  /// kept as a note of its own, and `@Myrme /recipe` is asked there — Myrme sorts it into a recipe
-  /// and proposes it, to accept or change in Collaboration. Nothing said is lost: when it cannot be
-  /// written down, the recording itself is what the note keeps.
+  /// **Dictate a recipe** (2026-10-18; *"writing on phone is hard"*): say it, and it is a recipe at
+  /// once — the one recipe note (`recipeBody`), what was said under its Notes, found in Recipes
+  /// straight away. `@Myrme /recipe` is then asked there, and proposes sorting it into ingredients
+  /// and method *in that note*. Nothing said is lost: when it cannot be written down, the note keeps
+  /// the recording itself. Listening is the note editor's (`dictation.ts`), not a copy of it.
   let saying = $state<{
     rec: Recording | null;
     secs: number;
@@ -1279,7 +1269,7 @@
       sayTimer = setInterval(() => {
         if (!saying) return;
         saying.secs += 1;
-        if (saying.secs >= 300) void stopSaying(); // the note editor's limit, for the same reason
+        if (saying.secs >= DICTATION_SECS) void stopSaying();
       }, 1000);
     } catch (e) {
       if (saying)
@@ -1306,30 +1296,35 @@
       s.said = `Couldn't keep the recording: ${e instanceof Error ? e.message : String(e)}`;
       return;
     }
-    let words = '';
-    let why = '';
-    try {
-      words = await dictate(file);
-      if (!words) why = 'Nothing could be written down from that recording.';
-    } catch (e) {
-      why = e instanceof Error ? e.message : String(e);
-    }
+    const { words, why } = await hear(file);
     const title = `Dictated recipe, ${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
     try {
-      let body = words + '\n';
+      let said = words;
       if (!words) {
         const meta = await ingestFile(file);
         const hash = meta.assets[0]?.replace(/^sha256:/, '') ?? '';
-        body = `![${title}](asset:sha256-${hash})\n`;
+        said = `![${title}](asset:sha256-${hash})`;
       }
-      const [made] = await createNotesUndoable([{ title, body, props: {} }], `dictated “${title}”`);
+      const recipe = recipeWord();
+      const [made] = await createNotesUndoable(
+        [
+          {
+            title,
+            body: recipeBody({ notes: [said] }),
+            tags: [RECIPE],
+            props: { recipe, servings: 1 },
+          },
+        ],
+        `dictated “${title}”`,
+      );
       s.source = made?.id ?? null;
+      void loadRecipes();
       if (words && made) {
-        await reply(made.id, '@Myrme /recipe');
+        await reply(made.id, `@${MYRME} /recipe`);
         s.said =
-          'Myrme is sorting what you said into a recipe. It appears in Collaboration for you to accept or change; what you said is kept in a note of its own.';
+          'It is a recipe now, with what you said in its notes. Myrme is sorting it into ingredients and method — accept that in Collaboration, or change it first.';
       } else {
-        s.said = `${why} The recording is kept in the note “${title}”; once it can be heard, ask @Myrme /recipe there.`;
+        s.said = `${why} The recording is kept in the recipe “${title}”; once it can be heard, ask @Myrme /recipe there.`;
       }
     } catch (e) {
       s.said = `Couldn't keep what you said: ${e instanceof Error ? e.message : String(e)}`;
@@ -1891,17 +1886,17 @@
         {#each reading.text ?? [] as para, i (i)}<p class="asis-para">{para}</p>{/each}
         {#each reading.notes ?? [] as note, i (i)}<p class="hint">{note}</p>{/each}
         <p class="hint">
-          Source: {(readingFrom ?? carried)?.source ?? ''}{#if reading.region}, {reading.region}{/if}.
+          Source: {readingFrom?.source ?? ''}{#if reading.region}, {reading.region}{/if}.
           {#if reading.url}As published, on the
             <a href={reading.url} target="_blank" rel="noreferrer noopener">recipe's own page</a
             >.{/if}
           {#if reading.image}<a href={reading.image} target="_blank" rel="noreferrer noopener"
               >A photo</a
             >.{/if}
-          {#if (readingFrom ?? carried)?.licence}Licence: <a
-              href={(readingFrom ?? carried)?.licence_url}
+          {#if readingFrom?.licence}Licence: <a
+              href={readingFrom?.licence_url}
               target="_blank"
-              rel="noreferrer noopener">{(readingFrom ?? carried)?.licence}</a
+              rel="noreferrer noopener">{readingFrom?.licence}</a
             >{#if reading.authors_url}, by <a
                 href={reading.authors_url}
                 target="_blank"
@@ -1916,6 +1911,14 @@
             </button>
           {/if}
         </div>
+        {#if !reading.per_serving}
+          <!-- The same recipe as any other; only its figures are missing, so it counts once its
+               lines are matched to foods — the one step between it and a serving. -->
+          <p class="hint">
+            Its source gives no nutrition figures, so it counts once its ingredients are matched to
+            foods: make it yours below, then choose the food for each line.
+          </p>
+        {/if}
         <!-- **Make it mine** (2026-10-18): a copy of one's own, to change, photograph and count — its
              text this recipe's, its ingredients then matched to foods one line at a time. -->
         <button
@@ -1928,7 +1931,7 @@
             void makeFrom({
               title: r.title,
               servings: r.servings,
-              from: r.url ?? r.id,
+              from: r.url ?? (readingFrom ? `${readingFrom.key}/${r.id}` : r.id),
               ingredients: r.ingredients,
               steps: r.steps,
               text: r.text,
@@ -1937,9 +1940,7 @@
               times: r.times,
               image: r.image,
               url: r.url,
-              credit: [(readingFrom ?? carried)?.source, carried?.licence]
-                .filter(Boolean)
-                .join(', '),
+              credit: [readingFrom?.source, readingFrom?.licence].filter(Boolean).join(', '),
             });
           }}>Make it mine — a copy to change, photograph and count</button
         >
@@ -2310,26 +2311,65 @@
             {#each [0, 1] as i (i)}<li class="ghost"></li>{/each}
           </ul>
         {:else}
-          {#if recipes.length === 0}
+          <!-- **One search over every recipe** (the owner, 2026-10-18: the Italian ones "are not a
+               different thing than the others"): the person's own and every collection carried in
+               the app, found by the same words, each row saying where it came from. -->
+          <input
+            class="field"
+            type="search"
+            placeholder="Search recipes — a dish, an ingredient, a region"
+            aria-label="search recipes"
+            bind:value={seek}
+            spellcheck="false"
+          />
+          {#if seek.trim() && rows.length === 0}
+            <p class="hint">No recipe names that.</p>
+          {:else if !seek.trim() && recipes.length === 0}
             <p class="hint">
-              No recipes yet. A recipe is foods by weight and the servings it makes; what a serving
-              comes to is added up for you.
+              No recipes of your own yet. A recipe is foods by weight and the servings it makes;
+              what a serving comes to is added up for you.
             </p>
           {/if}
           <ul class="rows">
-            {#each recipes as r (r.id)}
+            {#each rows.slice(0, 50) as x (x.key)}
               <li>
-                <button type="button" class="row" onclick={() => openRecipe(r)}>
-                  <span class="t">{r.title}</span>
-                  <span class="a">1 of {r.servings} servings</span>
-                  <span class="v"
-                    >{show(primary.key, Math.round((r.sums[primary.key]?.sum ?? 0) / r.servings))
-                      .text}</span
-                  >
-                </button>
+                {#if x.kind === 'own'}
+                  <button type="button" class="row" onclick={() => openRecipe(x.recipe)}>
+                    <span class="t">{x.title}</span>
+                    <span class="a">Yours · 1 of {x.recipe.servings} servings</span>
+                    <span class="v"
+                      >{show(
+                        primary.key,
+                        Math.round((x.recipe.sums[primary.key]?.sum ?? 0) / x.recipe.servings),
+                      ).text}</span
+                    >
+                  </button>
+                {:else}
+                  <button type="button" class="row" onclick={() => readFrom(x.lib, x.recipe)}>
+                    <span class="t">{x.title}</span>
+                    <span class="a"
+                      >{x.label}{x.recipe.region ? ` · ${x.recipe.region}` : ''}{x.recipe
+                        .per_serving
+                        ? ` · 1 serving${x.recipe.servings ? ` of ${x.recipe.servings}` : ''}`
+                        : ''}</span
+                    >
+                    <span class="v"
+                      >{x.recipe.per_serving
+                        ? show(primary.key, x.recipe.per_serving[primary.key] ?? 0).text
+                        : ''}</span
+                    >
+                  </button>
+                {/if}
               </li>
             {/each}
           </ul>
+          {#if rows.length > 50}
+            <p class="hint">{rows.length - 50} more — type a dish, an ingredient or a region.</p>
+          {:else if !seek.trim() && carriedCount}
+            <p class="hint">
+              And {carriedCount} that come with the app — {shelfNames} — found by the search above.
+            </p>
+          {/if}
           <button
             type="button"
             class="go wide"
@@ -2414,63 +2454,6 @@
             <button type="button" class="quiet wide" onclick={() => void startSaying()}>
               Dictate a recipe
             </button>
-          {/if}
-          {#if carried?.recipes.length}
-            <h3 class="shelf">From the NHLBI ({carried.recipes.length})</h3>
-            <input
-              class="field"
-              type="search"
-              placeholder="A dish or an ingredient"
-              aria-label="search the recipes that come with the app"
-              bind:value={seek}
-              spellcheck="false"
-            />
-            {#if seek.trim() && found.length === 0}
-              <p class="hint">None of them names that.</p>
-            {/if}
-            <ul class="rows">
-              {#each found as r (r.id)}
-                <li>
-                  <button type="button" class="row" onclick={() => readFrom(carried, r)}>
-                    <span class="t">{r.title}</span>
-                    <span class="a">1 serving{r.servings ? ` of ${r.servings}` : ''}</span>
-                    <span class="v"
-                      >{show(primary.key, r.per_serving?.[primary.key] ?? 0).text}</span
-                    >
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-          {#if italian?.recipes.length}
-            <h3 class="shelf">Italiane, da Wikibooks ({italian.recipes.length})</h3>
-            <input
-              class="field"
-              type="search"
-              placeholder="Un piatto, un ingrediente, una regione"
-              aria-label="search the Italian recipes"
-              bind:value={seekIt}
-              spellcheck="false"
-            />
-            {#if seekIt.trim() && foundIt.of === 0}
-              <p class="hint">None of them names that.</p>
-            {/if}
-            <ul class="rows">
-              {#each foundIt.shown as r (r.id)}
-                <li>
-                  <button type="button" class="row" onclick={() => readFrom(italian, r)}>
-                    <span class="t">{r.title}</span>
-                    <span class="a">{r.region ?? ''}</span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
-            {#if foundIt.of > foundIt.shown.length}
-              <p class="hint">
-                {foundIt.of - foundIt.shown.length} more — type a dish, an ingredient or a region to find
-                them.
-              </p>
-            {/if}
           {/if}
         {/if}
       {:else}

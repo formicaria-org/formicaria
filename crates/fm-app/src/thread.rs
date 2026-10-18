@@ -191,6 +191,25 @@ pub fn not_logged() -> Predicate {
 }
 
 /// The tag that marks a note as a template — a starting point to make new notes from.
+/// The domain every assistant signs its writing with (`fm_agent_run::Agent::author`), pinned by a
+/// test on each side since the two crates share no dependency.
+pub const AGENT_DOMAIN: &str = "@fm-agents.local";
+
+/// **The name a writer is shown by** (2026-10-18). Identity stays the email (`decisions.md#ui`,
+/// 2026-07-31, *a contributor is an email*); only the label changes. The assistant is **Myrme**: its
+/// writing from before the name — signed `<model>@fm-agents.local`, and named after the model — reads
+/// as Myrme, and `Myrme (laptop)` keeps the device the person gave it. History is not rewritten.
+pub fn shown_author(name: String, email: &str) -> String {
+    if email.ends_with(AGENT_DOMAIN) && !name.starts_with(ASSISTANT) {
+        ASSISTANT.to_string()
+    } else {
+        name
+    }
+}
+
+/// The assistant's one name, as `fm_agent::convo::MYRME` spells it (pinned by a test there).
+pub const ASSISTANT: &str = "Myrme";
+
 pub const TEMPLATE_TAG: &str = "template";
 
 /// Whether a note is a template. **A template is inert** (`decisions.md#ui`, 2026-10-12): it

@@ -18,15 +18,7 @@ import type {
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
 export type PaneKind =
-  | 'home'
-  | 'board'
-  | 'agenda'
-  | 'timeline'
-  | 'activity'
-  | 'collaboration'
-  | 'discussions'
-  | 'note'
-  | 'view';
+  'board' | 'agenda' | 'timeline' | 'activity' | 'collaboration' | 'discussions' | 'note' | 'view';
 
 export interface Pane {
   id: string;
@@ -142,17 +134,22 @@ export function autoCols(n: number, w: Pick<Workspace, 'colMode' | 'cols'>): num
  *  starting with a single pane, and `cols` was only ever recomputed inside `addPane`/`closePane`
  *  — so a fresh session on a wide screen laid one pane into a two-column grid and left the second
  *  column blank. `panes.test.ts` pinned that as a feature. */
-/** What a first launch opens on: **Home** (2026-10-18) — a newcomer's first screen says what this
- *  is and where to go; a saved workspace keeps whatever its owner had. A variable only so the
- *  suite, most of which was written against a first screen of Board, can say so once
- *  (`test-setup.ts`); the tests about Home set it back. */
-let firstView: PaneKind = 'home';
-export function setFirstView(kind: PaneKind) {
-  firstView = kind;
+/** **Home is the Library's shelves** (`decisions.md#ui`, 2026-10-18): the shipped view
+ *  `library-shelves.view`, whose Tutorials shelf a new notebook starts with. Pinned to that file's
+ *  `name:` by `panes.home.test.ts`. */
+export const HOME_VIEW = 'Shelves';
+
+/** What a first launch opens on: the shelves — a saved workspace keeps whatever its owner had. A
+ *  variable only so the suite, most of which was written against a first screen of Board, can say
+ *  so once (`test-setup.ts`); the tests about the first screen set it back. */
+const homePane = () => newPane('view', { viewName: HOME_VIEW });
+let firstPane: () => Pane = homePane;
+export function setFirstView(kind: PaneKind | 'home') {
+  firstPane = kind === 'home' ? homePane : () => newPane(kind);
 }
 
 export function defaultWorkspace(): Workspace {
-  const panes = [newPane(firstView)];
+  const panes = [firstPane()];
   return {
     v: SCHEMA,
     cols: autoCols(panes.length, { colMode: 'auto', cols: 1 }),
@@ -225,7 +222,12 @@ export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated
   }
   // **One view, and the notes** (schema 3, 2026-10-16): a stored search pane is dropped — search is a
   // passing panel now — and of several views the one in front is kept, else the first.
-  const stored0 = (w.panes as Pane[]).filter((p) => (p.kind as string) !== 'search');
+  // A Home pane (0.9.1) is now the Library's shelves, where the same place to come back to is.
+  const stored0 = (w.panes as Pane[])
+    .filter((p) => (p.kind as string) !== 'search')
+    .map((p) =>
+      (p.kind as string) === 'home' ? { ...p, kind: 'view' as const, viewName: HOME_VIEW } : p,
+    );
   const front = (w.panes as Pane[])[w.active ?? 0];
   const view = front && isView(front) && stored0.includes(front) ? front : stored0.find(isView);
   const kept = stored0.filter((p) => !isView(p) || p === view);
@@ -268,8 +270,6 @@ export function feedKey(p: Pane): string | null {
       return 'discussions';
     case 'view':
       return p.viewName ? `view:${p.viewName}` : null;
-    case 'home':
-    // Home is a page of the app, not of the notebook: it reads nothing.
     case 'note':
     case 'activity':
       // No feed: `note` self-fetches by id; `activity` reads the reactive activity module,
@@ -372,8 +372,6 @@ export interface BuiltinPane {
 export const VIEWS_MENU_ICON = 'views';
 
 export const BUILTIN_PANES: BuiltinPane[] = [
-  // **First, always** (2026-10-18): what this is and where to go, and the place to come back to.
-  { kind: 'home', label: 'Home', icon: 'home' },
   { kind: 'board', label: 'Board', icon: 'board' },
   { kind: 'agenda', label: 'Agenda', icon: 'calendar' },
   { kind: 'timeline', label: 'Timeline', icon: 'timeline' },

@@ -4,10 +4,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-const { onlineAgents, agentStatus, reply } = vi.hoisted(() => ({
+const { onlineAgents, agentStatus, reply, discussions } = vi.hoisted(() => ({
   onlineAgents: vi.fn(),
   agentStatus: vi.fn(),
   reply: vi.fn(),
+  discussions: vi.fn(),
 }));
 vi.mock('./ipc', async (importOriginal) => {
   const real = await importOriginal<typeof import('./ipc')>();
@@ -15,6 +16,8 @@ vi.mock('./ipc', async (importOriginal) => {
     ...real,
     onlineAgents,
     agentStatus,
+    discussions: (...a: Parameters<typeof real.discussions>) =>
+      discussions.getMockImplementation() ? discussions(...a) : real.discussions(...a),
     reply: (id: string, body: string) => {
       reply(id, body, real.thisDevice());
       return real.reply(id, body);
@@ -73,4 +76,30 @@ test('@Myrme and the model running here are both answered here, with no warning'
     await waitFor(() => expect(reply).toHaveBeenLastCalledWith(expect.any(String), said, 'laptop'));
     expect(screen.queryByText(/isn’t on this device|did not start/)).toBeNull();
   }
+});
+
+test('the @ list offers every assistant once, as Myrme, whatever it signed before', async () => {
+  // Replies from before the name were signed by the model; a device signs as Myrme (laptop).
+  discussions.mockImplementation(async () => [
+    {
+      id: 'd1',
+      participants: [
+        { name: 'qwen3-vl-4b', email: 'qwen3-vl-4b@fm-agents.local' },
+        { name: 'Myrme (laptop)', email: 'myrme+laptop@fm-agents.local' },
+        { name: 'Ada', email: 'ada@example.org' },
+      ],
+    },
+  ]);
+  const box = await openDiscussion();
+  await fireEvent.input(box, { target: { value: '@' } });
+  const options = await screen.findAllByRole('option');
+  expect(options.map((o) => o.textContent)).toEqual(['@Myrme', '@Ada']);
+  discussions.mockReset();
+});
+
+test('a command button addresses Myrme even before it has come up', async () => {
+  onlineAgents.mockResolvedValue([]);
+  const box = (await openDiscussion()) as HTMLTextAreaElement;
+  await fireEvent.click(await screen.findByRole('button', { name: /\/recipe/ }));
+  expect(box.value).toBe('@Myrme /recipe ');
 });

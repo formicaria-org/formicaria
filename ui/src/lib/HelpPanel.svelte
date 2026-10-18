@@ -13,11 +13,26 @@
   /// exactly as `MANUAL_CSP` already exists for on the desktop); this is what makes the gap
   /// survivable in the meantime, and it stays useful afterwards as the one-screen version.
   import { openManual } from './manual.svelte';
+  import { putBackTutorials } from './ipc';
 
   interface Props {
     onclose: () => void;
   }
   let { onclose }: Props = $props();
+
+  /// **The way back to the tutorials** (2026-10-18): they are notes, so they can be deleted; this
+  /// writes again the ones that are missing, and leaves the ones that are there as they are.
+  let putBack = $state('');
+  async function tutorialsBack() {
+    try {
+      const back = await putBackTutorials();
+      putBack = back.length
+        ? `Put back ${back.length} — they are on Library → Shelves → Tutorials.`
+        : 'They are all there already — Library → Shelves → Tutorials.';
+    } catch (e) {
+      putBack = e instanceof Error ? e.message : String(e);
+    }
+  }
 </script>
 
 <div class="sheet-backdrop" role="presentation" onclick={onclose}></div>
@@ -78,8 +93,11 @@
       and how much to download. Then, in any note's discussion, write <code>@Myrme</code> — its name
       on every device — and what you want: <code>@Myrme summarise this</code>. Add
       <code>/search</code>
-      to let it look something up first, or <code>/propose</code> to have it draft an edit you approve
-      before anything changes. It never edits a note on its own.
+      to let it look something up first, or <code>/propose</code> to have it draft an edit you
+      approve before anything changes. <code>/transcribe</code> turns the note's recordings and
+      photos of pages into text, and <code>/recipe</code> makes a recipe of what the note says or what
+      its recording says. The buttons under the discussion insert them for you. It never edits a note
+      on its own.
     </p>
 
     <h3>Changing how it looks</h3>
@@ -98,6 +116,11 @@
         }}>Open the full manual</button
       >
       — every feature, explained, on this device and without a connection.
+    </p>
+    <p class="more">
+      <button class="link" onclick={tutorialsBack}>Put the tutorials back</button>
+      — the short guides on <strong>Library → Shelves</strong>, if you deleted any.
+      {#if putBack}<span role="status">{putBack}</span>{/if}
     </p>
 
     <div class="actions">

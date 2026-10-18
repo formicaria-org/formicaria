@@ -574,7 +574,8 @@ pub fn discussion_participants(
         };
         let list = who.entry(root).or_default();
         if !list.iter().any(|p| p.email == t.email) {
-            list.push(Participant { name: t.author, email: t.email });
+            let name = crate::thread::shown_author(t.author, &t.email);
+            list.push(Participant { name, email: t.email });
         }
     }
     Ok(who)
@@ -2383,7 +2384,7 @@ pub fn resolve_touches(
             title: obj.title.clone(),
             kind: obj.kind.as_str().to_string(),
             vault: obj.vault.clone(),
-            author: t.author,
+            author: crate::thread::shown_author(t.author, &t.email),
             email: t.email,
             time: t.time,
         });
