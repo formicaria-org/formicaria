@@ -14,15 +14,21 @@
 #   pixi run android-stage-runtime
 set -eu
 
-# Pinned llama.cpp release. A bump here is deliberate (matches the desktop runtime_url's discipline in
-# agents/models.toml). android-arm64 is the phone; there is no prebuilt android-x86_64, so the emulator
-# build simply has no runtime and the agent stays off there — the notebook still runs.
-VER="b10081"
-# Myrme's build of it, with llguidance (the faster engine for answers held to a schema), published with
-# upstream's file name and layout (`decisions.md#agent`, 2026-10-18). Checked by its SHA-256 from that
-# release's SHA256SUMS, like every runtime the catalogue pins.
-URL="https://github.com/formicaria-org/myrme/releases/download/runtime-llg-3/llama-$VER-bin-android-arm64.tar.gz"
-SHA256="40763a08247ace6866dd478099d2d0aa53f6cd27d2c2fa75371b0aa13bb35200"
+# **The runtime is Myrme's to pin** (its catalogue, `runtime_url_android_arm64` and its hash, contract
+# 1.4; `decisions.md#agent`, 2026-10-19): read from the Myrme this build links, so formicaria keeps no
+# copy. It is Myrme's llama.cpp build with llguidance, under upstream's file name and layout, checked
+# by its SHA-256 like every runtime the catalogue pins. android-arm64 is the phone; there is no
+# android-x86_64 build, so the emulator has no runtime and the assistant stays off there.
+catalogue="$(sh "$(dirname -- "$0")/myrme-src.sh")/crates/fm-agent-run/models.toml"
+key() { sed -n "s/^$1 = \"\(.*\)\"$/\1/p" "$catalogue"; }
+URL=$(key runtime_url_android_arm64)
+SHA256=$(key runtime_sha256_android_arm64)
+[ -n "$URL" ] && [ -n "$SHA256" ] || {
+    echo "android-stage-runtime: no android_arm64 runtime in $catalogue (Myrme before contract 1.4?)" >&2
+    exit 1
+}
+# The llama.cpp build, from the archive's name (llama-<build>-bin-android-arm64.tar.gz).
+VER=$(basename "$URL" | sed 's/^llama-\(b[0-9]*\)-bin-.*/\1/')
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 dest="$root/mobile/src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a"

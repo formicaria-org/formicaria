@@ -14,21 +14,8 @@
 
 use crate::MobileHost;
 
-/// **The Myrme contract this app is written for** (Myrme's `docs/context/contract.md`, *Versions*):
-/// the major it speaks and the least minor it needs. Any Myrme release of this major with at least
-/// this minor links unchanged — moving to it is a tag in `Cargo.toml` and nothing else
-/// (`pixi run myrme-bump`). Another major does not build, and the message below says why, rather
-/// than an error about a missing function. `ci/checks.sh` holds this pair equal in the two crates
-/// that link Myrme. `decisions.md#agent`, 2026-10-18.
-pub const MYRME_CONTRACT: (u32, u32) = (1, 3);
-// While the minor this app needs is 0, `>= 0` is always true and clippy says so; it is kept so the
-// check is already in place for the day this app needs a later minor.
-#[allow(clippy::absurd_extreme_comparisons)]
-const _: () = assert!(
-    fm_agent_run::CONTRACT_MAJOR == MYRME_CONTRACT.0 && fm_agent_run::CONTRACT_MINOR >= MYRME_CONTRACT.1,
-    "the pinned Myrme speaks another contract than this app was written for: \
-     pin a Myrme release of contract major 1, minor 0 or later (see Myrme's releases.md)"
-);
+// The Myrme contract this app is written for, stated once in `fm_app::MYRME_CONTRACT`.
+fm_app::check_myrme_contract!();
 use fm_agent_run::fmserve::VaultAccess;
 use fm_agent_run::manifest::Manifest;
 use fm_app::{dispatch, App};

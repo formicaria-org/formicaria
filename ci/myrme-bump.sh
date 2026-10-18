@@ -7,7 +7,9 @@
 # and checks it at compile time. So "the newest release that builds" is "the newest compatible
 # release": the script tries the release tags from the newest down to the current pin, keeps the
 # first that builds, and moves all three pins (fm-serve, agent-serve, the phone shell) and both
-# lockfiles to it. Releases only, never a release candidate or a branch.
+# lockfiles to it. Releases only, never a release candidate or a branch: **a release is a tag with a
+# published GitHub Release page**, which Myrme's CI publishes only once its gate and integration
+# test pass on the tag (Myrme `decisions.md`, 2026-10-19). A bare tag is skipped.
 #
 # It does not run the gate: run `pixi run ci` next, and read Myrme's docs/context/releases.md for
 # what changed. Nothing is committed.
@@ -24,6 +26,12 @@ tags=$(git ls-remote --tags --refs "$REPO" 'v*' | sed 's#.*refs/tags/##' \
     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
 echo "myrme-bump: pinned $current; releases: $(echo $tags)"
 
+# Published and not a prerelease: GitHub's API answers 404 for a tag without a page (or a draft).
+released() {
+    curl -sf "https://api.github.com/repos/formicaria-org/myrme/releases/tags/$1" \
+        | grep -q '"prerelease": *false'
+}
+
 pin() {
     for f in $MANIFESTS; do sed -i.bak "s/myrme\.git\", tag = \"v[0-9.]*\"/myrme.git\", tag = \"$1\"/" "$f" && rm -f "$f.bak"; done
     # A changed tag is re-resolved by any resolve; naming the packages (`cargo update -p`) fails when
@@ -34,6 +42,10 @@ pin() {
 
 for tag in $(echo "$tags" | sort -rV); do
     [ "$tag" = "$current" ] && break
+    if ! released "$tag"; then
+        echo "myrme-bump: $tag has no published release page (yet, or its CI failed) — skipped."
+        continue
+    fi
     echo "myrme-bump: trying $tag..."
     pin "$tag"
     if cargo check -q -p fm-serve -p fm-agent-serve 2>/tmp/myrme-bump.$$; then

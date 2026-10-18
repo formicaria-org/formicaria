@@ -1179,9 +1179,8 @@ known_bins="cargo pnpm npm node python3 python sh bash git restic mdbook adb"
 task_names() {
     grep -oE '^[a-z][a-z0-9_-]* = |^\[tasks\.[a-z0-9_-]+\]' "$1" | sed 's/ = //; s/\[tasks\.//; s/\]//'
 }
-myrme_pixi=$(cargo metadata --format-version 1 2>/dev/null \
-    | grep -o '"manifest_path":"[^"]*/fm-agent-run/Cargo.toml"' | head -1 \
-    | sed 's/^"manifest_path":"//; s|/crates/fm-agent-run/Cargo.toml"$|/pixi.toml|')
+myrme_src=$(sh ci/myrme-src.sh 2>/dev/null || true)
+myrme_pixi=${myrme_src:+$myrme_src/pixi.toml}
 if [ -z "$myrme_pixi" ] || [ ! -f "$myrme_pixi" ]; then
     echo "  FAIL: cannot find Myrme's pixi.toml through \`cargo metadata\`."
     fail=1
@@ -2158,6 +2157,8 @@ if [ -f ui/src/lib/Appearance.svelte ]; then
 fi
 
 echo "[check] every link into the manual lands on a page and a heading that exist..."
+# The assistant chapter is Myrme's, generated (gitignored) from the pin: write it before reading it.
+sh ci/myrme-manual.sh || { echo "  FAIL: could not write the assistant chapter from Myrme."; fail=1; }
 # **A "How this works" that opens the top of a page, or nothing, is the Help that 404s in a quieter
 # form** (2026-10-18). Each `<ManualLink page="user/x.html" section="id">` must name a page of the
 # book and, when it names a section, a heading on that page that mdBook turns into that id (lower
@@ -2264,14 +2265,12 @@ fi
 #
 # **Myrme lives in its own repository since 2026-10-18**, so its half is read where Cargo checked out
 # the pinned tag — the exact source this build links, which is what the guard is about.
-myrme_run=$(cargo metadata --format-version 1 2>/dev/null \
-    | grep -o '"manifest_path":"[^"]*/fm-agent-run/Cargo.toml"' | head -1 \
-    | sed 's/^"manifest_path":"//; s|/Cargo.toml"$||')
+myrme_run=${myrme_src:+$myrme_src/crates/fm-agent-run}
 if [ -z "$myrme_run" ] || [ ! -d "$myrme_run" ]; then
     echo "  FAIL: cannot find Myrme's fm-agent-run source through \`cargo metadata\`."
     fail=1
 fi
-echo "[check] every place that links Myrme pins the same release, and states the same contract..."
+echo "[check] every place that links Myrme pins the same release, and checks the one contract..."
 # A release must ship one Myrme: fm-serve, agent-serve and the phone shell each name the tag, and a
 # mismatch would put one assistant in the desktop and another in the phone. Only a release tag
 # (vX.Y.Z) — a candidate or a branch would change under the app without a commit here.
@@ -2285,12 +2284,14 @@ elif ! printf '%s' "$myrme_pins" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
     echo "  FAIL: Myrme is pinned to '$myrme_pins', which is not a release tag (vX.Y.Z)."
     fail=1
 fi
-myrme_contracts=$(grep -h 'pub const MYRME_CONTRACT' crates/fm-serve/src/agent.rs mobile/src-tauri/src/agent.rs | sort -u | grep -c .)
-if [ "$myrme_contracts" -ne 1 ]; then
-    echo "  FAIL: crates/fm-serve/src/agent.rs and mobile/src-tauri/src/agent.rs state different"
-    echo "        MYRME_CONTRACT values; the desktop and the phone must be written for one contract."
-    fail=1
-fi
+# The contract is stated once (`fm_app::MYRME_CONTRACT`); each crate that links Myrme must check it.
+for f in crates/fm-serve/src/agent.rs mobile/src-tauri/src/agent.rs; do
+    if ! grep -q '^fm_app::check_myrme_contract!();' "$f"; then
+        echo "  FAIL: $f links Myrme without \`fm_app::check_myrme_contract!();\`: an incompatible"
+        echo "        Myrme would then fail on a missing function instead of saying why."
+        fail=1
+    fi
+done
 
 agent_header='X-Formicaria-Agent'
 for f in "$myrme_run/src/fmserve.rs" crates/fm-serve/src/main.rs; do

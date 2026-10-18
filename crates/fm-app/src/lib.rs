@@ -17,6 +17,30 @@
 //! [`Store`]: fm_core::Store
 //! [`Output`]: dispatch::Output
 
+/// **The Myrme contract this app is written for** (Myrme's `docs/context/contract.md`, *Versions*):
+/// the major it speaks and the least minor it needs. Any Myrme release of this major with at least
+/// this minor links unchanged — moving to it is a tag in `Cargo.toml` and nothing else
+/// (`pixi run myrme-bump`). Stated once, here, for the desktop and the phone alike; each crate that
+/// links Myrme checks it with [`check_myrme_contract!`]. `decisions.md#agent`, 2026-10-18.
+/// 1.4: the manual's assistant chapter and the phone's runtime pins are read from Myrme.
+pub const MYRME_CONTRACT: (u32, u32) = (1, 4);
+
+/// The compile-time check of [`MYRME_CONTRACT`] against the Myrme a crate links: another major, or
+/// an older minor, does not build, and says why rather than failing on a missing function. A macro
+/// because this crate does not link Myrme; the crates that do expand it.
+#[macro_export]
+macro_rules! check_myrme_contract {
+    () => {
+        const _: () = assert!(
+            fm_agent_run::CONTRACT_MAJOR == $crate::MYRME_CONTRACT.0
+                && fm_agent_run::CONTRACT_MINOR >= $crate::MYRME_CONTRACT.1,
+            "the pinned Myrme speaks another contract than this app was written for: pin a Myrme \
+             release of the major and at least the minor in fm_app::MYRME_CONTRACT (`pixi run \
+             myrme-bump`; Myrme's docs/context/releases.md lists each release's contract)"
+        );
+    };
+}
+
 // A CA trust store for the vendored OpenSSL, which has none on Android.
 pub mod ca_bundle;
 pub mod commands;

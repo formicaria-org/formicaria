@@ -9,6 +9,8 @@ ui/.svelte-kit/
 
 # mdBook rendered output (source is docs/src; the built site is disposable)
 docs/book/
+# The assistant chapter is Myrme's (docs/manual/assistant.md), written here by ci/myrme-manual.sh.
+docs/src/user/assistant.md
 
 # pixi (the locked env lives in pixi.lock, which IS tracked; the installed env is not)
 .pixi/

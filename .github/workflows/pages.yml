@@ -28,6 +28,9 @@ on:
       - 'docs/assets/formicaria.svg'
       - 'ci/site-assemble.sh'
       - 'ci/docs.sh'
+      # The assistant chapter comes from the pinned Myrme: a moved pin is a changed manual.
+      - 'ci/myrme-*.sh'
+      - 'Cargo.lock'
       - '.github/workflows/pages.yml'
 
 # **Read at the top; write only where publishing happens** — the same shape as `release.yml`. The

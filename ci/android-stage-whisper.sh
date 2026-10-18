@@ -21,7 +21,11 @@
 #   pixi run android-stage-whisper
 set -eu
 
-VER="v1.9.1"   # pinned; a bump is deliberate, like android-stage-runtime's llama pin.
+# The whisper.cpp tag is Myrme's to pin (catalogue `whisper_android_source`, contract 1.4), read from
+# the Myrme this build links so formicaria keeps no copy (`decisions.md#agent`, 2026-10-19).
+VER=$(sed -n 's/^whisper_android_source = "\(.*\)"$/\1/p' \
+    "$(sh "$(dirname -- "$0")/myrme-src.sh")/crates/fm-agent-run/models.toml")
+[ -n "$VER" ] || { echo "android-stage-whisper: no whisper_android_source in Myrme's catalogue (before contract 1.4?)" >&2; exit 1; }
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 dest="$root/mobile/src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a"

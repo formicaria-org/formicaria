@@ -48,5 +48,8 @@ src="docs/src/user/setup-$os.md"
     cat "$src"
 } > docs/src/user/setup.md
 
+# The assistant chapter comes from the Myrme this build links; formicaria keeps no copy.
+sh ci/myrme-manual.sh
+
 echo "docs: manual for $os"
 mdbook build docs

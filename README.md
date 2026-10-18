@@ -215,7 +215,7 @@ writes the catalogue beside them. Then turn it on in Settings → Assistant → 
 any discussion write `@lfm2.5-1.2b summarize this in 3 bullets /search`.
 
 It can only **reply** or **propose a change on a review branch** — never write to `main`. Full guide:
-[the study assistant](docs/src/user/assistant.md).
+[the study assistant](https://formicaria-org.github.io/formicaria/manual/user/assistant.html).
 
 ## Android
 
@@ -302,7 +302,7 @@ Its chapters for people using the app:
 [backup](docs/src/user/backup.md) ·
 [installing a new version](docs/src/user/updating.md) ·
 [collaboration](docs/src/user/collaboration.md) ·
-[the study assistant](docs/src/user/assistant.md) ·
+[the study assistant](https://formicaria-org.github.io/formicaria/manual/user/assistant.html) ·
 [Android](docs/src/user/android.md) ·
 [iPhone](docs/src/user/iphone.md).
 
