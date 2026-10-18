@@ -1,0 +1,3780 @@
+{
+ "about": "DRAFT, not shipped. Research run wf_4730e743-c98, 2026-10-18. See docs/context/exercise-tips-research-2026-10-18.md. Quotes are word for word from may_quote bodies; links and films are links only. rechecked = the checker agent reopened it.",
+ "sources": [
+  {
+   "body": "National Institute on Aging (NIA), NIH",
+   "home": "https://www.nia.nih.gov/health/exercise-and-physical-activity",
+   "licence": "U.S. federal work, public domain unless the page says otherwise; photos and videos are mixed and need clearing.",
+   "licence_evidence": "https://www.nia.nih.gov/about/policies : \"Reuse of text: Unless otherwise indicated, text within materials on the NIA website is in the public domain and may be reused without our permission. Credit the “National Institute on Aging, National Institutes of Health” as the source.\" and \"Photos and illustrations used in NIA materials are a mix of copyrighted and copyright-free materials. Many photos on the website are stock images that are not licensed for public use and must be licensed separately.\"",
+   "checked": "source (full page downloaded and read; the URL /about/website-policies returns 404, and /about/policies is the live page)",
+   "conditions": "Credit \"National Institute on Aging, National Institutes of Health\". Text only: do not copy the photos or illustrations. Pages marked with another copyright policy need permission. The external-links section says linking \"does not indicate an endorsement by NIA\", so do not suggest NIA endorses the app.",
+   "covers": "General strength, balance and flexibility safety tips. Verbatim from https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical (source): \"Warm up for muscle-strengthening activity by doing exercises with less weight. Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax. Avoid “locking” your arm and leg joints in a straight position.\" A search also found older NIA booklets (Workout to Go, Go4Life tip sheet \"Stay Safe! Use Proper Form While Strength Training\") with per-exercise form cues. Those were seen by search only."
+  },
+  {
+   "body": "MedlinePlus (National Library of Medicine), NLM-authored parts only",
+   "home": "https://medlineplus.gov/",
+   "licence": "Public domain for NLM-authored areas. The A.D.A.M. encyclopedia, ASHP drug monographs and most images are copyrighted.",
+   "licence_evidence": "https://medlineplus.gov/about/using/usingcontent/ : \"Works produced by the federal government are not copyrighted under U.S. law. You may reproduce, redistribute, and link freely to non-copyrighted content, including on social media.\" Public-domain list includes \"Summaries on health topic pages\". Copyrighted: \"Any content from the A.D.A.M. Medical Encyclopedia, including but not limited to articles and videos\" and \"Images, illustrations, and photos, except those noted above, may be copyright protected\".",
+   "checked": "source (page downloaded and read)",
+   "conditions": "Acknowledge with \"Courtesy of MedlinePlus from the National Library of Medicine\" or \"Source: MedlinePlus, National Library of Medicine.\" Do not make MedlinePlus pages appear to sit under another domain. Most exercise how-to and injury articles on MedlinePlus are A.D.A.M. encyclopedia pages, which are copyrighted. Only the health-topic summaries (for example the Exercise and Physical Fitness topic) are free to copy. Check each page's footer.",
+   "covers": "General exercise and safety summaries only. Little per-exercise form content is NLM-authored."
+  },
+  {
+   "body": "CDC (Centers for Disease Control and Prevention), CDC-authored pages",
+   "home": "https://www.cdc.gov/physical-activity-basics/",
+   "licence": "Generally public domain. Contractor, grantee and third-party material may be copyrighted.",
+   "licence_evidence": "https://www.cdc.gov/other/agencymaterials.html : \"Most of the information on the CDC and ATSDR websites is not subject to copyright.\" Requirements: attribute the agency; disclaimer that use \"does not imply endorsement by CDC, ATSDR, HHS or the United States Government\"; do not change substantive content; logos \"may not be used without express written permission\".",
+   "checked": "source via the WebFetch summary. A direct download was blocked (HTTP 403), so the quoted wording came through the fetch tool's extraction and should be re-checked in a browser before it goes into the app.",
+   "conditions": "Credit \"Source: CDC\". Add the no-endorsement disclaimer. Do not change the substance of the text. No logos. Do not copy stock images.",
+   "covers": "General physical-activity guidance. Little per-exercise form content."
+  },
+  {
+   "body": "\"Growing Stronger: Strength Training for Older Adults\" (hosted by CDC, but copyright Tufts University)",
+   "home": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+   "licence": "NOT public domain. Copyright 2002 Tufts University, with a free-distribution grant on condition of credit and no changes.",
+   "licence_evidence": "PDF text, copyright page: \"This book was produced for free distribution by any means, electronic or mechanical, including photocopying, recording, or by any information storage and retrieval system, without requiring permission. However, please credit the authors and Tufts University and do not change any of the content. Copyright © 2002 by Tufts University.\" Also: \"Illustrations by Wendy Wray/Morgan Gaynin Inc., NYC.\" and \"The PAR-Q and YOU is a copyrighted, pre-exercise screen owned by the Canadian Society for Exercise Physiology.\"",
+   "checked": "source (PDF downloaded and text extracted)",
+   "conditions": "Credit the authors and Tufts University. Quote exactly, word for word, with no edits. Whether copying single exercise sections counts as \"changing the content\" is unclear, so the safe route is to quote whole exercise passages unaltered with a credit, or ask Tufts. Do not copy the illustrations (Wendy Wray/Morgan Gaynin) or the PAR-Q (CSEP copyright). Do not describe it as a CDC public-domain work.",
+   "covers": "Per-exercise step-by-step instructions with safety tips for older beginners: squats/chair stands, wall push-ups, toe stands, biceps curl, step-ups, overhead press, side hip raise, knee extension and curl, and so on."
+  },
+  {
+   "body": "NHS website (nhs.uk) and other OGL v3.0 UK public-sector pages",
+   "home": "https://www.nhs.uk/live-well/exercise/",
+   "licence": "Open Government Licence v3.0, with the NHS's own terms on top (the NHS terms take precedence).",
+   "licence_evidence": "https://www.nhs.uk/our-policies/terms-and-conditions/ : \"3.3 Copyright and database rights in NHS Website Content are released free-of-charge under the current version of the Open Government Licence (\"OGL\")\" ... \"3.4 This means that you can use NHS Website Content, except where specified, including copying it, adapting it, and using it for any purpose, including commercially\". OGL v3 (https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/): \"exploit the Information commercially and non-commercially for example, by combining it with other Information, or by including it in your own product or application.\"",
+   "checked": "source (terms page and OGL text downloaded and read)",
+   "conditions": "Clause 3.6: if the copy is not refreshed at least every 7 days, attribute each instance as \"Information from the NHS website\" plus \"as at DDMMYY\". A local-first app will rarely refresh, so it needs the date stamp on every card. Each attribution should link to the source page where possible. Also publish prominently \"Information from the NHS website is licensed under the Open Government Licence v3.0\". Clause 3.5 excludes \"any logos, visuals, image rights, trademarks\" and stock images. Clause 3.11: \"You may not directly or indirectly suggest any endorsement or approval by the NHS\". Clause 3.10: no specific charge for access to NHS content. NHS inform (Scotland) terms could not be found (404), so do not assume OGL for that site.",
+   "covers": "Strength and flexibility exercise how-tos, sitting/older-adult exercise sheets, and safety notes."
+  },
+  {
+   "body": "Creative Commons NC-licensed material (e.g. open-access papers under CC BY-NC such as Tung 2024 and Kemler 2022 in BMJ Open Sport Exerc Med)",
+   "home": "https://creativecommons.org/licenses/by-nc/4.0/legalcode.en",
+   "licence": "CC BY-NC 4.0 (verbatim copying allowed with attribution, non-commercial only). ND variants forbid adapting. SA variants require share-alike.",
+   "licence_evidence": "CC BY-NC 4.0 legal code: \"NonCommercial means not primarily intended for or directed towards commercial advantage or monetary compensation.\"",
+   "checked": "source (legal code downloaded and read)",
+   "conditions": "A free app with no ads or payment fits the NonCommercial definition. However, if the app's code is under a permissive open-source licence such as MIT or Apache, the NC content cannot be relicensed under it. Keep NC text in a separately licensed content folder and say that it is NC-only, so downstream commercial forks know to strip it. With ND, verbatim copying is fine but excerpts or edits are not. This is general guidance, not legal advice.",
+   "covers": "Mainly research text, not exercise tips."
+  }
+ ],
+ "link_only": [
+  {
+   "body": "ACE (American Council on Exercise) Exercise Library",
+   "home": "https://www.acefitness.org/resources/everyone/exercise-library/",
+   "why_reputable": "A large NCCA-accredited certifying body for fitness professionals. Its library gives step-by-step form for hundreds of exercises.",
+   "covers": "Per-exercise instructions, form cues and photos",
+   "licence_note": "https://acefitness.org/legal/terms-of-use (source, via WebFetch): \"No portion of the Site may be reproduced, duplicated, copied, sold, resold, visited, or otherwise exploited for any commercial purpose without the express prior written consent of ACE\". Section 5 bars \"Unauthorized copying, reproduction, republishing...\". Link only."
+  },
+  {
+   "body": "NSCA (National Strength and Conditioning Association)",
+   "home": "https://www.nsca.com/",
+   "why_reputable": "The main professional body for strength coaching (CSCS credential). Publishes J Strength Cond Res and exercise technique manuals.",
+   "covers": "Exercise technique, spotting, youth training position statements",
+   "licence_note": "Search snippet of https://www.nsca.com/terms-of-use/ : no material \"may be copied, reproduced, republished, uploaded, posted, transmitted, or distributed in any way\" except a single personal, non-commercial download. Search only."
+  },
+  {
+   "body": "ACSM (American College of Sports Medicine)",
+   "home": "https://acsm.org/",
+   "why_reputable": "Author of the resistance-training position stands (2009 progression models; 2026 update, MSSE 58(4):851-872).",
+   "covers": "Prescription and progression rules, consumer infographics",
+   "licence_note": "Search snippet of https://acsm.org/terms : site content is \"copyrighted or otherwise protected\", licensed for internal personal use only. Search only. The 2026 position stand is open access per PubMed (\"Copyright © 2025 The Author(s)\"), but its licence was not checked."
+  },
+  {
+   "body": "Mayo Clinic",
+   "home": "https://www.mayoclinic.org/healthy-lifestyle/fitness",
+   "why_reputable": "A major academic medical centre with clinician-reviewed patient education, including strength-training how-to slide shows.",
+   "covers": "Strength training how-to and mistakes, with photos",
+   "licence_note": "Terms page returned 403. A search snippet says article pages allow \"a single copy of these materials may be reprinted for noncommercial personal use only.\" Search only."
+  },
+  {
+   "body": "Harvard Health Publishing",
+   "home": "https://www.health.harvard.edu/",
+   "why_reputable": "Harvard Medical School's consumer publishing arm. Has articles such as \"Six tips for safe strength training\".",
+   "covers": "General safe-strength tips, some exercise-specific advice",
+   "licence_note": "https://www.health.harvard.edu/terms-of-use (source, via WebFetch): \"You may use the Content only for personal and non-commercial purposes\" and \"You may not reproduce, display, distribute, create derivative works from, or otherwise exploit the Content without Harvard's express written consent.\""
+  },
+  {
+   "body": "Cleveland Clinic",
+   "home": "https://my.clevelandclinic.org/health",
+   "why_reputable": "A major academic medical centre with a clinician-reviewed health library.",
+   "covers": "Exercise injuries, conditions, some exercise how-tos",
+   "licence_note": "Search snippet of https://my.clevelandclinic.org/about/website/reprints-licensing : all material on the site \"is copyrighted and cannot be reused without permission\". Search only."
+  },
+  {
+   "body": "APTA ChoosePT (American Physical Therapy Association)",
+   "home": "https://www.choosept.com/",
+   "why_reputable": "Consumer site of the US physical therapy professional body. Content written by PTs.",
+   "covers": "Injury prevention and condition guides, exercise advice",
+   "licence_note": "Search snippet of https://www.apta.org/web/copyright-permissions : APTA \"does not grant permission for its ChoosePT.com content to be republished online or in any electronic form either in its majority or entirety\". Search only."
+  },
+  {
+   "body": "Chartered Society of Physiotherapy (CSP), UK",
+   "home": "https://www.csp.org.uk/",
+   "why_reputable": "The UK professional body for physiotherapists. Publishes public exercise and back-pain advice.",
+   "covers": "Back and neck exercise advice, injury self-management",
+   "licence_note": "Search snippet of https://www.csp.org.uk/terms-service : information may be used \"for reproduction for personal use only\". Copying or republishing needs written permission. Search only."
+  },
+  {
+   "body": "Physiopedia",
+   "home": "https://www.physio-pedia.com/",
+   "why_reputable": "A charity-run, physiotherapist-edited wiki with extensive exercise and injury pages.",
+   "covers": "Injury mechanisms, rehab exercises, some technique pages",
+   "licence_note": "Licence NOT confirmed: every physio-pedia.com page returned 403 to both fetch and curl. A search snippet of the FAQ says content \"is available for reuse under the specific terms of this creative commons license\" but does not name the licence. Upload licences vary per file (CC BY, CC BY-SA, NC permissions). Treat as link-only until the footer or Copyrights page is read in a browser."
+  }
+ ],
+ "licence_recheck": [
+  {
+   "body": "National Institute on Aging (NIA), NIH",
+   "verdict": "may_quote",
+   "note": "Checked at source: https://www.nia.nih.gov/about/policies was downloaded today and gave HTTP 200. The wording is exact: \"Reuse of text: Unless otherwise indicated, text within materials on the NIA website is in the public domain and may be reused without our permission. Credit the 'National Institute on Aging, National Institutes of Health' as the source.\" Exclusions: photos and illustrations are mixed and many are stock images, and NIA videos may contain copyrighted material, so copy text only. Documents that state another copyright policy need written permission. The no-endorsement wording appears in the external-links section. The Workout to Go PDF (govinfo) has no copyright notice in its extracted text. It does say Go4Life is a registered HHS trademark, so do not use the Go4Life name or mark as branding. The four-types URL now redirects to the three-types page (HTTP 200)."
+  },
+  {
+   "body": "MedlinePlus (National Library of Medicine), NLM-authored parts only",
+   "verdict": "may_quote",
+   "note": "Checked at source: https://medlineplus.gov/about/using/usingcontent/ gave HTTP 200. Exact: \"Works produced by the federal government are not copyrighted under U.S. law. You may reproduce, redistribute, and link freely to non-copyrighted content, including on social media.\" The public-domain list includes \"Summaries on health topic pages\". Copyrighted: \"Any content from the A.D.A.M. Medical Encyclopedia, including but not limited to articles and videos\", ASHP drug monographs, and most images. The credit wording is confirmed: \"Courtesy of MedlinePlus from the National Library of Medicine\" or \"Source: MedlinePlus, National Library of Medicine.\" Only NLM-authored summaries may be quoted. No card actually quotes MedlinePlus."
+  },
+  {
+   "body": "CDC (Centers for Disease Control and Prevention), CDC-authored pages",
+   "verdict": "may_quote",
+   "note": "Checked at source: https://www.cdc.gov/other/agencymaterials.html returns 403 to a browser user agent but 200 to a plain curl user agent, so it was read directly. Exact: \"Most of the information on the CDC and ATSDR websites is not subject to copyright, is in the public domain, and may be freely used or reproduced without obtaining copyright permission.\" There are four required conditions, and the earlier agent missed the fourth: 1) attribution (\"Source: CDC\"); 2) a prominent disclaimer that use \"does not imply endorsement by CDC, ATSDR, HHS or the United States Government\"; 3) \"You may not change the substantive content of the materials\"; 4) \"You must state that the material is otherwise available on the agency website for no charge.\" Also: no logos without permission, no framing of CDC content, and contractor, grantee or third-party material may be copyrighted. No card quotes CDC-authored text; Growing Stronger is the separate Tufts entry below."
+  },
+  {
+   "body": "\"Growing Stronger: Strength Training for Older Adults\" (hosted by CDC, but copyright Tufts University)",
+   "verdict": "unclear",
+   "note": "Checked at source. The CDC URL works with a curl user agent (200, 126 pages), and the archive copy is identical. Exact: \"This book was produced for free distribution by any means ... without requiring permission. However, please credit the authors and Tufts University and do not change any of the content. Copyright © 2002 by Tufts University.\" Illustrations are by Wendy Wray/Morgan Gaynin, and the PAR-Q is CSEP copyright. This is not public domain. The cards copy single bullets out of the 'MAKE SURE YOU' lists. Whether excerpting counts as 'changing the content', and whether 'free distribution' allows inclusion in an app, is not settled by the text. Failing verdict: keep it link-only, or quote only after Tufts gives written permission. If used anyway: credit the authors and Tufts, make no edits, and use no illustrations and no PAR-Q."
+  },
+  {
+   "body": "NHS website (nhs.uk) and other OGL v3.0 UK public-sector pages",
+   "verdict": "may_quote",
+   "note": "Checked at source: https://www.nhs.uk/our-policies/terms-and-conditions/ (200) and the OGL v3 page (200). Clauses 3.3, 3.4, 3.10 and 3.11 are quoted correctly. Corrections and additions. Clause 3.6(a): unchanged copies need either a copied-on date or a refresh at least every 7 days. Attribute \"Information from the NHS website\", plus \"as at DDMMYY\" when not refreshing, on every instance, clearly separated from other content. Link each instance where possible. Publish prominently \"Information from the NHS website is licensed under the Open Government Licence v3.0\". Clause 3.6(b): adapted content needs \"Contains public sector information licensed under the Open Government Licence v3.0.\" Clause 3.5 excludes logos, visuals and design styles, third-party content, and \"personal data (which will include but not be limited to images, videos and audio with identifiable people in them)\". So NHS how-to videos may be linked but must not be copied or re-hosted."
+  },
+  {
+   "body": "Creative Commons NC-licensed material (e.g. open-access papers under CC BY-NC such as Tung 2024 and Kemler 2022 in BMJ Open Sport Exerc Med)",
+   "verdict": "unclear",
+   "note": "Checked at source: the CC BY-NC 4.0 legal code was read. It grants \"reproduce and Share the Licensed Material, in whole or in part, for NonCommercial purposes only\". Attribution must name the creator and include a copyright notice, a licence notice, a disclaimer notice and a link. Through PMC efetch I confirmed that Tung 2024 (PMC11624822) and Kemler 2022 BMJ OSEM (PMC8788309) are both CC BY-NC 4.0. A free app is non-commercial, but an open-source app allows commercial forks, so NC text cannot sit under the app's licence and must be segregated and labelled. Failing verdict: unclear for a free open-source app. Paraphrase with citation instead. The research text has no exercise tips anyway."
+  }
+ ],
+ "cards": [
+  {
+   "id": "army-8-count-step-up",
+   "name": "8-Count Step-Up",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t let momentum do the work.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (the CDC PDF returned 403, so an archived copy from web.archive.org was downloaded and its text extracted; quote matched verbatim from the Step-Ups 'MAKE SURE YOU' list. This quotes one item, not the whole passage: check against the Tufts 'do not change any of the content' condition)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t let your back leg do the work.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, text extracted, matched verbatim, Step-Ups)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Press your weight on the heel rather than ball or toes of your front leg as you lift.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, text extracted, matched verbatim, Step-Ups)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Use smooth, steady movements when lifting weights.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA 'Workout to Go' booklet PDF from govinfo.gov downloaded and text extracted; general safety tip for lifting weights, matched verbatim)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Step-Up | Exercise Library | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/28/step-up/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Step-by-step step-up form from a fitness certifying body",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(1) Losing control of the load: the kettlebells are carried while stepping on and off a box, so a missed step or a slipping grip can drop a weight on the foot."
+  },
+  {
+   "id": "army-back-squat",
+   "name": "Back Squat",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (page saved and read; the page lists squats among its muscle-strengthening examples)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Back Squat Exercise Guide | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/11/back-squat/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers racking and unracking the bar (set it just below shoulder height and step back), keeping the chest up and back straight, and the depth cue of hips below knees.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(5) Squats: 9.6% of exercise-specific gym injuries (Kemler 2022). Also (1) Losing control of the load, because the barbell is racked and carried on the back, and (2) Overexertion and overload strains of the trunk and low back."
+  },
+  {
+   "id": "army-bench-press",
+   "name": "Bench Press",
+   "equipment": "free weights",
+   "risk_note": "(3) Bench press and pressing: 11.8% of exercise-specific gym injuries (Kemler 2022), and barbell-on-neck asphyxia deaths when lifting alone without safeties (Jumbelic 2007). (1) Losing control of the load: dropped weights are the top ED mechanism (Kerr 2010).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength safety tip, not specific to the bench press)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (PDF text extracted; general Safety Tips page)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Chest Press (barbell, bench) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/5/chest-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title and 'Equipment: Barbell, Bench' read)",
+     "what_it_adds": "Step-by-step barbell bench press form from an accredited certifying body. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-bent-arm-lateral-raise",
+   "name": "Bent-Arm Lateral Raise",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Use smooth, steady movements when lifting weights.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, text extracted; general weight-lifting safety tip, not specific to lateral raises)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, text extracted; general weight-lifting safety tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Shoulder Exercises | Lateral Raise (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/26/lateral-raise/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Dumbbell lateral-raise form. The Army version is done in the Front Leaning Stance, so the setup differs, but the arm path is the same.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page covers lateral raises specifically. Only general NIA weight-lifting tips apply.",
+   "risk_note": "(4) Shoulder positions: the shoulder is up to 36% of lifting injuries (Kolber 2010). (1) Dumbbells held over the floor in a leaning stance can be dropped."
+  },
+  {
+   "id": "army-bent-over-row-free-weight-assistive-training",
+   "name": "Bent-Over Row",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Bent-Over Row | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/12/bent-over-row/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Gives a hinge with a straight back and slightly bent knees, a straight elbow at the bottom, and a pull toward the belly button with the back kept flat.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source covers a bent-over row. NIA, NHS and Growing Stronger have no rowing exercise, so there are no quotes.",
+   "risk_note": "(2) Overexertion and overload strains of the trunk and low back: the hinged torso is held against the load. (1) Losing control of the load applies to the free bar."
+  },
+  {
+   "id": "army-bent-over-row-strength-training-circuit",
+   "name": "Bent-Over Row",
+   "equipment": "free weights",
+   "risk_note": "(2) Overexertion and overload strains of the trunk and low back: sprain/strain 46.1% and the trunk the top site (Kerr, Quatman, Coffey). (1) Losing control of the load applies with kettlebells held in the hands.",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Always bend forward from the hips, not the waist. If you keep your back straight, you’re bending the right way.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (general Safety Tips page of the booklet, not row-specific)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Bent-Over Row — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/12/bent-over-row/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read; the page uses a barbell, while the Army card uses kettlebells)",
+     "what_it_adds": "Hip-hinge and flat-back cues for the row. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-biceps-curl",
+   "name": "Biceps Curl",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t let your upper arms or elbows move away from the sides of your body.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF via web.archive.org, text extracted, matched verbatim, Biceps Curl 'MAKE SURE YOU'; single item quoted, check the Tufts no-change condition)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Keep your wrists straight.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Biceps Curl)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, text extracted, matched verbatim)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop if you feel pain.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Safety Tips, matched verbatim)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Arm Exercises | Bicep Curl (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/70/bicep-curl/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Biceps curl form cues",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(1) Losing control of the load: dropped dumbbells and crush or pinch injuries are the most common ED mechanism for free weights (Kerr 2010)."
+  },
+  {
+   "id": "army-deadlift",
+   "name": "Deadlift",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Deadlift | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/6/deadlift/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers shins close to the bar, keeping the back flat while pushing the hips forward, and the check that the glutes and backs of the thighs should feel the work, \"NOT the back\".",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source has a deadlift or an equivalent loaded hip hinge, so there are no quotes.",
+   "risk_note": "(2) Overexertion and overload strains of the trunk and low back: the trunk is the top injury site. On rounded-back lifting, the evidence is low quality and does not show that flexion by itself predicts back pain in light lifting (Saraceni 2020). Do not present it as proven dangerous, or as safe for heavy loads. (1) Losing control of the load also applies, from dropped bars and plates."
+  },
+  {
+   "id": "army-forward-lunge-strength-training-circuit",
+   "name": "Forward Lunge",
+   "equipment": "free weights",
+   "risk_note": "(1) Losing control of the load: the kettlebells are held at the sides, and crush injuries were common in all free-weight activities (Gray and Finch 2015).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Keeping the weight on your heels, push back up to the starting position.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source (page read; this is the bodyweight lunge, an equivalent movement; page last reviewed 20 September 2024)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Keep your back straight and do not let your knees extend over your toes.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Lunge (dumbbells) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/363/lunge/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title and 'Equipment: Dumbbells' read)",
+     "what_it_adds": "A loaded lunge with hand weights, close to the kettlebell version. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-front-squat",
+   "name": "Front Squat",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t lean your weight too far forward or onto your toes when standing up.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Squats 'MAKE SURE YOU'). Equivalence is partial: Growing Stronger's squat is a bodyweight chair squat, not a loaded front squat. I left out the same page's 'knees NEVER come forward past your toes' line on purpose.",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Back Exercises | Front Squat (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/22/front-squat/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: dumbbell front squat, knees aligned over second toe, heels flat)",
+     "what_it_adds": "Front-squat setup, depth and knee-alignment cues (dumbbell version)",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(5) Squats were 9.6% of exercise-specific gym injuries (Kemler 2022). (2) Trunk and low-back overexertion strains. (1) A bar racked on the shoulders can be lost forward."
+  },
+  {
+   "id": "army-heel-raise",
+   "name": "Heel Raise",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Breathe regularly throughout the exercise.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from the PDF text extracted earlier in this workflow, Exercise 3 Toe Stands. Today cdc.gov returned HTTP 403 to scripts, so re-check in a browser. Credit the authors and Tufts and keep the text unchanged.)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Calf Raises | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/51/calf-raises/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "The barbell-on-back version, like the Army straight-bar heel raise: unrack from a rack at shoulder height, keep a slight knee bend, pause at the top and lower the heels slowly.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(1) Losing control of the load: in the straight-bar version the bar is racked and carried across the upper back. There is no specific evidence for heel raises."
+  },
+  {
+   "id": "army-incline-bench",
+   "name": "Incline Bench",
+   "equipment": "free weights",
+   "risk_note": "(3) Bench press and pressing, including the risk of the barbell coming down on the neck when lifting alone without safeties (Jumbelic 2007). (1) Dropped loads are the top ED mechanism (Kerr 2010).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Incline Chest Press (dumbbells, bench) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/25/incline-chest-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title, equipment and Step 1 read: incline bench at 45 to 60 degrees)",
+     "what_it_adds": "Bench angle and setup for the incline press. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-overhead-push-press-free-weight-assistive-training",
+   "name": "Overhead Push-Press",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t let the dumbbells move too far in front of your body or behind it.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Overhead Press 'MAKE SURE YOU'). This is the strict overhead press; the push-press adds a leg drive, so equivalence is partial.",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Keep your wrists straight.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Overhead Press)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Relax your neck and shoulders.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Overhead Press)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Full Body/Integrated Exercises | Push Press (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/24/push-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Push-press technique, with power from the hips (barbell version, rated advanced)",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(4) Overhead shoulder positions: the shoulder is up to 36% of lifting injuries (Kolber 2010). (1) A load held overhead can be lost."
+  },
+  {
+   "id": "army-overhead-push-press-strength-training-circuit",
+   "name": "Overhead Push-Press",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Push Press | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/24/push-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers racking the bar on the front of the shoulders, a knee dip with a straight back, and the power coming from the hips and passing through the shoulders and arms.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "Growing Stronger has a strict seated or standing dumbbell overhead press, but a push-press uses leg drive, so the two are not clearly equivalent and nothing was quoted.",
+   "risk_note": "(3) Bench press and pressing: men have more pressing injuries (Coffey). (4) Overhead and 'high-five' shoulder positions: the shoulder is up to 36% of injuries (Kolber 2010), although the behind-the-neck association does not apply to a front-rack press. (1) Losing control of the load applies to the bar overhead."
+  },
+  {
+   "id": "army-overhead-triceps-extension",
+   "name": "Overhead Triceps Extension",
+   "equipment": "free weights",
+   "risk_note": "(1) Losing control of the load: a single weight is held behind the head. (4) Overhead shoulder positions: the shoulder is up to 36% of injuries (Kolber 2010).",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Triceps Extension (single dumbbell, both hands) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/74/triceps-extension/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title, 'Equipment: Dumbbells' and Step 1 read: one dumbbell held in both hands)",
+     "what_it_adds": "Bracing the torso and grip for the overhead extension. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-pull-over",
+   "name": "Pull Over",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Use smooth, steady movements when lifting weights.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF; general weight-lifting tip, not pull-over specific)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF; general weight-lifting tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Lying Pullovers | Exercise Library | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/37/lying-pullovers/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: face up on a bench, dumbbells overhead)",
+     "what_it_adds": "Bench setup and arm path for the dumbbell pullover",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page has a pull-over. Only general NIA lifting tips apply.",
+   "risk_note": "(1) Losing control of the load: the dumbbell travels over the face and head. (4) The end position is fully overhead."
+  },
+  {
+   "id": "army-shrug",
+   "name": "Shrug",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Shrug | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/72/shrug/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Says to raise the shoulders straight up and lower them slowly, keep the knees slightly bent and the back tall, and gives the explicit mistake \"DO NOT roll the shoulders\".",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source has a shrug, so there are no quotes.",
+   "risk_note": "(1) Losing control of the load: crush injuries were common in all free-weight activities (Gray and Finch 2015), including when heavy bars or dumbbells are picked up or set down."
+  },
+  {
+   "id": "army-single-arm-bent-over-row",
+   "name": "Single-Arm Bent-Over Row",
+   "equipment": "free weights",
+   "risk_note": "(2) Overexertion strains of the trunk and low back (Kerr; Gray and Finch: overexertion caused 52.6% of free-weight facility injuries).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Always bend forward from the hips, not the waist. If you keep your back straight, you’re bending the right way.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (general Safety Tips page)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Single Arm Row (dumbbell, bench) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/126/single-arm-row/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title, 'Equipment: Bench, Dumbbells' and Step 1 read)",
+     "what_it_adds": "The supported one-arm row with the knee and hand on a bench. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-straight-leg-deadlift-free-weight-core-training",
+   "name": "Straight-Leg Deadlift",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Always bend forward from the hips, not the waist.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Safety Tips, matched verbatim; general bending tip, not deadlift-specific)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "If you keep your back straight, you’re bending the right way.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Safety Tips, matched verbatim)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Back Exercises | Romanian Deadlift (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/317/romanian-deadlift/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "A close variant (Romanian deadlift) with hip-hinge form cues",
+     "rechecked": "ok"
+    },
+    {
+     "title": "Butt & Hip Exercises | Hip Hinge (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/33/hip-hinge/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Teaches the hip-hinge pattern behind every deadlift variant",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(2) Overexertion strains of the trunk and low back (Kerr; Gray and Finch 2015). The evidence that a rounded back predicts back pain is low quality (Saraceni 2020), so the card should not call rounding proven dangerous or proven safe."
+  },
+  {
+   "id": "army-straight-leg-deadlift-strength-training-circuit",
+   "name": "Straight-Leg Deadlift",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Romanian Deadlift | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/317/romanian-deadlift/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "The closest ACE entry. It is a slight-knee-bend hip hinge rather than a fully straight-leg version: push the hips back, lower only until tension is felt along the backs of the legs, and keep the bar very close to the body.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source has a straight-leg or Romanian deadlift, so there are no quotes.",
+   "risk_note": "(2) Overexertion and overload strains of the trunk and low back. The rounded-back evidence is low quality (Saraceni 2020): do not call it proven dangerous, or safe for heavy loads."
+  },
+  {
+   "id": "army-sumo-deadlift",
+   "name": "Sumo Deadlift",
+   "equipment": "free weights",
+   "risk_note": "(2) Overexertion and overload strains of the trunk and low back (Kerr; Gray and Finch; Kemler 2022). On a 'rounded back', the evidence is low quality and does not show that flexion by itself predicts back pain in light lifting (Saraceni 2020). Do not present it as proven dangerous or as safe for heavy loads.",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Deadlift (barbell) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/6/deadlift/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title and 'Equipment: Barbell' read). It covers the conventional deadlift; no ACE sumo page was found in the ACE sitemap.",
+     "what_it_adds": "Hinge and bar-path basics shared with the sumo stance. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-sumo-squat",
+   "name": "Sumo Squat",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t lean your weight too far forward or onto your toes when standing up.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Squats; that squat is a bodyweight chair squat with a slightly wider than shoulder-width stance, so equivalence is partial)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t sit down too quickly.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Squats)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Butt & Hip Exercises | Goblet Squat (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/362/goblet-squat/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Squat with a single weight held in front, the nearest ACE match. ACE has no sumo-stance page.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(5) Squats were 9.6% of exercise-specific gym injuries (Kemler 2022). (1) The kettlebell hangs between the feet and can be dropped."
+  },
+  {
+   "id": "army-supine-body-twist",
+   "name": "Supine Body Twist",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable page, quote or health-body film was found for a supine twist with a kettlebell held over the chest and the legs rotating the opposite way. The ACE 'Supine Spinal Twist' is a different side-lying stretch. Left empty rather than force a match.",
+   "risk_note": "(1) Losing control of the load: a kettlebell is held above the stomach while the body rotates, so a lost grip could drop it onto the trunk. Crush injuries were common for all free weights (Gray and Finch 2015). This is an inference from the mechanism, not exercise-specific data."
+  },
+  {
+   "id": "army-supine-chest-press",
+   "name": "Supine Chest Press",
+   "equipment": "free weights",
+   "risk_note": "(3) Pressing injuries, more common in men (Coffey). (1) Losing control of the load: kettlebells are pressed over the face and chest.",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Chest Press (dumbbells, bench) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/19/chest-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title, 'Equipment: Bench, Dumbbells' and Step 1 read). This is on a bench, not the floor, so it is a close match rather than the same exercise.",
+     "what_it_adds": "Pressing two separate weights, with cues on wrist and elbow alignment. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=riT31sLb8HU",
+     "title": "Floor Press 101!",
+     "channel": "[P]rehab",
+     "tier": "expert",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel)",
+     "views": "64153",
+     "qualification": "The team page lists the founders as 'Michael Lau PT, DPT, CSCS · Chief Executive Officer', 'Craig Lindell PT, DPT, CSCS' and 'Arash Maghsoodi PT, DPT, CSCS', read at https://theprehabguys.com/about/. The video title does not say whether it uses a barbell or dumbbells.",
+     "rechecked": "ok"
+    }
+   ]
+  },
+  {
+   "id": "army-upright-row",
+   "name": "Upright Row",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Use smooth, steady movements when lifting weights.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF; general weight-lifting tip, not upright-row specific)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF; general weight-lifting tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Train This, Not That: The Upper-body Edition (ACE)",
+     "url": "https://www.acefitness.org/resources/pros/expert-articles/5277/train-this-not-that-the-upper-body-edition/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; the Upright Row section was read)",
+     "what_it_adds": "Says the overhand-grip upright row puts the shoulders in internal rotation, so you 'run out of space' raising the elbows. Suggests the dumbbell lateral raise instead. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page covers the upright row. Only general NIA lifting tips apply.",
+   "risk_note": "(4) Shoulder positions: ACE (link only) warns of pinching in the internally rotated upright-row position. The study evidence (Kolber 2013) concerns behind-the-neck pressing and pulldowns, not upright rows, so it should not be cited for this exercise."
+  },
+  {
+   "id": "army-weighted-trunk-extension",
+   "name": "Weighted Trunk Extension",
+   "equipment": "free weights",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote source covers a loaded back extension on a bench. ACE's library has no back-extension-bench entry (only 'Supermans' on the floor, which is not equivalent), and a search for an NSCA technique page found nothing.",
+   "risk_note": "(2) Overexertion and overload strains of the trunk and low back: the trunk is the top injury site (Kerr; Quatman; Coffey), and overuse or overload was the top self-reported cause (Kemler 2022)."
+  },
+  {
+   "id": "army-weighted-trunk-flexion",
+   "name": "Weighted Trunk Flexion",
+   "equipment": "free weights",
+   "risk_note": "(2) Overload of the trunk: trunk sprains and strains are the top ED injury (Kerr; Quatman; Coffey).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Listen to your body. Overdoing muscle-strengthening exercises can cause exhaustion, sore joints, and muscle pain or injury.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Crunch — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/52/crunch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read). The Army card is a full sit-up holding a weight, so the crunch is only a partial match.",
+     "what_it_adds": "Neck and lumbar cues for trunk flexion. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No body- or expert-channel film of a weighted sit-up was found. The only sit-up videos found were from small trainer channels, so none were added."
+  },
+  {
+   "id": "nhs-biceps-curls",
+   "name": "Biceps curls",
+   "equipment": "free weights",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t let your upper arms or elbows move away from the sides of your body.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF via web.archive.org, matched verbatim, Biceps Curl; single item, check the Tufts no-change condition)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Keep your wrists straight.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Biceps Curl)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; the 'four-types' URL now redirects here)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop if you feel pain.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, matched verbatim)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Arm Exercises | Bicep Curl (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/70/bicep-curl/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Biceps curl form cues",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(1) Losing control of the load: dropped weights and crush injuries (Kerr 2010). The NHS card uses light weights or water bottles, which keeps this risk low."
+  },
+  {
+   "id": "army-alternating-grip-pull-up",
+   "name": "Alternating Grip Pull-Up",
+   "equipment": "bar",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (the page names pullups among bodyweight strength exercises)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Pull-ups | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/191/pull-ups/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers a full grip with thumbs wrapped, bracing the abdominals, keeping the shoulder blades back and down, neutral wrists, and pulling the elbows straight down. ACE shows an overhand grip, not the alternating grip.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(4) Overhead and 'high-five' shoulder positions: the shoulder is up to 36% of injuries (Kolber 2010). This is a loose fit: the instability association is for behind-the-neck pressing and pulldowns, not pull-ups."
+  },
+  {
+   "id": "army-heel-hook",
+   "name": "Heel Hook",
+   "equipment": "bar",
+   "risk_note": "",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote page, reputable form page or suitable film covers hanging from a bar and hooking the heels over it. Nothing was added rather than a stretched match."
+  },
+  {
+   "id": "army-leg-tuck-climbing-drill-1",
+   "name": "Leg Tuck",
+   "equipment": "bar",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote page and no ACE page covers a hanging leg tuck. I did not stretch to a different exercise.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-leg-tuck-strength-training-circuit",
+   "name": "Leg Tuck",
+   "equipment": "bar",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote source or reputable technique page was found for a hanging leg tuck with bent elbows. ACE's knee-tuck entries use a stability ball or TRX, which is not equivalent.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-pull-up-climbing-drill-1",
+   "name": "Pull-Up",
+   "equipment": "bar",
+   "risk_note": "(4) Overhead shoulder positions: the shoulder is up to 36% of injuries (Kolber 2010). This is an association for the overhead position in general, not a pull-up-specific finding.",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip; the same page lists pullups among muscle-strengthening examples)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Pull-ups — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/191/pull-ups/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "Grip, scapular set-up and control on the way down. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-pull-up-strength-training-circuit",
+   "name": "Pull-Up",
+   "equipment": "bar",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Arm Exercises | Pull-ups (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/191/pull-ups/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Pull-up form cues",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page has pull-up cues. The NIA 'avoid locking joints' tip conflicts with a full hang, so I did not use it.",
+   "risk_note": "(4) The shoulder is up to 36% of lifting injuries (Kolber 2010). The anterior-instability association (Kolber 2013) is for behind-the-neck pulldowns, not front pull-ups."
+  },
+  {
+   "id": "army-straight-arm-pull-climbing-drill-1",
+   "name": "Straight-Arm Pull",
+   "equipment": "bar",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote source or reputable page was found for a straight-arm scapular pull on a bar.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-straight-arm-pull-strength-training-circuit",
+   "name": "Straight-Arm Pull",
+   "equipment": "bar",
+   "risk_note": "(4) Overhead shoulder positions (Kolber 2010), association only.",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote text or reputable form page was found for a straight-arm scapular pull while hanging from a bar. ACE's 'Straight Arm Pressdown' is a cable exercise and not equivalent, so it was not linked."
+  },
+  {
+   "id": "army-chest-press",
+   "name": "Chest Press",
+   "equipment": "machine",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip, consistent with ACE's 'fully extended, but not locked' for the machine chest press)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Seated Chest Press Exercise Guide | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/188/seated-chest-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: seat height with handles at mid-chest, elbows extended but not locked, shoulder blades stay on the backrest)",
+     "what_it_adds": "Machine seat setup and range of motion",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(3) Pressing: bench press was 11.8% of exercise-specific gym injuries (Kemler 2022), and men have more pressing injuries (Coffey). (6) Machines are not risk-free and may encourage going past capacity (Kerr)."
+  },
+  {
+   "id": "army-lat-pull-down",
+   "name": "Lat Pull-Down",
+   "equipment": "machine",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Seated Lat Pulldown | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/158/seated-lat-pulldown/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers setting the thigh pad, bracing so the low back does not arch, leaning back no more than 30 degrees, and pulling to the top or middle of the chest by first lowering the shoulder blades.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source covers a lat pulldown, so there are no quotes.",
+   "risk_note": "(4) Overhead and 'high-five' shoulder positions: the behind-the-neck pulldown is associated with signs of anterior shoulder instability (Kolber 2013, association only), so pulling to the front of the chest, as ACE describes, avoids that position. (6) Machines are not risk-free (Kerr)."
+  },
+  {
+   "id": "army-lateral-raise",
+   "name": "Lateral Raise",
+   "equipment": "machine",
+   "risk_note": "(6) Machines are not risk-free: older adults are over-represented on machines, and machines may encourage exceeding capacity (Kerr). (4) The shoulder is up to 36% of injuries (Kolber 2010).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Lateral Raise (dumbbells) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/26/lateral-raise/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title and 'Equipment: Dumbbells' read). It uses dumbbells, not a machine.",
+     "what_it_adds": "How high to raise the arms and how to position the shoulders. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No body- or expert-channel film of a machine lateral raise was found. A search found only a small trainer clip (FIT.nl, about 3.6k views), which was not added."
+  },
+  {
+   "id": "army-leg-curl",
+   "name": "Leg Curl",
+   "equipment": "machine",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip, not leg-curl specific)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Lying Hamstrings Curl | Exercise Library | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/153/lying-hamstrings-curl/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: prone machine, knee aligned with the machine axis, avoid arching the back, use lighter resistance if the low back moves)",
+     "what_it_adds": "Same prone machine as the Army card: knee-to-axis alignment and the low-back compensation fault",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "Growing Stronger's knee curl is a standing ankle-weight exercise, not the prone machine, so I did not quote it.",
+   "risk_note": "(6) Machines are not risk-free and may encourage going past capacity (Kerr). ACE (link only) flags arching the low back."
+  },
+  {
+   "id": "army-leg-press",
+   "name": "Leg Press",
+   "equipment": "machine",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Seated Leg Press Exercise Guide | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/154/seated-leg-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers keeping the back and tailbone flat against the backrest, a roughly 90-degree knee start, heels flat on the plate, and ending at a relaxed, extended knee.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source covers a leg press, so there are no quotes.",
+   "risk_note": "(6) Machines are not risk-free: older adults are over-represented on machines, and machines may encourage lifting beyond capacity (Kerr)."
+  },
+  {
+   "id": "army-overhead-press",
+   "name": "Overhead Press",
+   "equipment": "machine",
+   "risk_note": "(4) Overhead positions: behind-the-neck pressing is associated with signs of anterior instability (Kolber 2013, association only). (6) Machines may encourage exceeding capacity (Kerr).",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Slowly raise both arms up over your head keeping your elbows slightly bent.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (from 'Overhead Arm Raise' with hand weights, an equivalent free-weight press)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "To prevent injury, don’t jerk or thrust weights into position.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Seated Shoulder Press (selectorized machine) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/186/seated-shoulder-press/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title, 'Equipment: Weight Machines / Selectorized' and Step 1 on seat height read)",
+     "what_it_adds": "Seat height and back support on the machine press. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "army-seated-row",
+   "name": "Seated Row",
+   "equipment": "machine",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Seated Row | Exercise Library | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/168/seated-row/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: chest-pad machine row, avoid leaning back and arching the low back, keep a neutral wrist)",
+     "what_it_adds": "Machine setup and the backward-lean fault",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(6) Machines are not risk-free (Kerr). (2) Leaning back to move more weight loads the low back."
+  },
+  {
+   "id": "army-triceps-extension",
+   "name": "Triceps Extension",
+   "equipment": "machine",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Triceps Pressdown | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/3/triceps-pressdown/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "This is the standing cable version of the same push-down elbow extension, not the Army's seated machine. It is still useful for the cue to keep the elbows close to the sides.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote source covers a machine triceps extension. The ACE page is a near-equivalent (cable), not the same machine.",
+   "risk_note": "(6) Machines are not risk-free (Kerr)."
+  },
+  {
+   "id": "army-trunk-extension",
+   "name": "Trunk Extension",
+   "equipment": "machine",
+   "risk_note": "(6) Machines are not risk-free (Kerr). (2) Overload of the low back: the trunk is the top injury site (Kerr; Quatman; Coffey).",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "Listen to your body. Overdoing muscle-strengthening exercises can cause exhaustion, sore joints, and muscle pain or injury.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable form page for a seated back-extension machine was found in the ACE sitemap or elsewhere."
+  },
+  {
+   "id": "army-trunk-flexion",
+   "name": "Trunk Flexion",
+   "equipment": "machine",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Warm up for muscle-strengthening activity by doing exercises with less weight.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general strength tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Seated Crunch | Exercise Library | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/291/seated-crunch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; the step text describes a seated ab machine with shin roller and handles)",
+     "what_it_adds": "The same kind of abdominal-crunch machine as the Army Trunk Flexion",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": "(2) The trunk is the top injury site and sprain/strain the top diagnosis (Kerr; Quatman; Coffey). (6) Machines may encourage going past capacity (Kerr)."
+  },
+  {
+   "id": "nhs-step-up",
+   "name": "Step-up",
+   "equipment": "other",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "The key for building balance is to step up and down slowly and in a controlled manner.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+     "checked": "source 2026-10-18 (page saved and read; last reviewed 7 November 2023)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t let your back leg do the work.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from PDF text extracted earlier in this workflow, Exercise 6 Step-ups. cdc.gov returned 403 today, so re-check in a browser.)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t let momentum do the work.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (as above)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Press your weight on the heel rather than ball or toes of your front leg as you lift.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (as above; the PDF breaks this sentence across lines)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Step-Up | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/28/step-up/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Gives knee-over-second-toe alignment, an upright torso, and a controlled step back down. It shows dumbbells, so it is a progression from the NHS bodyweight version.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "army-back-bridge",
+   "name": "Back Bridge",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Glute Bridge — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/49/glute-bridge/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read). The Army version straightens one leg.",
+     "what_it_adds": "Keeping the pelvis level and the low back neutral while bridging. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote text was found for bridging."
+  },
+  {
+   "id": "army-bend-and-reach",
+   "name": "Bend and Reach",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote or ACE page matches this Army drill. The NIA 'bend from the hips' tip conflicts with its intended spinal flexion, so I did not use it. The only videos found are unofficial reuploads (channels 'Modern Warfare', 'MrCiperez'), which I did not add.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-bent-leg-body-twist",
+   "name": "Bent-Leg Body Twist",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=QxsmVexWs_4",
+     "title": "Knee rolls",
+     "channel": "NHS inform",
+     "tier": "body",
+     "views": "433,586",
+     "checked": "source 2026-10-18 (YouTube watch page read: title, channel and description confirmed). It is a near match: knee rolls start with the feet on the floor, while the Army version lifts the hips and knees to 90 degrees. The rotation of bent legs together, with the upper back kept down, is the same.",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote text or ACE page was found for this lying bent-leg trunk rotation.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-bent-leg-lateral-raise",
+   "name": "Bent-Leg Lateral Raise",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "When doing leg lifts, breathe out as you lift your leg and breathe in as you lower it.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (general Safety Tips page)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Side Lying Hip Abduction — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/38/side-lying-hip-abduction/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read). It uses a straight top leg; the Army version keeps the knees bent and the feet together, like a clamshell.",
+     "what_it_adds": "Keeping the pelvis stacked and not rolling back. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=O2KPabIoPPk",
+     "title": "Clamshell in Sidelying Exercise for the Hips - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel)",
+     "views": "56496",
+     "qualification": "\"I’m a Physical Therapist and Doctor of Physical Therapy.\", read at https://www.askdoctorjo.com/about/",
+     "rechecked": "ok"
+    }
+   ]
+  },
+  {
+   "id": "army-bent-leg-raise",
+   "name": "Bent-Leg Raise",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=MReXsU3n1JY",
+     "title": "4 FOR THE CORE EXERCISE 1: BENT-LEG RAISE",
+     "channel": "The United States Army H2F Academy",
+     "tier": "body",
+     "views": "32732",
+     "checked": "source (watch page fetched: title, channel and view count read, and the description matches the card: fingers under the small of the back, hips and knees to 90 degrees. The channel describes itself as 'the official US Army Physical Fitness School channel'; video not watched)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote or ACE page matches this exercise. The H2F channel's 'Hip Stability Drill Exercise 3 - Bent Leg Raise' is a different exercise, so I did not use it.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-calf-stretch",
+   "name": "Calf Stretch",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "If you need to, lean on the back of a chair or on a wall to support yourself.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source 2026-10-18 (page saved and read; same split-stance calf stretch)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source 2026-10-18",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop the exercise immediately if you feel any pain or become unwell.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "checked": "source 2026-10-18 (safety text attached to the NHS 'calf stretch' video on this page)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Standing Dorsi-Flexion (Calf Stretch) | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/152/standing-dorsi-flexion-calf-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers a split stance with both feet flat and toes forward, and keeping the back heel pressed into the floor without letting the hips tilt forward.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "army-extend-and-flex",
+   "name": "Extend and Flex",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (general stretching tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Cobra Stretch — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/16/cobra/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read). It covers only the 'extend' (hip-sag) half of the drill.",
+     "what_it_adds": "Cues for the back-extension half. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No film was found for the combined extend-and-flex stretch."
+  },
+  {
+   "id": "army-forward-lunge-preparation-drill",
+   "name": "Forward Lunge",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Butt & Hip Exercises | Forward Lunge (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/8/forward-lunge/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Forward lunge form cues",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page has lunge cues.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-groin-stretch",
+   "name": "Groin Stretch",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No health-body or qualified-expert film of a standing lateral-lunge groin stretch was confirmed. The Cleveland Clinic 'How to do a groin stretch.' (4xOP3JM23ro) is a seated chair yoga pose, not this stretch. The best lateral-lunge clip, by Rehab My Patient (xeG_I2_5sQA, 4,804 views), was not used because its presenter's qualification could not be checked. ACE 'Lateral Lunge' is a dumbbell strength exercise, not a stretch.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-hamstring-stretch",
+   "name": "Hamstring Stretch",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Always bend forward from the hips, not the waist. If you keep your back straight, you’re bending the right way.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (general Safety Tips page; fits a seated forward reach)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Stretch when your muscles are warmed up and after endurance or strength exercises, remember to breathe, and don’t stretch so far that it hurts.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable page was found for the seated two-leg reach. The film already linked (NHS inform) is body tier, so no new film was needed."
+  },
+  {
+   "id": "army-high-jumper",
+   "name": "High Jumper",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote or ACE page matches. The only video found was an unofficial reupload ('Modern Warfare'). The Army CIMT clip shows the modified version only. Nothing was added.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-i-raise",
+   "name": "I Raise",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Prone Scapular (Shoulder) Stabilization Exercises (I, Y, T, W, O) | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "The 'I' formation: lift the arms with palms facing in, keep the head in line with the upper spine, and drive the lift from the shoulders, not the low back.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=Yv6sUKOwOY8",
+     "title": "Prone ITWYs for Shoulder - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "views": "244,398",
+     "qualification": "\"I'm a Physical Therapist and Doctor of Physical Therapy.\" Read at https://www.askdoctorjo.com/about",
+     "checked": "source 2026-10-18 (watch page read; the description covers prone I, T, W and Y raises; the qualification was read on her own site)",
+     "rechecked": "ok"
+    }
+   ],
+   "risk_note": ""
+  },
+  {
+   "id": "army-l-raise",
+   "name": "L Raise",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Prone Scapular (Shoulder) Stabilization Series: I, Y, T, W, O formation — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read). Its W position, with elbows bent, is the closest to the Army L raise.",
+     "what_it_adds": "Shoulder-blade setting and neck position when lying face down. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote text or body/expert film was found for a prone raise with the elbows bent to 90 degrees."
+  },
+  {
+   "id": "army-lateral-leg-raise",
+   "name": "Lateral Leg Raise",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Side Lying Hip Abduction | Exercise Library | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/38/side-lying-hip-abduction/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "The same side-lying movement, with form cues",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=OqoMSPjQxps",
+     "title": "Hip Stability Drill Exercise 1 - Lateral Leg Raise",
+     "channel": "U.S. Army Holistic Health and Fitness",
+     "tier": "body",
+     "views": "50759",
+     "checked": "source (watch page fetched: title, channel and view count read; video not watched)",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=g9FtnmsIYgI",
+     "title": "Side Lying Hip Abduction",
+     "channel": "Baptist Health",
+     "tier": "body",
+     "views": "761545",
+     "checked": "source (watch page fetched; the description reads 'lying down on your side with your top leg straight and your bottom leg bent for support'. This is a health-system channel. Its bent bottom leg differs a little from the Army legs-together start)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "Growing Stronger's side hip raise is done standing, not side-lying, so I did not quote it.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-leg-tuck-and-twist",
+   "name": "Leg-Tuck and Twist",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable page or health-body or expert film was found for a reclining seated leg tuck with rotation. The only YouTube matches were gym or trainer clips with very few views (e.g. Anytime Fitness, 2,078 views), which were not used.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-medial-leg-raise",
+   "name": "Medial Leg Raise",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "When doing leg lifts, breathe out as you lift your leg and breathe in as you lower it.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (general Safety Tips page)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Side Lying Hip Adduction — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/39/side-lying-hip-adduction/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "The same bottom-leg raise for the inner thigh. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=y4BmebZvZRE",
+     "title": "Hip Adduction in Sidelying - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel)",
+     "views": "20000",
+     "qualification": "\"I’m a Physical Therapist and Doctor of Physical Therapy.\", read at https://www.askdoctorjo.com/about/",
+     "rechecked": "ok"
+    }
+   ]
+  },
+  {
+   "id": "army-mountain-climber",
+   "name": "Mountain Climber",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Butt & Hip Exercises | Mountain Climbers (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/258/mountain-climbers/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Mountain climber form cues",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page covers mountain climbers.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-overhead-arm-pull",
+   "name": "Overhead Arm Pull",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "Stop the exercise immediately if you feel any pain or become unwell.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "checked": "source 2026-10-18 (safety text attached to the NHS 'tricep stretch' video on this page)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Overhead Triceps Stretch | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/174/overhead-triceps-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers keeping the shoulder down away from the ear, light pressure just above the elbow, and a 15–30 second hold. ACE has no side lean, unlike the Army version.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "title": "NHS Strength and flexibility - tricep stretch",
+     "channel": "NHS website (nhs.uk)",
+     "tier": "body",
+     "checked": "source 2026-10-18 (page read; video listed as 'Video: NHS Strength and flexibility - tricep stretch', media last reviewed 3 May 2025; it plays on nhs.uk through Brightcove, not YouTube)",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=Uvk1Y8O1_yM",
+     "title": "Tricep Stretch",
+     "channel": "Baptist Health",
+     "tier": "body",
+     "views": "249,104",
+     "checked": "source 2026-10-18 (watch page read; the narration describes both arms overhead and pulling the bent elbow toward the head)",
+     "rechecked": "ok"
+    }
+   ],
+   "risk_note": ""
+  },
+  {
+   "id": "army-power-jump",
+   "name": "Power Jump",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Squat Jump — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/222/squat-jump/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "How to take off and land softly. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=tZSYZdtbONc",
+     "title": "How to do a Squat Jump | Proper Form & Technique | NASM",
+     "channel": "National Academy of Sports Medicine (NASM)",
+     "tier": "body",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel)",
+     "views": "14696",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=5xv0DKqe5XQ",
+     "title": "Pre-Plyometrics (Metric 5) ACL Exercise: Mini Squat Jump",
+     "channel": "MedStar Health",
+     "tier": "body",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel; this is a health-system channel)",
+     "views": "721619",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote text on jumping or landing technique was found."
+  },
+  {
+   "id": "army-prone-row",
+   "name": "Prone Row",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Prone Scapular (Shoulder) Stabilization Exercises | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: prone I/Y/T/W/O arm lifts, brace and lift through the shoulders not the low back)",
+     "what_it_adds": "Related prone arm-lift positions (not the Army row itself)",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=apV88sJ-Rtc",
+     "title": "Preparation Drill Exercise 8: Prone Row",
+     "channel": "The United States Army H2F Academy",
+     "tier": "body",
+     "views": "11203",
+     "checked": "source (watch page fetched: title, channel and views read. The channel describes itself as 'the official US Army Physical Fitness School channel'; video not watched)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote page matches the Army prone row.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-push-up",
+   "name": "Push-Up",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (the page names pushups among bodyweight strength exercises)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Push-Ups | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/41/push-up/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers shoulders over hands, bracing the core, glutes and quads, and the common mistake: \"Do not allow your low back to sag or your hips to hike upwards\".",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "army-quadraplex",
+   "name": "Quadraplex",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Bird Dog — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/14/bird-dog/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "Keeping the trunk from sagging or rotating while the opposite arm and leg are raised. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote text was found for this exercise."
+  },
+  {
+   "id": "army-rear-lunge-preparation-drill",
+   "name": "Rear Lunge",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Butt & Hip Exercises | Reverse Lunge (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/319/reverse-lunge/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Reverse lunge form cues",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page has lunge cues.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-rear-lunge-recovery-drill",
+   "name": "Rear Lunge",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Standing Lunge Stretch | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/137/standing-lunge-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, first steps read)",
+     "what_it_adds": "A near match: ACE steps forward into the lunge rather than back, but the stretch is in the same split position. It cues bracing and avoiding sideways tilt or sway.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=5w_WRPqYZW4",
+     "title": "Exercises to prevent back pain: standing hip flexor stretch",
+     "channel": "Ohio State Wexner Medical Center",
+     "tier": "body",
+     "views": "45,941",
+     "checked": "source 2026-10-18 (watch page read: title and channel confirmed. The description is about desk workers. The standing split-stance hip-flexor stretch matches the Army drill's stretch of the front of the thigh and hip, but the exact stance was not checked frame by frame.)",
+     "rechecked": "ok"
+    }
+   ],
+   "risk_note": ""
+  },
+  {
+   "id": "army-rower",
+   "name": "Rower",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote text, reputable form page or suitable film was found for the Army Rower (a supine-to-seated tuck)."
+  },
+  {
+   "id": "army-side-bridge",
+   "name": "Side Bridge",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Ab Exercises | Side Plank (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/303/side-plank/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "Side plank alignment cues",
+     "rechecked": "wrong_exercise",
+     "recheck_note": "source 200, but the page is a side plank on a BOSU dome ('Place the right elbow on top of the BOSU dome'). The Army side bridge is done on the floor, and the card does not mention this."
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote page covers the side bridge.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-single-leg-over-hip-stability-drill",
+   "name": "Single Leg Over",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No confirmed health-body film or reputable page was found for a supine single-knee-over rotation stretch. ACE 'Leg Crossover Stretch' (ankle over knee, knee pushed away) and 'Supine Spinal Twist' (side-lying) are different, and the Children's Hospital Colorado 'Core Exercise: Supine Twist' (TeAhhVD2q1c) is described as core strengthening, so it is not clearly this stretch.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-single-leg-over-recovery-drill",
+   "name": "Single-Leg Over",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "If you’ve had hip or back surgery, talk with your doctor before trying this stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (from NIA's seated 'Back' twist stretch, an equivalent spinal-rotation stretch)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Supine Spinal Twist with Rib Grab and Progressions — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/229/supine-spinal-twist-with-rib-grab-and-progressions/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "A lying spinal twist similar to the Single-Leg Over. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No body/expert film matching this stretch was found."
+  },
+  {
+   "id": "army-single-leg-push-up",
+   "name": "Single-Leg Push-Up",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Arm Exercises | Push-up with Single-leg Raise (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/42/push-up-with-single-leg-raise/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: rigid torso, lift one leg with the knee extended, avoid hip rotation)",
+     "what_it_adds": "The same exercise, with the cue to avoid rotating the hip",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=jEPzlOB8IXo",
+     "title": "Conditioning Drill 1 Exercise 5 - Single Leg Pushup",
+     "channel": "U.S. Army Holistic Health and Fitness",
+     "tier": "body",
+     "views": "18493",
+     "checked": "source (watch page fetched: title, channel and views read; video not watched)",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=aVW1vXEvPeY",
+     "title": "One Leg Push Ups | Single Leg Push-Up Benefits and Technique",
+     "channel": "Mark's Daily Apple",
+     "tier": "trainer",
+     "views": "45429",
+     "checked": "source (watch page fetched: title, channel and views read; presenter qualifications not checked; video not watched)",
+     "rechecked": "not_reputable",
+     "recheck_note": "film exists (Mark's Daily Apple, 45,429 views). It is a lifestyle-brand channel with no checked qualification, so it fails the reputable bar."
+    }
+   ],
+   "nothing_found": "No may_quote page covers this push-up variant.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-single-leg-tuck",
+   "name": "Single-Leg Tuck",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No health-body or qualified-expert film or reputable page was found for a side-lying, elbow-supported hip and knee tuck. The search found only low-view generic side-lying hip-flexion clips (e.g. Rehab My Patient, Medbridge), which were not used.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-squat-bender",
+   "name": "Squat Bender",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Lower yourself as if you're going to sit down, by bending your knees to no more than a right angle. Keep your back straight and do not let your knees go past your toes.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source (NHS 'Squats' text, equivalent to the squat half; page last reviewed 20 September 2024)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Always bend forward from the hips, not the waist. If you keep your back straight, you’re bending the right way.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (fits the forward-bend half)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable page or film was found for the combined squat and forward-bend drill."
+  },
+  {
+   "id": "army-t-raise",
+   "name": "T Raise",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Prone Scapular (Shoulder) Stabilization Exercises | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; the T formation step was read)",
+     "what_it_adds": "Prone T arm lift: lift through the shoulders, not the low back, with the head kept in line",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=1Cz2cMewqBM",
+     "title": "Shoulder Stability Drill Exercise 2 - T Raise",
+     "channel": "U.S. Army Holistic Health and Fitness",
+     "tier": "body",
+     "views": "18302",
+     "checked": "source (watch page fetched: title, channel and views read; video not watched)",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=Ygok5LNB1tY",
+     "title": "Prone Ts for Shoulder - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "views": "20346",
+     "qualification": "\"I’m a Physical Therapist and Doctor of Physical Therapy.\" (read at https://www.askdoctorjo.com/about/)",
+     "checked": "source (watch page fetched: title, channel and views read; video not watched)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote page covers prone T raises.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-thigh-stretch",
+   "name": "Thigh Stretch",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Grab the top of your left foot and gently pull your heel towards your left buttock to stretch the front of the thigh.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source 2026-10-18 (same side-lying thigh stretch)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Side Lying Quadriceps Stretch | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/149/side-lying-quadriceps-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Covers hips and shoulders stacked, bracing for a neutral spine, and gently pulling the heel toward the tailbone with the thigh pointing straight out from the hip.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "army-v-up",
+   "name": "V-Up",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [
+    {
+     "title": "How To Do V-Ups — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/242/v-ups/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "Progressions and control of the lowering phase. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "nothing_found": "No may_quote text or body/expert V-up film was found."
+  },
+  {
+   "id": "army-w-raise",
+   "name": "W Raise",
+   "equipment": "none",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Prone Scapular (Shoulder) Stabilization Exercises | ACE",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; the series includes the W formation)",
+     "what_it_adds": "Prone W arm lift, part of the same series",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=t4k4KfQYK84",
+     "title": "Shoulder Stability Drill Exercise 5 - W Raise",
+     "channel": "U.S. Army Holistic Health and Fitness",
+     "tier": "body",
+     "views": "14145",
+     "checked": "source (watch page fetched: title, channel and views read; video not watched)",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=CgYUs74-j60",
+     "title": "Prone Ws for Shoulder - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "views": "25232",
+     "qualification": "\"I’m a Physical Therapist and Doctor of Physical Therapy.\" (read at https://www.askdoctorjo.com/about/)",
+     "checked": "source (watch page fetched: title, channel and views read; video not watched)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote page covers prone W raises.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-windmill",
+   "name": "Windmill",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable page, quote, or health-body or expert film was found for the Army bodyweight windmill (rotating toe-touch). ACE's 'High Windmill' and 'Low Windmill' are kettlebell exercises, and YouTube 'windmill toe touch' clips were from low-view trainer or app channels.",
+   "risk_note": ""
+  },
+  {
+   "id": "army-y-raise",
+   "name": "Y Raise",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [],
+   "links": [
+    {
+     "title": "Prone Scapular (Shoulder) Stabilization Series: I, Y, T, W, O formation — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "Includes the prone Y position. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=Xgi0r1pYmvk",
+     "title": "Prone Ys for Shoulder - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel)",
+     "views": "13274",
+     "qualification": "\"I’m a Physical Therapist and Doctor of Physical Therapy.\", read at https://www.askdoctorjo.com/about/",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote text was found for the prone Y raise."
+  },
+  {
+   "id": "nhs-buttock-stretch",
+   "name": "Buttock stretch",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Stretch when your muscles are warmed up and after endurance or strength exercises, remember to breathe, and don’t stretch so far that it hurts.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general stretching advice)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Safety Tips, matched verbatim; general stretching tip)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Butt & Hip Exercises | Supine 90-90 Hip Rotator Stretch (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/148/supine-90-90-hip-rotator-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; steps read: on the back, foot crossed onto the opposite knee, pull the thigh toward the chest)",
+     "what_it_adds": "The same cross-over buttock stretch, done with the feet on a bench",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-calf-stretch-how-to-stretch-after-exercising",
+   "name": "Calf stretch",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source 2026-10-18 (card's own page; last reviewed 16 March 2026)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop the exercise immediately if you feel any pain or become unwell.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "checked": "source 2026-10-18 (safety text attached to the NHS 'calf stretch' video)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Standing Dorsi-Flexion (Calf Stretch) | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/152/standing-dorsi-flexion-calf-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200, instructions read)",
+     "what_it_adds": "Same split-stance calf stretch: back heel pressed down, toes forward, hips not tilting forward.",
+     "rechecked": "not rechecked"
+    },
+    {
+     "title": "Strength and Flex exercise plan: How-to videos (calf stretch)",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "body": "NHS website (nhs.uk)",
+     "checked": "source 2026-10-18",
+     "what_it_adds": "The NHS's own calf stretch demonstration video, with safety information.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-hamstring-stretch",
+   "name": "Hamstring stretch",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source (page last reviewed 16 March 2026)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Stretch when your muscles are warmed up and after endurance or strength exercises, remember to breathe, and don’t stretch so far that it hurts.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Supine Hamstrings Stretch — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/235/supine-hamstrings-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "The same lying stretch, with progressions. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-heel-digs",
+   "name": "Heel digs",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote page beyond the card's own NHS source covers heel digs.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-heel-to-toe-walk",
+   "name": "Heel-to-toe walk",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Try to perform at least 5 steps. As you progress, move away from the wall.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+     "checked": "source 2026-10-18 (card's own page)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Have a sturdy chair, person, or wall nearby to hold onto for support.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (balance safety tips on a page that lists 'The heel-to-toe walk')",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Go slowly and mindfully to prevent falling.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Listen to your body. If you feel unsteady, take action to steady yourself.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [],
+   "nothing_found": "No ACE or other link_only page for heel-to-toe walking was found.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-inner-thigh-stretch",
+   "name": "Inner thigh stretch",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source (page last reviewed 16 March 2026)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Seated Butterfly Stretch — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/216/seated-butterfly-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "The same soles-together stretch. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-knee-bends",
+   "name": "Knee bends",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No equivalent per-exercise page was found beyond the card's own NHS source. Growing Stronger's chair squat is deeper, so I did not use it.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-knee-lifts",
+   "name": "Knee lifts",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote text beyond the card's own NHS warm-up wording, and no reputable form page, was found for marching knee lifts.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-lunges",
+   "name": "Lunges",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source (page last reviewed 20 September 2024)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "These exercises are not suitable for people with an existing knee injury.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Lunge — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/363/lunge/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read). It uses dumbbells; the movement is the same.",
+     "what_it_adds": "Knee tracking and torso position in the lunge. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-march-on-the-spot",
+   "name": "March on the spot",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote page beyond the card's own NHS source covers marching on the spot.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-neck-rotation",
+   "name": "Neck rotation",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=eme0i13WgTk",
+     "title": "Head turn",
+     "channel": "NHS inform",
+     "tier": "body",
+     "views": "304,607",
+     "checked": "source 2026-10-18 (watch page read; the description says it is from NHS inform's exercises for neck problems)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote text beyond the card's own NHS wording, and no reputable link page, was found for neck rotation. The NHS inform neck exercise page returned 403, so it is not linked.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-neck-stretch",
+   "name": "Neck stretch",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Build up slowly and aim to gradually increase the repetitions of each exercise over time.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+     "checked": "source (page last reviewed 20 November 2023)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Lateral Neck Flexion — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/202/lateral-neck-flexion/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "The same side-bend stretch for the neck. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-shoulder-rolls",
+   "name": "Shoulder rolls",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [],
+   "nothing_found": "No may_quote page beyond the card's own NHS source covers shoulder rolls.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-sideways-bend",
+   "name": "Sideways bend",
+   "equipment": "none",
+   "quotes": [],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=EPVVGkLmCSU",
+     "title": "Physio Activity: Side Bend",
+     "channel": "Nottinghamshire Healthcare",
+     "tier": "body",
+     "views": "2,044",
+     "checked": "source 2026-10-18 (watch page read; the description says 'Standing • Bend sideways at the waist', made for Recap Health by an NHS trust)",
+     "rechecked": "ok"
+    },
+    {
+     "url": "https://www.youtube.com/watch?v=Vko-SJok-fk",
+     "title": "How to do a standing side bend.",
+     "channel": "Cleveland Clinic",
+     "tier": "body",
+     "views": "406,832",
+     "checked": "source 2026-10-18 (watch page read; it is a yoga version shown by Cleveland Clinic's Yoga Program Manager and may use an overhead arm, so it is a near match only)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No may_quote text beyond the card's own NHS wording, and no reputable link page, was found. ACE 'Standing Triangle Straddle Bends' is a different, overhead-reach version.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-sideways-walking",
+   "name": "Sideways walking",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Consider doing the exercises near a wall or a stable chair just in case you lose your balance.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+     "checked": "source (page last reviewed 7 November 2023)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Wear comfortable, stable footwear or go barefoot to have grip on the floor or mat.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (balance safety tips; the page lists 'Walking backward or sideways')",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Listen to your body. If you feel unsteady, take action to steady yourself.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=jbCscAwT8Ts",
+     "title": "Seniors: Side Stepping to Improve Balance and Stability",
+     "channel": "Balance Builders by Doug Weiss",
+     "tier": "trainer",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel). Listed as trainer tier because the DPT credential was seen only in search snippets, not on his own site.",
+     "views": "21392",
+     "rechecked": "not_reputable",
+     "recheck_note": "film exists (Balance Builders by Doug Weiss). The DPT credential was seen only in search snippets and is not verified."
+    }
+   ],
+   "nothing_found": "No reputable form page for side-stepping was found."
+  },
+  {
+   "id": "nhs-simple-grapevine",
+   "name": "Simple grapevine",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Have a sturdy chair, person, or wall nearby to hold onto for support.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; balance-exercise safety tips; this page lists 'Walking backward or sideways')",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Go slowly and mindfully to prevent falling.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; balance safety tips)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Listen to your body. If you feel unsteady, take action to steady yourself.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; balance safety tips)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Wear comfortable, stable footwear or go barefoot to have grip on the floor or mat.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; balance safety tips)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Three Types of Exercise Can Improve Your Health and Physical Ability (NIA)",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "body": "National Institute on Aging (NIA), NIH",
+     "checked": "source (page downloaded and read)",
+     "what_it_adds": "Balance-exercise safety tips for older adults",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=VqPn7Gfc4MY",
+     "title": "Home Exercise: Simple Grapevine",
+     "channel": "The Chair Lady",
+     "tier": "trainer",
+     "views": "5577",
+     "checked": "source (watch page fetched: title, channel, views and description read; presenter qualifications not checked; video not watched). Modest view count. A physio clip ('Grapevine - Physio Exercise', channel Why Things Hurt) had 16 views, and its qualification was stated only in the video description, so I did not add it.",
+     "rechecked": "not_reputable",
+     "recheck_note": "film exists (The Chair Lady, 5,577 views), but the presenter's qualification was never checked"
+    }
+   ],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-squats",
+   "name": "Squats",
+   "equipment": "none",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source 2026-10-18 (card's own page; last reviewed 20 September 2024)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "These exercises are not suitable for people with an existing knee injury.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source 2026-10-18",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t lean your weight too far forward or onto your toes when standing up.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from PDF text extracted earlier in this workflow, Exercise 1 Squats, a bodyweight squat toward a chair. cdc.gov returned 403 today, so re-check in a browser.)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Don’t hold your breath during strength exercises — breathe out during the effort and breathe in as you relax.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (squats named on the page)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Bodyweight Squat | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/135/bodyweight-squat/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200)",
+     "what_it_adds": "A beginner bodyweight squat guide with knee-over-second-toe and heels-flat cues.",
+     "rechecked": "not rechecked"
+    },
+    {
+     "title": "Strength and Flex exercise plan: How-to videos (squat)",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "body": "NHS website (nhs.uk)",
+     "checked": "source 2026-10-18",
+     "what_it_adds": "The NHS's own squat demonstration video.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-thigh-stretch",
+   "name": "Thigh stretch",
+   "equipment": "none",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "If you’ve had hip or back surgery, talk with your doctor before doing this stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (from NIA's standing 'Thigh' stretch, an equivalent quadriceps stretch)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "If you can’t grab your ankle, loop a resistance band, belt, or towel around your foot and hold both ends.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "If you have an injury, medical condition or you’re pregnant, you may need to make changes to some stretches. Talk to a physiotherapist or healthcare professional about which ones are right for you.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/",
+     "checked": "source (page last reviewed 16 March 2026)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Side Lying Quadriceps Stretch — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/149/side-lying-quadriceps-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "The same side-lying quad stretch. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-ankle-stretch",
+   "name": "Ankle stretch",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, matched verbatim. The same booklet's seated 'Ankles' stretch, toes toward then away, is the equivalent exercise; this tip comes from its general Safety Tips)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "body": "National Institute on Aging (NIA), NIH",
+     "checked": "source (PDF downloaded and text read)",
+     "what_it_adds": "An NIA seated ankle stretch with hold times (10 to 30 seconds each way)",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=87BeiyTFZyU",
+     "title": "Ankle Stretch for Older Adults",
+     "channel": "National Institute on Aging",
+     "tier": "body",
+     "views": "111640",
+     "checked": "source (watch page fetched: title, channel @NIHAging and views read; video not watched)",
+     "rechecked": "ok"
+    }
+   ],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-calf-raises",
+   "name": "Calf raises",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t lean on the counter or chair—use it for balance only.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from PDF text extracted earlier in this workflow, Exercise 3 Toe Stands, the same movement with a chair. cdc.gov returned 403 today, so re-check in a browser.)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Breathe regularly throughout the exercise.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (as above)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Standing Calf Raises - Wall | ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/73/standing-calf-raises-wall/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source 2026-10-18 (HTTP 200)",
+     "what_it_adds": "A supported (wall) bodyweight calf raise, with single-leg and foot-angle variations for progression.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-calf-stretch-flexibility-exercises",
+   "name": "Calf stretch",
+   "equipment": "chair or wall",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Build up slowly and aim to gradually increase the repetitions of each exercise over time.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/",
+     "checked": "source (page last reviewed 20 November 2023)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Stretch when your muscles are warmed up and after endurance or strength exercises, remember to breathe, and don’t stretch so far that it hurts.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Standing Dorsi-Flexion (Calf Stretch) — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/152/standing-dorsi-flexion-calf-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "A standing calf stretch. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-chest-stretch",
+   "name": "Chest stretch",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Stretch when your muscles are warmed up and after endurance or strength exercises, remember to breathe, and don’t stretch so far that it hurts.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (page downloaded and read; general stretching advice)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, matched verbatim; general stretching tip)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Chest Exercises | Standing Chest Stretch (ACE)",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/209/standing-chest-stretch/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded, HTTP 200, title read)",
+     "what_it_adds": "A standing version of the chest stretch",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-hamstring-stretch-with-thigh-contraction",
+   "name": "Hamstring stretch with thigh contraction",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source 2026-10-18 (card's own page)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "These exercises are not suitable for people with an existing knee injury.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source 2026-10-18",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=u55F2jOzBVI",
+     "title": "How to do a seated hamstring stretch",
+     "channel": "MassGeneralHospital",
+     "tier": "body",
+     "views": "194,834",
+     "checked": "source 2026-10-18 (watch page read; a hospital channel, demonstrated by Dan Murphy of The Clubs at Charles River Park. It shows a seated hamstring stretch without the NHS thigh-contraction element.)",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No reputable link page was found for this seated stretch with thigh contraction.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-hip-marching",
+   "name": "Hip marching",
+   "equipment": "chair or wall",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "For these exercises, choose a solid, stable chair that does not have wheels.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+     "checked": "source (page last reviewed 18 January 2024)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid chairs with arms, as these will restrict your movement.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+     "checked": "source",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "If you're not sure if they’re suitable for you, check with a GP or a health professional involved with your care.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/",
+     "checked": "source",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [],
+   "films": [],
+   "nothing_found": "No reputable form page or body/expert film of seated hip marching was found."
+  },
+  {
+   "id": "nhs-leg-extension",
+   "name": "Leg extension",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Try not to lean forward.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, 'Back Leg Raise': the same standing exercise, leg lifted straight back behind a chair; matched verbatim)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "The leg you’re standing on should be slightly bent.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Back Leg Raise, matched verbatim)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop if you feel pain.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Safety Tips, matched verbatim)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "body": "National Institute on Aging (NIA), NIH",
+     "checked": "source (PDF downloaded and text read)",
+     "what_it_adds": "NIA Back Leg Raise steps, with a progression to ankle weights",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-mini-squats",
+   "name": "Mini-squats",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t lean your weight too far forward or onto your toes when standing up.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from PDF text extracted earlier in this workflow, Exercise 1 Squats, whose Note 1 includes a shallow 4-to-6-inch version. cdc.gov returned 403 today, so re-check in a browser.)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "avoid",
+     "text": "Avoid “locking” your arm and leg joints in a straight position.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (squats named on the page)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [],
+   "nothing_found": "No link_only page for a chair-supported mini-squat was found. ACE's bodyweight squat goes deeper and has no support, so it is not linked.",
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-one-leg-stand",
+   "name": "One-leg stand",
+   "equipment": "chair or wall",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Stand on one foot behind a sturdy chair, holding on for balance.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA 'Stand on One Foot')",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "When you are steady on your feet, try doing the exercises with your eyes closed.",
+     "body": "National Institute on Aging (NIA), NIH — Workout to Go, Publication No. 11-4258 (govinfo copy)",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source ('Challenge yourself to improve your balance')",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Go slowly and mindfully to prevent falling.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/four-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source (balance safety tips)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Consider doing the exercises near a wall or a stable chair just in case you lose your balance.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/",
+     "checked": "source (page last reviewed 7 November 2023)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Single Leg Stand — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/112/single-leg-stand/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "Progressions for standing on one leg. Link only.",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "films": []
+  },
+  {
+   "id": "nhs-sideways-leg-lift",
+   "name": "Sideways leg lift",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Don’t lock your knee on the supporting leg.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF via web.archive.org, matched verbatim, 'Side Hip Raise': the same standing side leg lift behind a chair. Single item quoted, check the Tufts no-change condition)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Keep your toes facing forward throughout the move.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Side Hip Raise)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "It is very important to do this exercise in a slow, controlled motion.",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (archived PDF, matched verbatim, Side Hip Raise note)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Keep your back straight and your toes facing forward.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, 'Side Leg Raise', matched verbatim)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Growing Stronger: Strength Training for Older Adults (Side Hip Raise)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "body": "Growing Stronger (Tufts University, hosted by CDC)",
+     "checked": "source (archived copy read; the CDC URL returns 403 to scripted downloads)",
+     "what_it_adds": "Full step-by-step side hip raise with ankle-weight progression",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-sit-to-stand",
+   "name": "Sit-to-stand",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "The slower the repetitions, the better.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+     "checked": "source 2026-10-18 (card's own page; this line is not in the card text)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t sit down too quickly.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from PDF text extracted earlier in this workflow, Exercise 1 Squats, which lowers to a chair. cdc.gov returned 403 today, so re-check in a browser.)",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "tip",
+     "text": "Have a sturdy chair, person, or wall nearby to hold onto for support.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.nia.nih.gov/health/exercise-and-physical-activity/three-types-exercise-can-improve-your-health-and-physical",
+     "checked": "source 2026-10-18 (balance tips on a page that lists 'Practicing standing from a sitting position')",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop the exercise immediately if you feel any pain or become unwell.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "checked": "source 2026-10-18 (safety text attached to the NHS 'sit to stand' video)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Strength and Flex exercise plan: How-to videos (sit to stand)",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "body": "NHS website (nhs.uk)",
+     "checked": "source 2026-10-18",
+     "what_it_adds": "The NHS's own sit-to-stand demonstration video, plus a harder 'sit to stand with calf raise' version.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-thigh-contraction",
+   "name": "Thigh contraction",
+   "equipment": "chair or wall",
+   "risk_note": "",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Tip: for more of a challenge, perform with an ankle weight",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source (page last reviewed 20 September 2024)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "These exercises are not suitable for people with an existing knee injury.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=VuJZ6dqMf8M",
+     "title": "Seated Knee Extension (LAQ) - Ask Doctor Jo",
+     "channel": "AskDoctorJo",
+     "tier": "expert",
+     "checked": "source (video page and YouTube oEmbed confirm the title and channel)",
+     "views": "211443",
+     "qualification": "\"I’m a Physical Therapist and Doctor of Physical Therapy.\", read at https://www.askdoctorjo.com/about/",
+     "rechecked": "ok"
+    }
+   ],
+   "nothing_found": "No reputable form page was found for the seated straight-leg hold."
+  },
+  {
+   "id": "nhs-upper-body-twist",
+   "name": "Upper-body twist",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "stop_if",
+     "text": "If you’ve had hip or back surgery, talk with your doctor before trying this stretch.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, 'Back' stretch: a seated twist turning from the waist without moving the hips, equivalent to this card; matched verbatim)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Never “bounce” into a stretch.",
+     "body": "National Institute on Aging (NIA), NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "checked": "source (NIA Workout to Go PDF, Safety Tips, matched verbatim)",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH",
+     "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+     "body": "National Institute on Aging (NIA), NIH",
+     "checked": "source (PDF downloaded and text read)",
+     "what_it_adds": "NIA seated back-twist steps with hold times and a surgery caution",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [
+    {
+     "url": "https://www.youtube.com/watch?v=FpIfMyfpCk0",
+     "title": "Back Stretch for Older Adults",
+     "channel": "National Institute on Aging",
+     "tier": "body",
+     "views": "161542",
+     "checked": "source (watch page fetched: title, channel and views read. The video was not watched, so it is not confirmed to be the seated twist; it is assumed to match NIA's booklet 'Back' stretch, which is a seated twist. Check before shipping)",
+     "rechecked": "wrong_exercise",
+     "recheck_note": "film exists (NIA, 161,542 views, 156 s). The description only says 'This back stretch is a flexibility exercise'. The claimed seated-twist match is unverified (captions not retrievable), so the failing verdict applies until someone watches it."
+    }
+   ],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-wall-press-up",
+   "name": "Wall press-up",
+   "equipment": "chair or wall",
+   "quotes": [
+    {
+     "kind": "avoid",
+     "text": "Make sure you don’t lock your elbows.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (read from PDF text extracted earlier in this workflow, Exercise 2 Wall Push-ups; the sentence breaks across lines in the PDF. cdc.gov returned 403 today, so re-check in a browser.)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "tip",
+     "text": "Keep your hands planted on the wall for each set.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (as above)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "avoid",
+     "text": "Don’t round or arch your back.",
+     "body": "\"Growing Stronger: Strength Training for Older Adults\" (copyright Tufts University, hosted by CDC)",
+     "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+     "checked": "source (as above)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "Stop the exercise immediately if you feel any pain or become unwell.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "checked": "source 2026-10-18 (safety text attached to the NHS 'standing press-up' video)",
+     "rechecked": "exact"
+    }
+   ],
+   "links": [
+    {
+     "title": "Strength and Flex exercise plan: How-to videos (standing press-up)",
+     "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+     "body": "NHS website (nhs.uk)",
+     "checked": "source 2026-10-18",
+     "what_it_adds": "The NHS's own standing (wall) press-up demonstration video.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": [],
+   "risk_note": ""
+  },
+  {
+   "id": "nhs-wall-squats",
+   "name": "Wall squats",
+   "equipment": "chair or wall",
+   "risk_note": "(5) Squats were 9.6% of exercise-specific gym injuries (Kemler 2022). That finding is mostly about loaded squats, so it is a weak fit for a bodyweight wall squat.",
+   "quotes": [
+    {
+     "kind": "tip",
+     "text": "Tip: place an exercise ball between your back and the wall for smooth movement",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source (page last reviewed 20 September 2024)",
+     "rechecked": "exact"
+    },
+    {
+     "kind": "stop_if",
+     "text": "You should not feel any pain when doing these exercises. If you do, stop immediately and seek medical advice.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    },
+    {
+     "kind": "stop_if",
+     "text": "These exercises are not suitable for people with an existing knee injury.",
+     "body": "NHS website (nhs.uk), OGL v3.0",
+     "url": "https://www.nhs.uk/live-well/exercise/knee-exercises-for-runners/",
+     "checked": "source",
+     "rechecked": "not rechecked"
+    }
+   ],
+   "links": [
+    {
+     "title": "Stability Ball Wall Squats — ACE Exercise Library",
+     "url": "https://www.acefitness.org/resources/everyone/exercise-library/69/stability-ball-wall-squats/",
+     "body": "ACE (American Council on Exercise)",
+     "checked": "source (page downloaded; title read)",
+     "what_it_adds": "The ball-against-wall version the NHS tip suggests. Link only.",
+     "rechecked": "ok"
+    }
+   ],
+   "films": []
+  }
+ ]
+}

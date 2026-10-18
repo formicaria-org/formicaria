@@ -1175,6 +1175,17 @@ well known sources and when not available from trainers that have high views".
     once.
   - A window saved on *Session* or *Volume* in 0.7.5 finds no such view.
   - Protein for someone losing weight while training: two abstracts disagree on the unit; unread.
+- **Research, 2026-10-18** (`research-sport-labs-2026-10-18.md`): what the top 21 sport science
+  schools (ShanghaiRanking 2025) published for ordinary people, against the app. Eight gaps,
+  G1–G8, none decided: 10-20-30 as a regime, step tiers, reps in reserve on a set, vigorous
+  snacks, a chair-stand self-test, a fixed time and an if-then plan, breaks from sitting, coming
+  back after a break. Of about 95 findings, 26 were re-read; La Trobe was not read.
+- **Research, 2026-10-18** (`exercise-tips-research-2026-10-18.md`, draft data
+  `exercise-tips-draft-2026-10-18.json`): tips, what to avoid, links and films for every card,
+  and where gym injuries come from (mostly a weight dropped on the person). Open: a "Lifting
+  safely" card once vs the same NIA lines per card; whether a card may carry a short cited
+  caution in the app's words (needs a ruling); *Growing Stronger*'s licence; 107 quotes and 27
+  links not yet reopened.
 
 ### 2.27 Reminders — what is left (2026-10-13)
 
