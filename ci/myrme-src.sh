@@ -5,8 +5,10 @@
 # phone's runtime pins (`ci/android-stage-*.sh`) all come from here, so formicaria keeps no copy.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# Windows paths arrive with backslashes, escaped in the JSON as `\\`; they become forward slashes,
+# which the Git for Windows `sh` that runs this accepts (found by the 0.9.4 release, 2026-10-19).
 src=$(cd "$root" && cargo metadata --format-version 1 2>/dev/null \
-    | grep -o '"manifest_path":"[^"]*/fm-agent-run/Cargo.toml"' | head -1 \
-    | sed 's/^"manifest_path":"//; s|/crates/fm-agent-run/Cargo.toml"$||')
+    | grep -o '"manifest_path":"[^"]*fm-agent-run[/\\]*Cargo.toml"' | head -1 \
+    | sed 's/^"manifest_path":"//; s/"$//; s#\\\\#/#g; s#/crates/fm-agent-run/Cargo.toml$##')
 [ -n "$src" ] && [ -d "$src" ] || { echo "myrme-src: cannot find Myrme's source through \`cargo metadata\`" >&2; exit 1; }
 echo "$src"
