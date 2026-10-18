@@ -199,16 +199,20 @@ gate it were written on a Linux machine that cannot compile them, so they are ty
 "the assistant works on macOS" is an inference — and this README would rather say so than let you
 find out.
 
-The commands below are the **developer** route: they put the same pieces in a checkout's `agents/`,
-which the app prefers when it is there, so the dev loop needs no download.
+The assistant, **Myrme**, is developed in its own repository,
+[formicaria-org/myrme](https://github.com/formicaria-org/myrme), and this app links it by a pinned
+tag. Its developer commands live there. For example, run these **in a Myrme checkout**:
 
 ```sh
-pixi run fetch-model lfm2.5-1.2b   # download a local model into agents/ (gitignored)
+pixi run fetch-model lfm2.5-1.2b   # a local model into Myrme's agents/ (gitignored)
 pixi run fetch-whisper             # the audio runtime, staged by hand; the app fetches it itself
 pixi run search-proxy              # optional: a local proxy; the app itself searches in-process
-# then turn it on in Settings → Assistant → Study assistant, and in any discussion:
-#   @lfm2.5-1.2b summarize this in 3 bullets /search
 ```
+
+To use them from this checkout, link or copy Myrme's `agents/runtime` and `agents/models` into
+`agents/` here. The app prefers a checkout's `agents/` when it is there, and `pixi run catalogue`
+writes the catalogue beside them. Then turn it on in Settings → Assistant → Study assistant, and in
+any discussion write `@lfm2.5-1.2b summarize this in 3 bullets /search`.
 
 It can only **reply** or **propose a change on a review branch** — never write to `main`. Full guide:
 [the study assistant](docs/src/user/assistant.md).

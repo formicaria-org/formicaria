@@ -232,7 +232,9 @@ rust-std-aarch64-apple-ios-sim = "*"
 rust-std-x86_64-apple-ios = "*"
 
 [feature.cross.tasks]
-# **`fm-agent` only, and that is the whole of the per-OS code.** Its `watchdog.rs` holds the Windows
+# **`fm-agent` only, and that is the whole of the per-OS code.** It is Myrme's crate now, pulled from
+# its repository at the pinned tag; `-p` checks a dependency as readily as a member, so this stays the
+# fast check of exactly the code formicaria ships. Its `watchdog.rs` holds the Windows
 # and macOS memory readings and its `launch.rs` the Job Object teardown; everything else that
 # differs per platform is a `cfg!(windows)` filename suffix that cannot fail to compile.
 #
@@ -268,11 +270,8 @@ test = "cargo test --workspace"
 # self-updater could use it without linking the study agent. That crate has no optional features, so
 # its tests (resume, the `identity` encoding rule, the early-end backstop, cancel, bad checksum) run
 # under plain `test` above and need no line of their own.
-test-agent-download = "cargo test -p fm-agent-run --features download fetch::"
-# **Are the pinned model runtimes still the bytes we recorded?** Downloads ~110 MB, so it is not in
-# the routine gate — run it before cutting a release. An upstream asset that was re-uploaded would
-# otherwise reach a user as an unexplained checksum failure on their first enable.
-check-pins = "cargo test -p fm-agent-run --features download -- --ignored --nocapture every_pinned_runtime"
+# The assistant's own tests — its download wrappers, its pinned runtimes — run in Myrme's
+# repository, which owns them (https://github.com/formicaria-org/myrme, `pixi run ci` there).
 # **The release trust root** (`decisions.md#toolchain`, 2026-09-11). `release-key` is run once, by the
 # maintainer, on their own machine — it refuses to overwrite a key. `release-manifest` and
 # `release-sign` are what the release workflow runs, exposed here so a release can be rehearsed
@@ -280,27 +279,11 @@ check-pins = "cargo test -p fm-agent-run --features download -- --ignored --noca
 release-key = "sh ci/release-key.sh"
 release-manifest = "sh ci/release-manifest.sh"
 release-sign = "sh ci/release-sign.sh"
-# Fetch the local agent's runtime + a model into agents/{runtime,models} (both gitignored).
-# `pixi run fetch-model` for the lightest default; `pixi run fetch-model <name>` for a specific one.
-fetch-model = "bash agents/fetch.sh"
-# Stage the audio→transcript runtime (whisper.cpp weights + binary) into agents/{runtime,models}. Then
-# enable it: `pixi run agent-serve -- --whisper-port 8082`. Manual-only, laptop v1.
-fetch-whisper = "bash agents/fetch-whisper.sh"
-# Serve the fetched model as a warm, localhost-only llama-server the agent talks to (Ctrl-C stops it).
-serve-model = "bash agents/serve.sh"
-# Serve the model TIED to formicaria's life: it stops when fm-serve stops answering (model on with
-# the app, off with it — no orphan). Watches fm-serve on :8765 by default.
-agent-serve = "bash agents/agent-serve.sh"
-# The local web-search proxy (Python stdlib, no key): gives the agent web search on 127.0.0.1:8888.
-#   pixi run search-proxy   then   pixi run agent-serve -- --searxng-port 8888
-search-proxy = "python3 agents/search-proxy.py 8888"
-# The model benchmark on OUR case (not synthetic llama-bench): drive a running llama-server through
-# the study-agent workload and append measured numbers to agents/bench/results.md. See agents/bench/README.md.
-#   pixi run model-bench -- --url http://127.0.0.1:8081 --model qwen3-4b-2507 --device laptop --pid $(pgrep -x llama-server) --gpu
-model-bench = "python3 agents/bench/run.py"
-# Warm-session chat with the assistant in a note's discussion (RAG over the vault). Needs a served model.
-#   pixi run agent-chat -- --vault . --note <ULID>
-agent-chat = "cargo run -q -p fm-agent-run --bin agent-chat --"
+# **The assistant's developer tools** (fetch a model by hand, the model benchmark, the search proxy,
+# `agent-chat`) live in Myrme's repository with the assistant (`decisions.md`, 2026-10-18). Here, a
+# checkout only needs the catalogue that `fm-serve` reads from `agents/`, written from the
+# `agent-serve` it builds — the one place it ships from.
+catalogue = { cmd = "cargo run -q -p fm-agent-serve -- --print-catalogue > agents/models.toml" }
 # Run the app in your browser against the REAL vault — this is how formicaria
 # runs. Builds the UI, then serves it + a JSON/bytes API over the same commands,
 # and (via FM_OPEN, set by the launcher) opens your default browser. Lean default
@@ -353,7 +336,7 @@ collab-lab = "sh ci/collab-lab.sh"
 # release archive now carries it so a *downloaded* copy can run the assistant without a checkout.
 # Before that this line built only fm-serve + fm-cli, which is why `fm-agent-run` never reached a
 # release and the archive could carry no assistant at all.
-build = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve -p fm-cli -p fm-agent-run --features fm-agent-run/download", depends-on = ["docs"] }
+build = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve -p fm-cli -p fm-agent-serve && cargo run -q --release -p fm-agent-serve -- --print-catalogue > agents/models.toml", depends-on = ["docs"] }
 # The debug counterpart: unoptimized binaries with full debuginfo at
 # `target/debug/{fm-serve,fm}` (fast to compile, large + slow) for stepping through
 # the server. Pairs with the same `ui/dist`. `fm` for the same reason as above.
@@ -495,4 +478,4 @@ ios-package = "sh ci/ios-package.sh"
 # nothing warm. That is well inside what a gate may ask for. `ci/checks.sh` now fails on any
 # `test-*` task that is neither here nor marked `# not-in-ci: <reason>`, so leaving one out is a
 # decision somebody makes rather than one that happens.
-depends-on = ["test", "test-native-git", "test-agent-download", "test-ui", "check-ui", "fmt", "fmt-ui", "clippy", "deny", "checks", "third-party-check", "docs"]
+depends-on = ["test", "test-native-git", "test-ui", "check-ui", "fmt", "fmt-ui", "clippy", "deny", "checks", "third-party-check", "docs"]

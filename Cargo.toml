@@ -7,7 +7,7 @@
 # in a later slice.
 [workspace]
 resolver = "2"
-members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cli", "crates/fm-app", "crates/fm-serve", "crates/fm-agent", "crates/fm-agent-run",
+members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cli", "crates/fm-app", "crates/fm-serve", "crates/agent-serve",
     "crates/fm-fetch",
     "crates/fm-update"]
 # The mobile shell is deliberately NOT a member. It pulls Tauri and, through
@@ -15,6 +15,12 @@ members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cl
 # resolve, and none of which `pixi run ci` should build. It has its own lockfile and is built
 # only by the Android tasks.
 exclude = ["mobile/src-tauri"]
+
+# **Myrme, the assistant, lives in its own repository** (https://github.com/formicaria-org/myrme,
+# `docs/context/decisions.md`, 2026-10-18). It takes `fm-fetch` from this repository by tag; this
+# points that copy back at the crate here, so there is one `fm-fetch` in the build, not two.
+[patch."https://github.com/formicaria-org/formicaria.git"]
+fm-fetch = { path = "crates/fm-fetch" }
 
 [workspace.package]
 edition = "2021"

@@ -1172,8 +1172,21 @@ echo "[check] every 'pixi run <task>' in the docs is a task that exists..."
 # people to `pixi run dev` and `pixi run lint`, neither of which has ever existed.
 # `pixi run cargo …` and friends are not tasks: pixi also runs a binary from the environment.
 known_bins="cargo pnpm npm node python3 python sh bash git restic mdbook adb"
-pixi_tasks=$(grep -oE '^[a-z][a-z0-9_-]* = |^\[tasks\.[a-z0-9_-]+\]' pixi.toml \
-             | sed 's/ = //; s/\[tasks\.//; s/\]//' | sort -u)
+# **Two repositories make the app since 2026-10-18**: the assistant's tasks (fetch-model, model-bench,
+# check-pins, integration, …) live in Myrme's `pixi.toml`, read here at the tag this build pins
+# (through `cargo metadata`, like the cross-crate guards below). A documented task must exist in
+# one of the two; history that names one of Myrme's stays true.
+task_names() {
+    grep -oE '^[a-z][a-z0-9_-]* = |^\[tasks\.[a-z0-9_-]+\]' "$1" | sed 's/ = //; s/\[tasks\.//; s/\]//'
+}
+myrme_pixi=$(cargo metadata --format-version 1 2>/dev/null \
+    | grep -o '"manifest_path":"[^"]*/fm-agent-run/Cargo.toml"' | head -1 \
+    | sed 's/^"manifest_path":"//; s|/crates/fm-agent-run/Cargo.toml"$|/pixi.toml|')
+if [ -z "$myrme_pixi" ] || [ ! -f "$myrme_pixi" ]; then
+    echo "  FAIL: cannot find Myrme's pixi.toml through \`cargo metadata\`."
+    fail=1
+fi
+pixi_tasks=$( { task_names pixi.toml; [ -f "$myrme_pixi" ] && task_names "$myrme_pixi"; } | sort -u)
 badtask=
 for t in $(git grep -ohE 'pixi run (-e [a-z]+ )?[a-z][a-z0-9_-]*' -- '*.md' | awk '{print $NF}' | sort -u); do
     echo "$pixi_tasks" | grep -qx "$t" && continue
@@ -2248,8 +2261,18 @@ fi
 # learns the agent exists" stays true), so the constant cannot be shared and a rename on one side
 # would be silent — the runner would go back to holding the app open, and every test would pass.
 # This is that missing compiler.
+#
+# **Myrme lives in its own repository since 2026-10-18**, so its half is read where Cargo checked out
+# the pinned tag — the exact source this build links, which is what the guard is about.
+myrme_run=$(cargo metadata --format-version 1 2>/dev/null \
+    | grep -o '"manifest_path":"[^"]*/fm-agent-run/Cargo.toml"' | head -1 \
+    | sed 's/^"manifest_path":"//; s|/Cargo.toml"$||')
+if [ -z "$myrme_run" ] || [ ! -d "$myrme_run" ]; then
+    echo "  FAIL: cannot find Myrme's fm-agent-run source through \`cargo metadata\`."
+    fail=1
+fi
 agent_header='X-Formicaria-Agent'
-for f in crates/fm-agent-run/src/fmserve.rs crates/fm-serve/src/main.rs; do
+for f in "$myrme_run/src/fmserve.rs" crates/fm-serve/src/main.rs; do
     if ! grep -q "$agent_header" "$f"; then
         echo "  FAIL: $f no longer spells '$agent_header'."
         echo "        The runner sends it and fm-serve checks it; they are the same string in two"
@@ -2274,9 +2297,11 @@ done
 # `agent-serve` directly and decides whisper itself, but `agents/agent-serve.sh` is still what
 # `pixi run agent-serve` runs, so the dev loop has its own copy of the same condition. The guard
 # narrowed; it did not go away.
+# The script is Myrme's now (its `agents/agent-serve.sh`, at the pinned tag); the Rust is ours.
+myrme_script="$myrme_run/../../agents/agent-serve.sh"
 for name in whisper-server ggml-base.bin; do
-    if ! grep -q "$name" agents/agent-serve.sh || ! grep -q "$name" crates/fm-serve/src/agent.rs; then
-        echo "  FAIL: '$name' is named in only one of agents/agent-serve.sh and"
+    if ! grep -q "$name" "$myrme_script" || ! grep -q "$name" crates/fm-serve/src/agent.rs; then
+        echo "  FAIL: '$name' is named in only one of Myrme's agents/agent-serve.sh and"
         echo "        crates/fm-serve/src/agent.rs. They are the same condition in two languages:"
         echo "        the script decides whether whisper starts, the Rust decides whether the"
         echo "        settings row offers the switch. Out of step, the row promises what the script"

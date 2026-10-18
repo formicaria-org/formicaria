@@ -3,3 +3,7 @@
 runtime/
 models/
 *.log
+# Written by `pixi run catalogue` (and by `pixi run build`) from the agent-serve this checkout
+# builds: the catalogue now ships inside Myrme. Its presence is how fm-serve knows it runs from a
+# checkout, so it must exist here, and it must not be edited in git.
+models.toml

@@ -1,0 +1,16 @@
+# `agent-serve`, the assistant's resident process, as formicaria ships it. Its code is Myrme's
+# (`fm_agent_run::agent_serve`); this crate only gives it a binary in this workspace, because Cargo
+# builds binaries for a workspace's own members and never for a dependency.
+[package]
+name = "fm-agent-serve"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "agent-serve"
+path = "src/main.rs"
+
+[dependencies]
+fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.1.0-rc.1", features = ["download"] }

@@ -99,12 +99,18 @@ Deleting the folder above by hand does the same thing.
 
 ### From a checkout, for developers
 
-The app prefers a checkout's `agents/` when it is there, so a working copy needs no download:
+The app prefers a checkout's `agents/` when it is there, so a working copy needs no download. The
+assistant is developed in its own repository,
+[formicaria-org/myrme](https://github.com/formicaria-org/myrme), whose tools fetch a model by hand.
+In a Myrme checkout:
 
 ```sh
-pixi run fetch-model              # the lightest default from agents/models.toml
+pixi run fetch-model              # the lightest default from the catalogue
 pixi run fetch-model lfm2.5-1.2b  # a specific, better one (recommended for research)
 ```
+
+Then link or copy its `agents/runtime` and `agents/models` into this checkout's `agents/`, and run
+`pixi run catalogue` here.
 
 Then enable it in Settings as above.
 
@@ -123,11 +129,11 @@ recording on a laptop), and much closer to what was said — worth it for dictat
 recordings. Each device chooses for itself. Until the new model has downloaded, the one already
 there keeps transcribing; the earlier one is then removed to free the space.
 
-From a checkout, `pixi run fetch-whisper` still stages the same pieces by hand.
+From a Myrme checkout, `pixi run fetch-whisper` still stages the same pieces by hand.
 
 **Reading images.** `/transcribe` can read a photo of a page — handwriting, printed
    text, mathematics as LaTeX — but only with a model that can see. That needs a *projector* file
-   beside the weights, and `fetch-model` collects it automatically for any model that has one:
+   beside the weights, and Myrme's `fetch-model` collects it automatically for any model that has one:
 
    ```sh
    pixi run fetch-model qwen3-vl-4b   # weights + projector; the laptop pick for reading images
@@ -142,8 +148,8 @@ independently, so one being unreachable does not sink the answer. General web se
 is deliberately not included: it needs fragile HTML scraping of a site that blocks scrapers.
 
 For a research notebook the three cover a great deal, and it is worth knowing what they do not:
-a news story, a blog post, a vendor's documentation page. From a checkout you can run the keyless
-local proxy instead, which does reach the general web:
+a news story, a blog post, a vendor's documentation page. From a Myrme checkout you can run the
+keyless local proxy instead, which does reach the general web:
 
    ```sh
    pixi run search-proxy

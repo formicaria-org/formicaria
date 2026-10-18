@@ -13,7 +13,6 @@ pixi run ci        # = fmt + fmt-ui + clippy + test + test-native-git + test-age
 | Task              | What it runs                                                     |
 |-------------------|-----------------------------------------------------------------|
 | `pixi run test`   | `cargo test --workspace` — the Rust unit + integration tests.   |
-| `pixi run test-agent-download` | the in-app model fetcher's hermetic (localhost) tests. Separate because the `download` feature is off by default, so `test` above never builds it. |
 | `pixi run test-ui`| Vitest (jsdom) — the markdown→HTML render seam and app flows.    |
 | `pixi run check-ui`| svelte-check over every component. **`vite build` does not typecheck** — it strips types and emits — so without this a component calling a function it never imported builds clean and throws in the browser. |
 | `pixi run seam`   | the zero-I/O `fm-query` suite (seam 1).                          |
@@ -43,7 +42,8 @@ because they are slow, need a toolchain the gate does not, or are for one platfo
 | Task | Run it when |
 |---|---|
 | `pixi run -e cross check-cross` | after touching anything per-OS in `fm-agent`. It found a no-op `std::mem::forget` on a raw pointer and a deprecated `libc::mach_host_self` on its first run, in code that had shipped without ever being compiled for either target. |
-| `pixi run check-pins` | when a model or runtime pin moves. Downloads ~110 MB and checks every pinned runtime is really there. |
+| `pixi run check-pins` (in Myrme's repository) | when a model or runtime pin moves. Downloads ~110 MB and checks every pinned runtime is really there. |
+| *(the assistant)* | its own tests — the download wrappers, the evals, `pixi run integration` against this app — run in Myrme's repository, https://github.com/formicaria-org/myrme. |
 | `pixi run -e android android-smoke` | after an Android change, with a device or emulator attached. |
 
 ## Conventions

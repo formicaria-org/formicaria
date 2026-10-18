@@ -30,7 +30,7 @@ use std::sync::Arc;
 /// the same `agents/models.toml` the desktop uses (its `runtime_url` is desktop-only and ignored here,
 /// since the phone's runtime is bundled in `jniLibs`, not fetched). Written to app storage once, then
 /// user-editable.
-const EMBEDDED_MANIFEST: &str = include_str!("../../../agents/models.toml");
+const EMBEDDED_MANIFEST: &str = fm_agent_run::CATALOGUE;
 
 /// The bundled runtime binary's name in `jniLibs` — `llama-server` renamed to a `lib*.so` so Android
 /// packages it and lets us `exec` it from `nativeLibraryDir` (see [`native_lib_dir`]).

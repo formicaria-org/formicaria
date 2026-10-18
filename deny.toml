@@ -107,3 +107,7 @@ wildcards = "allow"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# **The assistant, Myrme, from its own repository** (`decisions.md`, 2026-10-18): `fm-agent` and
+# `fm-agent-run`, pinned by tag in the Cargo.toml files that name them. The one git source allowed;
+# its own licence (MIT) and dependencies are checked here like any other crate's.
+allow-git = ["https://github.com/formicaria-org/myrme.git"]
