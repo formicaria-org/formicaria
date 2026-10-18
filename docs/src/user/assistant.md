@@ -68,6 +68,10 @@ That is the whole of it. Afterwards the assistant starts with formicaria and sto
 it: nothing runs in the background, and nothing is downloaded twice. (With reminders on,
 formicaria itself may stay running for one that is waiting; the assistant and its model do not.)
 
+When an update of formicaria brings a newer version of the program that runs the model, the next
+start fetches it once, before the assistant comes up, with the same progress shown. If that fails,
+the assistant starts on the one it had. A newer *model* is only ever offered, never fetched unasked.
+
 ### What it costs, and where it goes
 
 | | |
