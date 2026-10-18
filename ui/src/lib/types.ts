@@ -1128,6 +1128,28 @@ export interface ExerciseLibrary {
   exercises: ExerciseCard[];
   videos: ExerciseVideo[];
   videos_seen?: string;
+  /** The NIA's Safety Tips box, whole, for the cards that need `for`'s equipment. */
+  safely?: ExerciseSafety;
+  /** Pages elsewhere on how an exercise is done, by card id: their titles only. */
+  links?: Record<string, ExerciseLink[]>;
+  links_seen?: string;
+}
+export interface ExerciseSafety {
+  title: string;
+  by: string;
+  credit: string;
+  /** The publication the box is from. */
+  work: string;
+  url: string;
+  licence: string;
+  licence_url: string;
+  for: ExerciseCard['equipment'][];
+  tips: { head: string; text: string }[];
+}
+export interface ExerciseLink {
+  title: string;
+  url: string;
+  by: string;
 }
 /** A person's measurements, as far as they have given them. */
 export interface PlanProfile {

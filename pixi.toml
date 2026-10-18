@@ -433,6 +433,7 @@ pack-foods = "python3 ci/pack-foods.py"
 pack-recipes = "python3 ci/pack-recipes.py crates/fm-app/src/shipped/recipes-nhlbi.json"
 # How each exercise is done: the NHS website's and the U.S. Army's text, word for word. Needs `pdftotext`.
 pack-exercises = "python3 ci/pack-exercises.py crates/fm-app/src/shipped/exercises.json"
+pack-exercise-advice = "python3 ci/pack-exercise-advice.py docs/context/exercise-tips-draft-2026-10-18.json crates/fm-app/src/shipped/exercise-advice.json crates/fm-app/src/shipped/exercise-videos.json"
 # Renders the manual FOR THIS MACHINE'"'"'S OS — the setup chapter is assembled from
 # `user/setup-<os>.md` first, because each release archive should carry instructions for its own
 # platform and nobody else'"'"'s. Broken links still fail the build. `FM_DOCS_OS=windows pixi run docs`

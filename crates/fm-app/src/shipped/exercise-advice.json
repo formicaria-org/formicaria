@@ -1,0 +1,643 @@
+{
+ "seen": "2026-10-18",
+ "safely": {
+  "title": "Safety Tips",
+  "by": "National Institute on Aging",
+  "credit": "Text from the National Institute on Aging, National Institutes of Health",
+  "work": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH (2015)",
+  "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+  "licence": "Unless otherwise indicated, text within materials on the NIA website is in the public domain and may be reused without our permission.",
+  "licence_url": "https://www.nia.nih.gov/about/policies",
+  "for": [
+   "bar",
+   "free weights",
+   "machine"
+  ],
+  "tips": [
+   {
+    "head": "Breathe regularly during strength exercises.",
+    "text": "For example, breathe out as you lift the weight, and breathe in as you relax. When doing leg lifts, breathe out as you lift your leg and breathe in as you lower it."
+   },
+   {
+    "head": "Use smooth, steady movements when lifting weights.",
+    "text": "To prevent injury, don’t jerk or thrust weights into position."
+   },
+   {
+    "head": "Keep your arm and leg joints slightly bent.",
+    "text": "Avoid “locking” your arm and leg joints in a tightly straightened position."
+   },
+   {
+    "head": "Choose a sturdy chair with arms.",
+    "text": "Make sure the chair is stable enough to support you when seated or when holding on during the exercise."
+   },
+   {
+    "head": "Make slow, steady movements.",
+    "text": "Never “bounce” into a stretch."
+   },
+   {
+    "head": "Always bend forward from the hips, not the waist.",
+    "text": "If you keep your back straight, you’re bending the right way."
+   },
+   {
+    "head": "Stop if you feel pain.",
+    "text": "You might feel some soreness after you exercise, but exercise should not hurt or make you feel really tired. In fact, in many ways, being active will probably make you feel better."
+   }
+  ]
+ },
+ "links": {
+  "army-8-count-step-up": [
+   {
+    "title": "Step-Up",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/28/step-up/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-back-squat": [
+   {
+    "title": "Back Squat Exercise Guide",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/11/back-squat/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-bench-press": [
+   {
+    "title": "Chest Press",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/5/chest-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-bent-arm-lateral-raise": [
+   {
+    "title": "Lateral Raise",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/26/lateral-raise/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-bent-over-row-free-weight-assistive-training": [
+   {
+    "title": "Bent-Over Row",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/12/bent-over-row/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-bent-over-row-strength-training-circuit": [
+   {
+    "title": "Bent-Over Row",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/12/bent-over-row/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-biceps-curl": [
+   {
+    "title": "Bicep Curl",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/70/bicep-curl/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-deadlift": [
+   {
+    "title": "Deadlift",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/6/deadlift/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-forward-lunge-strength-training-circuit": [
+   {
+    "title": "Lunge",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/363/lunge/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-front-squat": [
+   {
+    "title": "Front Squat",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/22/front-squat/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-heel-raise": [
+   {
+    "title": "Calf Raises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/51/calf-raises/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-incline-bench": [
+   {
+    "title": "Incline Chest Press",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/25/incline-chest-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-overhead-push-press-free-weight-assistive-training": [
+   {
+    "title": "Push Press",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/24/push-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-overhead-push-press-strength-training-circuit": [
+   {
+    "title": "Push Press",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/24/push-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-overhead-triceps-extension": [
+   {
+    "title": "Triceps Extension",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/74/triceps-extension/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-pull-over": [
+   {
+    "title": "Lying Pullovers",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/37/lying-pullovers/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-shrug": [
+   {
+    "title": "Shrug",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/72/shrug/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-single-arm-bent-over-row": [
+   {
+    "title": "Single Arm Row Exercise Guide",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/126/single-arm-row/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-straight-leg-deadlift-free-weight-core-training": [
+   {
+    "title": "Romanian Deadlift",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/317/romanian-deadlift/",
+    "by": "American Council on Exercise"
+   },
+   {
+    "title": "Hip Hinge",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/33/hip-hinge/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-straight-leg-deadlift-strength-training-circuit": [
+   {
+    "title": "Romanian Deadlift",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/317/romanian-deadlift/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-sumo-deadlift": [
+   {
+    "title": "Deadlift",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/6/deadlift/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-sumo-squat": [
+   {
+    "title": "Goblet Squat",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/362/goblet-squat/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-supine-chest-press": [
+   {
+    "title": "How To Do a Chest Press",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/19/chest-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-upright-row": [
+   {
+    "title": "Train This, Not That: The Upper-body Edition",
+    "url": "https://www.acefitness.org/resources/pros/expert-articles/5277/train-this-not-that-the-upper-body-edition/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-weighted-trunk-flexion": [
+   {
+    "title": "Crunch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/52/crunch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-biceps-curls": [
+   {
+    "title": "Bicep Curl",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/70/bicep-curl/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-alternating-grip-pull-up": [
+   {
+    "title": "Pull-ups",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/191/pull-ups/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-pull-up-climbing-drill-1": [
+   {
+    "title": "Pull-ups",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/191/pull-ups/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-pull-up-strength-training-circuit": [
+   {
+    "title": "Pull-ups",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/191/pull-ups/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-chest-press": [
+   {
+    "title": "Seated Chest Press Exercise Guide",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/188/seated-chest-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-lat-pull-down": [
+   {
+    "title": "Seated Lat Pulldown",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/158/seated-lat-pulldown/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-lateral-raise": [
+   {
+    "title": "Lateral Raise",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/26/lateral-raise/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-leg-curl": [
+   {
+    "title": "Lying Hamstrings Curl",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/153/lying-hamstrings-curl/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-leg-press": [
+   {
+    "title": "Seated Leg Press Exercise Guide",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/154/seated-leg-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-overhead-press": [
+   {
+    "title": "Seated Shoulder Press",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/186/seated-shoulder-press/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-seated-row": [
+   {
+    "title": "Seated Row",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/168/seated-row/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-triceps-extension": [
+   {
+    "title": "Triceps Pressdown",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/3/triceps-pressdown/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-trunk-flexion": [
+   {
+    "title": "Seated Crunch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/291/seated-crunch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-step-up": [
+   {
+    "title": "Step-Up",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/28/step-up/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-back-bridge": [
+   {
+    "title": "How To Do a Glute Bridge",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/49/glute-bridge/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-bent-leg-lateral-raise": [
+   {
+    "title": "Side Lying Hip Abduction",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/38/side-lying-hip-abduction/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-calf-stretch": [
+   {
+    "title": "Standing Dorsi-Flexion (Calf Stretch)",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/152/standing-dorsi-flexion-calf-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-extend-and-flex": [
+   {
+    "title": "Cobra Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/16/cobra/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-forward-lunge-preparation-drill": [
+   {
+    "title": "Forward Lunge",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/8/forward-lunge/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-i-raise": [
+   {
+    "title": "Prone Scapular (Shoulder) Stabilization Exercises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-l-raise": [
+   {
+    "title": "Prone Scapular (Shoulder) Stabilization Exercises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-lateral-leg-raise": [
+   {
+    "title": "Side Lying Hip Abduction",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/38/side-lying-hip-abduction/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-medial-leg-raise": [
+   {
+    "title": "Side Lying Hip Adduction",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/39/side-lying-hip-adduction/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-mountain-climber": [
+   {
+    "title": "Mountain Climbers",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/258/mountain-climbers/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-overhead-arm-pull": [
+   {
+    "title": "Overhead Triceps Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/174/overhead-triceps-stretch/",
+    "by": "American Council on Exercise"
+   },
+   {
+    "title": "Strength and Flex exercise plan: How-to videos",
+    "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+    "by": "NHS website"
+   }
+  ],
+  "army-power-jump": [
+   {
+    "title": "Squat Jump",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/222/squat-jump/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-prone-row": [
+   {
+    "title": "Prone Scapular (Shoulder) Stabilization Exercises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-push-up": [
+   {
+    "title": "Push-Ups",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/41/push-up/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-quadraplex": [
+   {
+    "title": "Bird Dog",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/14/bird-dog/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-rear-lunge-preparation-drill": [
+   {
+    "title": "Reverse Lunge",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/319/reverse-lunge/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-rear-lunge-recovery-drill": [
+   {
+    "title": "Standing Lunge Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/137/standing-lunge-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-single-leg-over-recovery-drill": [
+   {
+    "title": "Supine Spinal Twist with Rib Grab and Progressions",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/229/supine-spinal-twist-with-rib-grab-and-progressions/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-single-leg-push-up": [
+   {
+    "title": "Push-up with Single-leg Raise",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/42/push-up-with-single-leg-raise/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-t-raise": [
+   {
+    "title": "Prone Scapular (Shoulder) Stabilization Exercises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-thigh-stretch": [
+   {
+    "title": "Side Lying Quadriceps Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/149/side-lying-quadriceps-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-v-up": [
+   {
+    "title": "How To Do V-Ups",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/242/v-ups/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-w-raise": [
+   {
+    "title": "Prone Scapular (Shoulder) Stabilization Exercises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "army-y-raise": [
+   {
+    "title": "Prone Scapular (Shoulder) Stabilization Exercises",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/249/prone-scapular-shoulder-stabilization-series-i-y-t-w-o-formation/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-buttock-stretch": [
+   {
+    "title": "Supine 90-90 Hip Rotator Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/148/supine-90-90-hip-rotator-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-calf-stretch-how-to-stretch-after-exercising": [
+   {
+    "title": "Standing Dorsi-Flexion (Calf Stretch)",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/152/standing-dorsi-flexion-calf-stretch/",
+    "by": "American Council on Exercise"
+   },
+   {
+    "title": "Strength and Flex exercise plan: How-to videos",
+    "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+    "by": "NHS website"
+   }
+  ],
+  "nhs-hamstring-stretch": [
+   {
+    "title": "Supine Hamstrings Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/235/supine-hamstrings-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-inner-thigh-stretch": [
+   {
+    "title": "Seated Butterfly Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/216/seated-butterfly-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-lunges": [
+   {
+    "title": "Lunge",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/363/lunge/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-neck-stretch": [
+   {
+    "title": "Lateral Neck Flexion",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/202/lateral-neck-flexion/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-squats": [
+   {
+    "title": "Bodyweight Squat",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/135/bodyweight-squat/",
+    "by": "American Council on Exercise"
+   },
+   {
+    "title": "Strength and Flex exercise plan: How-to videos",
+    "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+    "by": "NHS website"
+   }
+  ],
+  "nhs-thigh-stretch": [
+   {
+    "title": "Side Lying Quadriceps Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/149/side-lying-quadriceps-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-ankle-stretch": [
+   {
+    "title": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH",
+    "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+    "by": "National Institute on Aging"
+   }
+  ],
+  "nhs-calf-raises": [
+   {
+    "title": "Standing Calf Raises - Wall",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/73/standing-calf-raises-wall/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-calf-stretch-flexibility-exercises": [
+   {
+    "title": "Standing Dorsi-Flexion (Calf Stretch)",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/152/standing-dorsi-flexion-calf-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-chest-stretch": [
+   {
+    "title": "Standing Chest Stretch",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/209/standing-chest-stretch/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-leg-extension": [
+   {
+    "title": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH",
+    "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+    "by": "National Institute on Aging"
+   }
+  ],
+  "nhs-one-leg-stand": [
+   {
+    "title": "Single Leg Stand",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/112/single-leg-stand/",
+    "by": "American Council on Exercise"
+   }
+  ],
+  "nhs-sideways-leg-lift": [
+   {
+    "title": "Growing Stronger: Strength Training for Older Adults (Side Hip Raise)",
+    "url": "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf",
+    "by": "Tufts University and the CDC"
+   }
+  ],
+  "nhs-sit-to-stand": [
+   {
+    "title": "Strength and Flex exercise plan: How-to videos",
+    "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+    "by": "NHS website"
+   }
+  ],
+  "nhs-upper-body-twist": [
+   {
+    "title": "Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH",
+    "url": "https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/GOVPUB-HE20-PURL-gpo62941.pdf",
+    "by": "National Institute on Aging"
+   }
+  ],
+  "nhs-wall-press-up": [
+   {
+    "title": "Strength and Flex exercise plan: How-to videos",
+    "url": "https://www.nhs.uk/live-well/exercise/strength-and-flex-exercise-plan-how-to-videos/",
+    "by": "NHS website"
+   }
+  ],
+  "nhs-wall-squats": [
+   {
+    "title": "Stability Ball Wall Squats",
+    "url": "https://www.acefitness.org/resources/everyone/exercise-library/69/stability-ball-wall-squats/",
+    "by": "American Council on Exercise"
+   }
+  ]
+ }
+}

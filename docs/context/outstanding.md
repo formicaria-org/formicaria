@@ -1185,7 +1185,10 @@ well known sources and when not available from trainers that have high views".
   and where gym injuries come from (mostly a weight dropped on the person). Open: a "Lifting
   safely" card once vs the same NIA lines per card; whether a card may carry a short cited
   caution in the app's words (needs a ruling); *Growing Stronger*'s licence; 107 quotes and 27
-  links not yet reopened.
+  links not yet reopened. **Built the same day** (`decisions.md#data`, *a lifting card has the
+  NIA's safety tips, and links*): the safety screen, 86 links checked by the script, 25 films.
+  Still open: a cited caution in the app's words (no ruling); lift-specific advice that may be
+  copied (none found); the 20 cards with nothing; not seen on a phone.
 
 ### 2.27 Reminders — what is left (2026-10-13)
 

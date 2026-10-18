@@ -555,7 +555,15 @@ Source: U.S. Army, ATP 7-22.02, Holistic Health and Fitness Drills and Exercises
 (October 2020, including Change 1). Approved for public release; distribution
 unlimited. Text only; its photographs are not carried.
 
-Films of exercises are links to YouTube and are not carried.
+Text from the National Institute on Aging, National Institutes of Health: the Safety
+Tips of *Workout to Go: A Sample Exercise Routine from the National Institute on Aging
+at NIH* (2015), copied unchanged. "Unless otherwise indicated, text within materials on
+the NIA website is in the public domain and may be reused without our permission"
+(<https://www.nia.nih.gov/about/policies>). Text only; its photographs are not carried.
+The NIA does not endorse this app.
+
+Films of exercises, and pages elsewhere on how an exercise is done (such as the American
+Council on Exercise's library), are links and are not carried; only their titles are.
 
 ## The barcode reader
 

@@ -7,6 +7,11 @@
   // card is this app's wording** except where it is filed (what it needs, which part of the body)
   // — and the card says whose every line is, as each source's terms ask. Videos are links: a
   // known body's own channel first, a trainer's only where none was found, and said to be so.
+  //
+  // Since 2026-10-18 (`decisions.md#data`, *a lifting card has the NIA's safety tips, and links*):
+  // a card that needs a bar, free weights or a machine opens the National Institute on Aging's
+  // Safety Tips box — one screen, the box whole, not its lines spread over cards — and any card
+  // may list pages elsewhere on how it is done. Those are links: only their titles are shown.
   import Icon from '../Icon.svelte';
   import { exercises, sameName } from './exercises';
   import type { ExerciseCard, ExerciseLibrary, ExerciseVideo } from '../types';
@@ -72,6 +77,16 @@
   });
 
   let open = $state<ExerciseCard | null>(null);
+  /// The safety tips in front — over the card it was opened from, or over the list.
+  let safety = $state(false);
+  const safeFor = (equipment: ExerciseCard['equipment']) => !!lib?.safely?.for.includes(equipment);
+  /// A screen swapped in place starts at its top, not where the last one was scrolled to.
+  let scroller = $state<HTMLDivElement | null>(null);
+  $effect(() => {
+    void safety;
+    void open;
+    if (scroller) scroller.scrollTop = 0;
+  });
   const sourceOf = (e: ExerciseCard) => lib?.sources.find((s) => s.id === e.source);
   /// `121026` → `12 October 2026`: the day the NHS text was copied, which its terms ask to be shown.
   function asAt(ddmmyy: string | undefined): string {
@@ -100,9 +115,32 @@
     [c.about ?? '', c.start ?? '', ...c.steps, ...(c.notes ?? [])].some((t) => t.includes(text));
 </script>
 
-<div class="cards">
+<div class="cards" bind:this={scroller}>
   {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
-  {#if open}
+  {#if safety && lib?.safely}
+    {@const s = lib.safely}
+    <button type="button" class="back" onclick={() => (safety = false)}>
+      <Icon name="chevronLeft" size={18} />
+      {open ? `Back to ${open.name}` : 'All exercises'}
+    </button>
+    <article class="card" aria-label="safety tips">
+      <h2>Safety tips for lifting</h2>
+      <p class="meta">From {s.work}</p>
+      <div class="theirs">
+        <h3>{s.title}</h3>
+        <ul class="tips">
+          {#each s.tips as tip (tip.head)}
+            <li><strong>{tip.head}</strong> {tip.text}</li>
+          {/each}
+        </ul>
+        <p class="credit">
+          <a href={s.url} target="_blank" rel="noreferrer noopener">{s.credit}</a>.
+          <a href={s.licence_url} target="_blank" rel="noreferrer noopener">“{s.licence}”</a>
+          Written for older adults starting out at home, and shown as written.
+        </p>
+      </div>
+    </article>
+  {:else if open}
     {@const card = open}
     {@const src = sourceOf(card)}
     {@const vids = videosFor(card)}
@@ -145,6 +183,12 @@
     <article class="card" aria-label={card.name}>
       <h2>{card.name}</h2>
       <p class="meta">{AREAS[card.area] ?? card.area} · {card.group}</p>
+      {#if safeFor(card.equipment)}
+        <button type="button" class="row" onclick={() => (safety = true)}>
+          <span class="name">Safety tips for lifting</span>
+          <span class="meta">{lib?.safely?.by}</span>
+        </button>
+      {/if}
       <!-- A drill manual's steps read hard; where there is a film, it comes first. -->
       {#if card.source === 'army'}
         {@render watch()}
@@ -180,6 +224,20 @@
       </div>
 
       {#if card.source !== 'army'}{@render watch()}{/if}
+      {#if lib?.links?.[card.id]?.length}
+        <h3>How it is done, on other sites</h3>
+        <ul class="videos">
+          {#each lib.links[card.id] as l (l.url)}
+            <li>
+              <a href={l.url} target="_blank" rel="noreferrer noopener">{l.title}</a>
+              <span class="meta">{l.by}</span>
+            </li>
+          {/each}
+        </ul>
+        <p class="meta">
+          Links, seen {lib.links_seen ?? ''}. Nothing of theirs is copied here.
+        </p>
+      {/if}
       {#if adding}
         <button
           type="button"
@@ -233,6 +291,12 @@
       bind:value={seek}
       spellcheck="false"
     />
+    {#if lib?.safely && having.some((h) => safeFor(h))}
+      <button type="button" class="row" onclick={() => (safety = true)}>
+        <span class="name">Safety tips for lifting</span>
+        <span class="meta">{lib.safely.by}</span>
+      </button>
+    {/if}
     {#if lib && shown.length === 0}
       <p class="meta">None for that.</p>
     {/if}
@@ -379,6 +443,13 @@
   }
   .dose {
     font-weight: 600;
+  }
+  .tips {
+    margin: 0;
+    padding-left: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
   .videos li {
     display: flex;

@@ -337,6 +337,160 @@
    ]
   },
   {
+   "exercise": "Bent-Leg Body Twist",
+   "url": "https://www.youtube.com/watch?v=QxsmVexWs_4",
+   "title": "Knee rolls",
+   "channel": "NHS inform",
+   "tier": "body",
+   "confirmed": false,
+   "views": 433586,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-bent-leg-body-twist"
+   ]
+  },
+  {
+   "exercise": "Lateral Leg Raise",
+   "url": "https://www.youtube.com/watch?v=g9FtnmsIYgI",
+   "title": "Side Lying Hip Abduction",
+   "channel": "Baptist Health",
+   "tier": "body",
+   "confirmed": false,
+   "views": 761545,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-lateral-leg-raise"
+   ]
+  },
+  {
+   "exercise": "Overhead Arm Pull",
+   "url": "https://www.youtube.com/watch?v=Uvk1Y8O1_yM",
+   "title": "Tricep Stretch",
+   "channel": "Baptist Health",
+   "tier": "body",
+   "confirmed": false,
+   "views": 249104,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-overhead-arm-pull"
+   ]
+  },
+  {
+   "exercise": "Power Jump",
+   "url": "https://www.youtube.com/watch?v=tZSYZdtbONc",
+   "title": "How to do a Squat Jump  | Proper Form & Technique | NASM",
+   "channel": "National Academy of Sports Medicine (NASM)",
+   "tier": "body",
+   "confirmed": false,
+   "views": 14696,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-power-jump"
+   ]
+  },
+  {
+   "exercise": "Power Jump",
+   "url": "https://www.youtube.com/watch?v=5xv0DKqe5XQ",
+   "title": "Pre-Plyometrics (Metric 5) ACL Exercise: Mini Squat Jump",
+   "channel": "MedStar Health",
+   "tier": "body",
+   "confirmed": false,
+   "views": 721619,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-power-jump"
+   ]
+  },
+  {
+   "exercise": "Rear Lunge",
+   "url": "https://www.youtube.com/watch?v=5w_WRPqYZW4",
+   "title": "Exercises to prevent back pain: standing hip flexor stretch | Ohio State Medical Center",
+   "channel": "Ohio State Wexner Medical Center",
+   "tier": "body",
+   "confirmed": false,
+   "views": 45941,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-rear-lunge-recovery-drill"
+   ]
+  },
+  {
+   "exercise": "Neck rotation",
+   "url": "https://www.youtube.com/watch?v=eme0i13WgTk",
+   "title": "Head turn",
+   "channel": "NHS inform",
+   "tier": "body",
+   "confirmed": false,
+   "views": 304607,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "nhs-neck-rotation"
+   ]
+  },
+  {
+   "exercise": "Sideways bend",
+   "url": "https://www.youtube.com/watch?v=EPVVGkLmCSU",
+   "title": "Physio Activity: Side Bend",
+   "channel": "Nottinghamshire Healthcare",
+   "tier": "body",
+   "confirmed": false,
+   "views": 2044,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "nhs-sideways-bend"
+   ]
+  },
+  {
+   "exercise": "Sideways bend",
+   "url": "https://www.youtube.com/watch?v=Vko-SJok-fk",
+   "title": "How to do a standing side bend.",
+   "channel": "Cleveland Clinic",
+   "tier": "body",
+   "confirmed": false,
+   "views": 406832,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "nhs-sideways-bend"
+   ]
+  },
+  {
+   "exercise": "Ankle stretch",
+   "url": "https://www.youtube.com/watch?v=87BeiyTFZyU",
+   "title": "Ankle Stretch for Older Adults",
+   "channel": "National Institute on Aging",
+   "tier": "body",
+   "confirmed": false,
+   "views": 111640,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "nhs-ankle-stretch"
+   ]
+  },
+  {
+   "exercise": "Hamstring stretch with thigh contraction",
+   "url": "https://www.youtube.com/watch?v=u55F2jOzBVI",
+   "title": "How to do a seated hamstring stretch",
+   "channel": "MassGeneralHospital",
+   "tier": "body",
+   "confirmed": false,
+   "views": 194834,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "nhs-hamstring-stretch-with-thigh-contraction"
+   ]
+  },
+  {
    "exercise": "Bench press",
    "url": "https://www.youtube.com/watch?v=vthMCtgVtFw",
    "title": "The Official Bench Press Check List (AVOID MISTAKES!)",
@@ -1667,6 +1821,126 @@
    ]
   },
   {
+   "exercise": "Supine Chest Press",
+   "url": "https://www.youtube.com/watch?v=riT31sLb8HU",
+   "title": "Floor Press 101!",
+   "channel": "[P]rehab",
+   "tier": "expert",
+   "credential": "Each clinical team member holds a Doctorate in Physical Therapy, with many also certified in strength and conditioning.",
+   "credential_url": "https://theprehabguys.com/about/",
+   "views": 64153,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-supine-chest-press"
+   ]
+  },
+  {
+   "exercise": "Bent-Leg Lateral Raise",
+   "url": "https://www.youtube.com/watch?v=O2KPabIoPPk",
+   "title": "Clamshell in Sidelying Exercise for the Hips - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 56496,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-bent-leg-lateral-raise"
+   ]
+  },
+  {
+   "exercise": "I Raise",
+   "url": "https://www.youtube.com/watch?v=Yv6sUKOwOY8",
+   "title": "Prone ITWYs for Shoulder - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 244398,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-i-raise"
+   ]
+  },
+  {
+   "exercise": "Medial Leg Raise",
+   "url": "https://www.youtube.com/watch?v=y4BmebZvZRE",
+   "title": "Hip Adduction in Sidelying - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 20000,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-medial-leg-raise"
+   ]
+  },
+  {
+   "exercise": "T Raise",
+   "url": "https://www.youtube.com/watch?v=Ygok5LNB1tY",
+   "title": "Prone Ts for Shoulder - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 20346,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-t-raise"
+   ]
+  },
+  {
+   "exercise": "W Raise",
+   "url": "https://www.youtube.com/watch?v=CgYUs74-j60",
+   "title": "Prone Ws for Shoulder - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 25232,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-w-raise"
+   ]
+  },
+  {
+   "exercise": "Y Raise",
+   "url": "https://www.youtube.com/watch?v=Xgi0r1pYmvk",
+   "title": "Prone Ys for Shoulder - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 13274,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-y-raise"
+   ]
+  },
+  {
+   "exercise": "Thigh contraction",
+   "url": "https://www.youtube.com/watch?v=VuJZ6dqMf8M",
+   "title": "Seated Knee Extension (LAQ) - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "tier": "expert",
+   "credential": "I’m a Physical Therapist and Doctor of Physical Therapy.",
+   "credential_url": "https://www.askdoctorjo.com/about",
+   "views": 211443,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "nhs-thigh-contraction"
+   ]
+  },
+  {
    "exercise": "Chin-up or assisted pull-up",
    "url": "https://www.youtube.com/watch?v=5rR_bzBc1NA",
    "title": "Band Assisted Pull up",
@@ -2343,6 +2617,90 @@
    "note": "The whole drill in one video.",
    "groups": [
     "Recovery Drill"
+   ]
+  },
+  {
+   "exercise": "Bent-Leg Raise",
+   "url": "https://www.youtube.com/watch?v=MReXsU3n1JY",
+   "title": "4 FOR THE CORE EXERCISE 1: BENT-LEG RAISE",
+   "channel": "The United States Army H2F Academy",
+   "tier": "body",
+   "confirmed": false,
+   "views": 32732,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-bent-leg-raise"
+   ]
+  },
+  {
+   "exercise": "Lateral Leg Raise",
+   "url": "https://www.youtube.com/watch?v=OqoMSPjQxps",
+   "title": "Hip Stability Drill Exercise 1 - Lateral Leg Raise",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 50759,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-lateral-leg-raise"
+   ]
+  },
+  {
+   "exercise": "Prone Row",
+   "url": "https://www.youtube.com/watch?v=apV88sJ-Rtc",
+   "title": "Preparation Drill Exercise 8: Prone Row",
+   "channel": "The United States Army H2F Academy",
+   "tier": "body",
+   "confirmed": false,
+   "views": 11203,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-prone-row"
+   ]
+  },
+  {
+   "exercise": "Single-Leg Push-Up",
+   "url": "https://www.youtube.com/watch?v=jEPzlOB8IXo",
+   "title": "Conditioning Drill 1 Exercise 5 - Single Leg Pushup",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 18493,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-single-leg-push-up"
+   ]
+  },
+  {
+   "exercise": "T Raise",
+   "url": "https://www.youtube.com/watch?v=1Cz2cMewqBM",
+   "title": "Shoulder Stability Drill Exercise 2 - T Raise",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 18302,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-t-raise"
+   ]
+  },
+  {
+   "exercise": "W Raise",
+   "url": "https://www.youtube.com/watch?v=t4k4KfQYK84",
+   "title": "Shoulder Stability Drill Exercise 5 - W Raise",
+   "channel": "U.S. Army Holistic Health and Fitness",
+   "tier": "body",
+   "confirmed": true,
+   "views": 14145,
+   "seconds": null,
+   "note": "Found by the research of 2026-10-18; seen to exist that day.",
+   "cards": [
+    "army-w-raise"
    ]
   }
  ]

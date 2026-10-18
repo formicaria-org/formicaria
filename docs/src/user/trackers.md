@@ -392,6 +392,12 @@ a card for its steps.
 - **To watch** links to films on YouTube, often several: a health body's own channel first; then
   a trainer whose science or clinical qualification could be read on their own site, shown with
   it; the Army's own clips last. On the Army's cards the films come above the text.
+- **Safety tips for lifting**, on every card that needs a bar, free weights or a machine (and at
+  the top of those lists), opens the US National Institute on Aging's safety tips, whole and as
+  written.
+- **How it is done, on other sites** links to pages elsewhere — mostly the American Council on
+  Exercise's library — that explain the exercise and what to avoid. Only their titles are shown
+  here; open them to read.
 - **Add to today's session** starts the add sheet with that exercise. On a day, **How** beside an
   exercise opens its card.
 

@@ -859,6 +859,8 @@ test('an exercise card shows how it is done in its source’s words, credited, a
   // No equipment first: the NHS's; the gym's are behind their own choice.
   expect(await screen.findByRole('button', { name: /Wall press-up/ })).toBeTruthy();
   expect(screen.queryByRole('button', { name: /^Deadlift/ })).toBeNull();
+  // Safety tips for lifting are where the equipment is, not with no equipment.
+  expect(screen.queryByRole('button', { name: /^Safety tips for lifting/ })).toBeNull();
   await fireEvent.click(screen.getByRole('button', { name: 'Free weights' }));
   await fireEvent.click(await screen.findByRole('button', { name: /^Deadlift/ }));
   const card = await screen.findByRole('article', { name: 'Deadlift' });
@@ -870,7 +872,24 @@ test('an exercise card shows how it is done in its source’s words, credited, a
   expect(
     within(card).getByText(/a trainer’s channel — no known body’s film was found/),
   ).toBeTruthy();
-  await fireEvent.click(within(card).getByRole('button', { name: 'Add to today’s session' }));
+  // A page elsewhere is a link, named by its own title and its body, nothing of it copied.
+  const link = within(card).getByRole('link', { name: 'Deadlift' });
+  expect(link.getAttribute('href')).toMatch(/^https:\/\/www\.acefitness\.org\//);
+  expect(within(card).getByText('American Council on Exercise')).toBeTruthy();
+  // A lifting card opens the NIA's safety tips, whole and credited, and Back returns to it.
+  await fireEvent.click(within(card).getByRole('button', { name: /^Safety tips for lifting/ }));
+  const tips = await screen.findByRole('article', { name: 'safety tips' });
+  expect(within(tips).getByText('Stop if you feel pain.')).toBeTruthy();
+  expect(
+    within(tips).getByText(/National Institute on Aging, National Institutes of Health/),
+  ).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Back to Deadlift' }));
+  expect(await screen.findByRole('article', { name: 'Deadlift' })).toBeTruthy();
+  await fireEvent.click(
+    within(screen.getByRole('article', { name: 'Deadlift' })).getByRole('button', {
+      name: 'Add to today’s session',
+    }),
+  );
   // The sheet opens on that exercise with a place to start: the card gives no figure of its
   // own, so it is the general one, and the sheet says whose.
   const sheet = await screen.findByRole('dialog', { name: 'add to the session' });

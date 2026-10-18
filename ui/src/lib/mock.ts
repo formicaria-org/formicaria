@@ -2498,6 +2498,38 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           },
         ],
         videos_seen: '2026-10-12',
+        // The safety tips and a link, in the shape of `exercise-advice.json`.
+        safely: {
+          title: 'Safety Tips',
+          by: 'National Institute on Aging',
+          credit: 'Text from the National Institute on Aging, National Institutes of Health',
+          work: 'Workout to Go: A Sample Exercise Routine from the National Institute on Aging at NIH (2015)',
+          url: 'https://www.govinfo.gov/',
+          licence:
+            'Unless otherwise indicated, text within materials on the NIA website is in the public domain and may be reused without our permission.',
+          licence_url: 'https://www.nia.nih.gov/about/policies',
+          for: ['bar', 'free weights', 'machine'],
+          tips: [
+            {
+              head: 'Use smooth, steady movements when lifting weights.',
+              text: 'To prevent injury, don’t jerk or thrust weights into position.',
+            },
+            {
+              head: 'Stop if you feel pain.',
+              text: 'You might feel some soreness after you exercise, but exercise should not hurt or make you feel really tired.',
+            },
+          ],
+        },
+        links: {
+          'army-deadlift': [
+            {
+              title: 'Deadlift',
+              url: 'https://www.acefitness.org/resources/everyone/exercise-library/6/deadlift/',
+              by: 'American Council on Exercise',
+            },
+          ],
+        },
+        links_seen: '2026-10-18',
       } as T;
     case 'log_kitchen':
       return notes

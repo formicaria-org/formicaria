@@ -637,6 +637,12 @@ pub const EXERCISES: &str = include_str!("shipped/exercises.json");
 /// Links to films of the same exercises: a known body's own channel, or — where none was found,
 /// and said to be so — a trainer's. Links only; each was seen to exist on the day in `seen`.
 pub const EXERCISE_VIDEOS: &str = include_str!("shipped/exercise-videos.json");
+/// What to mind when lifting, and where else an exercise is shown done
+/// (`decisions.md#data`, 2026-10-18, *a lifting card has the NIA's safety tips, and links*): the
+/// National Institute on Aging's Safety Tips box, whole and word for word, for the cards that need
+/// a bar, free weights or a machine; and per card, links to pages elsewhere — their titles only.
+/// `ci/pack-exercise-advice.py` makes the file.
+pub const EXERCISE_ADVICE: &str = include_str!("shipped/exercise-advice.json");
 
 pub fn exercise_library() -> Result<serde_json::Value, StoreError> {
     let read = |what: &str, text: &str| {
@@ -647,6 +653,10 @@ pub fn exercise_library() -> Result<serde_json::Value, StoreError> {
     let films = read("exercise films", EXERCISE_VIDEOS)?;
     lib["videos"] = films["videos"].clone();
     lib["videos_seen"] = films["seen"].clone();
+    let advice = read("exercise advice", EXERCISE_ADVICE)?;
+    lib["safely"] = advice["safely"].clone();
+    lib["links"] = advice["links"].clone();
+    lib["links_seen"] = advice["seen"].clone();
     Ok(lib)
 }
 

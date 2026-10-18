@@ -868,6 +868,43 @@ fn the_carried_exercises_read_and_are_whole() {
     assert!(lib["videos"].as_array().unwrap().len() >= 50);
 }
 
+/// **A lifting card has the NIA's safety tips, and links** (2026-10-18): the Safety Tips box is
+/// whole — seven tips, each a head and its text — credited and licensed as the NIA asks, and for
+/// the equipment cards only; every link is of a card that exists, and is a link with a title.
+#[test]
+fn the_safety_tips_are_whole_and_every_link_is_of_a_card() {
+    let lib = fm_app::log::exercise_library().unwrap();
+    let safely = &lib["safely"];
+    assert_eq!(safely["by"], "National Institute on Aging");
+    assert!(safely["credit"].as_str().unwrap().contains("National Institutes of Health"));
+    assert!(safely["licence"].as_str().unwrap().contains("public domain"));
+    assert!(safely["url"].as_str().unwrap().starts_with("https://www.govinfo.gov/"));
+    let tips = safely["tips"].as_array().unwrap();
+    assert_eq!(tips.len(), 7, "the box has seven tips");
+    for t in tips {
+        assert!(t["head"].as_str().is_some_and(|h| h.ends_with('.')), "{t}");
+        assert!(t["text"].as_str().is_some_and(|x| x.len() > 10), "{t}");
+    }
+    assert!(tips.iter().any(|t| t["head"] == "Stop if you feel pain."));
+    let for_: Vec<&str> =
+        safely["for"].as_array().unwrap().iter().map(|e| e.as_str().unwrap()).collect();
+    assert_eq!(for_, ["bar", "free weights", "machine"]);
+
+    let ids: std::collections::BTreeSet<&str> =
+        lib["exercises"].as_array().unwrap().iter().map(|e| e["id"].as_str().unwrap()).collect();
+    let links = lib["links"].as_object().unwrap();
+    assert!(links.len() >= 60, "{} cards with links", links.len());
+    for (card, list) in links {
+        assert!(ids.contains(card.as_str()), "{card} is not a card");
+        for l in list.as_array().unwrap() {
+            assert!(l["url"].as_str().unwrap().starts_with("https://"), "{card}");
+            assert!(!l["title"].as_str().unwrap().is_empty(), "{card}");
+            assert!(!l["by"].as_str().unwrap().is_empty(), "{card}");
+        }
+    }
+    assert!(links.contains_key("army-deadlift"), "a deadlift is shown done somewhere");
+}
+
 /// **The Italian collection is Italian, credited, and says only what its pages say** (2026-10-18).
 #[test]
 fn the_wikibooks_collection_is_credited_and_carries_no_values() {
