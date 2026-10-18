@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// (`pixi run myrme-bump`). Another major does not build, and the message below says why, rather
 /// than an error about a missing function. `ci/checks.sh` holds this pair equal in the two crates
 /// that link Myrme. `decisions.md#agent`, 2026-10-18.
-pub const MYRME_CONTRACT: (u32, u32) = (1, 1);
+pub const MYRME_CONTRACT: (u32, u32) = (1, 3);
 // While the minor this app needs is 0, `>= 0` is always true and clippy says so; it is kept so the
 // check is already in place for the day this app needs a later minor.
 #[allow(clippy::absurd_extreme_comparisons)]
@@ -717,6 +717,7 @@ pub fn spawn_at_launch(state: Arc<AppState>) {
     let port = state.agent.port;
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(AGENT_WARMUP_DELAY_SECS));
+        refresh_runtime_if_outdated(&state.agent);
         if !spawn(port) {
             state.agent.running.store(false, Ordering::Relaxed);
         } else if transcribe_enabled() && whisper_wanted_here() && transcribe_fetchable() {
@@ -724,6 +725,46 @@ pub fn spawn_at_launch(state: Arc<AppState>) {
             provision_transcribe(&state.agent);
         }
     });
+}
+
+/// **An app update brings the runtime its catalogue pins** (`decisions.md#agent`, 2026-10-18). A
+/// runtime on disk was never fetched again, so a faster or fixed one never reached anyone who
+/// already had the assistant. Myrme knows whether the runtime here is older than the pinned one,
+/// and swaps it only once the new archive is fetched and checked; here it runs before the assistant
+/// starts (the files are not in use), and shows in the same progress field as a first download.
+/// A failure is reported and the assistant starts on the runtime it had — never on none.
+fn refresh_runtime_if_outdated(agent: &Arc<AgentState>) {
+    let (Some(tools), Some(manifest)) = (tools(), read_manifest()) else { return };
+    if !tools.runtime_outdated(&manifest) {
+        return;
+    }
+    let gen = agent.generation.load(Ordering::SeqCst);
+    let live = || agent.generation.load(Ordering::SeqCst) == gen;
+    let show = |stage: &str, done: u64, total: Option<u64>, error: Option<String>| {
+        if live() {
+            *agent.provisioning.lock().unwrap() =
+                Some(Provision { stage: stage.into(), done, total, error });
+        }
+    };
+    let cancelled = || !live();
+    let progress = fm_agent_run::host::Progress {
+        step: &|stage| {
+            show(stage.word(), 0, None, None);
+            live()
+        },
+        bytes: &|stage, done, total| show(stage.word(), done, total, None),
+        cancelled: &cancelled,
+    };
+    println!("study agent: updating the model runtime to the one this release pins");
+    match tools.refresh_runtime(&manifest, &progress) {
+        Ok(()) => show("ready", 0, None, None),
+        Err(e) => {
+            eprintln!(
+                "study agent: the runtime could not be updated ({e}); starting on the one here"
+            );
+            show("ready", 0, None, None);
+        }
+    }
 }
 
 /// Handle the `/api/agent_*` transport routes. `None` means "not an agent route" — the caller falls

@@ -3,7 +3,7 @@
 //! On the desktop the agent is a separate `agent-serve` process that reaches the vault over HTTP to
 //! `fm-serve`. A phone has no such server (ruling 7), so the *same* runner instead reaches the vault
 //! through [`fm_app::dispatch`] in-process — a second implementation of the `VaultAccess` seam. The
-//! orchestration loop itself ([`fm_agent_run::watch::serve_loop`]) is byte-for-byte the desktop's.
+//! orchestration loop itself — run by Myrme's `host::Tools::run_in_process` — is the desktop's.
 //!
 //! The model is a local `llama-server` (the prebuilt android-arm64 build) launched under the same
 //! watchdog, talking over `127.0.0.1:<port>` — exactly as on the desktop. The **runtime binary + its
@@ -20,7 +20,7 @@ use crate::MobileHost;
 /// (`pixi run myrme-bump`). Another major does not build, and the message below says why, rather
 /// than an error about a missing function. `ci/checks.sh` holds this pair equal in the two crates
 /// that link Myrme. `decisions.md#agent`, 2026-10-18.
-pub const MYRME_CONTRACT: (u32, u32) = (1, 1);
+pub const MYRME_CONTRACT: (u32, u32) = (1, 3);
 // While the minor this app needs is 0, `>= 0` is always true and clippy says so; it is kept so the
 // check is already in place for the day this app needs a later minor.
 #[allow(clippy::absurd_extreme_comparisons)]
@@ -29,14 +29,8 @@ const _: () = assert!(
     "the pinned Myrme speaks another contract than this app was written for: \
      pin a Myrme release of contract major 1, minor 0 or later (see Myrme's releases.md)"
 );
-use fm_agent::launch::SupervisedModel;
-use fm_agent::preflight::Need;
-use fm_agent::watchdog::{Limits, SystemMonitor};
 use fm_agent_run::fmserve::VaultAccess;
 use fm_agent_run::manifest::Manifest;
-use fm_agent_run::nativelib::native_lib_dir;
-use fm_agent_run::watch::{serve_loop, wait_ready};
-use fm_agent_run::Agent;
 use fm_app::{dispatch, App};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -48,14 +42,7 @@ use std::sync::Arc;
 /// user-editable.
 const EMBEDDED_MANIFEST: &str = fm_agent_run::CATALOGUE;
 
-/// The bundled runtime binary's name in `jniLibs` — `llama-server` renamed to a `lib*.so` so Android
-/// packages it and lets us `exec` it from `nativeLibraryDir` (see [`native_lib_dir`]).
-const SERVER_LIB: &str = "libllama-server.so";
 
-/// The bundled audio→transcript runtime — whisper.cpp's `whisper-server`, cross-compiled to arm64 and
-/// staged (STATIC, single self-contained binary) by `ci/android-stage-whisper.sh`. Renamed `lib*.so`
-/// for the same exec-from-jniLibs reason as [`SERVER_LIB`]. Absent ⇒ transcription simply stays off.
-const WHISPER_SERVER_LIB: &str = "libwhisper-server.so";
 
 /// What Settings needs to know about this phone, **in the same shape fm-serve answers**.
 ///
@@ -69,29 +56,13 @@ const WHISPER_SERVER_LIB: &str = "libwhisper-server.so";
 /// build made without it should say so rather than offer a switch onto a missing binary — the same
 /// stance the desktop takes when `agents/` is absent.
 pub fn availability() -> (bool, String, bool) {
-    // Our own cdylib is always mapped, so its directory is where Android extracted every packaged
-    // `lib*.so` — the one place an app may exec from.
-    let Some(dir) = native_lib_dir("libformicaria_mobile_lib.so") else {
-        return (
-            false,
-            "The assistant cannot locate this app's own library directory, so it cannot start a \
-             model. Everything else in formicaria works normally."
-                .into(),
-            false,
-        );
-    };
-    let installed = dir.join(SERVER_LIB).exists();
-    let why = if installed {
-        String::new()
-    } else {
-        "This build of the app does not carry the model runtime, so the assistant cannot be turned \
-         on. Everything else in formicaria works normally."
-            .to_string()
-    };
-    // The weights are fetched on first enable, so what is asked here is whether the *runtime* is
-    // aboard — the honest capability on a phone, where the download is part of turning it on.
-    let transcribe_available = installed && dir.join(WHISPER_SERVER_LIB).exists();
-    (installed, why, transcribe_available)
+    fm_agent_run::host::Bundled::availability(bundle().as_ref())
+}
+
+/// This app's bundled runtime: our own cdylib is always mapped, so its directory is where Android
+/// extracted every packaged `lib*.so` — the one place an app may exec from.
+fn bundle() -> Option<fm_agent_run::host::Bundled> {
+    fm_agent_run::host::Bundled::locate("libformicaria_mobile_lib.so")
 }
 
 /// The in-process presence board — the mobile mirror of fm-serve's `AgentRegistry`. A phone has no
@@ -292,7 +263,7 @@ fn write_settings(agents_dir: &std::path::Path, enabled: bool, transcribe: bool)
 }
 
 /// The model this person accepted, and the catalogue default at that moment (or when they last said
-/// "not now") — the two things `fm_agent_run::installed::resolve` needs to tell a kept model from
+/// "not now") — the two things Myrme's `host::Tools::installed_for` needs to tell a kept model from
 /// one that has merely not been offered a replacement yet. Same keys as the desktop's `agent.json`.
 fn choice(agents_dir: &std::path::Path) -> (Option<String>, Option<String>) {
     let all = std::fs::read_to_string(agents_dir.join("agent.json"))
@@ -327,9 +298,8 @@ fn catalogue(agents_dir: &std::path::Path) -> Result<Manifest, String> {
 pub fn installed(agents_dir: &std::path::Path) -> Option<fm_agent_run::installed::Installed> {
     let manifest = catalogue(agents_dir).ok()?;
     let (chosen, seen) = choice(agents_dir);
-    Some(fm_agent_run::installed::resolve(
+    Some(fm_agent_run::host::Tools::new(agents_dir, false).installed_for(
         &manifest,
-        &agents_dir.join("models"),
         manifest.mobile_default(),
         chosen.as_deref(),
         seen.as_deref(),
@@ -385,7 +355,6 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
     let gen = UPDATE_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
         let live = move || UPDATE_GEN.load(std::sync::atomic::Ordering::SeqCst) == gen;
-        let models_dir = agents_dir.join("models");
         let progress = |stage: &'static str| {
             move |done: u64, total: Option<u64>| {
                 if !live() {
@@ -399,22 +368,22 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
             }
         };
         let never = move || !live();
-        let fetched = fm_agent_run::fetch::ensure_model(
-            &models_dir,
+        // The weights and the projector — Myrme's to fetch; the phone's runtime is bundled.
+        let model_progress = progress("model");
+        let projector_progress = progress("projector");
+        let fetched = fm_agent_run::host::Tools::new(&agents_dir, false).provision_weights(
             &manifest,
             &default,
-            &progress("model"),
-            &never,
-        )
-        .and_then(|_| {
-            fm_agent_run::fetch::ensure_mmproj(
-                &models_dir,
-                &manifest,
-                &default,
-                &progress("projector"),
-                &never,
-            )
-        });
+            true,
+            &fm_agent_run::host::Progress {
+                step: &|_| live(),
+                bytes: &|stage, done, total| match stage {
+                    fm_agent_run::host::Stage::Projector => projector_progress(done, total),
+                    _ => model_progress(done, total),
+                },
+                cancelled: &never,
+            },
+        );
         if !live() {
             return; // stopped by the person: say nothing, change nothing
         }
@@ -641,30 +610,20 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
 
     // The runtime is exec'd from the native-library dir; refuse early (before spawning) if it isn't
     // bundled, so the reason is one clear log line rather than a launch failure deep in the thread.
-    let runtime_dir = native_lib_dir("libformicaria_mobile_lib.so")
+    let bundle = bundle()
         .ok_or_else(|| "cannot locate the native-library dir from /proc/self/maps".to_string())?;
-    let server_bin = runtime_dir.join(SERVER_LIB);
-    if !server_bin.exists() {
+    if !bundle.dir().join(fm_agent_run::host::BUNDLED_SERVER).exists() {
         return Err(format!(
-            "no bundled model runtime at {} — build the APK with the runtime staged into jniLibs",
-            server_bin.display()
+            "no bundled model runtime in {} — build the APK with the runtime staged into jniLibs",
+            bundle.dir().display()
         ));
     }
-
-    let models_dir = agents_dir.join("models");
-    // A writable place for the runner's timing log (the runtime dir is read-only extracted libs).
-    let logs_dir = agents_dir.join("runtime");
-    let _ = std::fs::create_dir_all(&logs_dir);
-    let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.mobile_threads());
-    let max_reply_chars = manifest.max_reply_chars;
-    // Audio transcription is opt-in (Settings). Read it here (agents_dir isn't moved into the thread).
-    let transcribe_on = is_transcribe_enabled(&agents_dir);
-    // The same speech weights as every device, or the better ones when chosen (2026-10-18).
-    let whisper_name = manifest
-        .whisper_for(listening_better(&agents_dir))
-        .unwrap_or_else(|| "ggml-base".to_string());
-    // What actually listens — the chosen weights, or the earlier ones while those cannot be fetched.
-    let mut heard_with = whisper_name.clone();
+    // Audio transcription is opt-in (Settings); the same speech weights as every device, or the
+    // better ones when chosen (2026-10-18).
+    let speech = is_transcribe_enabled(&agents_dir).then(|| {
+        manifest.whisper_for(listening_better(&agents_dir)).unwrap_or_else(|| "ggml-base".into())
+    });
+    let device = device_name(&agents_dir);
 
     // Claim the running slot now, before the (possibly long) download, so a second start()/on-toggle
     // no-ops instead of racing a duplicate model. Cleared on every exit path of the thread below.
@@ -680,258 +639,49 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     };
 
     std::thread::spawn(move || {
-        // Fetch the weights if this is the first enable (resumable + checksum, retrying through the
-        // mobile-network drops). Slow, and offline just means "not yet" — logged, not fatal. Log once
-        // per MB, not per 64 KB chunk.
-        let last_mb = std::cell::Cell::new(u64::MAX);
-        let progress = |done: u64, total: Option<u64>| {
-            let mb = done / 1_000_000;
-            if last_mb.replace(mb) != mb {
-                match total {
-                    Some(t) => {
-                        log::info!("study agent: fetching {model_name} {mb}/{} MB", t / 1_000_000)
-                    }
-                    None => log::info!("study agent: fetching {model_name} {mb} MB"),
-                }
-            }
-        };
-        // **Stop means stop, mid-download.** The generation test below already discarded a launch the
-        // user had turned off — but only *after* the fetch finished, so switching the assistant off
-        // during a 1.4 GB first-run download left it downloading anyway, on mobile data, for as long
-        // as it took. The `.part` survives, so turning it back on resumes rather than restarts.
-        let cancelled = || !current(generation);
-        let model_gguf = match fm_agent_run::fetch::ensure_model(
-            &models_dir,
-            &manifest,
-            &model_name,
-            &progress,
-            &cancelled,
-        ) {
-            Ok(p) => p,
-            Err(e) => {
-                log::info!("study agent: no model yet ({e})");
-                clear_running(generation);
-                return;
-            }
-        };
-
-        // The image projector, when the chosen model has one — fetched the same way and by the same
-        // function as on the desktop. Best-effort: without it the model starts text-only and says so
-        // when asked to read a picture, which is the honest state, not a failed launch.
-        if let Err(e) = fm_agent_run::fetch::ensure_mmproj(
-            &models_dir,
-            &manifest,
-            &model_name,
-            &progress,
-            &cancelled,
-        ) {
-            log::info!("study agent: no image projector yet ({e}) — starting text-only");
-        }
-
-        // Reclaim space: delete weights that belong to neither the model in use nor the one on offer
-        // (whose download may be half done). What is left behind is an earlier model's, after an
-        // accepted update.
-        for gone in fm_agent_run::installed::sweep(&manifest, &models_dir, &[&model_name, &default])
-        {
-            log::info!("study agent: removed unused model {}", gone.display());
-        }
-
-        // **Cancelled while downloading?** Then stop here, before a model is in memory. This is the
-        // window an off-toggle used to fall into silently: the user turned the assistant off, the
-        // download carried on, and a model started anyway against a persisted `enabled: false`.
-        if !current(generation) {
-            log::info!("study agent: cancelled before the model was started");
-            return;
-        }
-
-        let mut cmd = std::process::Command::new(&server_bin);
-        cmd.env("LD_LIBRARY_PATH", &runtime_dir).arg("-m").arg(&model_gguf).args([
-            "--host",
-            "127.0.0.1",
-            "--port",
-            &port.to_string(),
-            "-c",
-            &ctx.to_string(),
-            "-t",
-            &threads.to_string(),
-            "--no-warmup",
-        ]);
-        // The "model dies with its supervisor" backstop (PR_SET_PDEATHSIG) now lives inside
-        // SupervisedModel::launch — one shared path for desktop and phone, exercised by fm-agent's CI
-        // tests — so it no longer needs repeating here.
-        // Whether this model can see is decided here and nowhere else: `add_projector` is the one
-        // function, shared with the desktop, that puts a projector on the command line.
-        let sees = manifest.add_projector(&mut cmd, &model_name, &models_dir);
-        let read_prompt = manifest.read_prompt(&model_name);
-        let reads_labels = manifest.reads_labels(&model_name);
-        // The projector is loaded into memory beside the weights, so admission must count it.
-        let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000)
-            + sees.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()).unwrap_or(0);
-        let model = match SupervisedModel::launch(
-            cmd,
-            SystemMonitor,
-            &Need::new(model_bytes, 1_000_000_000),
-            Limits::resident(),
-        ) {
-            Ok(m) => m,
-            Err(e) => {
-                log::warn!("study agent: model failed to launch: {e}");
-                clear_running(generation);
-                return;
-            }
-        };
-        // Register the off-switch so Settings-off (and app exit) can stop this model now — unless
-        // an off-toggle landed in the microseconds since the check above, in which case the model
-        // that just started is nobody's and is killed rather than registered. Registering it would
-        // publish a stopper for a launch the app has already retired, and the *next* on-toggle would
-        // then overwrite it — leaking a model nothing can stop.
-        let mine = match control().lock() {
-            Ok(mut c) if c.running && c.generation == generation => {
-                c.stopper = Some(model.stopper());
-                true
-            }
-            _ => false,
-        };
-        if !mine {
-            log::info!("study agent: cancelled as the model came up — stopping it");
-            model.stopper().stop();
-            let _ = model.wait();
-            return;
-        }
-
-        // Audio→transcript: when enabled and the runtime is bundled, fetch the small whisper model and
-        // launch whisper-server BESIDE the text model. Its SupervisedModel preflight is the admission
-        // gate — on a phone too tight to hold both, it fails and transcription stays off (chat + the
-        // notebook keep working). whisper-server is a static, self-contained binary (no shared libs to
-        // collide with llama's). The handle is bound for the thread's life so it isn't dropped (killed)
-        // early; its off-switch is registered for Settings-off / app exit.
-        let mut whisper_port_val: Option<u16> = None;
-        let _whisper = if transcribe_on {
-            let whisper_bin = runtime_dir.join(WHISPER_SERVER_LIB);
-            if !whisper_bin.exists() {
-                log::info!("study agent: transcription runtime not bundled — skipping");
-                None
-            } else {
-                let fetched = fm_agent_run::fetch::ensure_model(
-                    &models_dir,
-                    &manifest,
-                    &whisper_name,
-                    &|_, _| {},
-                    &cancelled,
-                );
-                let ears = match fetched {
-                    Ok(path) => {
-                        for gone in fm_agent_run::installed::sweep_whisper(
-                            &manifest,
-                            &models_dir,
-                            &whisper_name,
-                        ) {
-                            log::info!("study agent: removed unused speech model {}", gone.display());
-                        }
-                        Ok((path, whisper_name.clone()))
-                    }
-                    // Offline, or the download was cut: the earlier weights keep listening, and the
-                    // chosen ones are fetched again at the next start.
-                    Err(e) => match fm_agent_run::installed::whisper_on_disk(
-                        &manifest,
-                        &models_dir,
-                        &whisper_name,
-                    )
-                    .and_then(|n| Some((models_dir.join(&manifest.model(&n)?.file), n)))
-                    {
-                        Some(found) => {
-                            log::info!("study agent: {whisper_name} not here yet ({e}) — using {}", found.1);
-                            Ok(found)
-                        }
-                        None => Err(e),
-                    },
-                };
-                match ears {
-                    Ok((wmodel, wname)) => {
-                        heard_with = wname;
-                        let wport = port + 1;
-                        let mut wcmd = std::process::Command::new(&whisper_bin);
-                        wcmd.arg("-m").arg(&wmodel).args([
-                            "--host",
-                            "127.0.0.1",
-                            "--port",
-                            &wport.to_string(),
-                            "-t",
-                            &threads.to_string(),
-                            "-l",
-                            fm_agent_run::manifest::whisper_language(&heard_with),
-                        ]);
-                        let wbytes =
-                            std::fs::metadata(&wmodel).map(|m| m.len()).unwrap_or(80_000_000);
-                        match SupervisedModel::launch(
-                            wcmd,
-                            SystemMonitor,
-                            &Need::new(wbytes, 300_000_000),
-                            Limits::resident(),
-                        ) {
-                            Ok(wm) => {
-                                // Same generation test as the text model: whisper's own download
-                                // is another window an off-toggle can land in, and a stopper
-                                // registered for a retired launch is a model nothing can stop.
-                                match control().lock() {
-                                    Ok(mut c) if c.running && c.generation == generation => {
-                                        c.whisper_stopper = Some(wm.stopper());
-                                        c.whisper_port = Some(wport);
-                                    }
-                                    _ => {
-                                        log::info!("study agent: cancelled — stopping whisper");
-                                        wm.stopper().stop();
-                                    }
-                                }
-                                whisper_port_val = Some(wport);
-                                log::info!("study agent: audio transcription on (whisper :{wport}, {heard_with})");
-                                Some(wm)
-                            }
-                            Err(e) => {
-                                log::info!("study agent: transcription off — {e}");
-                                None
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::info!("study agent: transcription off — no whisper model yet ({e})");
-                        None
-                    }
-                }
-            }
-        } else {
-            None
-        };
-
-        let agent = Agent {
-            fm: DispatchVault { app },
-            model_port: port,
+        // Everything about the assistant's files and processes is Myrme's
+        // (`fm_agent_run::host::Tools::run_in_process`); this app keeps its own state — the
+        // generation that says a launch is still wanted, the stop switches Settings-off and app
+        // exit use, and the `@`-picker's presence board.
+        let tools = fm_agent_run::host::Tools::new(&agents_dir, false);
+        let job = fm_agent_run::host::InProcess {
+            vault: DispatchVault { app },
             model: model_name.clone(),
-            searxng_port: None,             // no local proxy on a phone…
-            web_direct: true, // …so /research uses the in-process HTTPS multi-source search (websearch.rs)
-            whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
-            whisper_model: heard_with.clone(),
-            vision: sees.is_some(),
-            read_prompt,
-            reads_labels,
-            image_specialist: None,
-            max_reply_chars,
-            history_budget: 4000,
-            device: device_name(&agents_dir),
+            offered: default,
+            speech,
+            device,
         };
-        wait_ready(port);
-        log::info!("study agent listening in-process — @{model_name}");
-        // As **Myrme**, the name a person types on every device (2026-10-18), not the model's.
-        set_present(fm_agent::convo::MYRME, true); // now the @-picker can suggest it
-        let stopper = model.stopper();
-        serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
-        set_present(fm_agent::convo::MYRME, false);
+        let hooks = fm_agent_run::host::Hooks {
+            // **Stop means stop, mid-download**: an off-toggle retires this generation.
+            cancelled: &|| !current(generation),
+            // Register the off-switch — unless an off-toggle landed meanwhile, in which case the
+            // model that just started is nobody's and is stopped rather than registered.
+            model_up: &|stopper| match control().lock() {
+                Ok(mut c) if c.running && c.generation == generation => {
+                    c.stopper = Some(stopper);
+                    true
+                }
+                _ => false,
+            },
+            speech_up: &|stopper, port| match control().lock() {
+                Ok(mut c) if c.running && c.generation == generation => {
+                    c.whisper_stopper = Some(stopper);
+                    c.whisper_port = Some(port);
+                    true
+                }
+                _ => false,
+            },
+            // As **Myrme**, the name a person types on every device (2026-10-18), not the model's.
+            present: &|on| set_present(fm_agent::convo::MYRME, on),
+            log: &|line| log::info!("{line}"),
+        };
+        if let Err(e) = tools.run_in_process(&bundle, &manifest, job, &hooks) {
+            log::info!("study agent: {e}");
+        }
         if let Ok(mut g) = reader().lock() {
             *g = None;
         }
-        let _ = model.wait();
         clear_running(generation);
-        log::info!("study agent stopped");
     });
     Ok(())
 }

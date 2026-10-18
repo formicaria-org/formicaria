@@ -32,7 +32,11 @@ stamp="$dest/.llama-runtime-version"
     echo "android-stage-runtime: $dest is missing — run 'pixi run tauri android init' first" >&2
     exit 1
 }
-if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$VER" ] && [ -f "$dest/libllama-server.so" ]; then
+# The stamp names the archive, not just the version: a runtime from another source with the same
+# version (upstream's, before Myrme's llguidance build) must be restaged, and it was not — the stamp
+# said only "b10081", so the switch would never have reached an APK.
+want="$VER $SHA256"
+if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$want" ] && [ -f "$dest/libllama-server.so" ]; then
     echo "android-stage-runtime: $VER already staged"
     exit 0
 fi
@@ -116,6 +120,6 @@ if [ -f "$gradle" ] && ! grep -q useLegacyPackaging "$gradle"; then
     echo "android-stage-runtime: set useLegacyPackaging=true (extract native libs) in build.gradle.kts"
 fi
 
-echo "$VER" > "$stamp"
+echo "$want" > "$stamp"
 n=$(find "$dest" -maxdepth 1 -name 'lib*.so' ! -name 'libformicaria_mobile_lib.so' | wc -l | tr -d ' ')
 echo "android-stage-runtime: staged $VER — $n libs into arm64-v8a (all AArch64), extract-native-libs on."
