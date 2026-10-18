@@ -12129,6 +12129,13 @@ since; the `#agent` entries above remain the history up to 2026-10-18.
   benchmark, fetch-model, the search proxy, agent-chat.
 - **Two guards now read Myrme's source at the pinned tag**, found through `cargo metadata`: the
   `X-Formicaria-Agent` header and the whisper file names. That is the exact code this build links.
+- **The model runtime is Myrme's build** (its release `runtime-llg-3`: llama.cpp with
+  llguidance, upstream's flags, names and layout).
+  - The catalogue it ships points the desktop there.
+  - `ci/android-stage-runtime.sh` takes the Android archive from the same release and now checks its
+    SHA-256.
+  - Measured in Myrme: equally accurate, about 17% faster on the laptop GPU and about 20% on the CPU
+    for answers held to a schema.
 - **`deny.toml` allows one git source**, Myrme's repository. Its crates and their dependencies are
   checked here like any others.
 - **A documented `pixi run <task>` may be one of Myrme's.** `ci/checks.sh` reads Myrme's

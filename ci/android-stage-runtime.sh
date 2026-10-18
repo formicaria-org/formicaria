@@ -18,7 +18,11 @@ set -eu
 # agents/models.toml). android-arm64 is the phone; there is no prebuilt android-x86_64, so the emulator
 # build simply has no runtime and the agent stays off there — the notebook still runs.
 VER="b10081"
-URL="https://github.com/ggml-org/llama.cpp/releases/download/$VER/llama-$VER-bin-android-arm64.tar.gz"
+# Myrme's build of it, with llguidance (the faster engine for answers held to a schema), published with
+# upstream's file name and layout (`decisions.md#agent`, 2026-10-18). Checked by its SHA-256 from that
+# release's SHA256SUMS, like every runtime the catalogue pins.
+URL="https://github.com/formicaria-org/myrme/releases/download/runtime-llg-3/llama-$VER-bin-android-arm64.tar.gz"
+SHA256="40763a08247ace6866dd478099d2d0aa53f6cd27d2c2fa75371b0aa13bb35200"
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 dest="$root/mobile/src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a"
@@ -40,6 +44,8 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 echo "android-stage-runtime: fetching llama.cpp $VER (android-arm64)..."
 curl -fL --retry 3 --progress-bar -o "$tmp/rt.tgz" "$URL"
+got=$( (sha256sum "$tmp/rt.tgz" 2>/dev/null || shasum -a 256 "$tmp/rt.tgz") | cut -d' ' -f1)
+[ "$got" = "$SHA256" ] || { echo "android-stage-runtime: checksum mismatch ($got)" >&2; exit 1; }
 tar xzf "$tmp/rt.tgz" -C "$tmp"
 src="$tmp/llama-$VER"
 [ -f "$src/llama-server" ] || { echo "android-stage-runtime: no llama-server in the tarball" >&2; exit 1; }

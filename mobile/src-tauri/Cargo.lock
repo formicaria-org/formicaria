@@ -914,7 +914,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -983,7 +983,7 @@ dependencies = [
 [[package]]
 name = "fm-agent"
 version = "0.0.0"
-source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.1.0-rc.1#f78503af1f2a87731c23099c91d2d02b0a38ce0a"
+source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.1.0#48f01fa7e8bf489dcef056c1ddb645ecbdd30daf"
 dependencies = [
  "libc",
  "serde_json",
@@ -994,7 +994,7 @@ dependencies = [
 [[package]]
 name = "fm-agent-run"
 version = "0.0.0"
-source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.1.0-rc.1#f78503af1f2a87731c23099c91d2d02b0a38ce0a"
+source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.1.0#48f01fa7e8bf489dcef056c1ddb645ecbdd30daf"
 dependencies = [
  "clap",
  "flate2",
@@ -2972,7 +2972,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
