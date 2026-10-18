@@ -248,9 +248,16 @@ jobs:
             echo 'text=' >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # **Which assistant this release carries**, read from Cargo.lock — the Myrme the build
+          # actually linked, not a number written by hand (`decisions.md#agent`, 2026-10-18).
+          MYRME=$(sed -n 's/.*formicaria-org\/myrme\.git?tag=\(v[0-9.]*\)#.*/\1/p' Cargo.lock | head -1)
           {
             echo 'text<<RELEASE_NOTES_EOF'
             git tag -l --format='%(contents)' "$TAG"
+            if [ -n "$MYRME" ]; then
+              echo
+              echo "The assistant in this release is **Myrme ${MYRME}** — [what each Myrme release changed](https://github.com/formicaria-org/myrme/blob/${MYRME}/docs/context/releases.md)."
+            fi
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v7

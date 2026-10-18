@@ -321,8 +321,8 @@ dependencies = [
 
 [[package]]
 name = "fm-agent"
-version = "0.0.0"
-source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.1.2#cdb0eae1403ea970568be5d9292d3d758ace4086"
+version = "0.2.0"
+source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.2.0#ff3e8a9305636e28a8df50c3a73968a0de8a94cd"
 dependencies = [
  "libc",
  "serde_json",
@@ -332,8 +332,8 @@ dependencies = [
 
 [[package]]
 name = "fm-agent-run"
-version = "0.0.0"
-source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.1.2#cdb0eae1403ea970568be5d9292d3d758ace4086"
+version = "0.2.0"
+source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.2.0#ff3e8a9305636e28a8df50c3a73968a0de8a94cd"
 dependencies = [
  "clap",
  "flate2",

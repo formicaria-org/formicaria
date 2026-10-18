@@ -281,7 +281,15 @@ npm_licences() {
     echo "(October 2020, including Change 1). Approved for public release; distribution"
     echo "unlimited. Text only; its photographs are not carried."
     echo
-    echo "Films of exercises are links to YouTube and are not carried."
+    echo "Text from the National Institute on Aging, National Institutes of Health: the Safety"
+    echo "Tips of *Workout to Go: A Sample Exercise Routine from the National Institute on Aging"
+    echo "at NIH* (2015), copied unchanged. \"Unless otherwise indicated, text within materials on"
+    echo "the NIA website is in the public domain and may be reused without our permission\""
+    echo "(<https://www.nia.nih.gov/about/policies>). Text only; its photographs are not carried."
+    echo "The NIA does not endorse this app."
+    echo
+    echo "Films of exercises, and pages elsewhere on how an exercise is done (such as the American"
+    echo "Council on Exercise's library), are links and are not carried; only their titles are."
     echo
     echo "## The barcode reader"
     echo

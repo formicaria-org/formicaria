@@ -71,7 +71,8 @@ afterwards is how a project stops being what it said it was, one reasonable step
   remote session cannot edit — so it is restated here per-repo.)*
 - **A release does not wait for a phone test** (owner, 2026-10-15: *"it takes a lot … the ci will
   do its work"*; `decisions.md#toolchain`, reversing the rule kept since v0.6.2). The order is docs →
-  local gate → version commit → GitHub's gate green → annotated tag. A phone test is still there
+  `pixi run myrme-bump` (the newest compatible assistant, `decisions.md#agent`) → local gate →
+  version commit → GitHub's gate green → annotated tag. A phone test is still there
   when wanted — the **`android`** workflow by hand on `main`, or `pixi run -e android phone-test`
   with its token (`sh ci/phone-test-setup.sh`); details in `docs/context/known-issues.md`,
   *Signing a phone build locally* — but nothing requires it.

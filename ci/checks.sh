@@ -2271,6 +2271,27 @@ if [ -z "$myrme_run" ] || [ ! -d "$myrme_run" ]; then
     echo "  FAIL: cannot find Myrme's fm-agent-run source through \`cargo metadata\`."
     fail=1
 fi
+echo "[check] every place that links Myrme pins the same release, and states the same contract..."
+# A release must ship one Myrme: fm-serve, agent-serve and the phone shell each name the tag, and a
+# mismatch would put one assistant in the desktop and another in the phone. Only a release tag
+# (vX.Y.Z) — a candidate or a branch would change under the app without a commit here.
+# `pixi run myrme-bump` moves all three at once. `decisions.md#agent`, 2026-10-18.
+myrme_pins=$(sed -n 's/.*formicaria-org\/myrme\.git", tag = "\([^"]*\)".*/\1/p' \
+    crates/fm-serve/Cargo.toml crates/agent-serve/Cargo.toml mobile/src-tauri/Cargo.toml | sort -u)
+if [ "$(printf '%s\n' "$myrme_pins" | grep -c .)" -ne 1 ]; then
+    echo "  FAIL: the Myrme pins differ: $(echo $myrme_pins). Use \`pixi run myrme-bump\`."
+    fail=1
+elif ! printf '%s' "$myrme_pins" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "  FAIL: Myrme is pinned to '$myrme_pins', which is not a release tag (vX.Y.Z)."
+    fail=1
+fi
+myrme_contracts=$(grep -h 'pub const MYRME_CONTRACT' crates/fm-serve/src/agent.rs mobile/src-tauri/src/agent.rs | sort -u | grep -c .)
+if [ "$myrme_contracts" -ne 1 ]; then
+    echo "  FAIL: crates/fm-serve/src/agent.rs and mobile/src-tauri/src/agent.rs state different"
+    echo "        MYRME_CONTRACT values; the desktop and the phone must be written for one contract."
+    fail=1
+fi
+
 agent_header='X-Formicaria-Agent'
 for f in "$myrme_run/src/fmserve.rs" crates/fm-serve/src/main.rs; do
     if ! grep -q "$agent_header" "$f"; then
