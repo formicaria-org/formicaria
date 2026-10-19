@@ -218,6 +218,8 @@ npm_licences() {
     echo "|---|---|---|"
     echo "| llama.cpp (\`llama-server\` + \`ggml\`) | MIT | <https://github.com/ggml-org/llama.cpp> |"
     echo "| whisper.cpp (\`whisper-server\`) | MIT | <https://github.com/ggml-org/whisper.cpp> |"
+    echo "| ONNX Runtime (the assistant's OCR; carried inside the Android app, downloaded on a computer) | MIT | <https://github.com/microsoft/onnxruntime> |"
+    echo "| PP-OCRv6 small (the OCR's detector, recogniser and dictionary, as ONNX) | Apache-2.0 | <https://github.com/PaddlePaddle/PaddleOCR> · <https://github.com/GreatV/oar-ocr> |"
     echo
     echo "Model **weights** are downloaded from Hugging Face and carry their own terms, stated in"
     echo "the app before anything is fetched and recorded per model in \`models.toml\`."

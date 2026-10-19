@@ -12330,3 +12330,34 @@ an update) the default is pre-selected with *Download <size> and switch*; the se
 row is not shown. It stays for a phone whose model is no longer supported, which has no model row.
 The desktop is unchanged (formicaria 0.9.6).
 
+## 2026-10-20 — Myrme 0.7.0: the phone runs Qwen3.5-0.8B, and the APK carries ONNX Runtime for the OCR `#agent` `#track-m` `#toolchain`
+
+**The owner:**
+- in Myrme's session: *"drop the 450M and make qwen the phone model"*;
+- *"ship also the OCR tool already for the light version"*, *"One release, 0.7.0 with OCR"*;
+- then *"do the pin bump and the fm release"*.
+
+**Decision.**
+- **Myrme 0.7.0 (contract 1.6) is linked**, and `fm_app::MYRME_CONTRACT` asks for 1.6.
+  - The phone's catalogue has one choice, `qwen3.5-0.8b`. The model row needs two or more, so it
+    is not shown.
+  - A phone running the 450M sees the existing "newer model" offer, with its size, and keeps its
+    model until it accepts. That is the 2026-10-10 rule; the 2026-10-19 (later) entry already
+    keeps the offer where the row is not shown.
+- **The APK carries ONNX Runtime** (Microsoft's android-arm64 AAR, MIT, ~19 MB uncompressed,
+  pinned by Myrme's catalogue): `ci/android-stage-onnxruntime.sh`, a dependency of both APK builds.
+  - Myrme's OCR (PP-OCRv6 small) opens it in-process from the native-library dir, and reads printed
+    pages before the vision model. Its ~31 MB of model files come with the model download.
+  - **This widens what ships**: a larger APK, and one more third-party runtime named in
+    `ci/third-party.sh`.
+  - Without the library the assistant works as before, so a build that skips the step loses only
+    the OCR.
+- `ci/android-stage-runtime.sh` no longer deletes `libonnxruntime.so` when it re-stages llama.cpp.
+- **`deny.toml` takes Myrme's OCR exceptions**, all scoped to one crate and all from the OCR's image
+  stack, the same ones Myrme takes:
+  - licences: `clipper2-rust` (BSL-1.0) and `libfuzzer-sys` (NCSA), both OSI-approved and permissive;
+  - waivers for two *unmaintained* notices: `paste` and `ttf-parser`.
+- **On a computer formicaria changes nothing.** Myrme fetches ONNX Runtime and the OCR's files into
+  the tools folder, through the runtime refresh an update already runs (Linux and macOS; not
+  Windows, whose archive is 78 MB).
+

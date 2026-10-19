@@ -11,46 +11,94 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 
 | Crate | Version | Licence |
 |---|---|---|
+| ab_glyph | v0.2.32 | Apache-2.0 |
+| ab_glyph_rasterizer | v0.1.10 | Apache-2.0 |
 | adler2 | v2.0.1 | 0BSD OR MIT OR Apache-2.0 |
+| ahash | v0.8.12 | MIT OR Apache-2.0 |
+| aho-corasick | v1.1.5 | Unlicense OR MIT |
+| aligned | v0.4.3 | MIT OR Apache-2.0 |
+| aligned-vec | v0.6.4 | MIT |
 | anstream | v1.0.0 | MIT OR Apache-2.0 |
 | anstyle | v1.0.14 | MIT OR Apache-2.0 |
 | anstyle-parse | v1.0.0 | MIT OR Apache-2.0 |
 | anstyle-query | v1.1.5 | MIT OR Apache-2.0 |
 | anstyle-wincon | v3.0.11 | MIT OR Apache-2.0 |
 | anyhow | v1.0.103 | MIT OR Apache-2.0 |
+| approx | v0.5.1 | Apache-2.0 |
 | arbitrary | v1.4.2 | MIT OR Apache-2.0 |
+| arg_enum_proc_macro | v0.3.4 | MIT |
+| arrayvec | v0.7.8 | MIT OR Apache-2.0 |
+| as-slice | v0.2.1 | MIT OR Apache-2.0 |
+| autocfg | v1.5.1 | Apache-2.0 OR MIT |
+| av-scenechange | v0.14.1 | MIT |
+| av1-grain | v0.2.5 | BSD-2-Clause |
+| avif-serialize | v0.8.9 | BSD-3-Clause |
+| base64 | v0.13.1 | MIT/Apache-2.0 |
 | base64 | v0.22.1 | MIT OR Apache-2.0 |
+| bit_field | v0.10.3 | Apache-2.0/MIT |
 | bitflags | v2.13.0 | MIT OR Apache-2.0 |
+| bitstream-io | v4.10.0 | MIT/Apache-2.0 |
 | block-buffer | v0.12.1 | MIT OR Apache-2.0 |
+| built | v0.8.1 | MIT |
 | bumpalo | v3.20.3 | MIT OR Apache-2.0 |
+| bytemuck | v1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | byteorder | v1.5.0 | Unlicense OR MIT |
+| byteorder-lite | v0.1.0 | Unlicense OR MIT |
+| castaway | v0.2.4 | MIT |
 | cc | v1.2.67 | MIT OR Apache-2.0 |
 | cfb | v0.7.3 | MIT |
 | cfg-if | v1.0.4 | MIT OR Apache-2.0 |
+| chacha20 | v0.10.2 | MIT OR Apache-2.0 |
 | clap | v4.6.1 | MIT OR Apache-2.0 |
 | clap_builder | v4.6.0 | MIT OR Apache-2.0 |
 | clap_derive | v4.6.1 | MIT OR Apache-2.0 |
 | clap_lex | v1.1.0 | MIT OR Apache-2.0 |
+| clipper2-rust | v1.2.0 | BSL-1.0 |
+| color_quant | v1.1.0 | MIT |
 | colorchoice | v1.0.5 | MIT OR Apache-2.0 |
+| compact_str | v0.9.1 | MIT |
+| console | v0.16.6 | MIT |
 | const-oid | v0.10.2 | Apache-2.0 OR MIT |
 | cpufeatures | v0.3.0 | MIT OR Apache-2.0 |
 | crc32fast | v1.5.0 | MIT OR Apache-2.0 |
+| crossbeam-deque | v0.8.8 | MIT OR Apache-2.0 |
+| crossbeam-epoch | v0.9.21 | MIT OR Apache-2.0 |
 | crossbeam-utils | v0.8.22 | MIT OR Apache-2.0 |
+| crunchy | v0.2.4 | MIT |
 | crypto-common | v0.2.2 | MIT OR Apache-2.0 |
+| daachorse | v3.0.3 | MIT OR Apache-2.0 |
+| darling | v0.20.11 | MIT |
+| darling | v0.23.0 | MIT |
+| darling_core | v0.20.11 | MIT |
+| darling_core | v0.23.0 | MIT |
+| darling_macro | v0.20.11 | MIT |
+| darling_macro | v0.23.0 | MIT |
+| dary_heap | v0.3.9 | MIT OR Apache-2.0 |
 | deranged | v0.5.8 | MIT OR Apache-2.0 |
 | derive_arbitrary | v1.4.2 | MIT OR Apache-2.0 |
+| derive_builder | v0.20.2 | MIT OR Apache-2.0 |
+| derive_builder_core | v0.20.2 | MIT OR Apache-2.0 |
+| derive_builder_macro | v0.20.2 | MIT OR Apache-2.0 |
 | digest | v0.11.3 | MIT OR Apache-2.0 |
 | displaydoc | v0.2.6 | MIT OR Apache-2.0 |
+| either | v1.19.0 | MIT OR Apache-2.0 |
+| encode_unicode | v1.0.0 | Apache-2.0 OR MIT |
+| equator | v0.4.2 | MIT |
+| equator-macro | v0.4.2 | MIT |
 | equivalent | v1.0.2 | Apache-2.0 OR MIT |
 | errno | v0.3.14 | MIT OR Apache-2.0 |
+| esaxx-rs | v0.1.10 | Apache-2.0 |
+| exr | v1.74.2 | BSD-3-Clause |
 | fallible-iterator | v0.3.0 | MIT/Apache-2.0 |
 | fallible-streaming-iterator | v0.1.9 | MIT/Apache-2.0 |
 | fastrand | v2.4.1 | Apache-2.0 OR MIT |
+| fax | v0.2.7 | MIT |
+| fdeflate | v0.3.7 | MIT OR Apache-2.0 |
 | filetime | v0.2.29 | MIT/Apache-2.0 |
 | find-msvc-tools | v0.1.9 | MIT OR Apache-2.0 |
 | flate2 | v1.1.9 | MIT OR Apache-2.0 |
-| fm-agent | v0.6.0 | MIT |
-| fm-agent-run | v0.6.0 | MIT |
+| fm-agent | v0.7.0 | MIT |
+| fm-agent-run | v0.7.0 | MIT |
 | fm-app | v0.0.0 | MIT |
 | fm-cli | v0.0.0 | MIT |
 | fm-core | v0.0.0 | MIT |
@@ -68,7 +116,9 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | getrandom | v0.2.17 | MIT OR Apache-2.0 |
 | getrandom | v0.3.4 | MIT OR Apache-2.0 |
 | getrandom | v0.4.3 | MIT OR Apache-2.0 |
+| gif | v0.14.2 | MIT OR Apache-2.0 |
 | git2 | v0.21.0 | MIT OR Apache-2.0 |
+| half | v2.7.1 | MIT OR Apache-2.0 |
 | hashbrown | v0.16.1 | MIT OR Apache-2.0 |
 | hashbrown | v0.17.1 | MIT OR Apache-2.0 |
 | hashlink | v0.12.1 | MIT OR Apache-2.0 |
@@ -81,80 +131,185 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | icu_properties | v2.2.0 | Unicode-3.0 |
 | icu_properties_data | v2.2.0 | Unicode-3.0 |
 | icu_provider | v2.2.0 | Unicode-3.0 |
+| ident_case | v1.0.1 | MIT/Apache-2.0 |
 | idna | v1.1.0 | MIT OR Apache-2.0 |
 | idna_adapter | v1.2.2 | Apache-2.0 OR MIT |
+| image | v0.25.10 | MIT OR Apache-2.0 |
+| image-webp | v0.2.4 | MIT OR Apache-2.0 |
+| imageproc | v0.27.0 | MIT |
+| imgref | v1.12.3 | CC0-1.0 OR Apache-2.0 |
 | indexmap | v2.14.0 | Apache-2.0 OR MIT |
+| indicatif | v0.18.6 | MIT |
 | infer | v0.19.0 | MIT |
+| interpolate_name | v0.2.4 | MIT |
 | is_terminal_polyfill | v1.70.2 | MIT OR Apache-2.0 |
+| itertools | v0.14.0 | MIT OR Apache-2.0 |
+| itertools | v0.15.0 | MIT OR Apache-2.0 |
 | itoa | v1.0.18 | MIT OR Apache-2.0 |
 | jobserver | v0.1.35 | MIT OR Apache-2.0 |
 | js-sys | v0.3.103 | MIT OR Apache-2.0 |
+| lazy_static | v1.5.1 | MIT OR Apache-2.0 |
+| lebe | v0.5.3 | BSD-3-Clause |
 | libc | v0.2.186 | MIT OR Apache-2.0 |
+| libfuzzer-sys | v0.4.13 | (MIT OR Apache-2.0) AND NCSA |
 | libgit2-sys | v0.18.5+1.9.4 | (MIT OR Apache-2.0) AND (GPL-2.0-only WITH linking exception) — vendors libgit2 |
+| libloading | v0.9.0 | ISC |
+| libm | v0.2.16 | MIT |
 | libsqlite3-sys | v0.38.1 | MIT |
 | libz-sys | v1.1.29 | MIT OR Apache-2.0 |
 | linux-raw-sys | v0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | v0.8.2 | Unicode-3.0 |
 | log | v0.4.33 | MIT OR Apache-2.0 |
+| loop9 | v0.1.5 | MIT |
+| macro_rules_attribute | v0.2.3 | Apache-2.0 OR MIT OR Zlib |
+| macro_rules_attribute-proc_macro | v0.2.3 | Apache-2.0 OR MIT OR Zlib |
+| matchers | v0.2.0 | MIT |
+| matrixmultiply | v0.3.11 | MIT/Apache-2.0 |
+| maybe-rayon | v0.1.1 | MIT |
 | memchr | v2.8.3 | Unlicense OR MIT |
+| minimal-lexical | v0.2.1 | MIT/Apache-2.0 |
 | miniz_oxide | v0.8.9 | MIT OR Zlib OR Apache-2.0 |
+| monostate | v0.1.18 | MIT OR Apache-2.0 |
+| monostate-impl | v0.1.18 | MIT OR Apache-2.0 |
+| moxcms | v0.8.1 | BSD-3-Clause OR Apache-2.0 |
+| multiversion | v0.8.0 | MIT OR Apache-2.0 |
+| multiversion-macros | v0.8.0 | MIT OR Apache-2.0 |
+| nalgebra | v0.35.0 | Apache-2.0 |
+| nalgebra-macros | v0.3.0 | Apache-2.0 |
+| ndarray | v0.17.2 | MIT OR Apache-2.0 |
+| new_debug_unreachable | v1.0.6 | MIT |
+| no_std_io2 | v0.9.4 | Apache-2.0 OR MIT |
+| nom | v7.1.3 | MIT |
+| nom | v8.0.0 | MIT |
+| noop_proc_macro | v0.3.0 | MIT |
+| nu-ansi-term | v0.50.3 | MIT |
+| num | v0.4.3 | MIT OR Apache-2.0 |
+| num-bigint | v0.4.8 | MIT OR Apache-2.0 |
+| num-complex | v0.4.6 | MIT OR Apache-2.0 |
 | num-conv | v0.2.2 | MIT OR Apache-2.0 |
+| num-derive | v0.4.2 | MIT OR Apache-2.0 |
+| num-integer | v0.1.47 | MIT OR Apache-2.0 |
+| num-iter | v0.1.46 | MIT OR Apache-2.0 |
+| num-rational | v0.4.2 | MIT OR Apache-2.0 |
+| num-traits | v0.2.19 | MIT OR Apache-2.0 |
+| oar-ocr | v0.8.1 | Apache-2.0 |
+| oar-ocr-core | v0.8.1 | Apache-2.0 |
+| oar-ocr-derive | v0.8.1 | Apache-2.0 |
 | once_cell | v1.21.4 | MIT OR Apache-2.0 |
 | once_cell_polyfill | v1.70.2 | MIT OR Apache-2.0 |
+| onig | v6.5.3 | MIT |
+| onig_sys | v69.9.3 | MIT |
 | openssl-probe | v0.1.6 | MIT/Apache-2.0 |
 | openssl-src | v300.6.1+3.6.3 | (MIT OR Apache-2.0) AND Apache-2.0 — vendors OpenSSL |
 | openssl-sys | v0.9.117 | MIT |
+| ort | v2.0.0-rc.12 | MIT OR Apache-2.0 |
+| ort-sys | v2.0.0-rc.12 | MIT OR Apache-2.0 |
+| owned_ttf_parser | v0.25.1 | Apache-2.0 |
+| paste | v1.0.15 | MIT OR Apache-2.0 |
+| pastey | v0.1.1 | MIT OR Apache-2.0 |
+| pastey | v0.2.3 | MIT OR Apache-2.0 |
 | pem | v3.0.6 | MIT |
 | percent-encoding | v2.3.2 | MIT OR Apache-2.0 |
 | pin-project-lite | v0.2.17 | Apache-2.0 OR MIT |
 | pkg-config | v0.3.33 | MIT OR Apache-2.0 |
+| png | v0.18.1 | MIT OR Apache-2.0 |
+| portable-atomic | v1.15.0 | Apache-2.0 OR MIT |
+| portable-atomic-util | v0.2.8 | Apache-2.0 OR MIT |
 | potential_utf | v0.1.5 | Unicode-3.0 |
 | powerfmt | v0.2.0 | MIT OR Apache-2.0 |
 | ppv-lite86 | v0.2.21 | MIT OR Apache-2.0 |
+| primal-check | v0.3.4 | MIT OR Apache-2.0 |
 | proc-macro2 | v1.0.106 | MIT OR Apache-2.0 |
+| profiling | v1.0.18 | MIT OR Apache-2.0 |
+| profiling-procmacros | v1.0.18 | MIT OR Apache-2.0 |
+| pulp | v0.22.3 | MIT |
+| pulp-wasm-simd-flag | v0.1.1 | MIT |
+| pxfm | v0.1.30 | BSD-3-Clause OR Apache-2.0 |
+| qoi | v0.4.1 | MIT/Apache-2.0 |
+| quick-error | v2.0.1 | MIT/Apache-2.0 |
 | quote | v1.0.46 | MIT OR Apache-2.0 |
 | r-efi | v5.3.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
 | r-efi | v6.0.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
+| rand | v0.10.3 | MIT OR Apache-2.0 |
 | rand | v0.9.5 | MIT OR Apache-2.0 |
 | rand_chacha | v0.9.0 | MIT OR Apache-2.0 |
+| rand_core | v0.10.1 | MIT OR Apache-2.0 |
 | rand_core | v0.9.5 | MIT OR Apache-2.0 |
+| rand_distr | v0.6.0 | MIT OR Apache-2.0 |
+| rav1e | v0.8.1 | BSD-2-Clause |
+| ravif | v0.13.0 | BSD-3-Clause |
+| raw-cpuid | v11.6.0 | MIT |
+| rawpointer | v0.2.1 | MIT/Apache-2.0 |
+| rayon | v1.12.0 | MIT OR Apache-2.0 |
+| rayon-cond | v0.4.0 | Apache-2.0/MIT |
+| rayon-core | v1.13.0 | MIT OR Apache-2.0 |
 | rcgen | v0.13.2 | MIT OR Apache-2.0 |
+| reborrow | v0.5.5 | MIT |
+| regex | v1.13.1 | MIT OR Apache-2.0 |
+| regex-automata | v0.4.18 | MIT OR Apache-2.0 |
+| regex-syntax | v0.8.11 | MIT OR Apache-2.0 |
+| rgb | v0.8.53 | MIT |
 | ring | v0.17.14 | Apache-2.0 AND ISC |
 | rsqlite-vfs | v0.1.1 | MIT |
 | rusqlite | v0.40.1 | MIT |
+| rustdct | v0.7.1 | MIT OR Apache-2.0 |
+| rustfft | v6.4.1 | MIT OR Apache-2.0 |
 | rustix | v1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustls | v0.23.46 | Apache-2.0 OR ISC OR MIT |
 | rustls-pki-types | v1.15.0 | MIT OR Apache-2.0 |
 | rustls-webpki | v0.103.15 | ISC |
 | rustversion | v1.0.23 | MIT OR Apache-2.0 |
 | ryu | v1.0.23 | Apache-2.0 OR BSL-1.0 |
+| safe_arch | v1.2.0 | Zlib OR Apache-2.0 OR MIT |
 | serde | v1.0.228 | MIT OR Apache-2.0 |
 | serde_core | v1.0.228 | MIT OR Apache-2.0 |
 | serde_derive | v1.0.228 | MIT OR Apache-2.0 |
 | serde_json | v1.0.150 | MIT OR Apache-2.0 |
 | serde_yaml_ng | v0.10.0 | MIT |
 | sha2 | v0.11.0 | MIT OR Apache-2.0 |
+| sharded-slab | v0.1.7 | MIT |
 | shlex | v2.0.1 | MIT OR Apache-2.0 |
+| simba | v0.10.2 | Apache-2.0 |
 | simd-adler32 | v0.3.10 | MIT |
+| simd_helpers | v0.1.0 | MIT |
 | slab | v0.4.12 | MIT |
 | smallvec | v1.15.2 | MIT OR Apache-2.0 |
+| spm_precompiled | v0.1.4 | Apache-2.0 |
 | sqlite-wasm-rs | v0.5.5 | MIT |
 | stable_deref_trait | v1.2.1 | MIT OR Apache-2.0 |
+| static_assertions | v1.1.0 | MIT OR Apache-2.0 |
+| strength_reduce | v0.2.4 | MIT OR Apache-2.0 |
 | strsim | v0.11.1 | MIT |
 | subtle | v2.6.1 | BSD-3-Clause |
 | syn | v2.0.118 | MIT OR Apache-2.0 |
 | synstructure | v0.13.2 | MIT |
 | tar | v0.4.46 | MIT OR Apache-2.0 |
+| target-features | v0.1.6 | MIT OR Apache-2.0 |
 | tempfile | v3.27.0 | MIT OR Apache-2.0 |
 | thiserror | v2.0.18 | MIT OR Apache-2.0 |
 | thiserror-impl | v2.0.18 | MIT OR Apache-2.0 |
+| thread_local | v1.1.10 | MIT OR Apache-2.0 |
+| tiff | v0.11.3 | MIT |
 | time | v0.3.53 | MIT OR Apache-2.0 |
 | time-core | v0.1.9 | MIT OR Apache-2.0 |
 | time-macros | v0.2.31 | MIT OR Apache-2.0 |
 | tinystr | v0.8.3 | Unicode-3.0 |
+| tokenizers | v0.23.2 | Apache-2.0 |
+| tracing | v0.1.44 | MIT |
+| tracing-attributes | v0.1.31 | MIT |
+| tracing-core | v0.1.36 | MIT |
+| tracing-log | v0.2.0 | MIT |
+| tracing-subscriber | v0.3.23 | MIT |
+| transpose | v0.2.3 | MIT OR Apache-2.0 |
+| ttf-parser | v0.25.1 | MIT OR Apache-2.0 |
 | typenum | v1.20.1 | MIT OR Apache-2.0 |
 | ulid | v1.2.1 | MIT |
 | unicode-ident | v1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| unicode-normalization-alignments | v0.1.12 | MIT/Apache-2.0 |
+| unicode-segmentation | v1.13.3 | MIT OR Apache-2.0 |
+| unicode-width | v0.2.2 | MIT OR Apache-2.0 |
+| unicode_categories | v0.1.1 | MIT OR Apache-2.0 |
+| unit-prefix | v0.5.2 | MIT |
 | unsafe-libyaml | v0.2.11 | MIT |
 | untrusted | v0.9.0 | ISC |
 | ureq | v2.12.1 | MIT OR Apache-2.0 |
@@ -162,7 +317,9 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | utf8_iter | v1.0.4 | Apache-2.0 OR MIT |
 | utf8parse | v0.2.2 | Apache-2.0 OR MIT |
 | uuid | v1.23.5 | Apache-2.0 OR MIT |
+| v_frame | v0.3.9 | BSD-2-Clause |
 | vcpkg | v0.2.15 | MIT/Apache-2.0 |
+| version_check | v0.9.5 | MIT/Apache-2.0 |
 | wasi | v0.11.1+wasi-snapshot-preview1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | wasip2 | v1.0.4+wasi-0.2.12 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | wasm-bindgen | v0.2.126 | MIT OR Apache-2.0 |
@@ -172,6 +329,8 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | web-time | v1.1.0 | MIT OR Apache-2.0 |
 | webpki-roots | v0.26.11 | CDLA-Permissive-2.0 |
 | webpki-roots | v1.0.9 | CDLA-Permissive-2.0 |
+| weezl | v0.1.12 | MIT OR Apache-2.0 |
+| wide | v1.7.1 | Zlib OR Apache-2.0 OR MIT |
 | windows-link | v0.2.1 | MIT OR Apache-2.0 |
 | windows-sys | v0.52.0 | MIT OR Apache-2.0 |
 | windows-sys | v0.61.2 | MIT OR Apache-2.0 |
@@ -187,6 +346,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | wit-bindgen | v0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | writeable | v0.6.3 | Unicode-3.0 |
 | xattr | v1.6.1 | MIT OR Apache-2.0 |
+| y4m | v0.8.0 | MIT |
 | yasna | v0.5.2 | MIT OR Apache-2.0 |
 | yoke | v0.8.3 | Unicode-3.0 |
 | yoke-derive | v0.8.2 | Unicode-3.0 |
@@ -201,6 +361,9 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | zip | v2.4.2 | MIT |
 | zmij | v1.0.23 | MIT |
 | zopfli | v0.8.3 | Apache-2.0 |
+| zune-core | v0.5.3 | MIT OR Apache-2.0 OR Zlib |
+| zune-inflate | v0.2.54 | MIT OR Apache-2.0 OR Zlib |
+| zune-jpeg | v0.5.15 | MIT OR Apache-2.0 OR Zlib |
 
 ## Bundled into the user interface (npm)
 
@@ -495,6 +658,8 @@ configuration directory.
 |---|---|---|
 | llama.cpp (`llama-server` + `ggml`) | MIT | <https://github.com/ggml-org/llama.cpp> |
 | whisper.cpp (`whisper-server`) | MIT | <https://github.com/ggml-org/whisper.cpp> |
+| ONNX Runtime (the assistant's OCR; carried inside the Android app, downloaded on a computer) | MIT | <https://github.com/microsoft/onnxruntime> |
+| PP-OCRv6 small (the OCR's detector, recogniser and dictionary, as ONNX) | Apache-2.0 | <https://github.com/PaddlePaddle/PaddleOCR> · <https://github.com/GreatV/oar-ocr> |
 
 Model **weights** are downloaded from Hugging Face and carry their own terms, stated in
 the app before anything is fetched and recorded per model in `models.toml`.

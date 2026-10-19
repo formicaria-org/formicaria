@@ -72,6 +72,18 @@ unused-allowed-license = "allow"
 # declare, this gate will not catch it either. Add it there.
 # ---------------------------------------------------------------------------------------
 
+# Two crate-scoped licence exceptions with Myrme 0.7.0's OCR (2026-10-20, `decisions.md#agent`),
+# both OSI-approved permissive licences, scoped to the crate rather than widening `allow`:
+# `clipper2-rust` (BSL-1.0, polygon offsetting in oar-ocr's text detector) and `libfuzzer-sys`
+# (NCSA for the LLVM fuzzer sources it vendors; pulled in by `image`'s AVIF encoder, never used).
+[[licenses.exceptions]]
+crate = "clipper2-rust"
+allow = ["BSL-1.0"]
+
+[[licenses.exceptions]]
+crate = "libfuzzer-sys"
+allow = ["NCSA"]
+
 [advisories]
 version = 2
 # No advisory waivers: the Tauri/gtk3 tree that required them was removed with the
@@ -97,6 +109,10 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "extract() only, never called; our own unpack masks to 0o777 since 2026-10-17; move to zip 9 once settled, see decisions.md 2026-10-17 #toolchain" },
     { id = "RUSTSEC-2026-0368", reason = "extract() only, never called; links are refused; move to zip 9 once settled, see decisions.md 2026-10-17 #toolchain" },
     { id = "RUSTSEC-2026-0369", reason = "extract()/ZipStreamReader only, never called; links are refused; move to zip 9 once settled, see decisions.md 2026-10-17 #toolchain" },
+    # **Two with Myrme 0.7.0's OCR, 2026-10-20** (`decisions.md#agent`, that date), the same two Myrme
+    # waives: *unmaintained* notices, not vulnerabilities, under the OCR's image stack.
+    { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained build-time macro under the OCR's image decoder (image -> exr -> pulp); no vulnerability" },
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained font parser under oar-ocr's drawing helpers (imageproc -> ab_glyph), never called by the OCR; no vulnerability" },
 ]
 
 [bans]

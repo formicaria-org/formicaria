@@ -158,6 +158,9 @@ android-project = "sh ci/android-project-ready.sh"
 # Cross-compile whisper.cpp's whisper-server (android-arm64, static) into jniLibs — the phone's
 # audio→transcript runtime. Idempotent (version-stamped), so it compiles once then no-ops.
 android-stage-whisper = { cmd = "sh ci/android-stage-whisper.sh", depends-on = ["android-project"] }
+# Stage ONNX Runtime (Microsoft's android-arm64 AAR, pinned by Myrme's catalogue) into jniLibs as
+# `libonnxruntime.so` — what the assistant's OCR opens on the phone (Myrme 0.7.0). Idempotent.
+android-stage-onnxruntime = { cmd = "sh ci/android-stage-onnxruntime.sh", depends-on = ["android-stage-runtime"] }
 # Inject the foreground service so Android keeps the app + its network alive for the agent's model
 # download and inference (else Doze stalls the download and LMKD can reap the model). Also generated.
 android-inject-service = { cmd = "sh ci/android-inject-service.sh", depends-on = ["android-project"] }
@@ -180,8 +183,8 @@ phone-test = "sh ci/phone-test.sh"
 # with an error naming neither Java nor Gradle.
 # A signed, 16 KB-aligned release APK for a real phone. Keystore in ~/.config/formicaria,
 # never in the repo. See the script for why signing is not done in Gradle.
-android-release = { cmd = "sh ci/android-release.sh", depends-on = ["android-stage-runtime", "android-stage-whisper", "android-inject-service"] }
-android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/ci/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64", depends-on = ["android-stage-runtime", "android-inject-service"] }
+android-release = { cmd = "sh ci/android-release.sh", depends-on = ["android-stage-runtime", "android-stage-onnxruntime", "android-stage-whisper", "android-inject-service"] }
+android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/ci/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64", depends-on = ["android-stage-runtime", "android-stage-onnxruntime", "android-inject-service"] }
 # Install the debug APK on whatever single device adb sees, and launch it.
 android-run = { cmd = "$ANDROID_HOME/../platform-tools/adb install -r mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk && $ANDROID_HOME/../platform-tools/adb shell am start -n dev.formicaria.notes/.MainActivity" }
 # Create the emulator once. Its data lives in `.android/avd`, not your home directory, so the
