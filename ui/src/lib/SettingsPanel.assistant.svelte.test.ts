@@ -432,6 +432,62 @@ describe('the phone chooses between a faster and a more accurate model', () => {
     }),
   );
 
+  it(
+    'after an update, asks once: the faster one picked, the other beside it, no separate offer',
+    onPhone(async () => {
+      // The phone runs the old 8-bit model — neither choice — and the update offers the new default.
+      const offer = {
+        name: 'lfm2.5-vl-450m-q4',
+        bytes: 418_439_648,
+        license: 'LFM Open License v1.0',
+        replaces: 'lfm2.5-vl-450m',
+      };
+      agentStatus.mockResolvedValue(
+        status({ enabled: false, provisioned: true, model: 'lfm2.5-vl-450m', update: offer }),
+      );
+      agentModels.mockResolvedValue(phoneModels.map((m) => ({ ...m, running: false })));
+      chooseAgentModel.mockReset().mockResolvedValue({ ok: true });
+      updateAgentModel.mockClear();
+      panel();
+
+      // One place to choose, even with the assistant off.
+      expect(await screen.findByText('More accurate, slower')).toBeTruthy();
+      expect(screen.queryByText(/comes with a newer model/i)).toBeNull();
+      expect((screen.getByDisplayValue('lfm2.5-vl-450m-q4') as HTMLInputElement).checked).toBe(
+        true,
+      );
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Download 418.4MB and switch' }));
+      expect(chooseAgentModel).toHaveBeenCalledWith('lfm2.5-vl-450m-q4');
+      expect(updateAgentModel).not.toHaveBeenCalled();
+    }),
+  );
+
+  it(
+    'still offers a way back when the model on the phone no longer works',
+    onPhone(async () => {
+      const offer = {
+        name: 'lfm2.5-vl-450m-q4',
+        bytes: 418_439_648,
+        license: 'LFM Open License v1.0',
+        replaces: null,
+      };
+      agentStatus.mockResolvedValue(
+        status({
+          enabled: true,
+          provisioned: false,
+          model: null,
+          unsupported: true,
+          update: offer,
+        }),
+      );
+      agentModels.mockResolvedValue(phoneModels.map((m) => ({ ...m, running: false })));
+      panel();
+      expect(await screen.findByText(/no longer works with this version/i)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
+    }),
+  );
+
   it('is not shown on a computer, whose chooser is the whole catalogue', async () => {
     agentStatus.mockResolvedValue(status({ enabled: true, provisioned: true }));
     agentModels.mockResolvedValue(phoneModels);

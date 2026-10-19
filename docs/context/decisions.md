@@ -12318,3 +12318,15 @@ and the phone chooser"*.
 - An update still never downloads a model unasked (2026-10-10): a phone running the old
   `lfm2.5-vl-450m` keeps it and is offered *Faster* with its size.
 
+## 2026-10-19 (later) — on the phone the model row is the one place to choose `#agent` `#track-m`
+
+**The owner, updating a phone to 0.9.5:** *"I can click download without picking faster or more
+accurate."* The update offer's *Download* fetched the default — *Faster* — beside a model row that
+asked the same question, and its button did not say which it picked.
+
+**Decision.** On a phone with a model and more than one choice, the model row is the only chooser:
+it shows with the assistant on or off; when the phone runs a model that is neither choice (as after
+an update) the default is pre-selected with *Download <size> and switch*; the separate "newer model"
+row is not shown. It stays for a phone whose model is no longer supported, which has no model row.
+The desktop is unchanged (formicaria 0.9.6).
+

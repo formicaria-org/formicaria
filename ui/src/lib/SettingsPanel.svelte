@@ -437,7 +437,16 @@
   let phoneModels = $state<CatalogueModel[]>([]);
   let switchTo = $state<string | null>(null);
   const runningModel = $derived(phoneModels.find((m) => m.running)?.name ?? null);
-  const switchModel = $derived(phoneModels.find((m) => m.name === switchTo) ?? null);
+  /** The one shown as picked: the person's pick, else the one running, else — when the phone runs
+   *  a model that is neither choice, as after an update — the default, so the offer reads as it. */
+  const selectedModel = $derived(
+    switchTo ?? runningModel ?? phoneModels.find((m) => m.default)?.name ?? null,
+  );
+  const switchModel = $derived(phoneModels.find((m) => m.name === selectedModel) ?? null);
+  /** On a phone the model row is the one place to choose; the separate "newer model" offer would
+   *  ask the same question again with a button that does not say which it picks. It stays only for
+   *  a phone whose model is no longer supported, which has no model row to get going again. */
+  const phoneChooses = $derived(isPhone() && provisioned && phoneModels.length > 1);
 
   async function loadPhoneModels() {
     if (!isPhone()) return;
@@ -1489,7 +1498,7 @@
 
               <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —
                  a made-up percentage is worse than an honest number. -->
-              {#if isPhone() && agentOn && provisioned && phoneModels.length > 1 && !downloading}
+              {#if phoneChooses && !downloading}
                 <li>
                   <span class="k">model</span>
                   {#each phoneModels as m (m.name)}
@@ -1498,7 +1507,7 @@
                         type="radio"
                         name="fm-phone-model"
                         value={m.name}
-                        checked={(switchTo ?? runningModel) === m.name}
+                        checked={selectedModel === m.name}
                         onchange={() => (switchTo = m.name)}
                       />
                       <span class="k">{m.label ?? m.name}</span>
@@ -1509,11 +1518,13 @@
                     <button class="primary" onclick={switchPhoneModel}>
                       Download {humanSize(modelBytes(switchModel))} and switch
                     </button>
-                    <button onclick={() => (switchTo = null)}>Cancel</button>
+                    {#if switchTo}
+                      <button onclick={() => (switchTo = null)}>Cancel</button>
+                    {/if}
                   {/if}
                 </li>
               {/if}
-              {#if modelOffer && !downloading && provisioning?.stage !== 'restart'}
+              {#if modelOffer && !downloading && provisioning?.stage !== 'restart' && (!phoneChooses || modelUnsupported)}
                 <li>
                   <span class="k">newer model</span>
                   <span class="muted">
