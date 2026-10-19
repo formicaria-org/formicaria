@@ -44,6 +44,7 @@
     agentStatus,
     setAssistantName,
     agentModels,
+    chooseAgentModel,
     removeAgentModel,
     updateRollback,
     reloadPage,
@@ -269,6 +270,7 @@
       provisioning = st.provisioning;
       modelOffer = st.update ?? null;
       modelUnsupported = st.unsupported ?? false;
+      if (st.installed) void loadPhoneModels();
       if (
         st.provisioning &&
         st.provisioning.stage !== 'ready' &&
@@ -417,8 +419,53 @@
   const picked = $derived(catalogue.find((m) => m.name === pickedModel) ?? null);
   /** What this choice will actually download, projector included when it is wanted. */
   const pickedBytes = $derived(
-    (picked?.bytes ?? 0) + (pickVision && picked?.vision ? (picked?.mmproj_bytes ?? 0) : 0),
+    isPhone()
+      ? modelBytes(picked)
+      : (picked?.bytes ?? 0) + (pickVision && picked?.vision ? (picked?.mmproj_bytes ?? 0) : 0),
   );
+
+  type CatalogueModel = Awaited<ReturnType<typeof agentModels>>[number];
+  /** What a model downloads on a phone: the weights and their image reader, which a phone always
+   *  fetches (it reads photos with the same model). */
+  function modelBytes(m: CatalogueModel | null | undefined): number {
+    return (m?.bytes ?? 0) + (m?.vision ? (m?.mmproj_bytes ?? 0) : 0);
+  }
+
+  // **The phone's model choice** (Myrme 0.6.0): "Faster" or "More accurate, slower", in the
+  // catalogue's words. Picking the other one downloads it beside the one in use, which keeps working
+  // until the new one is ready — the same path as accepting a newer model.
+  let phoneModels = $state<CatalogueModel[]>([]);
+  let switchTo = $state<string | null>(null);
+  const runningModel = $derived(phoneModels.find((m) => m.running)?.name ?? null);
+  const switchModel = $derived(phoneModels.find((m) => m.name === switchTo) ?? null);
+
+  async function loadPhoneModels() {
+    if (!isPhone()) return;
+    try {
+      phoneModels = await agentModels();
+    } catch {
+      phoneModels = []; // no chooser rather than a broken one
+    }
+  }
+
+  async function switchPhoneModel() {
+    if (!switchModel) return;
+    error = null;
+    try {
+      await chooseAgentModel(switchModel.name);
+      updatingModel = true;
+      provisioning = {
+        stage: 'model',
+        done: 0,
+        total: modelBytes(switchModel) || null,
+        error: null,
+      };
+      switchTo = null;
+      watchProvisioning();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   async function openChooser() {
     error = null;
@@ -452,6 +499,7 @@
           watchProvisioning();
         } else {
           updatingModel = false;
+          void loadPhoneModels(); // which one runs now
         }
       } catch {
         // A failed poll is not a failed download — keep watching rather than reporting a fault
@@ -1357,8 +1405,9 @@
               {#if choosing}
                 <li class="vault">
                   <p class="why">
-                    The assistant needs a model on this computer. It is downloaded once, kept on
-                    this machine, and used offline afterwards. Pick one:
+                    The assistant needs a model on this {isPhone() ? 'phone' : 'computer'}. It is
+                    downloaded once, kept on this {isPhone() ? 'phone' : 'machine'}, and used
+                    offline afterwards. Pick one:
                   </p>
                   {#each catalogue as m (m.name)}
                     <label class="choice">
@@ -1369,15 +1418,18 @@
                         checked={pickedModel === m.name}
                         onchange={() => (pickedModel = m.name)}
                       />
-                      <span class="k">{m.name}</span>
+                      <span class="k">{m.label ?? m.name}</span>
                       <span class="muted">
-                        {m.bytes ? humanSize(m.bytes) : 'size unknown'}{m.license
-                          ? ` · ${m.license}`
-                          : ''}{m.vision ? ' · can read images' : ''}
+                        {m.label ? `${m.name} · ` : ''}{m.bytes
+                          ? humanSize(isPhone() ? modelBytes(m) : m.bytes)
+                          : 'size unknown'}{m.license ? ` · ${m.license}` : ''}{m.vision &&
+                        !isPhone()
+                          ? ' · can read images'
+                          : ''}
                       </span>
                     </label>
                   {/each}
-                  {#if picked?.vision}
+                  {#if picked?.vision && !isPhone()}
                     <label class="choice">
                       <input
                         type="checkbox"
@@ -1437,6 +1489,30 @@
 
               <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —
                  a made-up percentage is worse than an honest number. -->
+              {#if isPhone() && agentOn && provisioned && phoneModels.length > 1 && !downloading}
+                <li>
+                  <span class="k">model</span>
+                  {#each phoneModels as m (m.name)}
+                    <label class="choice">
+                      <input
+                        type="radio"
+                        name="fm-phone-model"
+                        value={m.name}
+                        checked={(switchTo ?? runningModel) === m.name}
+                        onchange={() => (switchTo = m.name)}
+                      />
+                      <span class="k">{m.label ?? m.name}</span>
+                      <span class="muted">{m.running ? 'in use' : humanSize(modelBytes(m))}</span>
+                    </label>
+                  {/each}
+                  {#if switchModel && switchModel.name !== runningModel}
+                    <button class="primary" onclick={switchPhoneModel}>
+                      Download {humanSize(modelBytes(switchModel))} and switch
+                    </button>
+                    <button onclick={() => (switchTo = null)}>Cancel</button>
+                  {/if}
+                </li>
+              {/if}
               {#if modelOffer && !downloading && provisioning?.stage !== 'restart'}
                 <li>
                   <span class="k">newer model</span>

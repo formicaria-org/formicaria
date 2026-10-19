@@ -23,7 +23,8 @@
 /// (`pixi run myrme-bump`). Stated once, here, for the desktop and the phone alike; each crate that
 /// links Myrme checks it with [`check_myrme_contract!`]. `decisions.md#agent`, 2026-10-18.
 /// 1.4: the manual's assistant chapter and the phone's runtime pins are read from Myrme.
-pub const MYRME_CONTRACT: (u32, u32) = (1, 4);
+/// 1.5: the phone's model choice (`Manifest::phone_choices`, "Faster" / "More accurate, slower").
+pub const MYRME_CONTRACT: (u32, u32) = (1, 5);
 
 /// The compile-time check of [`MYRME_CONTRACT`] against the Myrme a crate links: another major, or
 /// an older minor, does not build, and says why rather than failing on a missing function. A macro

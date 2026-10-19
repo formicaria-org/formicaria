@@ -671,6 +671,8 @@ fn fm_blocking(
     }
     #[cfg(agent_shell)]
     if cmd == "agent_status"
+        || cmd == "agent_models"
+        || cmd == "choose_agent_model"
         || cmd == "set_agent"
         || cmd == "set_transcribe"
         || cmd == "update_agent_model"
@@ -681,7 +683,21 @@ fn fm_blocking(
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
         if cmd == "set_agent" {
             let on = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+            // The chooser's pick, on a first enable (Myrme 0.6.0's phone choices).
+            if let Some(model) = args.get("model").and_then(|v| v.as_str()) {
+                agent::prefer_first(&dir, model);
+            }
             agent::set_running(vault_state(&app_handle)?, dir, on)?;
+            return Ok("{\"ok\":true}".to_string());
+        }
+        if cmd == "agent_models" {
+            // What the phone's model chooser offers: "Faster" / "More accurate, slower".
+            return Ok(agent::models(&dir).to_string());
+        }
+        if cmd == "choose_agent_model" {
+            // Switch to another of the phone's models: downloaded beside the one running, then used.
+            let name = args.get("name").and_then(|v| v.as_str()).unwrap_or_default();
+            agent::choose_model(vault_state(&app_handle)?, dir, name)?;
             return Ok("{\"ok\":true}".to_string());
         }
         if cmd == "update_agent_model" {
@@ -722,6 +738,10 @@ fn fm_blocking(
             "listening_better": agent::listening_better(&dir),
             "listening_better_bytes": agent::listening_better_bytes(),
             "installed": installed, "why": why, "transcribe_available": transcribe_available,
+            // A model is on this phone: turning the assistant on starts it rather than asking which
+            // to download. The panel read this key's absence as "nothing downloaded" and opened the
+            // chooser on every phone.
+            "provisioned": found.as_ref().is_some_and(|f| f.running.is_some()),
             // Which model runs here, and the newer one on offer after an app update — the same
             // keys, from the same rule, as the desktop.
             "model": found.as_ref().and_then(|f| f.running.clone()),
@@ -736,7 +756,12 @@ fn fm_blocking(
         .to_string());
     }
     #[cfg(not(agent_shell))]
+    if cmd == "agent_models" {
+        return Ok("[]".to_string());
+    }
+    #[cfg(not(agent_shell))]
     if cmd == "agent_status"
+        || cmd == "choose_agent_model"
         || cmd == "set_agent"
         || cmd == "set_transcribe"
         || cmd == "set_listening"

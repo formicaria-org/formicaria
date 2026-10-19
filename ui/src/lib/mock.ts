@@ -1112,6 +1112,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'update_agent_model':
       // The mock never has a newer model on offer, so there is nothing to accept or decline.
       return { ok: true } as T;
+    case 'choose_agent_model':
+      // A phone's model switch; the mock has no phone, so there is nothing to switch.
+      return { ok: true } as T;
     case 'set_agent':
       // Refuses exactly as the server does, so a test can see the refusal rather than a cheerful ok.
       if (args.enabled && !mockAgentInstalled) {

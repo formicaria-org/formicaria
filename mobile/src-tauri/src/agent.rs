@@ -333,12 +333,78 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
         remember_choice(&agents_dir, None, &default);
         return Ok(());
     }
+    fetch_and_switch(app, agents_dir, manifest, default, offer.bytes)
+}
+
+/// The models this phone may run, for Settings' chooser: Myrme's phone choices
+/// (`Manifest::phone_choices`, contract 1.5), each with the few words the chooser shows ("Faster",
+/// "More accurate, slower"), what it downloads, and whether it is the one running here.
+pub fn models(agents_dir: &std::path::Path) -> Value {
+    let Ok(manifest) = catalogue(agents_dir) else {
+        return json!([]);
+    };
+    let running = installed(agents_dir).and_then(|i| i.running);
+    let default = manifest.mobile_default();
+    let list: Vec<Value> = manifest
+        .phone_choices()
+        .iter()
+        .map(|m| {
+            json!({
+                "name": m.name, "label": m.phone_label, "bytes": m.bytes, "license": m.license,
+                "vision": m.mmproj.is_some(), "mmproj_bytes": m.mmproj_bytes,
+                "default": m.name == default, "running": running.as_deref() == Some(m.name.as_str()),
+            })
+        })
+        .collect();
+    Value::Array(list)
+}
+
+/// Record the model picked in the chooser before a **first** enable, so [`launch`] fetches it
+/// rather than the default. Ignored when a model is already here (switching is [`choose_model`]) or
+/// when the name is not one of this phone's choices.
+pub fn prefer_first(agents_dir: &std::path::Path, name: &str) {
+    let Ok(manifest) = catalogue(agents_dir) else { return };
+    let here = installed(agents_dir).and_then(|i| i.running).is_some();
+    if !here && manifest.phone_choices().iter().any(|m| m.name == name) {
+        remember_choice(agents_dir, Some(name), manifest.mobile_default());
+    }
+}
+
+/// Switch this phone to another of its models (Settings → *Model*): download it **beside** the one
+/// running, record the choice, and restart on it — the same path as accepting a newer model. Only
+/// a phone choice is accepted; choosing the one already running does nothing.
+pub fn choose_model(app: Arc<App>, agents_dir: PathBuf, name: &str) -> Result<(), String> {
+    let manifest = catalogue(&agents_dir)?;
+    let Some(total) = manifest
+        .phone_choices()
+        .iter()
+        .find(|m| m.name == name)
+        .map(|m| m.bytes.map(|b| b + m.mmproj_bytes.unwrap_or(0)))
+    else {
+        return Err(format!("{name} is not a model this phone can use."));
+    };
+    if installed(&agents_dir).and_then(|i| i.running).as_deref() == Some(name) {
+        return Ok(());
+    }
+    fetch_and_switch(app, agents_dir, manifest, name.to_string(), total)
+}
+
+/// Download `target` (weights and projector) on a background thread, then record it as this phone's
+/// choice and, if the assistant is on, restart on it. Progress is [`update_progress`]'s.
+fn fetch_and_switch(
+    app: Arc<App>,
+    agents_dir: PathBuf,
+    manifest: Manifest,
+    target: String,
+    total: Option<u64>,
+) -> Result<(), String> {
+    let default = manifest.mobile_default().to_string();
     let set = |v: Value| {
         if let Ok(mut g) = updating().lock() {
             *g = Some(v);
         }
     };
-    set(json!({ "stage": "model", "done": 0, "total": offer.bytes, "error": null }));
+    set(json!({ "stage": "model", "done": 0, "total": total, "error": null }));
     let gen = UPDATE_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
         let live = move || UPDATE_GEN.load(std::sync::atomic::Ordering::SeqCst) == gen;
@@ -360,7 +426,7 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
         let projector_progress = progress("projector");
         let fetched = fm_agent_run::host::Tools::new(&agents_dir, false).provision_weights(
             &manifest,
-            &default,
+            &target,
             true,
             &fm_agent_run::host::Progress {
                 step: &|_| live(),
@@ -376,7 +442,7 @@ pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result
         }
         match fetched {
             Ok(_) => {
-                remember_choice(&agents_dir, Some(&default), &default);
+                remember_choice(&agents_dir, Some(&target), &default);
                 set(json!({ "stage": "ready", "done": 0, "total": null, "error": null }));
                 // Switch now, if the assistant is on: stop the old model, start the new one.
                 if is_enabled(&agents_dir) {
@@ -590,7 +656,9 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         return Err("the model on this phone is no longer supported by this version — Settings offers the new one".to_string());
     }
     let first_enable = found.running.is_none();
-    let model_name = found.running.unwrap_or_else(|| default.clone());
+    // A first enable fetches the model picked in the chooser (`prefer_first`), else the default.
+    let picked = choice(&agents_dir).0.filter(|n| manifest.model(n).is_some());
+    let model_name = found.running.unwrap_or_else(|| picked.unwrap_or_else(|| default.clone()));
     if first_enable {
         remember_choice(&agents_dir, Some(&model_name), &default);
     }

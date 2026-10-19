@@ -15,24 +15,48 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
 
-const { agentStatus, agentModels, setAgent, removeAgentModel, updateAgentModel, setListening } =
-  vi.hoisted(() => ({
-    agentStatus: vi.fn(),
-    agentModels: vi.fn(),
-    setAgent: vi.fn(),
-    removeAgentModel: vi.fn(),
-    updateAgentModel: vi.fn(),
-    setListening: vi.fn(),
-  }));
+const {
+  agentStatus,
+  agentModels,
+  chooseAgentModel,
+  setAgent,
+  removeAgentModel,
+  updateAgentModel,
+  setListening,
+  device,
+} = vi.hoisted(() => ({
+  agentStatus: vi.fn(),
+  agentModels: vi.fn(),
+  chooseAgentModel: vi.fn(),
+  setAgent: vi.fn(),
+  removeAgentModel: vi.fn(),
+  updateAgentModel: vi.fn(),
+  setListening: vi.fn(),
+  // The panel asks `isPhone()`; a test flips this to see the phone's rows. Off = a computer.
+  device: { phone: false },
+}));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   agentStatus,
   agentModels,
+  chooseAgentModel,
   setAgent,
   removeAgentModel,
   updateAgentModel,
   setListening,
 }));
+vi.mock('./platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./platform')>()),
+  isPhone: () => device.phone,
+}));
+// On a "phone" every other call the panel makes goes through the shell's transport, Tauri's
+// `window.__TAURI_INTERNALS__.invoke`. Answer those from the in-memory mock backend, as the dev build
+// does, so the rest of the panel loads; the assistant's own calls are the mocks above.
+import * as mockBackend from './mock';
+(globalThis as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ = {
+  invoke: async (_cmd: string, a: { cmd: string; args?: Record<string, unknown> }) =>
+    JSON.stringify((await mockBackend.handle(a.cmd, a.args ?? {})) ?? null),
+};
 
 function panel() {
   return render(SettingsPanel, {
@@ -325,5 +349,94 @@ describe('better listening', () => {
 
     await screen.findByRole('checkbox', { name: /audio transcription/i });
     expect(screen.queryByRole('checkbox', { name: /better listening/i })).toBeNull();
+  });
+});
+
+// **The phone's model choice** (Myrme 0.6.0): two models, in a few words — "Faster" and "More
+// accurate, slower" — each with what it downloads. A phone always fetches the image reader with the
+// model, so the size includes it and there is no "Read images too" box.
+describe('the phone chooses between a faster and a more accurate model', () => {
+  const phoneModels = [
+    {
+      name: 'lfm2.5-vl-450m-q4',
+      label: 'Faster',
+      bytes: 229_313_568,
+      license: 'LFM Open License v1.0',
+      vision: true,
+      mmproj_bytes: 189_126_080,
+      default: true,
+      running: true,
+    },
+    {
+      name: 'qwen3.5-0.8b',
+      label: 'More accurate, slower',
+      bytes: 507_154_688,
+      license: 'Apache-2.0',
+      vision: true,
+      mmproj_bytes: 204_987_232,
+      default: false,
+      running: false,
+    },
+  ];
+  const onPhone =
+    <T>(run: () => Promise<T>) =>
+    async () => {
+      device.phone = true;
+      try {
+        await run();
+      } finally {
+        device.phone = false;
+      }
+    };
+
+  it(
+    'asks in a few words on a first enable, and downloads the one picked',
+    onPhone(async () => {
+      agentStatus.mockResolvedValue(status({ provisioned: false }));
+      agentModels.mockResolvedValue(phoneModels.map((m) => ({ ...m, running: false })));
+      setAgent.mockReset().mockResolvedValue({ ok: true });
+      panel();
+
+      await fireEvent.click(await screen.findByLabelText('study assistant'));
+      expect(await screen.findByText('Faster')).toBeTruthy();
+      expect(screen.getByText('More accurate, slower')).toBeTruthy();
+      // Weights and image reader together: 229.3 + 189.1 MB, 507.2 + 205.0 MB.
+      // Beside each model; the default's figure is also the "Total" until another is picked.
+      expect(screen.getAllByText(/418\.4MB/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/712\.1MB/).length).toBeGreaterThan(0);
+      expect(screen.queryByText('Read images too')).toBeNull();
+
+      await fireEvent.click(screen.getByDisplayValue('qwen3.5-0.8b'));
+      expect(screen.getByText(/Total: 712\.1MB/)).toBeTruthy();
+      await fireEvent.click(screen.getByRole('button', { name: /Download and turn on/ }));
+      expect(setAgent).toHaveBeenCalledWith(true, 'qwen3.5-0.8b', false);
+    }),
+  );
+
+  it(
+    'switches only when asked, with the size on the button',
+    onPhone(async () => {
+      agentStatus.mockResolvedValue(status({ enabled: true, provisioned: true }));
+      agentModels.mockResolvedValue(phoneModels);
+      chooseAgentModel.mockReset().mockResolvedValue({ ok: true });
+      panel();
+
+      expect(await screen.findByText('in use')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /and switch/ })).toBeNull();
+
+      await fireEvent.click(await screen.findByDisplayValue('qwen3.5-0.8b'));
+      expect(chooseAgentModel).not.toHaveBeenCalled();
+      await fireEvent.click(screen.getByRole('button', { name: 'Download 712.1MB and switch' }));
+      expect(chooseAgentModel).toHaveBeenCalledWith('qwen3.5-0.8b');
+      expect(await screen.findByText(/downloading the model/i)).toBeTruthy();
+    }),
+  );
+
+  it('is not shown on a computer, whose chooser is the whole catalogue', async () => {
+    agentStatus.mockResolvedValue(status({ enabled: true, provisioned: true }));
+    agentModels.mockResolvedValue(phoneModels);
+    panel();
+    await screen.findByLabelText('study assistant');
+    expect(screen.queryByText('in use')).toBeNull();
   });
 });

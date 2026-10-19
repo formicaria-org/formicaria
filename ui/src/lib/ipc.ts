@@ -579,8 +579,16 @@ export const agentModels = () =>
       vision: boolean;
       mmproj_bytes: number | null;
       default: boolean;
+      /** On a phone: the few words its chooser shows ("Faster", "More accurate, slower"). */
+      label?: string | null;
+      /** On a phone: the model running there now. */
+      running?: boolean;
     }[]
   >('agent_models');
+/** On a phone, switch the assistant to another of its models: downloaded beside the one in use,
+ *  which keeps working until the new one is ready. Progress is `agent_status().provisioning`. */
+export const chooseAgentModel = (name: string) =>
+  invoke<{ ok: boolean }>('choose_agent_model', { name });
 /** The "Audio transcription" sub-setting: when on, the assistant loads a local whisper runtime so
  *  `/transcribe` (and the Transcribe-audio action) work. Like the on/off above, it takes effect at the
  *  next assistant start, and needs the runtime staged (`pixi run fetch-whisper`). */
