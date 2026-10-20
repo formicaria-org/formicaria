@@ -12395,3 +12395,26 @@ Help → *Put the tutorials back*, whose name says it restores rather than gives
 - The first notebook may be one shared with others, and the five notes then sync to them too.
 - A deletion made before this rule, in a notebook with no history, is not known, so the tutorial
   comes back once.
+
+## 2026-10-20 — two meetings at once are marked; a meeting with no end is an hour; mail says when its emails were sent `#ui` `#agent`
+
+**The owner:**
+- *"it put two meetings at the same time in the same day and I had to catch the conflict by
+  myself (in the calendar they look one after the other), both agent and calendar need a fix"*;
+- of the mail panel: *"the email is read just now but that was 4 days ago?"*.
+
+**Decision.**
+1. **A meeting with no end time is drawn as an hour** (`MEETING_MINUTES`). A deadline keeps its
+   half-hour mark. A 16:00 and a 16:30 meeting, each drawn as half an hour, looked like one after
+   the other.
+2. **Meetings that overlap are marked** (`TimedBlock.clash`): a red edge and "⚠ clash", with a
+   tooltip. Width shared between two halves did not say it. A deadline next to a meeting is not a
+   clash, and neither is a called-off meeting.
+   - The tag stays in `lib/calendar.ts`, out of the renderers.
+3. **The mail panel shows each conversation's newest email by its own date**, not when it was read.
+   When that email is older than today it says *"No new email in these conversations since …"*:
+   "checked just now" beside dates four days old read as the email having been read just now.
+4. **The words are Myrme's**: "the meeting is still on Fri 23 Oct at 16:00", "has taken place",
+   and the clash. They arrive with Myrme 0.8.0. A conversation already read keeps its old sentence
+   until its next email.
+

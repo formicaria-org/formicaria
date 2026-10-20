@@ -201,12 +201,14 @@
                   <button
                     class="block"
                     class:short={b.to - b.from < 60}
+                    class:clash={b.clash}
                     data-urgency={urgency(b.card.due)}
                     style="top: calc({b.from} / 60 * var(--hour)); height: calc({b.to -
                       b.from} / 60 * var(--hour)); left: {(b.col / b.cols) * 100}%; width: {100 /
                       b.cols}%;"
                     onclick={() => onopen(b.card.id)}
-                    title={b.card.title ?? b.card.preview ?? ''}
+                    title={(b.clash ? 'Clashes with another meeting — ' : '') +
+                      (b.card.title ?? b.card.preview ?? '')}
                   >
                     <span class="block-time">
                       {#if b.card.hard}<span class="hard" aria-hidden="true">◆</span>{/if}
@@ -215,6 +217,7 @@
                         ? timeRange(b.card.start, b.card.due).slice(0, 5)
                         : timeRange(b.card.start, b.card.due)}
                     </span>
+                    {#if b.clash}<span class="clash-mark">⚠ clash</span>{/if}
                     <span class="block-title">{b.card.title ?? b.card.preview ?? b.card.id}</span>
                   </button>
                 {/each}
@@ -531,6 +534,20 @@
     border-top: 2px solid var(--accent);
     z-index: 1;
     pointer-events: none;
+  }
+  /* Two meetings at once: said on the block, not left to the width of two halves. */
+  .block.clash {
+    border-color: var(--danger-fg);
+    border-left-color: var(--danger-fg);
+  }
+  .clash-mark {
+    align-self: flex-start;
+    padding: 0 0.25rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--danger-bg);
+    color: var(--danger-fg);
   }
   .block {
     position: absolute;

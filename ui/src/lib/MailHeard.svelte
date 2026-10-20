@@ -59,6 +59,32 @@
     }
   }
 
+  /** An email's own date, `2026-10-16T21:31` → "Fri 16 Oct, 21:31", as the mail gave it. */
+  function sent(stamp: string): string {
+    const [d, t = ''] = stamp.split('T');
+    const [y, m, day] = d.split('-').map(Number);
+    if (!y || !m || !day) return stamp.replace('T', ' ');
+    const date = new Date(y, m - 1, day).toLocaleDateString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+    return t ? `${date}, ${t.slice(0, 5)}` : date;
+  }
+
+  /** The newest email in the conversations shown, and whether it is older than today: then a check
+   *  "just now" found nothing new, and the panel says so (the owner, 2026-10-20: *"the email is read
+   *  just now but that was 4 days ago?"*). */
+  const newest = $derived(
+    (st?.heard ?? [])
+      .map((h) => h.latest)
+      .sort()
+      .at(-1) ?? null,
+  );
+  const quiet = $derived(
+    !!newest && newest.slice(0, 10) < new Date().toLocaleDateString('sv').slice(0, 10),
+  );
+
   /** "2 min ago", "15:04", or a date — short enough for one line on a phone. */
   function ago(at: number): string {
     if (!at) return 'not yet';
@@ -101,16 +127,18 @@
       </span>
     </h3>
     {#if st.heard?.length}
+      {#if quiet && !st.reading}
+        <p class="heard-said">No new email in these conversations since {sent(newest ?? '')}.</p>
+      {/if}
       <ul>
         {#each st.heard as h (h.note)}
           <li>
             <button class="heard-row" onclick={() => onopen(h.note)}>
               <span class="heard-title">{h.title}</span>
-              <span class="heard-when">{ago(h.at)}</span>
+              <span class="heard-when" title="When its newest email was sent">{sent(h.latest)}</span
+              >
             </button>
-            <p class="heard-said">
-              Read up to the email of {h.latest.replace('T', ' ')}: {h.said}
-            </p>
+            <p class="heard-said">{h.said}</p>
           </li>
         {/each}
       </ul>

@@ -3,6 +3,7 @@
 // everywhere else — no timezone math beyond the viewer's local calendar. A
 // `start`/`due` may carry a time; the grid is day-granular, so every value is
 // narrowed with `dayOf` before it reaches the geometry below.
+import { calledOff } from './calledOff';
 import { dayOf, parseStamp } from './stamp';
 
 export interface Day {
@@ -166,6 +167,15 @@ export function dayHeading(dateIso: string): string {
  *  half an hour is enough to hold a time and a title, and it is also the least any block is drawn,
  *  so a ten-minute meeting stays something a finger can hit. */
 export const MARK_MINUTES = 30;
+
+/** **A meeting with no end time is an hour** (2026-10-20). Drawn as a half-hour mark, a 16:00 and a
+ *  16:30 meeting sat one after the other and the owner had to find the clash alone. An hour is also
+ *  what the assistant counts as a clash, so the two agree. */
+export const MEETING_MINUTES = 60;
+/** The tag every meeting carries — from mail, an invitation, a calendar or by hand. Kept here, out of
+ *  the renderers, like `calledOff`'s. */
+export const MEETING_TAG = 'meeting';
+const isMeeting = (card: { tags?: string[] }) => (card.tags ?? []).includes(MEETING_TAG);
 const DAY_MINUTES = 24 * 60;
 
 /** Minutes since midnight for an `HH:MM` wall-clock time. */
@@ -177,6 +187,7 @@ export function minutesOf(time: string): number {
 interface Timed {
   start: string | null;
   due: string | null;
+  tags?: string[];
 }
 
 /** The day a note belongs to in the time grid, or null when it belongs in the all-day strip.
@@ -200,6 +211,8 @@ export interface TimedBlock<T> {
   to: number;
   col: number;
   cols: number;
+  /** A meeting that overlaps another meeting, neither called off: two places to be at once. */
+  clash: boolean;
 }
 
 /** Every note placed by the clock on `day`, laid out so that overlapping ones share the width.
@@ -216,14 +229,17 @@ export function timedBlocks<T extends Timed>(cards: T[], day: string): TimedBloc
       const startTime = parseStamp(card.start)?.time;
       const begin = startTime ? minutesOf(startTime) : null;
       let from = begin !== null && begin < end ? begin : end;
-      let to = begin !== null && begin < end ? end : end + MARK_MINUTES;
+      let to =
+        begin !== null && begin < end
+          ? end
+          : end + (isMeeting(card) ? MEETING_MINUTES : MARK_MINUTES);
       to = Math.max(to, from + MARK_MINUTES);
       // The last half hour of the day still has to fit on the day.
       if (to > DAY_MINUTES) {
         from = Math.max(0, from - (to - DAY_MINUTES));
         to = DAY_MINUTES;
       }
-      return { card, from, to, col: 0, cols: 1 };
+      return { card, from, to, col: 0, cols: 1, clash: false };
     })
     .sort((a, b) => a.from - b.from || b.to - a.to);
 
@@ -242,5 +258,11 @@ export function timedBlocks<T extends Timed>(cards: T[], day: string): TimedBloc
     groupEnd = Math.max(groupEnd, b.to);
   }
   if (group.length) close();
+  // Two meetings at once. A deadline beside a meeting is not one, and a called-off meeting is no
+  // longer anywhere to be.
+  const live = placed.filter((b) => isMeeting(b.card) && !calledOff(b.card));
+  for (const b of live) {
+    b.clash = live.some((o) => o !== b && o.from < b.to && b.from < o.to);
+  }
   return placed;
 }

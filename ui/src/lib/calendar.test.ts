@@ -177,3 +177,36 @@ describe('the week time grid', () => {
     expect(at(b, 'alone')).toMatchObject({ col: 0, cols: 1 });
   });
 });
+
+describe('two meetings at once (2026-10-20)', () => {
+  const meeting = (id: string, at: string, tags = ['meeting']) => ({
+    id,
+    start: at as string | null,
+    due: at,
+    tags,
+  });
+  const at = (blocks: ReturnType<typeof timedBlocks<ReturnType<typeof meeting>>>, id: string) =>
+    blocks.find((b) => b.card.id === id)!;
+
+  it('draws a meeting with no end time as an hour, so 16:00 and 16:30 overlap and clash', () => {
+    const b = timedBlocks(
+      [meeting('li', '2026-10-23T16:00'), meeting('siyu', '2026-10-23T16:30')],
+      '2026-10-23',
+    );
+    expect(at(b, 'li')).toMatchObject({ from: 16 * 60, to: 17 * 60, clash: true, cols: 2 });
+    expect(at(b, 'siyu')).toMatchObject({ clash: true });
+  });
+
+  it('does not call an hour apart, a deadline, or a called-off meeting a clash', () => {
+    const b = timedBlocks(
+      [
+        meeting('a', '2026-10-23T09:00'),
+        meeting('b', '2026-10-23T10:00'),
+        { id: 'due', start: null, due: '2026-10-23T10:15', tags: [] },
+        meeting('off', '2026-10-23T09:30', ['meeting', 'cancelled']),
+      ],
+      '2026-10-23',
+    );
+    for (const id of ['a', 'b', 'due', 'off']) expect(at(b, id).clash).toBe(false);
+  });
+});

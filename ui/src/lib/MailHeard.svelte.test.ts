@@ -38,7 +38,7 @@ describe('what the assistant made of the mail', () => {
           note: 'C1',
           title: 'Sara Lodi — Collaborator',
           latest: '2026-10-16T09:13',
-          said: 'nothing to change — the meeting stays at 2026-10-23 16:00',
+          said: 'no change — the meeting is still on Fri 23 Oct at 16:00',
           at: Math.floor(Date.now() / 1000),
         },
       ],
@@ -47,10 +47,12 @@ describe('what the assistant made of the mail', () => {
     render(MailHeard, { onopen });
     expect(await screen.findByText(/checked just now/)).toBeTruthy();
     expect(
-      await screen.findByText(
-        'Read up to the email of 2026-10-16 09:13: nothing to change — the meeting stays at 2026-10-23 16:00',
-      ),
+      await screen.findByText('no change — the meeting is still on Fri 23 Oct at 16:00'),
     ).toBeTruthy();
+    // The email's own date, not when it was read; and, it being days old, that nothing new came
+    // (2026-10-20: "the email is read just now but that was 4 days ago?").
+    expect(screen.getAllByText(/16.*09:13/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/No new email in these conversations since/)).toBeTruthy();
     await fireEvent.click(screen.getByText('Sara Lodi — Collaborator'));
     expect(onopen).toHaveBeenCalledWith('C1');
   });
