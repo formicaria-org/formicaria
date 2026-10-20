@@ -48,6 +48,15 @@ describe('bindings', () => {
     expect(keys.reserved({ key: '.', mod: true })).toBe(false);
   });
 
+  /** The note keys fire while you write, so each needs a modifier, like `WHILE_TYPING`. */
+  it('ships every note key as a chord', () => {
+    for (const cmd of keys.IN_NOTE) {
+      expect(keys.chord(keys.DEFAULTS[cmd]), `${cmd} would eat a keystroke`).toBe(true);
+    }
+    expect(keys.chord({ key: 'q' })).toBe(false);
+    expect(keys.chord({ key: '', mod: true })).toBe(false);
+  });
+
   it('exempts navigation while typing, and does not exempt note creation', () => {
     expect(keys.WHILE_TYPING.has('nextPane')).toBe(true);
     expect(keys.WHILE_TYPING.has('prevPane')).toBe(true);

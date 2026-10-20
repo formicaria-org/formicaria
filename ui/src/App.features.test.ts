@@ -499,6 +499,98 @@ describe('v2: property editing, timeline, delete', () => {
     await waitFor(() => expect(body.value).toBe('make this **[pop]{.ok}**'));
   });
 
+  // The keys other editors taught (the owner, 2026-10-20) call the same wraps as the buttons. Bold
+  // then italic makes both, not italic alone; italic again leaves the bold.
+  it('Ctrl+B, Ctrl+I, Ctrl+E and Ctrl+Shift+H format the selection', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: 'make this pop' } });
+    body.selectionStart = 10;
+    body.selectionEnd = 13;
+    await fireEvent.select(body);
+
+    await fireEvent.keyDown(body, { key: 'b', ctrlKey: true });
+    await waitFor(() => expect(body.value).toBe('make this **pop**'));
+    await fireEvent.keyDown(body, { key: 'i', ctrlKey: true });
+    await waitFor(() => expect(body.value).toBe('make this ***pop***'));
+    await fireEvent.keyDown(body, { key: 'i', metaKey: true });
+    await waitFor(() => expect(body.value).toBe('make this **pop**'));
+    await fireEvent.keyDown(body, { key: 'b', ctrlKey: true });
+    await waitFor(() => expect(body.value).toBe('make this pop'));
+
+    await fireEvent.keyDown(body, { key: 'e', ctrlKey: true });
+    await waitFor(() => expect(body.value).toBe('make this `pop`'));
+    await fireEvent.keyDown(body, { key: 'e', ctrlKey: true });
+    await fireEvent.keyDown(body, { key: 'H', ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(body.value).toBe('make this ==pop=='));
+
+    // AltGr is Ctrl+Alt on Windows: it types a character and formats nothing.
+    await fireEvent.keyDown(body, { key: 'b', ctrlKey: true, altKey: true });
+    expect(body.value).toBe('make this ==pop==');
+    expect(screen.getByRole('button', { name: 'bold' }).title).toBe('Bold (Ctrl+B)');
+  });
+
+  // They are bound in Settings like every other key: a rebind is what the note obeys, and the
+  // tooltip names it. A rebind to a bare letter is refused here, or it would eat the letter.
+  it('the format keys follow a rebind made in Settings', async () => {
+    const store = new Map<string, string>([
+      ['fm-keys', JSON.stringify({ bold: { key: 'g', mod: true }, italic: { key: 'q' } })],
+    ]);
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    try {
+      render(App);
+      await screen.findByRole('button', { name: 'make something new' });
+      await runCommand('New note', 'create');
+      const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+      await fireEvent.input(body, { target: { value: 'make this pop' } });
+      body.selectionStart = 10;
+      body.selectionEnd = 13;
+      await fireEvent.select(body);
+
+      await fireEvent.keyDown(body, { key: 'b', ctrlKey: true });
+      expect(body.value).toBe('make this pop');
+      await fireEvent.keyDown(body, { key: 'g', ctrlKey: true });
+      await waitFor(() => expect(body.value).toBe('make this **pop**'));
+      await fireEvent.keyDown(body, { key: 'q' });
+      expect(body.value).toBe('make this **pop**');
+      expect(screen.getByRole('button', { name: 'bold' }).title).toBe('Bold (Ctrl+G)');
+      expect(screen.getByRole('button', { name: 'italic' }).title).toBe('Italic');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // A screenshot tool leaves the picture on the clipboard; Ctrl+V puts it in the note as a drop
+  // would, named for when it was pasted (the owner, 2026-10-20). Pasted text is still text.
+  it('Ctrl+V of a picture adds it to the note; of text, types the text', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: 'look:\n' } });
+    body.selectionStart = body.selectionEnd = 6;
+
+    const shot = new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], 'image.png', {
+      type: 'image/png',
+    });
+    await fireEvent.paste(body, { clipboardData: { files: [shot], getData: () => '' } });
+    await waitFor(() =>
+      expect(body.value).toMatch(
+        /^look:\n!\[Pasted image \d{4}-\d\d-\d\d \d\d\.\d\d\.\d\d\.png\]\(asset:sha256-[0-9a-f]+\)\n$/,
+      ),
+    );
+
+    await fireEvent.paste(body, { clipboardData: { files: [], getData: () => 'words' } });
+    await waitFor(() => expect(body.value).toContain('words'));
+    expect(body.value.match(/asset:/g)).toHaveLength(1);
+  });
+
   // The block submenu applies line-level formats: heading, lists, quote. Whole-line, so a selection
   // anywhere in the line counts. There is one entry for a quote and none for a callout: a callout
   // is a quote with a kind on its first line (the owner, 2026-10-11).

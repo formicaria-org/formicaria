@@ -201,7 +201,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.provider.Settings
+import android.util.Base64
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -212,6 +214,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
   private var wv: WebView? = null
@@ -229,6 +233,117 @@ class MainActivity : TauriActivity() {
     // Keep the app + its network alive for the study assistant's download and inference.
     val svc = Intent(this, AgentService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
+    takeShared(intent)
+  }
+
+  // `singleTask`: a share while the app is open arrives here rather than as a second app.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    takeShared(intent)
+  }
+
+  /// **What another app shared to formicaria** (`decisions.md#ui`, 2026-10-20): Android's Share
+  /// button under a screenshot, or in the gallery. The page cannot read a `content://` address,
+  /// and the app that shared it may take the permission back once it is no longer in front, so
+  /// the bytes are copied at once into the app's own cache and held here until the page asks
+  /// (`__fmShare`). At a cold start the page does not exist yet, which is why it asks rather than
+  /// being told; `fm-share` only says there is more to ask for.
+  private class Shared(val file: File, val name: String, val mime: String)
+  private val shared = mutableListOf<Shared>()
+  /// What could not be taken, and why: `too large` or `could not be read`.
+  private val refused = mutableListOf<Pair<String, String>>()
+
+  private fun takeShared(intent: Intent?) {
+    val uris: List<Uri> = when (intent?.action) {
+      Intent.ACTION_SEND -> listOfNotNull(streamOf(intent))
+      Intent.ACTION_SEND_MULTIPLE -> streamsOf(intent)
+      else -> return
+    }
+    // Taken once: a rotation recreates the activity with the intent it was started with.
+    setIntent(Intent(this, MainActivity::class.java))
+    if (uris.isEmpty()) return
+    Thread {
+      val dir = File(cacheDir, "shared").apply { mkdirs() }
+      for (uri in uris) {
+        val (name, size) = described(uri)
+        try {
+          // Read through the page as text, so a bound is kept: a phone video would not fit.
+          if (size > MAX_SHARE) { synchronized(shared) { refused.add(Pair(name, "too large")) }; continue }
+          val out = File(dir, "${System.nanoTime()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
+          contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
+          if (!out.isFile || out.length() > MAX_SHARE) {
+            val why = if (out.isFile) "too large" else "could not be read"
+            out.delete()
+            synchronized(shared) { refused.add(Pair(name, why)) }
+            continue
+          }
+          val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+          synchronized(shared) { shared.add(Shared(out, name, mime)) }
+        } catch (e: Exception) {
+          // Most often the app that shared it gave no permission to read it.
+          synchronized(shared) { refused.add(Pair(name, "could not be read")) }
+        }
+      }
+      runOnUiThread { wv?.evaluateJavascript("window.dispatchEvent(new Event('fm-share'))", null) }
+    }.start()
+  }
+
+  @Suppress("DEPRECATION")
+  private fun streamOf(intent: Intent): Uri? =
+    if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+    else intent.getParcelableExtra(Intent.EXTRA_STREAM)
+
+  @Suppress("DEPRECATION")
+  private fun streamsOf(intent: Intent): List<Uri> =
+    (if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+    else intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)) ?: emptyList()
+
+  /// The file's own name and size, as the app that shared it gives them; -1 when it does not say.
+  private fun described(uri: Uri): Pair<String, Long> {
+    var name = uri.lastPathSegment ?: "shared"
+    var size = -1L
+    try {
+      contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+        ?.use { c ->
+          if (c.moveToFirst()) {
+            val n = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val s = c.getColumnIndex(OpenableColumns.SIZE)
+            if (n >= 0 && !c.isNull(n)) name = c.getString(n)
+            if (s >= 0 && !c.isNull(s)) size = c.getLong(s)
+          }
+        }
+    } catch (e: Exception) {
+      // Some apps share without answering the query; the copy still goes ahead.
+    }
+    return Pair(name, size)
+  }
+
+  /// The page's side of a share: what is held, each file's bytes, and that it has them. `done`
+  /// takes counts, not "all": a second share still being copied while the page reads the first
+  /// must not be thrown away with it.
+  inner class Share {
+    @JavascriptInterface
+    fun pending(): String = synchronized(shared) {
+      val files = JSONArray()
+      for (f in shared) files.put(JSONObject().put("name", f.name).put("mime", f.mime))
+      val no = JSONArray()
+      for ((name, why) in refused) no.put(JSONObject().put("name", name).put("why", why))
+      JSONObject().put("files", files).put("refused", no).toString()
+    }
+
+    @JavascriptInterface
+    fun read(i: Int): String {
+      val f = synchronized(shared) { shared.getOrNull(i) } ?: return ""
+      return Base64.encodeToString(f.file.readBytes(), Base64.NO_WRAP)
+    }
+
+    @JavascriptInterface
+    fun done(files: Int, refusedCount: Int) {
+      synchronized(shared) {
+        repeat(minOf(files, shared.size)) { shared.removeAt(0).file.delete() }
+        repeat(minOf(refusedCount, refused.size)) { refused.removeAt(0) }
+      }
+    }
   }
 
   /// The insets the window last reported, in CSS pixels. Held so the page can **ask** for them.
@@ -437,6 +552,8 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(UpdateInstaller(), "__fmUpdate")
     // Reminders: the page hands over the moments, Android sets the alarms. See Reminders.kt.
     webView.addJavascriptInterface(Remind(), "__fmRemind")
+    // What another app shared: the page asks for it. See `takeShared`.
+    webView.addJavascriptInterface(Share(), "__fmShare")
 
     // **Applied before the page's own CSS**, on every navigation, so there is no frame in which
     // the app is laid out against a zero inset. Feature-gated exactly as `RustWebView.kt` gates
@@ -474,6 +591,9 @@ class MainActivity : TauriActivity() {
   }
 
   companion object {
+    /// The most one shared file may be: it travels to the page as base64 text.
+    private const val MAX_SHARE = 25L * 1024 * 1024
+
     /// Reads the interface and writes the four properties `app.css` consumes. Defensive because it
     /// also runs at document start, where a hostile-looking absence is simply "not injected yet".
     private const val APPLY_INSETS = """
@@ -627,6 +747,29 @@ if ! grep -q 'ReminderReceiver' "$manifest"; then
             print "            </intent-filter>"
             print "        </receiver>"
             r=1
+        }
+        { print }
+    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
+fi
+
+# Share: formicaria in Android's share menu for pictures (`decisions.md#ui`, 2026-10-20). One file
+# or several; the activity takes them (`takeShared`). Pictures only: what a screenshot is, and what
+# the note editor draws. Idempotent.
+if ! grep -q 'android.intent.action.SEND"' "$manifest"; then
+    tmpf=$(mktemp)
+    awk '
+        /<\/activity>/ && !sh {
+            print "            <intent-filter>"
+            print "                <action android:name=\"android.intent.action.SEND\" />"
+            print "                <category android:name=\"android.intent.category.DEFAULT\" />"
+            print "                <data android:mimeType=\"image/*\" />"
+            print "            </intent-filter>"
+            print "            <intent-filter>"
+            print "                <action android:name=\"android.intent.action.SEND_MULTIPLE\" />"
+            print "                <category android:name=\"android.intent.category.DEFAULT\" />"
+            print "                <data android:mimeType=\"image/*\" />"
+            print "            </intent-filter>"
+            sh=1
         }
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"

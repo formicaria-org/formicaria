@@ -38,6 +38,13 @@ would take before the app sees it. **Reset to defaults** puts them all back.
 | Undo | Ctrl+Z | no — inside a note it undoes your typing |
 | Redo | Ctrl+Shift+Z | no |
 | New view, Close this view, Back up | not set | — set one if you want it |
+| Bold, in a note | Ctrl+B | only there |
+| Italic, in a note | Ctrl+I | only there |
+| Code, in a note | Ctrl+E | only there |
+| Highlight, in a note | Ctrl+Shift+H | only there |
+
+The four *in a note* keys format the words you are writing, and do nothing elsewhere. Each needs
+Ctrl or Alt, since a bare letter would type itself instead; Settings says so if you try.
 
 *Next view* and *Previous view* work even while you are writing, which is why they exist: without
 them a note had to be closed before anything else could be reached.

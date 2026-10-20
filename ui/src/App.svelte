@@ -127,6 +127,8 @@
   import * as trackers from './lib/trackers.svelte';
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
+  import ShareSheet from './lib/ShareSheet.svelte';
+  import { incoming, takeShared, type Refused } from './lib/share.svelte';
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
@@ -966,6 +968,7 @@
     const inBoard = !!(e.target as HTMLElement | null)?.closest?.('.excalidraw');
 
     for (const cmd of Object.keys(keymap) as keys.Command[]) {
+      if (keys.IN_NOTE.has(cmd)) continue; // the note panel's to run, on the text it holds
       if (typing && !keys.WHILE_TYPING.has(cmd)) continue;
       if (inBoard && (cmd === 'undo' || cmd === 'redo')) continue;
       if (!keys.matches(e, keymap[cmd])) continue;
@@ -1806,6 +1809,38 @@
     focusOrOpen('note', { noteId: id });
   }
 
+  // **A picture shared from another app** (Android's Share; `lib/share.svelte.ts`). Asked for at
+  // start, since a share can be what launched the app, and again whenever the shell says more has
+  // come. Several shares before one is placed are placed together.
+  let shared = $state<{ files: File[]; refused: Refused[] } | null>(null);
+  $effect(() => {
+    const take = () => {
+      const got = takeShared();
+      if (!got.files.length && !got.refused.length) return;
+      shared = {
+        files: [...(shared?.files ?? []), ...got.files],
+        refused: [...(shared?.refused ?? []), ...got.refused],
+      };
+    };
+    take();
+    window.addEventListener('fm-share', take);
+    return () => window.removeEventListener('fm-share', take);
+  });
+  /** The chosen note takes the files at its end, as a drop would; `null` makes a new note first. */
+  async function placeShared(noteId: string | null) {
+    const files = shared?.files ?? [];
+    shared = null;
+    if (!files.length) return;
+    try {
+      const id = noteId ?? (await captureUndoable('', createTarget)).id;
+      incoming.value = { noteId: id, files };
+      openNoteInPane(id, { editing: true });
+      if (!noteId) scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
   // "New note": create a blank note and open it straight in the editor (property
   // form + empty body), Obsidian/Notion style. Differentiate with tags, not type.
   async function onNew() {
@@ -2292,6 +2327,7 @@
     ['paper', () => paperOpen, () => (paperOpen = false)],
     ['undo-menu', () => undoMenuOpen, () => (undoMenuOpen = false)],
     ['deleted', () => deletedOpen, () => (deletedOpen = false)],
+    ['share', () => shared !== null, () => (shared = null)],
     ['search', () => searchPanelOpen, () => closeSearch()],
     // The manual's reader: opened from any feature's "How this works", so Back closes it first.
     ['manual', () => manual.openPage() !== null, () => manual.closeManual()],
@@ -3375,6 +3411,16 @@
       {#await import('./lib/SkippedPanel.svelte') then { default: SkippedPanel }}
         <SkippedPanel skipped={skippedNotes} onclose={() => (skippedOpen = false)} />
       {/await}
+    {/if}
+
+    {#if shared}
+      <ShareSheet
+        files={shared.files}
+        refused={shared.refused}
+        openNoteId={focusedPane?.kind === 'note' ? (focusedPane.noteId ?? null) : null}
+        onchoose={placeShared}
+        onclose={() => (shared = null)}
+      />
     {/if}
 
     {#if deletedOpen}

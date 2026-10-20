@@ -79,10 +79,30 @@ Every change writes back to the note's YAML frontmatter immediately. The body is
 plain Markdown, and **the editor draws it finished while you write**: a heading looks like a
 heading, bold is bold, a link shows its words, a list has its dots and a task its tick box.
 **The line you are writing on shows its Markdown marks**, so what you type is always in view;
-move to another line and it is drawn finished. Pictures, formulas, diagrams, tables and embedded
-notes still show as their Markdown while you edit, and are drawn when you leave the editor.
+move to another line and it is drawn finished. **Pictures and formulas are drawn too**, and so are
+recordings, videos and embedded notes: on the line you are writing on they show as their Markdown,
+and once you move off it they are drawn. Diagrams, tables and a formula written over several lines
+still show as their Markdown while you edit, and are drawn when you leave the editor.
+
+**Formulas** are LaTeX between dollars: `$x^2$`, or `$$x^2$$`. Either can sit in a sentence and is
+drawn in the line; a `$$…$$` with a line to itself is drawn larger, centred, on its own. `\*` in a
+formula is a star, as it is in the rest of the note. For an arrow write `\to` (`->` is a minus and a
+greater-than).
+
+**To put a screenshot in a note, paste it.** A screenshot tool that copies to the clipboard (the
+Snipping Tool, PrtScn, GNOME's or macOS's screenshot with copy) leaves the picture there; in the
+note press **Ctrl+V**, or use Paste from the right-click menu. The picture is added exactly as a
+dropped file is, named for when you pasted it, and drawn as soon as you move to the next line.
+Dragging a file onto the note does the same.
 Nothing is ever rewritten behind your back — the file is exactly the Markdown you wrote,
 byte for byte.
+
+**The usual keys format text** (⌘ instead of Ctrl on a Mac): **Ctrl+B** bold, **Ctrl+I** italic,
+**Ctrl+E** code and **Ctrl+Shift+H** highlight. They do what the buttons under the note do: on
+selected words they add the mark, or take it away if it is there; with nothing selected they put
+the marks in with a word to type over. Bold and then italic gives both. **Ctrl+K** is not a link
+here: it opens Settings, as it does everywhere in the app; the 🔗 button makes a link.
+All four can be changed in **Settings → Keyboard**.
 
 **In the editor a link works.** One press on a finished link opens it (another note opens beside
 this one); a double press puts the cursor in it to change it. A tick box is pressed in place.

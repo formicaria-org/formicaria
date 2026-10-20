@@ -5,7 +5,7 @@
 // browser and on the phone.
 import { render } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import LiveEditor from './LiveEditor.svelte';
 import type { EditorHandle } from './handle';
 import { typeInto } from './testing';
@@ -164,5 +164,27 @@ describe('the editor that renders as you write', () => {
     unmount();
     // Closed, it lends nothing: the finished session is the note panel's step to record.
     expect(undo.nextUndo()).toBeNull();
+  });
+});
+
+describe('pictures in the editor', () => {
+  it('draws one with the renderer it is given, and leaves it as text without one', async () => {
+    const value = 'a shot\n![shot](asset:sha256-ab12)\n';
+    const paint = vi.fn(async (el: HTMLElement, md: string) => {
+      el.textContent = `[drawn ${md}]`;
+    });
+    const drawn = render(LiveEditor as never, { value, embeds: paint } as never);
+    await tick();
+    await vi.waitFor(() =>
+      expect(drawn.container.querySelector('.cm-embed')?.textContent).toBe(
+        '[drawn ![shot](asset:sha256-ab12)]',
+      ),
+    );
+    expect(paint).toHaveBeenCalledTimes(1);
+
+    const plain = render(LiveEditor as never, { value } as never);
+    await tick();
+    expect(plain.container.querySelector('.cm-embed')).toBeNull();
+    expect(plain.container.textContent).toContain('![shot](asset:sha256-ab12)');
   });
 });

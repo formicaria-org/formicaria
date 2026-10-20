@@ -57,6 +57,10 @@ yours, in one gesture — see [Backup & versioning](./backup.md).
 
 ## Attachments
 
+**A screenshot goes into a note with Share**: tap Share under the screenshot, choose formicaria,
+and pick the note (see [Assets & media](./assets.md#on-the-phone-share-from-another-app)). The 📎
+button above the keyboard also opens your pictures, with the newest screenshots first.
+
 Photos, recordings and files you attach on the phone travel with your notes, up to the size limit
 that vault sets — **Settings → Vaults & backup**, *Send attachments under*. A large backlog is sent in steps
 automatically, and a single file over the limit stays on the phone rather than blocking everything

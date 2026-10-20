@@ -80,6 +80,44 @@ describe('what is drawn while you write', () => {
     expect(href(6)).toEqual([]);
   });
 
+  /// The owner's sentence (2026-10-20): highlighted, with `=` and formulas inside it.
+  it('draws a highlight with a single = in it, and formulas off the line being written', () => {
+    const text = 'a ==N.B. say $$ \\times $$ and $$ \\Phi(a) = \\Phi(a)*\\Phi(b) $$== b';
+    const all = preview(text + '\n\nx', { from: text.length + 3, to: text.length + 3 });
+    expect(all.filter((d) => d.kind === 'mark').map((d) => (d as { cls: string }).cls)).toContain(
+      'cm-highlight',
+    );
+    const maths = all.flatMap((d) => (d.kind === 'math' ? [[d.tex, d.display]] : []));
+    expect(maths).toEqual([
+      [' \\times ', false],
+      [' \\Phi(a) = \\Phi(a)*\\Phi(b) ', false],
+    ]);
+    // On the line being written they are text.
+    expect(preview(text, { from: 3, to: 3 }).some((d) => d.kind === 'math')).toBe(false);
+    // Alone on its line, a formula is a centred block.
+    expect(
+      preview('$$ x $$\n\ny', { from: 9, to: 9 }).flatMap((d) =>
+        d.kind === 'math' ? [d.display] : [],
+      ),
+    ).toEqual([true]);
+  });
+
+  /// A picture (the owner, 2026-10-20: a dropped screenshot stayed as its text) is drawn once the
+  /// line is left, and is its text again on the line being written.
+  it('draws a picture in place of its text, except on the line being written', () => {
+    const text = 'before\n![shot](asset:sha256-ab12)\nafter';
+    const embeds = (at: number) =>
+      preview(text, { from: at, to: at }).flatMap((d) =>
+        d.kind === 'embed' ? [text.slice(d.from, d.to)] : [],
+      );
+    expect(embeds(text.length)).toEqual(['![shot](asset:sha256-ab12)']);
+    expect(embeds(text.indexOf('shot'))).toEqual([]);
+    // A link is not a picture.
+    expect(
+      preview('[shot](asset:x)\n\nx', { from: 18, to: 18 }).some((d) => d.kind === 'embed'),
+    ).toBe(false);
+  });
+
   it('draws a bullet as a dot and a tick box as a box, and leaves numbers alone', () => {
     expect(seen('- one\n- two')).toBe('• one\n• two');
     expect(seen('- [ ] open\n- [x] closed')).toBe('☐ open\n☑ closed');

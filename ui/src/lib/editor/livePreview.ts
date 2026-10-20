@@ -1,8 +1,10 @@
 /// Applies [`preview`](./preview.ts) to a CodeMirror editor: the pure list of what to draw becomes
 /// decorations over the text. Nothing here decides anything; it only draws what `decide` says.
+import { Facet } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { decide, read, type Reading } from './preview';
+import { drawMath } from '../render';
 
 class Bullet extends WidgetType {
   toDOM() {
@@ -49,13 +51,78 @@ class Tick extends WidgetType {
   }
 }
 
+/// How an embed is drawn: the reading view's own `renderInto`, handed in by the note panel, so the
+/// editor writes no HTML of its own and a picture looks the same in both. Without one (a test, a
+/// proposal under review) an embed stays as its text.
+export type DrawEmbed = (el: HTMLElement, markdown: string) => Promise<void>;
+export const drawEmbed = Facet.define<DrawEmbed, DrawEmbed | null>({
+  combine: (all) => all[0] ?? null,
+});
+
+/// A picture (or recording, or embedded note) in place of its `![…](…)`. The same text is the same
+/// widget, so typing elsewhere in the note does not load it again.
+class Embed extends WidgetType {
+  constructor(
+    readonly source: string,
+    readonly paint: DrawEmbed,
+  ) {
+    super();
+  }
+  eq(other: Embed) {
+    return other.source === this.source;
+  }
+  toDOM(view: EditorView) {
+    const box = document.createElement('span');
+    box.className = 'cm-embed';
+    // A picture has no height until it has loaded; the editor is told when it has one, or its
+    // idea of where the lines are would be wrong below it.
+    void this.paint(box, this.source).then(() => {
+      measure(view, box);
+      for (const m of box.querySelectorAll('img, video'))
+        m.addEventListener('load', () => measure(view, box), { once: true });
+    });
+    return box;
+  }
+}
+
+/// Tell the editor a drawn thing has its size now — **only while it is still on screen**. Drawing
+/// finishes later than the line it stands in (a picture loads, KaTeX is fetched), and by then the
+/// note may be closed: measuring a gone editor ran its listeners against a panel already torn
+/// down (Svelte's `derived_inert`), and in the suite it made the next test wait seconds.
+function measure(view: EditorView, box: HTMLElement) {
+  if (box.isConnected && view.dom.isConnected) view.requestMeasure();
+}
+
+/// A formula in place of its `$…$`, through the reading view's own KaTeX (`drawMath`).
+class Formula extends WidgetType {
+  constructor(
+    readonly tex: string,
+    readonly display: boolean,
+    readonly src: string,
+  ) {
+    super();
+  }
+  eq(other: Formula) {
+    return other.tex === this.tex && other.display === this.display;
+  }
+  toDOM(view: EditorView) {
+    const box = document.createElement('span');
+    box.className = this.display ? 'cm-math cm-math-display' : 'cm-math';
+    void drawMath(box, { tex: this.tex, display: this.display, src: this.src }).then(() =>
+      measure(view, box),
+    );
+    return box;
+  }
+}
+
 const hide = Decoration.replace({});
 const bullet = Decoration.replace({ widget: new Bullet() });
 
 /// `at` is where the marks are shown, or -1 for nowhere: a note nobody is writing in is shown
 /// finished throughout, with no line "the one being written".
-function draw(reading: Reading, at: number): DecorationSet {
-  const ranges = decide(reading, { from: at, to: at }).map((d) => {
+function draw(reading: Reading, at: number, paint: DrawEmbed | null): DecorationSet {
+  const decos = decide(reading, { from: at, to: at });
+  const ranges = (paint ? decos : decos.filter((d) => d.kind !== 'embed')).map((d) => {
     switch (d.kind) {
       case 'hide':
         return hide.range(d.from, d.to);
@@ -70,6 +137,14 @@ function draw(reading: Reading, at: number): DecorationSet {
         return bullet.range(d.from, d.to);
       case 'task':
         return Decoration.replace({ widget: new Tick(d.checked, d.from) }).range(d.from, d.to);
+      case 'math':
+        return Decoration.replace({
+          widget: new Formula(d.tex, d.display, reading.text.slice(d.from, d.to)),
+        }).range(d.from, d.to);
+      case 'embed':
+        return Decoration.replace({
+          widget: new Embed(reading.text.slice(d.from, d.to), paint!),
+        }).range(d.from, d.to);
     }
   });
   return Decoration.set(ranges, true);
@@ -93,7 +168,7 @@ export const livePreview = ViewPlugin.fromClass(
     constructor(view: EditorView) {
       this.reading = read(view.state.doc.toString());
       this.at = this.reveal(view, -1);
-      this.decorations = draw(this.reading, this.at);
+      this.decorations = draw(this.reading, this.at, view.state.facet(drawEmbed));
     }
     reveal(view: EditorView, was: number): number {
       const main = view.state.selection.main;
@@ -106,7 +181,7 @@ export const livePreview = ViewPlugin.fromClass(
       const at = this.reveal(u.view, was);
       if (u.docChanged || at !== this.at) {
         this.at = at;
-        this.decorations = draw(this.reading, at);
+        this.decorations = draw(this.reading, at, u.state.facet(drawEmbed));
       }
     }
   },

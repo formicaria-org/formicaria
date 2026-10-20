@@ -6,11 +6,16 @@ from notes. Identical files are stored once; the hash *is* the identity.
 
 ## Adding an asset while writing
 
-In a note's editor you have two fast paths:
+In a note's editor you have these fast paths:
 
 - **Drag a file in.** Drop it onto the editor; formicaria ingests it (hashing,
   MIME sniffing, text extraction) and inserts a reference at your
   cursor.
+- **Paste a picture.** A screenshot copied to the clipboard (the Snipping Tool,
+  PrtScn, or your system's screenshot with *copy*) goes in with **Ctrl+V**, or any
+  other way of pasting: ⌘V, Shift+Insert, the right-click menu, or a long press →
+  Paste on a phone. It is added exactly as a dropped file is, and named for when
+  you pasted it.
 - **Type `/`.** A menu opens at your cursor listing your **most recent notes**;
   keep typing to search by name (and extracted text) across everything. The
   search covers **notes and assets together** and labels each with its type — see
@@ -25,6 +30,23 @@ Both insert a Markdown image reference like:
 ```
 
 You can also ingest from the command line: `fm add path/to/file.pdf`.
+
+Once you move off its line, the editor draws the picture (or the player, or the PDF) in place of
+that reference, as the read view does.
+
+### On the phone: Share from another app
+
+After taking a screenshot, tap **Share** under it (or share a picture from the gallery) and pick
+**formicaria**. It opens and asks where the picture goes:
+
+- **the note open now**, if one is — first, because a screenshot taken while writing a note is
+  usually for it;
+- **New note**;
+- **any other note** — your recent ones are listed, and *Find a note* searches by name.
+
+The picture is added at the end of the note you choose, and the note opens so you can write
+beside it. Several pictures shared at once go in together. **Cancel** adds nothing. A single
+picture over 25 MB is not taken from here; open the note and add it with 📎 instead.
 
 ### On the phone, there is no longer a size limit
 

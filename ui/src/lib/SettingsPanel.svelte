@@ -1801,9 +1801,9 @@
         <ManualLink page="user/workspace.html" section="keyboard-shortcuts" />
         <p class="muted">
           Click a shortcut, then press the keys you want. <strong>Esc</strong> cancels. The
-          <em>Next / Previous view</em> pair works even while you are typing in a note — which is the
-          whole reason they exist, since otherwise a note has to be closed before anything else can be
-          reached.
+          <em>Next / Previous view</em> pair works even while you are typing in a note — which is
+          the whole reason they exist, since otherwise a note has to be closed before anything else
+          can be reached. The <em>in a note</em> keys format the words you are writing.
         </p>
         <ul class="caps">
           {#each COMMANDS as cmd (cmd)}
@@ -1819,6 +1819,9 @@
               </button>
               {#if clash}
                 <span class="warn">also {keys.LABELS[clash]}</span>
+              {:else if keys.IN_NOTE.has(cmd) && keymap[cmd].key && !keys.chord(keymap[cmd])}
+                <!-- It would type its letter instead: a note key fires while you write. -->
+                <span class="warn">needs Ctrl or Alt</span>
               {:else if keys.reserved(keymap[cmd])}
                 <!-- The browser takes this before the page ever sees it, so the binding would
                      simply not work. Said here rather than discovered by pressing it. -->

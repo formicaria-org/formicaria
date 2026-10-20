@@ -259,6 +259,8 @@ async function resolveEmbeds(
 export interface MathSpan {
   tex: string;
   display: boolean;
+  /** The formula as written, delimiters and all — shown when it cannot be drawn. */
+  src?: string;
 }
 
 /** Pull `$$…$$` (display) and `$…$` (inline) math out of Markdown *source*,
@@ -269,37 +271,57 @@ export interface MathSpan {
  *  Backslash escapes (`\$`) and code spans/fences are copied through verbatim so a
  *  `$` inside them is never treated as math. Pure + synchronous, so it's unit-tested
  *  without a DOM. */
-export function extractMath(src: string): { text: string; math: MathSpan[] } {
-  const math: MathSpan[] = [];
-  const place = (tex: string, display: boolean): string => {
-    math.push({ tex, display });
-    return `<span data-math="${math.length - 1}"></span>`;
-  };
-  let out = '';
+/** One formula in a note's text: where it is, what it says, and whether it is drawn on a line of
+ *  its own. Found by [`findMath`]; the editor draws these too (`editor/preview.ts`). */
+export interface MathAt extends MathSpan {
+  from: number;
+  to: number;
+}
+
+/// **`$$…$$` is a centred formula only on a line of its own** (the owner, 2026-10-20: a sentence
+/// with `$$ \times $$` in it was broken into pieces). In a sentence it is drawn inline, which is
+/// how Logseq — where the owner's notes come from — reads it. A list's or a quote's mark before
+/// it still counts as a line of its own.
+function aloneOnLine(src: string, from: number, to: number): boolean {
+  const start = src.lastIndexOf('\n', from - 1) + 1;
+  const nl = src.indexOf('\n', to);
+  const end = nl === -1 ? src.length : nl;
+  return (
+    /^\s*(?:(?:[-*+]|\d+[.)]|>)\s+)?$/.test(src.slice(start, from)) && !src.slice(to, end).trim()
+  );
+}
+
+/** Every formula in `src`, in order, skipping code and escaped dollars. */
+export function findMath(src: string): MathAt[] {
+  const found: MathAt[] = [];
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
-    // A backslash escapes the next char (`\$` is a literal dollar) — copy the pair
-    // through so it can't open a formula.
+    // A backslash escapes the next char (`\$` is a literal dollar) — skip the pair so it can't
+    // open a formula.
     if (ch === '\\') {
-      out += ch + (src[i + 1] ?? '');
       i += 2;
       continue;
     }
-    // Code span / fence — copy through untouched so a `$` inside code isn't grabbed.
+    // Code span / fence — skipped untouched so a `$` inside code isn't grabbed.
     if (ch === '`') {
       const run = /^`+/.exec(src.slice(i))![0];
       const close = src.indexOf(run, i + run.length);
-      const end = close === -1 ? i + run.length : close + run.length;
-      out += src.slice(i, end);
-      i = end;
+      i = close === -1 ? i + run.length : close + run.length;
       continue;
     }
     if (ch === '$' && src[i + 1] === '$') {
       const close = src.indexOf('$$', i + 2);
       if (close !== -1) {
-        out += place(src.slice(i + 2, close), true);
-        i = close + 2;
+        const to = close + 2;
+        found.push({
+          from: i,
+          to,
+          tex: src.slice(i + 2, close),
+          display: aloneOnLine(src, i, to),
+          src: src.slice(i, to),
+        });
+        i = to;
         continue;
       }
     } else if (ch === '$') {
@@ -319,16 +341,33 @@ export function extractMath(src: string): { text: string; math: MathSpan[] } {
           if (c === '$' && !/\s/.test(src[j - 1]) && !/\d/.test(src[j + 1] ?? '')) break;
         }
         if (j > i && j < src.length) {
-          out += place(src.slice(i + 1, j), false);
+          found.push({
+            from: i,
+            to: j + 1,
+            tex: src.slice(i + 1, j),
+            display: false,
+            src: src.slice(i, j + 1),
+          });
           i = j + 1;
           continue;
         }
       }
     }
-    out += ch;
     i++;
   }
-  return { text: out, math };
+  return found;
+}
+
+export function extractMath(src: string): { text: string; math: MathSpan[] } {
+  const math: MathSpan[] = [];
+  let out = '';
+  let at = 0;
+  for (const m of findMath(src)) {
+    out += src.slice(at, m.from) + `<span data-math="${math.length}"></span>`;
+    math.push({ tex: m.tex, display: m.display, src: m.src });
+    at = m.to;
+  }
+  return { text: out + src.slice(at), math };
 }
 
 /** Resolve `asset:`/`sha256:` refs to inline media by MIME, or a placeholder.
@@ -581,11 +620,10 @@ async function renderMath(el: HTMLElement, math: MathSpan[]): Promise<void> {
   if (math.length === 0) return; // exact gate — no formulas, no import
   const hosts = Array.from(el.querySelectorAll<HTMLElement>('span[data-math]'));
   if (hosts.length === 0) return;
-  const raw = (s: MathSpan) => (s.display ? `$$${s.tex}$$` : `$${s.tex}$`);
-  let mod: typeof import('katex');
+  const raw = (s: MathSpan) => s.src ?? (s.display ? `$$${s.tex}$$` : `$${s.tex}$`);
+  let katex: typeof import('katex').default;
   try {
-    mod = await import('katex');
-    await import('katex/dist/katex.min.css');
+    katex = await loadKatex();
   } catch {
     // KaTeX chunk unavailable — show the raw source rather than an empty span.
     for (const host of hosts) {
@@ -594,18 +632,52 @@ async function renderMath(el: HTMLElement, math: MathSpan[]): Promise<void> {
     }
     return;
   }
-  const katex = mod.default;
   for (const host of hosts) {
     const s = math[Number(host.dataset.math)];
-    if (!s) continue;
-    try {
-      host.innerHTML = katex.renderToString(s.tex, { displayMode: s.display, throwOnError: true }); // sink-ok: KaTeX, throwOnError
-    } catch (e) {
-      host.className = 'math-error';
-      host.textContent = raw(s);
-      host.title = e instanceof Error ? e.message : String(e);
-      console.warn('KaTeX could not render:', raw(s), e);
-    }
+    if (s) typeset(host, s, katex);
+  }
+}
+
+/// KaTeX and its stylesheet, fetched once and shared: the editor draws each formula on its own
+/// (`drawMath`), and fetching them again per formula cost ~0.4 s each in the suite. A failed fetch
+/// is forgotten, so the next formula tries again.
+let katexLoad: Promise<typeof import('katex').default> | null = null;
+function loadKatex(): Promise<typeof import('katex').default> {
+  katexLoad ??= Promise.all([import('katex'), import('katex/dist/katex.min.css')]).then(
+    ([mod]) => mod.default,
+    (e) => {
+      katexLoad = null;
+      throw e;
+    },
+  );
+  return katexLoad;
+}
+
+/// **`\*` is a star.** It is how a `*` is kept from starting italics in Markdown, so it is what
+/// people write in a formula too (the owner's `$$ \* $$`, 2026-10-20) — and KaTeX knows no `\*`,
+/// so it drew an error. Read as the star it was meant to be.
+const MACROS = { '\\*': '*' };
+
+function typeset(host: HTMLElement, s: MathSpan, katex: typeof import('katex').default) {
+  const raw = s.src ?? (s.display ? `$$${s.tex}$$` : `$${s.tex}$`);
+  try {
+    const opts = { displayMode: s.display, throwOnError: true, macros: { ...MACROS } };
+    host.innerHTML = katex.renderToString(s.tex, opts); // sink-ok: KaTeX, throwOnError
+  } catch (e) {
+    host.className = 'math-error';
+    host.textContent = raw;
+    host.title = e instanceof Error ? e.message : String(e);
+    console.warn('KaTeX could not render:', raw, e);
+  }
+}
+
+/** Draw one formula into `el` — the editor's way in (`editor/livePreview.ts`), through the same
+ *  KaTeX and the same fallback as the reading view. */
+export async function drawMath(el: HTMLElement, s: MathSpan): Promise<void> {
+  try {
+    typeset(el, s, await loadKatex());
+  } catch {
+    el.textContent = s.src ?? (s.display ? `$$${s.tex}$$` : `$${s.tex}$`);
   }
 }
 

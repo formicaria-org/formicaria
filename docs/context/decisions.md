@@ -12418,3 +12418,115 @@ Help → *Put the tutorials back*, whose name says it restores rather than gives
    and the clash. They arrive with Myrme 0.8.0. A conversation already read keeps its old sentence
    until its next email.
 
+
+## 2026-10-20 — the format keys other editors taught: Ctrl+B, Ctrl+I, Ctrl+E, Ctrl+Shift+H `#ui`
+
+**The ask.** The owner, writing in a note: *"I would like to use ctrl+b for bold and ctrl+i for
+italics, they come from other text editor habits (there are others?)"*.
+
+**Decision.**
+1. **In the note editor, Ctrl (⌘ on a Mac) + B bold, + I italic, + E code, + Shift+H highlight.**
+   They call `wrapSel` with the same marks as the buttons under the note, so a key and a button
+   cannot disagree, and both toggle: a mark already there is taken away. The buttons' tooltips
+   name the key. B and I are what every editor uses; E is Notion's and Slack's code key; Shift+H
+   is Notion's highlight. Alt is refused, because Ctrl+Alt is AltGr on Windows layouts.
+2. **Ctrl+K stays Settings.** It is the link key in most editors, but here it opens the actions
+   list everywhere, typing or not (`keys.ts`, `WHILE_TYPING`); making it mean two things by where
+   the focus is would be worse than the 🔗 button.
+3. **Not bound: headings and lists.** Google Docs' Ctrl+Alt+1–3 is AltGr+digit on many layouts,
+   and Ctrl+Shift+7/8 move with the layout — the trap `keys.ts` records for its own defaults.
+   The block menu and `#`/`-` typed at a line's start already do these.
+4. **Fixed with it: italic over bold.** `wrapSel` saw the `*` around a bold word as italic and took
+   one away, so Ctrl+B then Ctrl+I left plain italic. The run of stars on each side is now counted
+   (`wrappedIn`): odd is italic, two or more is bold, so the two compose to `***x***` and come off
+   one at a time. The button had the same fault.
+5. **They are bound in Settings** (the owner, the same evening: *"must be customizable in
+   settings"*). They are four more commands in `keys.ts`'s closed list, marked `IN_NOTE`: the
+   app-wide handler skips them and the note panel runs them, reading the bindings at the press so a
+   rebind reaches a note already open. A binding without Ctrl or Alt is refused, because it fires
+   while typing and would eat its letter (`chord`); Settings shows *needs Ctrl or Alt* beside it.
+
+## 2026-10-20 — pictures are drawn in the editor, and a picture on the clipboard pastes in `#ui`
+
+> Carries out the stage *the editor renders as you write* (2026-10-11) left for later — "block
+> rendering through the existing `renderInto`, so nothing new writes HTML" — for embeds only.
+
+**What prompted it.** The owner: *"Screenshot that I dragged do not render while I am writing
+even if I go next line. Also, if I take a screenshot with snipping tool usually it is on clipboard
+and I should just copy paste it (say ctrl+v)"*.
+
+**Decision.**
+1. **`![…](…)` is drawn in the editor** off the line being written, like every other mark: a
+   picture, a recording, a video, a PDF or an embedded note. It is drawn by the reading view's own
+   `renderInto`, handed to the editor by the note panel (`drawEmbed` facet, `livePreview.ts`), so
+   the editor writes no HTML and a picture looks the same in both. The same text is the same
+   widget, so typing elsewhere does not reload it. Formulas, diagrams and tables are still
+   drawn only in the reading view.
+2. **A file on the clipboard is pasted as a dropped file is** (`onPaste` → `ingestAll`). The
+   paste *event* is what is heard, not a key, so every way of pasting does it: Ctrl+V, ⌘V,
+   Shift+Insert, the right-click menu, and on a phone a long press → Paste. A clipboard picture
+   arrives named `image.png`; it is named `Pasted image <date time>` instead. Text paste is
+   unchanged (an address over selected words still links them).
+3. **Not here: a proposal under review** draws its embeds as text still; it has no vault resolver
+   of its own to hand the editor.
+
+**Checked** in a real browser (headless Chromium over CDP, a throwaway vault): a picture pasted and
+one dropped were both stored, written into the note and drawn in the editor. **Not yet checked on
+the phone**: whether Android's WebView hands a copied picture to the page on a long-press Paste.
+
+## 2026-10-20 — a picture shared from another app goes into a note: the open one, a new one, or one found `#ui` `#track-m`
+
+**The ask.** The owner, after Ctrl+V: *"this clipboard thing will hold for all devices including
+the phone… should not be by typing on the phone but straightforward"*, then *"add it also for the
+phone with your suggested options based on current apps that are similar to us"*.
+
+**What similar apps do.** Google Keep makes a new note from a shared picture; Notion's share asks
+which page to add to, recent pages first, with a search; Obsidian creates a note or appends to one.
+None of them asks the person to copy and paste on a phone.
+
+**Decision.**
+1. **formicaria is in Android's share menu for pictures** (`image/*`, one or several;
+   `ci/android-inject-service.sh` adds the intent filters and writes `takeShared` into
+   `MainActivity.kt`). Pictures only: what a screenshot is, and what the editor draws. Text and
+   other files can follow if asked for.
+2. **The shell copies, the page asks.** The bytes are copied into the app's cache at once (the
+   sharing app may take its permission back), held, and handed to the page through `__fmShare`
+   when it asks — at start, and on `fm-share`. Asking rather than being told, because at a cold
+   start the page does not exist yet: the same rule as the insets. `done` takes counts, so a
+   second share still being copied is not thrown away with the first. **25 MB a file**: it crosses
+   to the page as base64 text; a larger one is named as refused and the 📎 button is the way.
+3. **"Add to…" sheet** (`ShareSheet.svelte`): the note open now first, then New note, then the
+   recent notes with *Find a note*. Boards and discussions are not offered. Nothing is written
+   until one is chosen; Cancel or Back writes nothing.
+4. **The note takes the files itself**, at its end and through the same `ingestAll` as a drop
+   (`incoming` in `share.svelte.ts`), once the panel holds that note's text — so an editor still
+   showing another note cannot receive them.
+5. **Long-press → Paste** goes through the paste handler of the entry before; whether Android's
+   WebView hands a copied picture to the page is not yet known, which is why Share is the phone's
+   way and not paste.
+
+**Checked**: the page's side in the suite (`App.share.test.ts`, a stand-in `__fmShare`); the Kotlin
+by building the Android app. **Not yet on a phone.**
+
+## 2026-10-20 — `$$…$$` in a sentence is inline; formulas are drawn in the editor; `\*` is a star `#ui`
+
+**What prompted it.** The owner, of a highlighted sentence with `$$ \times $$`, `$$ \* $$` and
+`$$ \Phi(a \times b) = \Phi(a)*\Phi(b) $$` in it: *"Why does not this render properly (both
+maths and highlights)"*. Four causes, all found by rendering that sentence:
+
+1. **Reading view: every `$$…$$` was a centred block**, so the sentence came out in pieces. Now
+   `$$…$$` is a block only with its line to itself (a list's or a quote's mark may lead it), and
+   inline in a sentence — as Logseq, where the owner's notes come from, reads it
+   (`findMath`/`aloneOnLine` in `render.ts`).
+2. **`\*` was a KaTeX error** ("Undefined control sequence"). It is how a `*` is kept from
+   starting italics, so it is what people type in formulas too; KaTeX is given the macro
+   `\* → *`.
+3. **Editor: the highlight stopped at a single `=`** (`[^=\n]` in its pattern). Only `==` ends it now.
+4. **Editor: formulas were never drawn.** They are now, off the line being written, as pictures
+   are (the entry before), through the same `typeset` as the reading view (`drawMath`). One on a
+   line of its own is centred. One written over several lines stays as text: the editor cannot
+   replace across a line's end from where it draws.
+
+A broken formula falls back to exactly what was written (`MathSpan.src`), not to a guess at its
+delimiters. Checked on the owner's sentence in a real browser, reading view and editor: one
+highlight, five formulas, no errors.

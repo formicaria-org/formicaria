@@ -23,7 +23,7 @@
   import { holdText } from '../undo.svelte';
   import type { EditorHandle } from './handle';
   import { smallestChange } from './change';
-  import { livePreview } from './livePreview';
+  import { drawEmbed, livePreview, type DrawEmbed } from './livePreview';
   import { linkOnPaste } from './paste';
 
   let {
@@ -35,6 +35,8 @@
     ondrop,
     onblur,
     onlink,
+    onpaste,
+    embeds,
     label = 'note body (Markdown)',
     undoLabel = 'typing',
   }: {
@@ -47,6 +49,10 @@
     onblur?: () => void;
     /** A link drawn finished was pressed once: follow it. */
     onlink?: (href: string) => void;
+    /** Before the editor's own paste: what the panel takes (a picture) it prevents. */
+    onpaste?: (e: ClipboardEvent) => void;
+    /** Draws a picture or other embed in place of its text; without it they stay as text. */
+    embeds?: DrawEmbed;
     /** What the editor is called to assistive technology — a note, or a proposed note under review. */
     label?: string;
     /** What the ↶ menu calls undoing the typing here: `typing in “Lab meeting”`. */
@@ -83,6 +89,7 @@
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.lineWrapping,
           livePreview,
+          ...(embeds ? [drawEmbed.of(embeds)] : []),
           EditorView.contentAttributes.of({
             'aria-label': label,
             spellcheck: 'false',
@@ -126,6 +133,8 @@
               },
               // An address pasted over selected words links them (`paste.ts` says when).
               paste: (e, v) => {
+                onpaste?.(e);
+                if (e.defaultPrevented) return true;
                 const main = v.state.selection.main;
                 const link = linkOnPaste(
                   v.state.sliceDoc(main.from, main.to),
@@ -306,6 +315,28 @@
     display: inline-block;
     width: 1ch;
     color: var(--text-muted);
+  }
+  /* A picture drawn where its text is: as wide as the note at most, as it is when read. */
+  .editor :global(.cm-embed) {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+  }
+  .editor :global(.cm-embed > p) {
+    margin: 0;
+  }
+  .editor :global(.cm-embed img),
+  .editor :global(.cm-embed video) {
+    max-width: 100%;
+    height: auto;
+  }
+  /* A formula alone on its line is centred, as when read. */
+  .editor :global(.cm-math-display) {
+    display: block;
+    text-align: center;
+  }
+  .editor :global(.cm-math-display .katex-display) {
+    margin: 0.25em 0;
   }
   .editor :global(.cm-task) {
     margin: 0 0.15em 0 0;

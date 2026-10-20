@@ -197,7 +197,7 @@ describe('renderInto — assets degrade gracefully', () => {
 describe('renderInto — math and diagrams upgrade or fall back', () => {
   it('renders each formula through KaTeX into its placeholder', async () => {
     const el = pane();
-    await renderInto(el, 'Euler: $e^{i\\pi} + 1 = 0$ and $$a^2 + b^2 = c^2$$', noAsset);
+    await renderInto(el, 'Euler: $e^{i\\pi} + 1 = 0$ and\n\n$$a^2 + b^2 = c^2$$', noAsset);
     // One inline + one display formula → two KaTeX calls, display flag preserved.
     expect(katexRender).toHaveBeenCalledTimes(2);
     expect(katexRender).toHaveBeenCalledWith(
@@ -210,6 +210,15 @@ describe('renderInto — math and diagrams upgrade or fall back', () => {
     );
     // Placeholders are gone (filled), and no raw `$` leaks into the pane.
     expect(el.querySelector('span[data-math]')?.innerHTML).toContain('katex');
+  });
+
+  it('reads \\* in a formula as a star, which KaTeX does not know', async () => {
+    const el = pane();
+    await renderInto(el, 'say $$ \\* $$ here', noAsset);
+    expect(katexRender).toHaveBeenCalledWith(
+      ' \\* ',
+      expect.objectContaining({ displayMode: false, macros: { '\\*': '*' } }),
+    );
   });
 
   it('skips the KaTeX import entirely when there is no math (the cheap gate)', async () => {
@@ -327,12 +336,23 @@ describe('extractMath — pulls formulas out before Markdown, dodging its traps'
   const tex = (s: string) => extractMath(s).math.map((m) => `${m.display ? 'D' : 'I'}:${m.tex}`);
 
   it('lifts display and inline math, leaving numbered placeholders', () => {
-    const { text, math } = extractMath('a $x_i$ b $$y_j$$ c');
-    expect(text).toBe('a <span data-math="0"></span> b <span data-math="1"></span> c');
+    const { text, math } = extractMath('a $x_i$ b\n$$y_j$$\nc');
+    expect(text).toBe('a <span data-math="0"></span> b\n<span data-math="1"></span>\nc');
     expect(math).toEqual([
-      { tex: 'x_i', display: false },
-      { tex: 'y_j', display: true },
+      { tex: 'x_i', display: false, src: '$x_i$' },
+      { tex: 'y_j', display: true, src: '$$y_j$$' },
     ]);
+  });
+
+  /// The owner's sentence (2026-10-20): `$$…$$` inside it was drawn as centred blocks that broke
+  /// it into pieces. Only a `$$…$$` with its line to itself is a block; a list's mark may lead it.
+  it('draws $$…$$ inline inside a sentence, and as a block on a line of its own', () => {
+    expect(tex('a group 1 (say $$ \\times $$) maps')).toEqual(['I: \\times ']);
+    expect(tex('$$ x $$')).toEqual(['D: x ']);
+    expect(tex('text\n  $$ x $$  \nmore')).toEqual(['D: x ']);
+    expect(tex('- $$ x $$')).toEqual(['D: x ']);
+    expect(tex('> $$ x $$')).toEqual(['D: x ']);
+    expect(tex('so $$ x $$')).toEqual(['I: x ']);
   });
 
   it('preserves subscripts and backslashes verbatim (Markdown would eat them)', () => {
@@ -345,11 +365,11 @@ describe('extractMath — pulls formulas out before Markdown, dodging its traps'
   });
 
   it('renders the real math even when a stray `$` shares the line', () => {
-    expect(tex('costs $5 but $$E=mc^2$$ holds and $x$ too')).toEqual(['D:E=mc^2', 'I:x']);
+    expect(tex('costs $5 but $$E=mc^2$$ holds and $x$ too')).toEqual(['I:E=mc^2', 'I:x']);
   });
 
   it('never grabs a `$` inside code spans or fences', () => {
-    expect(tex('run `echo $PATH` then $$a$$')).toEqual(['D:a']);
+    expect(tex('run `echo $PATH` then $$a$$')).toEqual(['I:a']);
     expect(tex('```\n$not math$\n```\n$b$')).toEqual(['I:b']);
   });
 

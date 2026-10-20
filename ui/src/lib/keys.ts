@@ -21,7 +21,11 @@ export type Command =
   | 'closePane'
   | 'backup'
   | 'undo'
-  | 'redo';
+  | 'redo'
+  | 'bold'
+  | 'italic'
+  | 'code'
+  | 'highlight';
 
 export interface Binding {
   /** `KeyboardEvent.key`, lower-cased for letters. Empty string = unbound. Kept for display,
@@ -48,6 +52,10 @@ export const LABELS: Record<Command, string> = {
   backup: 'Back up',
   undo: 'Undo',
   redo: 'Redo',
+  bold: 'Bold, in a note',
+  italic: 'Italic, in a note',
+  code: 'Code, in a note',
+  highlight: 'Highlight, in a note',
 };
 
 /// **Commands that still fire while you are typing.**
@@ -65,6 +73,22 @@ export const WHILE_TYPING: ReadonlySet<Command> = new Set<Command>([
   'prevPane',
   'closePane',
 ]);
+
+/// **Commands that act only in the note editor**: they format the text being written, so the
+/// app-wide handler skips them and the note panel runs them (`NotePanel.svelte`, `wrapSel`).
+/// The same reasoning as `WHILE_TYPING` binds them: they fire while typing, so a binding without
+/// a modifier would eat the letter — the panel refuses one, and Settings says why.
+export const IN_NOTE: ReadonlySet<Command> = new Set<Command>([
+  'bold',
+  'italic',
+  'code',
+  'highlight',
+]);
+
+/** Can this binding work while typing, i.e. does it need a modifier? */
+export function chord(b: Binding): boolean {
+  return !!b.key && (!!b.mod || !!b.alt);
+}
 
 /// Defaults chosen to be typeable on a **non-US keyboard**.
 ///
@@ -106,6 +130,12 @@ export const DEFAULTS: Record<Command, Binding> = {
   // 2026-10-09). Not in `WHILE_TYPING` for exactly that reason.
   undo: { key: 'z', mod: true },
   redo: { key: 'z', mod: true, shift: true },
+  // The keys other editors taught (the owner, 2026-10-20). B and I are every editor's; E is
+  // Notion's and Slack's code; Shift+H is Notion's highlight. Ctrl+K is not here: it is Settings.
+  bold: { key: 'b', mod: true },
+  italic: { key: 'i', mod: true },
+  code: { key: 'e', mod: true },
+  highlight: { key: 'h', mod: true, shift: true },
 };
 
 /** Is this binding one the browser will take before the page sees it? */

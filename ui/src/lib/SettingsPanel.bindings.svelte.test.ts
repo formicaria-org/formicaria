@@ -68,3 +68,28 @@ describe('the action list shows what each action is bound to', () => {
     expect(btn.textContent?.trim()).toBe('New vault');
   });
 });
+
+describe('the note keys are bound here too', () => {
+  it('lists bold and italic with their keys, and refuses a bare letter for them', async () => {
+    store.set('fm-keys', JSON.stringify({ italic: { key: 'q' } }));
+    const { container } = render(SettingsPanel, {
+      onclose: () => {},
+      onnewvault: () => {},
+      layout: 'auto',
+      onlayout: () => {},
+      columns: 2,
+      oncolumns: () => {},
+      theme: 'dark',
+      ontheme: () => {},
+      commands: [],
+      section: 'keyboard',
+    } as never);
+    const row = (label: string) =>
+      [...container.querySelectorAll('section[data-cat="keyboard"] li')].find((li) =>
+        li.textContent?.includes(label),
+      )!;
+    await screen.findAllByText('Bold, in a note');
+    expect(row('Bold, in a note').querySelector('.binding')!.textContent).toMatch(/B/);
+    expect(row('Italic, in a note').querySelector('.warn')!.textContent).toBe('needs Ctrl or Alt');
+  });
+});

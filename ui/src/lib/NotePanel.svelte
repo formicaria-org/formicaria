@@ -43,6 +43,15 @@
   import LiveEditor from './editor/LiveEditor.svelte';
   import type { EditorHandle } from './editor/handle';
   import { KEYBOARD_EVENT } from './keyboard';
+  import { incoming } from './share.svelte';
+  import {
+    chord,
+    describe as describeKey,
+    IN_NOTE,
+    load as loadKeys,
+    matches,
+    type Command,
+  } from './keys';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
   import { AGENT_COMMANDS, AGENT_DOMAIN, MYRME, withCommand } from './agentCommands';
   import { beatMs, POLL_BUSY_MS } from './pollBeat';
@@ -902,6 +911,22 @@
     return () => document.removeEventListener('selectionchange', follow);
   });
 
+  /** Is `s..e` already wrapped in `before`/`after`? For `*` and `**` the whole run of stars on each
+   *  side is counted: italic over **bold** sits in a run of two, which is bold and not italic, so
+   *  italic is added (`***x***`) rather than one star of the bold being taken away. */
+  function wrappedIn(s: number, e: number, before: string, after: string): boolean {
+    if (before === after && /^\*+$/.test(before)) {
+      let l = 0;
+      while (draft[s - 1 - l] === '*') l++;
+      let r = 0;
+      while (draft[e + r] === '*') r++;
+      return before === '*' ? l % 2 === 1 && r % 2 === 1 : l >= 2 && r >= 2;
+    }
+    return (
+      draft.slice(s - before.length, s) === before && draft.slice(e, e + after.length) === after
+    );
+  }
+
   // Wrap (or, if already wrapped, unwrap — a real toggle) the selection with `before`/`after`.
   async function wrapSel(before: string, after: string, placeholder = '') {
     const el = editorEl;
@@ -909,8 +934,7 @@
     colorOpen = false;
     const { from: s, to: e } = el.selection();
     const inner = draft.slice(s, e);
-    const wrapped =
-      draft.slice(s - before.length, s) === before && draft.slice(e, e + after.length) === after;
+    const wrapped = wrappedIn(s, e, before, after);
     if (wrapped) {
       draft = draft.slice(0, s - before.length) + inner + draft.slice(e + after.length);
       onInput();
@@ -2340,6 +2364,49 @@
     await ingestAll(files);
   }
 
+  /** **What another app shared, and was put in this note** (`share.svelte.ts`): taken in at the
+   *  end, through the same path as a drop, once the note is here. A note that cannot hold it (a
+   *  board, a discussion) says so rather than keeping it waiting. */
+  $effect(() => {
+    const arriving = incoming.value;
+    if (!arriving || !note || note.id !== arriving.noteId) return;
+    incoming.value = null;
+    if (isBoard || isDiscussion) {
+      error =
+        'A shared picture can only go into an ordinary note, not a whiteboard or a discussion.';
+      return;
+    }
+    void untrack(() =>
+      addMedia(async () => {
+        editorEl?.select(draft.length);
+        if (draft && !draft.endsWith('\n')) await insertAtCaret('\n');
+        await ingestAll(arriving.files);
+      }),
+    );
+  });
+
+  /** **A picture on the clipboard is pasted like a dropped file** (the owner, 2026-10-20: a
+   *  screenshot tool leaves it there, and Ctrl+V is the habit). Text is left to the editor. A
+   *  clipboard picture comes named `image.png`, so it is named for when it was pasted instead. */
+  async function onPaste(e: ClipboardEvent) {
+    const files = Array.from(e.clipboardData?.files ?? []);
+    if (!files.length) return;
+    e.preventDefault();
+    await ingestAll(files.map((f) => (/^image\.\w+$/i.test(f.name) ? pastedName(f) : f)));
+  }
+
+  function pastedName(f: File): File {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    const when = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}`;
+    const ext = f.name.slice(f.name.lastIndexOf('.'));
+    return new File([f], `Pasted image ${when}${ext}`, { type: f.type });
+  }
+
+  /** The editor draws a picture where its `![…](…)` is with the reading view's own renderer. */
+  const drawEmbed = (el: HTMLElement, markdown: string) =>
+    renderInto(el, markdown, resolveAsset, resolveNote, resolveEmbed);
+
   /** Ingest files and insert a reference for each at the caret — the one implementation shared
    *  by drag-drop and device capture, so a photo taken on a phone and a file dropped on a
    *  desktop cannot end up behaving differently. */
@@ -2373,7 +2440,31 @@
     }
   }
 
+  /** **The format keys other editors taught** (the owner, 2026-10-20), bound in Settings like
+   *  every other key (`keys.ts`, `IN_NOTE`). They call the same function as the buttons, so a key
+   *  and a button cannot disagree. Read at the press, so a rebind applies to a note already open.
+   *  A binding without Ctrl or Alt is refused: here it would eat the letter it is bound to. */
+  const FORMAT_MARKS: Record<string, [string, string, string]> = {
+    bold: ['**', '**', 'bold'],
+    italic: ['*', '*', 'italic'],
+    code: ['`', '`', 'code'],
+    highlight: ['==', '==', 'text'],
+  };
+  const keyFor = (cmd: Command) => {
+    const b = loadKeys()[cmd];
+    return chord(b) ? ` (${describeKey(b)})` : '';
+  };
+
   function onEditorKeydown(e: KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      const bound = loadKeys();
+      const cmd = [...IN_NOTE].find((c) => chord(bound[c]) && matches(e, bound[c]));
+      if (cmd) {
+        e.preventDefault();
+        void wrapSel(...FORMAT_MARKS[cmd]);
+        return;
+      }
+    }
     if (!slash.open || !slash.results.length) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -2938,25 +3029,25 @@
         {#snippet fmtButtons()}
           <button
             class="fmt-btn"
-            title="Bold"
+            title={'Bold' + keyFor('bold')}
             aria-label="bold"
             onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button
           >
           <button
             class="fmt-btn"
-            title="Italic"
+            title={'Italic' + keyFor('italic')}
             aria-label="italic"
             onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button
           >
           <button
             class="fmt-btn"
-            title="Highlight"
+            title={'Highlight' + keyFor('highlight')}
             aria-label="highlight"
             onclick={() => wrapSel('==', '==', 'text')}>==</button
           >
           <button
             class="fmt-btn code"
-            title="Code"
+            title={'Code' + keyFor('code')}
             aria-label="code"
             onclick={() => wrapSel('`', '`', 'code')}>{'</>'}</button
           >
@@ -3013,6 +3104,8 @@
           onselect={onEditorSelect}
           ondragover={onDragOver}
           ondrop={onDrop}
+          onpaste={onPaste}
+          embeds={drawEmbed}
           onblur={() => (fmtBar = null)}
           onlink={followLink}
           undoLabel={`typing in “${noteName(note) ?? 'a note'}”`}

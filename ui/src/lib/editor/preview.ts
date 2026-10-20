@@ -13,6 +13,7 @@
 import { parser as base, GFM } from '@lezer/markdown';
 import type { SyntaxNode, Tree } from '@lezer/common';
 import { TEXT_TOKENS } from '../render-vocab';
+import { findMath } from '../render';
 
 const parser = base.configure(GFM);
 
@@ -27,7 +28,12 @@ export type Deco =
   /** A list's `-` drawn as a bullet. */
   | { kind: 'bullet'; from: number; to: number }
   /** A `[ ]` or `[x]` drawn as a box that can be pressed. */
-  | { kind: 'task'; from: number; to: number; checked: boolean };
+  | { kind: 'task'; from: number; to: number; checked: boolean }
+  /** `![words](address)` — a picture, a recording, an embedded note — drawn as the reading view
+   *  draws it, in place of its text. */
+  | { kind: 'embed'; from: number; to: number }
+  /** A formula, `$…$` or `$$…$$`, drawn as the reading view draws it. */
+  | { kind: 'math'; from: number; to: number; tex: string; display: boolean };
 
 /// The note, read once. Kept apart from [`decide`] so a move of the cursor, which changes what is
 /// hidden and not what the note says, does not read it again.
@@ -107,6 +113,10 @@ export function decide(r: Reading, sel: { from: number; to: number }): Deco[] {
         return;
       }
       if (name === 'Link') return link(n.node);
+      if (name === 'Image') {
+        if (!writing(n.from, n.to)) out.push({ kind: 'embed', from: n.from, to: n.to });
+        return false;
+      }
       if (name === 'FencedCode' || name === 'CodeBlock') {
         code.push([n.from, n.to]);
         eachLine(n.from, n.to, 'cm-codeblock');
@@ -172,7 +182,8 @@ export function decide(r: Reading, sel: { from: number; to: number }): Deco[] {
 
   // `==highlight==` is this app's own mark, not in the grammar. Not inside code, and not across
   // lines; shown as written on the line being written, like everything else.
-  for (const m of text.matchAll(/==(?=\S)([^=\n]*?\S)==/g)) {
+  // A single `=` inside is text (`a = b` in a highlighted sentence, 2026-10-20); only `==` ends it.
+  for (const m of text.matchAll(/==(?=\S)((?:[^=\n]|=(?!=))*?\S)==/g)) {
     const from = m.index!;
     const to = from + m[0].length;
     if (code.some(([a, b]) => from < b && to > a)) continue;
@@ -197,7 +208,20 @@ export function decide(r: Reading, sel: { from: number; to: number }): Deco[] {
       out.push({ kind: 'hide', from: words.to, to });
     }
   }
-  return out;
+  // **Formulas** (2026-10-20), off the line being written, as pictures are. One on a line of its
+  // own is a centred block, as in the reading view; one that runs over several lines stays as
+  // written, since the editor cannot draw across a line's end. Nothing else is drawn inside one:
+  // a `*` or `_` there is maths, not italics.
+  const formulas = findMath(text).filter((m) => !text.slice(m.from, m.to).includes('\n'));
+  if (!formulas.length) return out;
+  const inside = (d: Deco) =>
+    'from' in d && formulas.some((m) => d.from < m.to && d.to > m.from && d.kind !== 'mark');
+  const kept = out.filter((d) => !inside(d));
+  for (const m of formulas) {
+    if (!writing(m.from, m.to))
+      kept.push({ kind: 'math', from: m.from, to: m.to, tex: m.tex, display: m.display });
+  }
+  return kept;
 }
 
 /** [`read`] and [`decide`] in one step. */
