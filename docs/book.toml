@@ -13,6 +13,9 @@ no-section-label = false
 # and this manual ships inside every release archive, where that route is the only one there is.
 git-repository-url = "https://github.com/formicaria-org/formicaria"
 edit-url-template = "https://github.com/formicaria-org/formicaria/edit/main/docs/{path}"
+# Inside the app's reader a link replaces the page, so the reader is one step for Back
+# (`in-app-reader.js` says why). On the web it does nothing.
+additional-js = ["in-app-reader.js"]
 
 [output.html.fold]
 enable = true

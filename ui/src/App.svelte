@@ -273,7 +273,10 @@
     if (wasFront) focused = workspace.panes.findIndex(isView);
     else if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
     persistWorkspace();
-    moved();
+    // **Closing a note is a step back** (2026-10-20): recorded as a move, the next Back reopened
+    // the note just closed — or one just deleted.
+    if (wasFront && closing.noteId) nav.leave(closing.noteId, here());
+    else moved();
     refreshIfSaved();
   }
   /** **No fetch of its own** (2026-10-18). Every patch that changes what a view shows changes its
@@ -1767,7 +1770,10 @@
       return;
     }
     trackers.askToOpen(`recipe/${word}`);
-    openGroupView(food.views[0]);
+    // **Not a step of its own** (2026-10-20): the sheet on the recipe is what was asked for, so its
+    // entry sits over the note's, and one Back returns to the note — not to a Food screen the
+    // person never saw.
+    nav.restore(() => openGroupView(food.views[0]));
   }
   function openSpace(name: string) {
     const s = spaces.find((x) => x.name === name);
@@ -3338,8 +3344,10 @@
               onsaved={noteSaved}
               onchange={(patch) => {
                 changePane(pane.id, patch);
-                // A tab of the group this window is in: the same place, another view of it.
-                if ('kind' in patch && i === focused) nav.replace(here());
+                // A tab of the group this window is in: the same place, another view of it. **Its
+                // view too** (2026-10-20): a group's own tabs change `viewName` alone, and the entry
+                // kept the view it was opened on — so a day picked from Trends was taken for no move.
+                if (('kind' in patch || 'viewName' in patch) && i === focused) nav.replace(here());
               }}
               ontitle={(title) => nameWindow(pane.id, title)}
               onopenrecipe={openRecipeInFood}
@@ -3378,7 +3386,8 @@
             themeRefused = '';
           }}
           onnewvault={() => {
-            settingsOpen = false;
+            // **Over Settings, not instead of it** (2026-10-20): Back from the form returns to
+            // Settings, where it was asked for, and a vault made there shows in its list.
             newVaultOpen = true;
           }}
           onvaults={() => void loadVaults()}
@@ -3490,8 +3499,12 @@
     {/if}
 
     {#if newVaultOpen}
-      <div class="sheet-backdrop" role="presentation" onclick={() => (newVaultOpen = false)}></div>
-      <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
+      <div
+        class="sheet-backdrop over-settings"
+        role="presentation"
+        onclick={() => (newVaultOpen = false)}
+      ></div>
+      <div class="sheet over-settings" role="dialog" aria-modal="true" aria-label="New vault">
         <NewVault
           git={gitAvailable}
           restic={resticAvailable}
@@ -3558,6 +3571,13 @@
     inset: 0;
     background: rgb(0 0 0 / 0.45);
     z-index: 40;
+  }
+  /* New vault can be asked for from Settings (z-index 80) and opens over it, below the manual (90). */
+  .sheet-backdrop.over-settings {
+    z-index: 84;
+  }
+  .sheet.over-settings {
+    z-index: 85;
   }
   .sheet {
     position: fixed;

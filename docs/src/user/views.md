@@ -34,7 +34,8 @@ The views are gathered into four groups, and they are all ways of looking at the
   board, a discussion, a paper, and one entry for each of your
   [templates](./notes.md#templates).
 - **Back** returns to where you came from. Stepping between a group's own views does not add a
-  step to walk back through.
+  step to walk back through; a day picked from Trends does (see
+  [Going back](./notes.md#going-back)).
 
 **The Library opens on its shelves** — the place to come back to. Each note is a book, lying on its
 side so its title reads across; books stand on the shelf their **`shelf`** property names, and the

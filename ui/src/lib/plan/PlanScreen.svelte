@@ -9,6 +9,7 @@
   //
   // The library, the formulas and the measuring are the core's (`plan.rs`); this draws what it
   // answers. Following writes one note; stopping gives that note a last day.
+  import * as nav from '../nav.svelte';
   import ExampleDay from './ExampleDay.svelte';
   import Resumed from '../Resumed.svelte';
   import { draftOf, dropDraft, keepDraft } from '../drafts';
@@ -229,6 +230,18 @@
     // A flag saved while it was open may change which cards are offered.
     void load();
   }
+  /// **The library and an option are levels** (2026-10-20): Back goes option → library → what is
+  /// followed, as the screen's own ‹ buttons do, instead of leaving the group at once.
+  nav.level(
+    () => `plan-library:${program}`,
+    () => choosing,
+    () => (choosing = false),
+  );
+  nav.level(
+    () => `plan-option:${program}`,
+    () => open !== null,
+    leave,
+  );
   async function afresh() {
     const id = open?.plan.id;
     resumed = false;

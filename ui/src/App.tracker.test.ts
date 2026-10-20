@@ -999,3 +999,62 @@ test('a diet followed offers a day to start from, said to be only an indication,
   await fireEvent.click(within(again).getByRole('button', { name: 'Day' }));
   expect(await screen.findByRole('button', { name: 'confirm Vegetable Stew' })).toBeTruthy();
 });
+
+/// **Each step of the log sheet is one Back** (2026-10-20). A recipe opened from the sheet's list
+/// is a step over it; the recipe the sheet was opened on is its first screen, so Back from it
+/// closes the sheet.
+test('Back undoes one step of the log sheet, and the screen it opened on closes it', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  const { handle } = await import('./lib/mock');
+  await handle('create_notes', {
+    notes: [{ title: 'Tiramisù', tags: ['recipe'], props: { recipe: 'w8', servings: 6 } }],
+  });
+  render(App);
+  trackers.askToOpen('recipe/w8');
+  await openFood();
+  const sheet = await screen.findByRole('dialog', { name: 'log a food' });
+  await within(sheet).findByRole('heading', { name: 'Tiramisù' });
+
+  // Its own Back leaves the recipe for the list; opening it again from there is a step.
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Back' }));
+  await fireEvent.click(await within(sheet).findByRole('button', { name: 'Recipes' }));
+  await fireEvent.click(await within(sheet).findByText('Tiramisù'));
+  await within(sheet).findByRole('heading', { name: 'Tiramisù' });
+  await nav.idle();
+  history.back();
+  await waitFor(() =>
+    expect(within(sheet).queryByRole('heading', { name: 'Tiramisù' })).toBeNull(),
+  );
+  expect(screen.getByRole('dialog', { name: 'log a food' })).toBeTruthy();
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'log a food' })).toBeNull());
+});
+
+/// A day chosen from Trends is a step, not a tab: Back returns to Trends (2026-10-20).
+test('Back from a day chosen in Trends returns to Trends', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  const group = await openFood();
+  await fireEvent.click(within(group).getByRole('button', { name: 'Trends' }));
+  // A day's bar is named for its day and its figure: "Wed, Oct 14: 1,852 kcal".
+  const bars = await screen.findAllByRole('button', { name: /^\w{3}, \w{3} \d+: / });
+  await fireEvent.click(bars[bars.length - 1]);
+  await waitFor(() =>
+    expect(within(group).getByRole('button', { name: 'Day' }).getAttribute('aria-current')).toBe(
+      'page',
+    ),
+  );
+  await nav.idle();
+  history.back();
+  // Asked afresh: the group's window is drawn again for the view it returns to.
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole('group', { name: 'Food' }))
+        .getByRole('button', { name: 'Trends' })
+        .getAttribute('aria-current'),
+    ).toBe('page'),
+  );
+});

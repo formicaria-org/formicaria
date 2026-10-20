@@ -110,3 +110,93 @@ test('a view picked from a menu stays picked, and Back returns from it', async (
   history.back();
   await waitFor(() => expect(showing()).toMatch(/Board/));
 });
+
+/// **The owner's report (2026-10-20)**: on the phone, Settings → About & updates → Back closed
+/// Settings. On a narrow screen a category is a second screen: Back returns to the list, and only
+/// the next Back closes Settings.
+test('Back from a Settings category returns to the list on a narrow screen', async () => {
+  const { setNarrowScreen } = await import('./test-setup');
+  setNarrowScreen(true);
+  try {
+    render(App);
+    await fireEvent.click(await screen.findByRole('button', { name: 'settings' }));
+    const cats = await screen.findByRole('navigation', { name: 'settings categories' });
+    await fireEvent.click(await within(cats).findByRole('button', { name: /About & updates/ }));
+    const panel = () => document.querySelector('.at-list, [role="dialog"][aria-label="settings"]');
+    await waitFor(() => expect(document.querySelector('.at-list')).toBeNull());
+
+    // The category's entry is settled a moment after the press; a person's Back always comes later.
+    await waitFor(() => expect(history.state?.layer).toBe('settings-category'));
+    history.back();
+    await waitFor(() => expect(document.querySelector('.at-list')).not.toBeNull());
+    expect(panel()).not.toBeNull();
+
+    history.back();
+    await waitFor(() =>
+      expect(screen.queryByRole('navigation', { name: 'settings categories' })).toBeNull(),
+    );
+  } finally {
+    setNarrowScreen(false);
+  }
+});
+
+// ── Back is one step, everywhere (2026-10-20) ───────────────────────────────────────────────
+// After the owner's report, every level was audited. A person's Back always comes after the app
+// has recorded the step (`nav.idle`); these wait for that before pressing it.
+
+test('closing a note is a step back: Back does not reopen it', async () => {
+  render(App);
+  await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
+  await waitFor(() => expect(noteOpen()).toBeTruthy());
+  await fireEvent.click(await screen.findByRole('button', { name: 'close note' }));
+  await waitFor(() => expect(showing()).toMatch(/Board/));
+  await nav.idle();
+  // The step back landed on the board's own entry: nothing above it holds the note.
+  expect((history.state as { nav?: { kind: string } }).nav?.kind).toBe('board');
+  history.back();
+  await new Promise((r) => setTimeout(r, 150));
+  expect(noteOpen()).toBeNull();
+});
+
+test("Back closes a note's ＋ window first, and the note stays", async () => {
+  render(App);
+  await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
+  await fireEvent.click(await screen.findByRole('button', { name: 'note options' }));
+  await screen.findByRole('dialog', { name: 'note options' });
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'note options' })).toBeNull());
+  expect(noteOpen()).toBeTruthy();
+});
+
+test('New vault asked for from Settings opens over it, and Back returns to Settings', async () => {
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: 'settings' }));
+  await screen.findByRole('heading', { name: 'Settings' });
+  const cats = await screen.findByRole('navigation', { name: 'settings categories' });
+  await fireEvent.click(await within(cats).findByRole('button', { name: /Vaults & backup/ }));
+  await fireEvent.click(await screen.findByRole('button', { name: /New vault/ }));
+  await screen.findByRole('dialog', { name: 'New vault' });
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New vault' })).toBeNull());
+  expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull());
+});
+
+test('a menu that hands over to a panel leaves no Back that does nothing', async () => {
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: /which vaults to show/i }));
+  const menu = await screen.findByRole('menu');
+  await fireEvent.click(within(menu).getByRole('menuitem', { name: /New vault/ }));
+  await screen.findByRole('dialog', { name: 'New vault' });
+  await nav.idle();
+  // One entry for the panel, on the place's own: the menu's is gone.
+  expect((history.state as { layer?: string }).layer).toBe('new-vault');
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New vault' })).toBeNull());
+  await nav.idle();
+  expect((history.state as { layer?: string }).layer).toBeUndefined();
+});

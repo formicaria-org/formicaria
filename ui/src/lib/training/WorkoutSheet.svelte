@@ -11,6 +11,7 @@
   // minutes at an intensity, and takes the intensity from effort on a scale of 0 to 10 — and it
   // is one note, done when it is written. An exercise may also say which region of the body it
   // trains, which is what a strength regime counts.
+  import * as nav from '../nav.svelte';
   import { untrack } from 'svelte';
   import Icon from '../Icon.svelte';
   import { createNotesUndoable, setPropertiesUndoable, deleteUndoable } from '../undo.svelte';
@@ -93,6 +94,15 @@
   // exercise cards. It arrives with a place to start — what it was last time, or its source's own
   // figure, or the general one — and the person changes it. Typing a name is still there.
   let picked = $state(untrack(() => !!set || !!preset));
+  /// **The form is a level over the list when it was reached from the list** (2026-10-20): Back
+  /// goes back to choosing, as *Choose another* does, instead of closing the sheet. A sheet opened
+  /// on a set already chosen has no list under it.
+  const fromList = untrack(() => !set && !preset);
+  nav.level(
+    () => 'workout-form',
+    () => picked && fromList,
+    () => (picked = false),
+  );
   let seek = $state('');
   let cards = $state<ExerciseCard[]>([]);
   $effect(() => {

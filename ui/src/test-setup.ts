@@ -17,6 +17,16 @@ import { setFirstView } from './lib/panes';
 // on Home; the tests about Home set it back themselves (`App.home.test.ts`).
 setFirstView('board');
 import { EditorView } from '@codemirror/view';
+import { afterEach } from 'vitest';
+import { idle as navIdle, reset as resetNav } from './lib/nav.svelte';
+
+// **Back's copy of the stack belongs to one test.** It settles a moment after a press, and a step
+// back the browser was asked for cannot be called off — left alone it lands in the next test, on a
+// page from before that test's app. So each test's history work is let finish before the next.
+afterEach(async () => {
+  await navIdle();
+  resetNav();
+});
 
 configure({ asyncUtilTimeout: 5000 });
 
@@ -35,6 +45,12 @@ configure({ asyncUtilTimeout: 5000 });
 /// implementations between tests, which would strip the stub out from under any test that set it
 /// up in a `beforeAll`. A plain function survives.
 let coarse = false;
+/// A screen narrower than the layouts' breakpoints (`max-width` queries). Off by default, like the
+/// fine pointer; a test of a phone's two-screen layout turns it on with `setNarrowScreen`.
+let narrow = false;
+export function setNarrowScreen(on: boolean): void {
+  narrow = on;
+}
 
 /// Set by `asPhone()` / `asDesktop()`. Exported rather than reached through `window` so a test
 /// that wants a finger without the rest of the phone can say exactly that.
@@ -50,7 +66,11 @@ Object.defineProperty(window, 'matchMedia', {
       // The app asks two things of it. `(pointer: coarse)` is the one that picks touch branches;
       // anything else (a width query, `prefers-reduced-motion`) answers false, which is jsdom's
       // own posture — it applies no CSS, so there is no viewport to report on honestly.
-      matches: query.includes('pointer: coarse') ? coarse : false,
+      matches: query.includes('pointer: coarse')
+        ? coarse
+        : query.includes('max-width')
+          ? narrow
+          : false,
       media: query,
       onchange: null,
       addEventListener: () => {},

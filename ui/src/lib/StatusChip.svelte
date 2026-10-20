@@ -1,6 +1,7 @@
 <script lang="ts">
   import { nextStatus } from './status';
   import { clickOutside } from './clickOutside';
+  import * as nav from './nav.svelte';
   import { popup } from './popup';
   import { hashHue } from './vaultColor';
 
@@ -38,6 +39,13 @@
 
   /** The chip the picker opens against, while it is open. */
   let picker = $state<HTMLElement | null>(null);
+  // Back closes the picker before it leaves the view (2026-10-20).
+  const me = Math.random().toString(36).slice(2);
+  nav.level(
+    () => `status-picker:${me}`,
+    () => picker !== null,
+    () => (picker = null),
+  );
 
   function rotate(e: MouseEvent) {
     // A card is itself a click target that opens the note; rotating its status

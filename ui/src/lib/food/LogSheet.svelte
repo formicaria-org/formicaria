@@ -10,6 +10,7 @@
   // keys. An amount is never rescaled from numbers that were already rounded: it is recomputed from
   // where the food came from, or from the values as they were when this sheet opened.
   import { onDestroy, onMount, untrack } from 'svelte';
+  import * as nav from '../nav.svelte';
   import { startRecording, type Recording } from '../record';
   import { DICTATION_SECS, hear } from '../dictation';
   import { MYRME } from '../agentCommands';
@@ -699,7 +700,10 @@
       void logRecipes(view)
         .then((own) => {
           const r = own.find((x) => `recipe/${x.recipe}` === open);
-          if (r) openRecipe(r);
+          if (r) {
+            first = 'serving';
+            openRecipe(r);
+          }
         })
         .catch(() => undefined);
     // A carried one is `<collection key>/<id>`.
@@ -709,7 +713,10 @@
           libraries = all;
           for (const lib of all) {
             const r = lib.recipes.find((x) => `${lib.key}/${x.id}` === open);
-            if (r) return readFrom(lib, r);
+            if (r) {
+              first = 'reading';
+              return readFrom(lib, r);
+            }
           }
         })
         .catch(() => undefined);
@@ -1348,6 +1355,60 @@
     portion = null;
     if (f) await reopen(f.word);
   };
+  /** From choosing an ingredient back to the recipe it was for. */
+  function backFromPicking() {
+    picking = false;
+    const r = into;
+    into = null;
+    if (r) openRecipe(r);
+  }
+
+  /// **Each step of the sheet is a level** (2026-10-20): Back undoes one step — the amount, the
+  /// ingredient being chosen, the recipe — as the step's own Back does, instead of closing the
+  /// whole sheet. Named for this sheet, so a second Food window's sheet is a different one.
+  const me = Math.random().toString(36).slice(2);
+  /** The screen the sheet was opened on, from a dish or a recipe's note: its first screen, so not
+   *  a step — Back from it closes the sheet. */
+  let first = $state<'serving' | 'reading' | null>(null);
+  const step = (name: string, open: () => boolean, close: () => void) =>
+    nav.level(() => `log-${name}:${me}`, open, close);
+  step(
+    'label',
+    () => labelling !== null,
+    () => (labelling = null),
+  );
+  step(
+    'reading',
+    () => reading !== null && first !== 'reading',
+    () => (reading = null),
+  );
+  step(
+    'building',
+    () => building !== null,
+    () => (building = null),
+  );
+  step(
+    'serving',
+    () => serving !== null && first !== 'serving',
+    () => (serving = null),
+  );
+  // Once left, the screen it opened on is an ordinary step again.
+  $effect(() => {
+    if ((first === 'serving' && !serving) || (first === 'reading' && !reading))
+      untrack(() => (first = null));
+  });
+  step('picking', () => picking, backFromPicking);
+  step(
+    'portion',
+    () => portion !== null && fixing === null,
+    () => (portion = null),
+  );
+  step(
+    'fixing',
+    () => fixing !== null,
+    () => void leaveFix(),
+  );
+
   const saveIngredient = () =>
     write(async () => {
       if (!portion || !fixing) return;
@@ -2183,18 +2244,7 @@
       </section>
     {:else}
       {#if picking}
-        <button
-          type="button"
-          class="link"
-          onclick={() => {
-            picking = false;
-            const r = into;
-            into = null;
-            if (r) openRecipe(r);
-          }}
-        >
-          Back to the recipe
-        </button>
+        <button type="button" class="link" onclick={backFromPicking}> Back to the recipe </button>
       {/if}
       <div class="modes" role="group" aria-label="how to add">
         <button type="button" class:on={mode === 'recent'} onclick={() => (mode = 'recent')}

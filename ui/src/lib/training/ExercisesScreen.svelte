@@ -12,6 +12,7 @@
   // a card that needs a bar, free weights or a machine opens the National Institute on Aging's
   // Safety Tips box — one screen, the box whole, not its lines spread over cards — and any card
   // may list pages elsewhere on how it is done. Those are links: only their titles are shown.
+  import * as nav from '../nav.svelte';
   import Icon from '../Icon.svelte';
   import { exercises, sameName } from './exercises';
   import type { ExerciseCard, ExerciseLibrary, ExerciseVideo } from '../types';
@@ -79,6 +80,18 @@
   let open = $state<ExerciseCard | null>(null);
   /// The safety tips in front — over the card it was opened from, or over the list.
   let safety = $state(false);
+  /// **An exercise and the safety tips are levels** (2026-10-20): Back goes tips → card → list,
+  /// as their ‹ buttons do, instead of leaving Fitness.
+  nav.level(
+    () => 'exercise-card',
+    () => open !== null,
+    () => (open = null),
+  );
+  nav.level(
+    () => 'exercise-safety',
+    () => safety,
+    () => (safety = false),
+  );
   const safeFor = (equipment: ExerciseCard['equipment']) => !!lib?.safely?.for.includes(equipment);
   /// A screen swapped in place starts at its top, not where the last one was scrolled to.
   let scroller = $state<HTMLDivElement | null>(null);

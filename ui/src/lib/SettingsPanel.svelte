@@ -20,6 +20,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
+  import * as nav from './nav.svelte';
   import { autoBackupOn, setAutoBackup } from './autoBackup';
   import {
     CATEGORIES,
@@ -648,6 +649,7 @@
     cat = c;
     query = '';
     opened = true;
+    steppedIn = true;
     try {
       localStorage.setItem(CAT_KEY, c);
     } catch {
@@ -658,7 +660,27 @@
   function backToList() {
     opened = false;
     query = '';
+    steppedIn = false;
   }
+
+  /// **On a narrow screen a category is a second screen, so Back returns to the list** (the owner,
+  /// 2026-10-20: About & updates, then Back, closed Settings). Only a category the person stepped
+  /// into: one a link opened Settings on was never under a list they saw. On a wide screen the list
+  /// stays beside the category, and Back there closes Settings as before.
+  const NARROW = '(max-width: 46rem)'; // the breakpoint of the styles below
+  const narrowQuery = typeof matchMedia === 'function' ? matchMedia(NARROW) : null;
+  let narrow = $state(narrowQuery?.matches ?? false);
+  $effect(() => {
+    const on = () => (narrow = narrowQuery?.matches ?? false);
+    narrowQuery?.addEventListener?.('change', on);
+    return () => narrowQuery?.removeEventListener?.('change', on);
+  });
+  let steppedIn = $state(false);
+  nav.level(
+    () => 'settings-category',
+    () => steppedIn && opened && narrow && !actionsMode,
+    backToList,
+  );
   /** What a link asked for (`section`), honoured once its section exists. */
   let landed = false;
   let backupMounted = $state(false);

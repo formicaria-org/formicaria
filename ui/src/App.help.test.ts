@@ -5,7 +5,7 @@
 /// Help button was hidden there entirely. Correct in the small and wrong in the large: the result
 /// was a phone with no help at all, in an app whose first non-technical tester's verdict on Help
 /// was that it was "difficult to find and click on".
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import App from './App.svelte';
@@ -66,6 +66,9 @@ test('the full manual opens inside the app on the desktop, and Done closes it', 
   expect(frame.getAttribute('src')).toBe('/manual/index.html');
   // Sandboxed with no `allow-same-origin`: the book cannot reach the app's page or storage.
   expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
-  await fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+  // The manual opens over Help, which stays: Done (or Back) returns to it (2026-10-20).
+  const reader = screen.getByRole('dialog', { name: 'The manual' });
+  await fireEvent.click(within(reader).getByRole('button', { name: 'Done' }));
   expect(screen.queryByTitle('The manual')).toBeNull();
+  expect(screen.getByRole('button', { name: /open the full manual/i })).toBeTruthy();
 });

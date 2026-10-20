@@ -12530,3 +12530,56 @@ maths and highlights)"*. Four causes, all found by rendering that sentence:
 A broken formula falls back to exactly what was written (`MathSpan.src`), not to a guess at its
 delimiters. Checked on the owner's sentence in a real browser, reading view and editor: one
 highlight, five formulas, no errors.
+
+## 2026-10-20 — Back is one step, everywhere `#ui`
+
+> Builds on *Back walks what you opened, and panels close first* (2026-10-09) and *a move made
+> from a menu replaces the menu's history entry*; the tab ruling (*moving between a group's views
+> replaces the history entry*) stands.
+
+**What prompted it.** The owner, on the phone: Settings → About & updates → Back closed Settings
+instead of returning to its list — *"a signal we did not implement coherently and robustly the
+behavior… a broad search about the going back behavior in all the app and find where it is not
+doing the expected user things and then fix"*. An audit of every level in the app
+(`back-audit.md` in that session) found sixteen places; the rule they break is one: **Back undoes
+the person's last step, one level at a time, and is never a Back that does nothing.**
+
+**Decision.**
+1. **`nav.svelte.ts` keeps its own copy of the history stack**, every entry numbered. The first
+   version knew only the entry on top, which is where the dead Backs came from: a menu closed as a
+   panel opened over it left its entry beneath; a layer closed from below its child left its own;
+   an "own step" flag stayed set when the step never came and swallowed the next Back. Now layers
+   are settled once a tick (`settle`) — a menu handing over to a panel is one swapped entry — an own
+   step knows where it lands (`expect`), and an entry whose layer is gone is passed over.
+   NotePanel's two entries (editing, full-screen board) go through it too (`pushOwn`, `backIfTop`,
+   `holds`).
+2. **A level is one line in a component** (`nav.level(name, isOpen, close)`), used for: a Settings
+   category on a narrow screen (only one the person stepped into, not one a link opened on), the
+   theme editor (Back cancels it; closing Settings cancels it too, so no half-typed theme stays
+   applied), the Diet/Regime library and option, an exercise and its safety tips, the workout
+   form over its list, each step of the food log sheet (the screen it was opened on is not a
+   step), a note's menus (＋ window, Add media, Copy to…, the delete confirm, the quick row's
+   menus, the `/` and `@` menus, colour and block menus, a callout or table cell being changed),
+   a board card's move menu and the status picker.
+3. **Closing a note is a step back** (`nav.leave`): recorded as a move, the next Back reopened the
+   note just closed, or one just deleted. It steps past an open window list and puts its entry back.
+4. **A panel opened from another opens over it**: New vault from Settings, the manual from Help;
+   Back (or the manual's Done) returns to the first. Menus still hand over (2026-10-09).
+5. **A day chosen from Trends is a step**, not a tab — the person drilled down. And a group's own
+   tabs now rewrite the entry as the tab ruling always said; they changed `viewName` alone and the
+   entry kept the view the group was opened on.
+6. **The manual's links replace the page** inside the app's reader (`docs/in-app-reader.js`, only
+   in a frame named `manual-frame`; on the web the book is unchanged), and its Contents opens a new
+   frame. The frame is sandboxed from another origin, so its entries were invisible to the app:
+   Done stepped back one page instead of closing it.
+7. **Opening a recipe in Food from its note is not a step of its own**: the sheet on the recipe
+   sits over the note, and one Back returns there.
+8. **Layer names are per window** for the tracker sheets, so two Food windows do not share one.
+
+**Checked**: the suite (`App.back.test.ts`, `App.tracker.test.ts`, `nav.test.ts`), and in a real
+Chromium at phone size against the real server, seventeen steps: Settings category, a note's ＋, the
+`/` menu while editing, closing a note, the manual from Help (a link followed inside it, Back,
+Done). **Not on the phone yet.**
+
+**Left as they are**: Settings' search and key capture are inline, not levels; a tiled note's
+"Full screen" on a desktop is not a step.

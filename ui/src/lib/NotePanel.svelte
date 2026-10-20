@@ -44,6 +44,7 @@
   import type { EditorHandle } from './editor/handle';
   import { KEYBOARD_EVENT } from './keyboard';
   import { incoming } from './share.svelte';
+  import * as nav from './nav.svelte';
   import {
     chord,
     describe as describeKey,
@@ -148,23 +149,21 @@
   }
   function enterBoardFull() {
     boardFull = true;
-    try {
-      history.pushState({ boardFull: true }, '');
-    } catch {
-      /* no history (rare) — the ✕ still exits */
-    }
+    nav.pushOwn({ boardFull: true });
     void nudgeResize();
   }
   // Both the Back button and the ✕ funnel through `history.back()`, so `popstate` is the single exit
   // path — no double-pop, no dangling history entry.
   function onPopState() {
-    if (boardFull) {
+    // Only when its own entry is no longer the one showing: a step back of the app's own above it
+    // (a menu's entry taken back) is not the person leaving full screen.
+    if (boardFull && !nav.holds('boardFull', true)) {
       boardFull = false;
       void nudgeResize();
       return;
     }
     // Back while editing: if the entry now showing is not this note's, its entry was the one popped.
-    if (editHistory && history.state?.fmEditing !== editToken) {
+    if (editHistory && !nav.holds('fmEditing', editToken)) {
       editHistory = false;
       if (editing) void toggleEdit();
     }
@@ -1843,19 +1842,11 @@
         editStart = null;
       }
       if (on && !editHistory) {
-        try {
-          history.pushState({ fmEditing: editToken }, '');
-          editHistory = true;
-        } catch {
-          /* no history (rare) — the title, Escape and leaving still end editing */
-        }
+        nav.pushOwn({ fmEditing: editToken });
+        editHistory = true;
       } else if (!on && editHistory) {
         editHistory = false;
-        try {
-          if (history.state?.fmEditing === editToken) history.back();
-        } catch {
-          /* nothing to take back */
-        }
+        nav.backIfTop('fmEditing', editToken);
       }
     });
   });
@@ -1871,11 +1862,7 @@
   });
   // A note closed while editing leaves its entry behind; take it back if it is still on top.
   onDestroy(() => {
-    try {
-      if (editHistory && history.state?.fmEditing === editToken) history.back();
-    } catch {
-      /* nothing to take back */
-    }
+    if (editHistory) nav.backIfTop('fmEditing', editToken);
   });
 
   /// **Add media works from reading too** — it opens the editor with the caret at the end first,
@@ -2253,6 +2240,79 @@
 
   let captureEl = $state<HTMLInputElement | undefined>(undefined);
   let captureOpen = $state(false);
+
+  /// **A note's menus are levels** (2026-10-20): Back closes the one on top — the ＋ window, its
+  /// Add media list, Copy to…, the delete confirm, the quick row's menus, the `/` and `@` menus, the
+  /// colour and block menus, a callout or a table cell being changed — before it ends editing or
+  /// leaves the note. Before, Back left the note and Copy to… and the delete confirm were found
+  /// still open on coming back.
+  const menu = (name: string, open: () => boolean, close: () => void) =>
+    nav.level(() => `${name}:${editToken}`, open, close);
+  menu(
+    'note-options',
+    () => optionsOpen,
+    () => ((optionsOpen = false), (captureOpen = false)),
+  );
+  menu(
+    'note-media',
+    () => optionsOpen && captureOpen,
+    () => (captureOpen = false),
+  );
+  menu(
+    'note-copy',
+    () => copyOpen,
+    () => ((copyOpen = false), (copyConfirm = null)),
+  );
+  menu(
+    'note-copy-confirm',
+    () => copyConfirm !== null,
+    () => (copyConfirm = null),
+  );
+  menu(
+    'note-delete',
+    () => confirmingDelete,
+    () => (confirmingDelete = false),
+  );
+  menu(
+    'quick-media',
+    () => quickMedia,
+    () => (quickMedia = false),
+  );
+  menu(
+    'quick-text',
+    () => quickText,
+    () => (quickText = false),
+  );
+  menu(
+    'colours',
+    () => colorOpen,
+    () => (colorOpen = false),
+  );
+  menu(
+    'blocks',
+    () => blockOpen,
+    () => (blockOpen = false),
+  );
+  menu(
+    'slash',
+    () => slash.open,
+    () => closeSlash(),
+  );
+  menu(
+    'mention',
+    () => atMenu.open,
+    () => (atMenu = { ...atMenu, open: false }),
+  );
+  menu(
+    'callout',
+    () => calloutPick !== null,
+    () => (calloutPick = null),
+  );
+  menu(
+    'cell',
+    () => cellEdit !== null,
+    () => (cellEdit = null),
+  );
 
   /** Point the one hidden input at a source and open it. One element, reconfigured, so the
    *  browser never holds five pickers' worth of state. */

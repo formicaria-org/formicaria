@@ -22,6 +22,8 @@
   import ManualLink from './ManualLink.svelte';
   import { listThemes, readTheme, saveTheme, deleteTheme, renameTheme } from './ipc';
   import * as appearance from './appearance';
+  import { onDestroy } from 'svelte';
+  import * as nav from './nav.svelte';
   import { STARTERS, freeName, slug, type Starter } from './starterThemes';
   import type { ThemeInfo } from './types';
 
@@ -179,6 +181,18 @@
     else if (!selected) appearance.clear();
     editing = null;
   }
+
+  /// **The editor is a level of its own** (2026-10-20): Back cancels the edit — putting back the
+  /// look from before the preview — rather than closing Settings with a half-typed theme still
+  /// applied and nothing saved. Closing Settings any other way cancels it too.
+  nav.level(
+    () => 'theme-editor',
+    () => editing !== null,
+    () => cancel(),
+  );
+  onDestroy(() => {
+    if (editing !== null) cancel();
+  });
 
   /// Renaming happens in place in the list rather than in a dialog: it is a rare action on a thing
   /// already on screen, and this app has decided more than once that a rare action does not earn a

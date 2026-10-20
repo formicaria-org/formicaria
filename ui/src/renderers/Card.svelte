@@ -3,6 +3,7 @@
   import StatusChip from '../lib/StatusChip.svelte';
   import VaultBadge from '../lib/VaultBadge.svelte';
   import { popup } from '../lib/popup';
+  import * as nav from '../lib/nav.svelte';
   import EditedBy from '../lib/EditedBy.svelte';
   import { lastEditFor } from '../lib/activity.svelte';
   import { formatStamp } from '../lib/stamp';
@@ -39,6 +40,12 @@
     onmoveto?: (id: string, value: string) => void;
   } = $props();
   let menuOpen = $state(false);
+  // Back closes the move menu before it leaves the board (2026-10-20).
+  nav.level(
+    () => `card-move:${card.id}`,
+    () => menuOpen,
+    () => (menuOpen = false),
+  );
   /** The ⇄ button, which the move menu opens against (`popup`), so a board column cannot clip it. */
   let moveBtn = $state<HTMLButtonElement>();
   let dragging = $state(false);

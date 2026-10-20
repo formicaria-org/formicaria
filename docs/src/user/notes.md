@@ -132,10 +132,22 @@ on this device or another, formicaria says so and leaves it as it is.
 
 ## Going back
 
-The **Back** button goes to the view or note you were on before. On a phone that is the Back key
-or gesture; on a computer it is the browser's Back button. If a menu or panel is open, Back closes it
-first. If you are editing a note, Back stops editing and then takes you back. From the first screen,
-Back closes the app, as usual on Android.
+The **Back** button undoes your last step, one at a time. On a phone that is the Back key or
+gesture; on a computer it is the browser's Back button.
+
+- **A menu or panel** that is open closes first — a note's ＋ window, the `/` menu while writing,
+  Settings, Help.
+- **A level inside something** goes back up one level: a Settings category to the list of them (on
+  a phone), a recipe in the food sheet to the list it was chosen from, a diet or an exercise to the
+  list, a theme being edited (the change is cancelled). A panel opened from another — New vault from
+  Settings, the manual from Help — goes back to that panel.
+- **While you edit a note**, Back stops editing, then takes you back.
+- **A note you closed** stays closed: Back goes to what was before it, not into the note again.
+- **A day picked from Trends** is a step: Back returns to Trends. Moving between a group's own tabs
+  is not.
+- **In the manual**, following its links does not add steps: Back or Done closes it.
+
+From the first screen, Back closes the app, as usual on Android.
 
 ## Reminders
 

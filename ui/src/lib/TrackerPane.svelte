@@ -105,13 +105,19 @@
   /// session in its place, and Back returns to the week. Closing it puts today in front again.
   let dayOpen = $state(false);
   $effect(() => {
-    if (dayOpen) nav.openLayer('fitness-day', () => (dayOpen = false));
+    if (dayOpen) nav.openLayer(`fitness-day:${pane.id}`, () => (dayOpen = false));
     else {
-      nav.closeLayer('fitness-day');
+      nav.closeLayer(`fitness-day:${pane.id}`);
       if (untrack(() => selected) !== today) selected = today;
     }
   });
-  $effect(() => () => nav.closeLayer('fitness-day'));
+  $effect(() => () => nav.closeLayer(`fitness-day:${pane.id}`));
+  // **Another tab closes the day**: a day belongs to the week it was opened from, and kept open
+  // under another tab its entry made Back from that tab land on the week (2026-10-20).
+  $effect(() => {
+    void view;
+    untrack(() => (dayOpen = false));
+  });
   /// The chosen day against the diet the person follows, when they follow one.
   let followed = $state<PlanProgress | null>(null);
   /// The exercises that have a card, so a session can offer "How" beside the ones it knows.
@@ -120,10 +126,10 @@
   let cardNames = $state<string[]>([]);
   let how = $state<string | null>(null);
   $effect(() => {
-    if (how) nav.openLayer('card-sheet', () => (how = null));
-    else nav.closeLayer('card-sheet');
+    if (how) nav.openLayer(`card-sheet:${pane.id}`, () => (how = null));
+    else nav.closeLayer(`card-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('card-sheet'));
+  $effect(() => () => nav.closeLayer(`card-sheet:${pane.id}`));
   $effect(() => {
     if (def?.add !== 'workout' || cardNames.length) return;
     void exercises()
@@ -256,10 +262,10 @@
   const closeSheet = () => (sheet = null);
   $effect(() => {
     // A layer, so Back closes the sheet before it leaves the view (`nav.svelte.ts`).
-    if (sheet) nav.openLayer('log-sheet', closeSheet);
-    else nav.closeLayer('log-sheet');
+    if (sheet) nav.openLayer(`log-sheet:${pane.id}`, closeSheet);
+    else nav.closeLayer(`log-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('log-sheet'));
+  $effect(() => () => nav.closeLayer(`log-sheet:${pane.id}`));
 
   let seen = untrack(() => addSignal);
   $effect(() => {
@@ -274,26 +280,26 @@
   /// The values to write down, as a definition: the view's own, or one value kept in another log.
   let measuring = $state<TotalsDef | null>(null);
   $effect(() => {
-    if (measuring) nav.openLayer('measure-sheet', () => (measuring = null));
-    else nav.closeLayer('measure-sheet');
+    if (measuring) nav.openLayer(`measure-sheet:${pane.id}`, () => (measuring = null));
+    else nav.closeLayer(`measure-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('measure-sheet'));
+  $effect(() => () => nav.closeLayer(`measure-sheet:${pane.id}`));
 
   // ── every nutrient of the day ──────────────────────────────────────────────────────────────────
   let nutrientsOpen = $state(false);
   $effect(() => {
-    if (nutrientsOpen) nav.openLayer('nutrients-sheet', () => (nutrientsOpen = false));
-    else nav.closeLayer('nutrients-sheet');
+    if (nutrientsOpen) nav.openLayer(`nutrients-sheet:${pane.id}`, () => (nutrientsOpen = false));
+    else nav.closeLayer(`nutrients-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('nutrients-sheet'));
+  $effect(() => () => nav.closeLayer(`nutrients-sheet:${pane.id}`));
 
   // ── the targets form ───────────────────────────────────────────────────────────────────────────
   let targetsOpen = $state(false);
   $effect(() => {
-    if (targetsOpen) nav.openLayer('targets-sheet', () => (targetsOpen = false));
-    else nav.closeLayer('targets-sheet');
+    if (targetsOpen) nav.openLayer(`targets-sheet:${pane.id}`, () => (targetsOpen = false));
+    else nav.closeLayer(`targets-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('targets-sheet'));
+  $effect(() => () => nav.closeLayer(`targets-sheet:${pane.id}`));
 
   // ── a line that says what just happened, and takes it back ─────────────────────────────────────
   let toast = $state<{ text: string } | null>(null);
@@ -396,10 +402,10 @@
     preset?: { name: string; region: string };
   } | null>(null);
   $effect(() => {
-    if (workout) nav.openLayer('workout-sheet', () => (workout = null));
-    else nav.closeLayer('workout-sheet');
+    if (workout) nav.openLayer(`workout-sheet:${pane.id}`, () => (workout = null));
+    else nav.closeLayer(`workout-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('workout-sheet'));
+  $effect(() => () => nav.closeLayer(`workout-sheet:${pane.id}`));
 
   /// The sets of the most recent day that has any, planned again for today.
   async function repeatLast() {
@@ -456,10 +462,10 @@
   }
   let routineSheet = $state<{ routine: Routine | null } | null>(null);
   $effect(() => {
-    if (routineSheet) nav.openLayer('routine-sheet', () => (routineSheet = null));
-    else nav.closeLayer('routine-sheet');
+    if (routineSheet) nav.openLayer(`routine-sheet:${pane.id}`, () => (routineSheet = null));
+    else nav.closeLayer(`routine-sheet:${pane.id}`);
   });
-  $effect(() => () => nav.closeLayer('routine-sheet'));
+  $effect(() => () => nav.closeLayer(`routine-sheet:${pane.id}`));
 
   async function finishSet(set: ObjectMeta, reps: number, load_g: number) {
     try {
@@ -481,6 +487,9 @@
     const first = group?.views[0];
     if (!first || first === view) return;
     carried.give(pane.id, d);
+    // **A day chosen from Trends is a step**, not a tab: Back returns to Trends (2026-10-20).
+    // Recorded before the view changes, which rewrites the entry on top as a tab would.
+    nav.visit({ kind: pane.kind, noteId: pane.noteId ?? null, viewName: first });
     onchange({ viewName: first });
   }
 </script>

@@ -10,7 +10,7 @@
   /// server, as much as on a phone, where it comes from its own scheme.
   ///
   /// Above Settings (z-index 80), because Settings is where most of its links are.
-  import { closeManual, manualUrl, openPage } from './manual.svelte';
+  import { closeManual, openManual, openPage } from './manual.svelte';
 
   const url = $derived(openPage());
 </script>
@@ -29,16 +29,20 @@
       <div class="bar">
         <strong>Manual</strong>
         <span class="spacer"></span>
-        <a class="link" href={manualUrl()} target="manual-frame">Contents</a>
+        <!-- A new frame on the contents, not the frame sent there: sending it would add a history
+             entry the app cannot see, and Back would step through it (2026-10-20). -->
+        <button class="link" onclick={() => openManual()}>Contents</button>
         <button class="done" onclick={closeManual}>Done</button>
       </div>
-      <iframe
-        name="manual-frame"
-        title="The manual"
-        src={url}
-        sandbox="allow-scripts"
-        referrerpolicy="no-referrer"
-      ></iframe>
+      {#key url}
+        <iframe
+          name="manual-frame"
+          title="The manual"
+          src={url}
+          sandbox="allow-scripts"
+          referrerpolicy="no-referrer"
+        ></iframe>
+      {/key}
     </div>
   </div>
 {/if}
@@ -97,6 +101,11 @@
   .link {
     color: var(--link);
     font-size: var(--text-sm);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
   }
   .done {
     padding: var(--space-1) var(--space-3);

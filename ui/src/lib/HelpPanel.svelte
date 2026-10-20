@@ -108,13 +108,7 @@
     </p>
 
     <p class="more">
-      <button
-        class="link"
-        onclick={() => {
-          onclose();
-          openManual();
-        }}>Open the full manual</button
-      >
+      <button class="link" onclick={() => openManual()}>Open the full manual</button>
       — every feature, explained, on this device and without a connection.
     </p>
     <p class="more">
