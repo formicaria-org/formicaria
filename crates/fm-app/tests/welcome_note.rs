@@ -223,3 +223,78 @@ fn putting_the_tutorials_back_restores_only_what_is_missing() {
     assert_eq!(store.get(ids[0]).unwrap().unwrap().body, "My own words now.", "left as it is");
     assert!(fm_app::tutorials::put_back(&mut store, "personal").unwrap().is_empty(), "idempotent");
 }
+
+/// **At most five** — the owner's limit (2026-10-20: *"people should have them by default (not
+/// more than 5)"*). A sixth is a decision, not an addition.
+#[test]
+fn there_are_never_more_than_five_tutorials() {
+    assert!(fm_app::tutorials::TUTORIALS.len() <= 5, "{}", fm_app::tutorials::TUTORIALS.len());
+}
+
+/// **Everyone has the tutorials** (2026-10-20): a notebook that already had notes gets the missing
+/// ones, into the first notebook only; one deleted there is never given again, and a notebook with
+/// no history is left alone.
+#[test]
+fn the_tutorials_are_given_once_to_the_first_notebook_and_a_deleted_one_never_returns() {
+    use fm_app::vaults::VaultConfig;
+    use fm_core::{MultiStore, Store};
+    use std::process::Command;
+    if Command::new("git").arg("--version").output().is_err() {
+        return; // the history is git's; without it there is nothing to test
+    }
+    let git = |dir: &std::path::Path, args: &[&str]| {
+        let ok = Command::new("git")
+            .current_dir(dir)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .args(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"])
+            .args(args)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git {args:?}");
+    };
+    let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    // Two notebooks in use, each with a note of its own and a history.
+    for d in [a.path(), b.path()] {
+        std::fs::create_dir_all(d.join("notes")).unwrap();
+        std::fs::write(d.join("notes/own.md"), "# Mine\n").unwrap();
+        git(d, &["init", "-q"]);
+        git(d, &["add", "-A"]);
+        git(d, &["commit", "-q", "-m", "mine"]);
+    }
+    let vaults = vec![
+        VaultConfig { name: "first".into(), path: a.path().into(), restic: None },
+        VaultConfig { name: "second".into(), path: b.path().into(), restic: None },
+    ];
+    let open = || {
+        MultiStore::open(&[("first".to_string(), a.path()), ("second".to_string(), b.path())])
+            .unwrap()
+    };
+    let n = fm_app::tutorials::TUTORIALS.len();
+    let mut store = open();
+    let given = fm_app::tutorials::give(&mut store, &vaults).unwrap();
+    assert_eq!(given.len(), n, "a notebook with notes gets them too");
+    assert!(given.iter().all(|m| m.vault == "first"), "into the first notebook only");
+    assert!(fm_app::tutorials::give(&mut store, &vaults).unwrap().is_empty(), "once");
+
+    // Deleted, and the deletion is in the history: not given again, not even after a restart.
+    let first: fm_model::Id =
+        fm_app::tutorials::TUTORIALS[0].0.trim_end_matches(".md").parse().unwrap();
+    git(a.path(), &["add", "-A"]);
+    git(a.path(), &["commit", "-q", "-m", "tutorials"]);
+    store.delete(first).unwrap();
+    git(a.path(), &["add", "-A"]);
+    git(a.path(), &["commit", "-q", "-m", "deleted"]);
+    let mut store = open();
+    assert!(fm_app::tutorials::give(&mut store, &vaults).unwrap().is_empty(), "stays deleted");
+    assert!(store.get(first).unwrap().is_none());
+
+    // A notebook with no history cannot tell a deletion apart, so nothing is written to it.
+    let c = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(c.path().join("notes")).unwrap();
+    std::fs::write(c.path().join("notes/own.md"), "# Mine\n").unwrap();
+    let mut store = MultiStore::open(&[("plain".to_string(), c.path())]).unwrap();
+    let plain = vec![VaultConfig { name: "plain".into(), path: c.path().into(), restic: None }];
+    assert!(fm_app::tutorials::give(&mut store, &plain).unwrap().is_empty());
+}

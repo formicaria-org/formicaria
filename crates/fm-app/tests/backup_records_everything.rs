@@ -81,6 +81,11 @@ fn vault_with_orphans(orphans: usize) -> (TempDir, std::path::PathBuf) {
     git(&vault, &["config", "user.name", "Tester"]);
     git(&vault, &["config", "user.email", "tester@example.com"]);
     write_note(&notes, "the note that did get committed");
+    // The tutorials, already recorded, as in any notebook after its first start since 2026-10-20 —
+    // so the app adds none at boot and the counts below are the orphans alone.
+    for (name, text) in fm_app::tutorials::TUTORIALS {
+        std::fs::write(notes.join(name), text).unwrap();
+    }
     git(&vault, &["add", "-A"]);
     git(&vault, &["commit", "-q", "-m", "first"]);
 

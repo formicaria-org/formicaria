@@ -1,10 +1,10 @@
 //! **The tutorials** (`decisions.md#ui`, 2026-10-18, *Home is the Library's shelves; tutorials are
 //! notes*): a few short notes on the **Tutorials** shelf, the same on every device.
 //!
-//! They are ordinary notes — read, changed, deleted like any other — written in exactly two cases:
+//! They are ordinary notes — read, changed, deleted like any other — written in three cases:
 //! **a notebook this person has just made** ([`write_into`], when its `notes/` folder is new and
-//! empty), and **when asked** ([`put_back`], Help → *Put the tutorials back*). Never into a notebook
-//! that was cloned, joined, restored or imported: that is someone's notebook already.
+//! empty), **at every start, to whoever has none** ([`give`], 2026-10-20, *everyone has the
+//! tutorials*), and **when asked** ([`put_back`], Help → *Put the tutorials back*).
 //!
 //! **Fixed ids and fixed bytes**, so two devices that each make a notebook and are later joined
 //! hold the *same* files, which merge as one — not each tutorial twice.
@@ -21,6 +21,47 @@ pub const TUTORIALS: &[(&str, &str)] = &[
     ("01M5JA00000000000000000T04.md", include_str!("shipped/tutorials/4-keep-them-safe.md")),
     ("01M5JA00000000000000000T05.md", include_str!("shipped/tutorials/5-ask-myrme.md")),
 ];
+
+/// **Everyone has the tutorials** (`decisions.md#ui`, 2026-10-20): each tutorial that no open
+/// notebook holds, and that no notebook's history shows deleted, is written into the **first**
+/// notebook. Once per person, not per notebook: their ids are fixed, and two notebooks holding one
+/// id is what `MultiStore` assumes cannot happen. A notebook with no history cannot tell a deletion
+/// apart, so it is never written to here. Answers the ones written.
+pub fn give(
+    store: &mut dyn Store,
+    vaults: &[crate::vaults::VaultConfig],
+) -> Result<Vec<ObjectMeta>, fm_core::StoreError> {
+    let Some(first) = vaults.first() else { return Ok(Vec::new()) };
+    let mut missing = Vec::new();
+    for (_, text) in TUTORIALS {
+        let obj = fm_core::frontmatter::from_file(text)
+            .map_err(|e| fm_core::StoreError::Parse(format!("a tutorial does not read: {e}")))?;
+        if store.get(obj.id)?.is_none() {
+            missing.push(obj);
+        }
+    }
+    if missing.is_empty() || !first.path.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    // Deleted anywhere, ever: a deletion synced from another device counts as this person's.
+    let mut deleted = std::collections::HashSet::new();
+    for v in vaults {
+        // Twenty years: further back is before 1970 for git's `--since`, which then finds nothing.
+        for d in fm_core::vcs::deleted_notes(&v.path, 365 * 20)? {
+            deleted.insert(d.id);
+        }
+    }
+    let mut given = Vec::new();
+    for mut obj in missing {
+        if deleted.contains(&obj.id.to_string()) {
+            continue;
+        }
+        obj.vault = first.name.clone();
+        store.put(&obj)?;
+        given.push(ObjectMeta::from(&obj));
+    }
+    Ok(given)
+}
 
 /// Into a notebook **just made**: write the tutorials into `<vault>/notes/` when that folder holds
 /// no note yet. Anything already there means it is not new, and nothing is written. Returns how

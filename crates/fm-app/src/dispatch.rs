@@ -229,6 +229,15 @@ impl App {
                 eprintln!("note: swept {swept} abandoned upload(s) in '{}'", cfg.name);
             }
         }
+        // **Everyone has the tutorials** (`tutorials::give`, 2026-10-20): the missing ones, never
+        // one deleted, into the first notebook. Best effort: a start never fails over them.
+        match crate::tutorials::give(&mut store, &vaults) {
+            Ok(given) if !given.is_empty() => {
+                eprintln!("note: added {} tutorial(s) to '{}'", given.len(), vaults[0].name)
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("note: the tutorials were not added: {e}"),
+        }
         // Flattened to strings here on purpose: this is the startup log line, which wants
         // one readable sentence per note. The structured form is what rides the heartbeat.
         let skipped = store

@@ -273,6 +273,13 @@ fn a_relaunch_adopts_the_previous_session_s_notes_and_the_next_commit_records_th
     git(&vault, &["init", "-q", "-b", "main"]);
     git(&vault, &["config", "user.name", "T"]);
     git(&vault, &["config", "user.email", "t@e.com"]);
+    // The tutorials, already recorded, as in any notebook after its first start since 2026-10-20 —
+    // so a relaunch adds none and the commit below holds the orphans alone.
+    for (name, text) in fm_app::tutorials::TUTORIALS {
+        std::fs::write(vault.join("notes").join(name), text).unwrap();
+    }
+    git(&vault, &["add", "-A"]);
+    git(&vault, &["commit", "-q", "-m", "tutorials"]);
 
     // Session zero: one note, recorded, so `.gitattributes`/`.gitignore` are already in history.
     {

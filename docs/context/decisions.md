@@ -12023,6 +12023,10 @@ From the audit of the day's work (the owner: *"many ad hoc custom paths"*):
 
 ## 2026-10-18 — Home is the Library's shelves; tutorials are notes `#ui` `#vault`
 
+> SUPERSEDED IN PART (2026-10-20, *everyone has the tutorials*): point 2's "only into a notebook a
+> person makes … never into one cloned, joined, restored or imported" is reversed. A person's first
+> notebook gets any tutorial that no notebook holds and none ever deleted.
+
 > Supersedes *a Home a newcomer starts on* (this day) and, in part, *the archive ships one note*
 > (2026-08-30).
 
@@ -12361,3 +12365,33 @@ The desktop is unchanged (formicaria 0.9.6).
   the tools folder, through the runtime refresh an update already runs (Linux and macOS; not
   Windows, whose archive is 78 MB).
 
+## 2026-10-20 — everyone has the tutorials, not only a new notebook `#ui` `#vault`
+
+> Reverses, in part, *Home is the Library's shelves; tutorials are notes* (2026-10-18), point 2.
+
+**The owner**, finding no tutorials in either of their notebooks after v0.9.2: *"we need to ship
+them with new releases, people should have them by default (not more than 5)"*.
+
+**What was wrong with the old rule.** Tutorials went only into a notebook made empty, so everyone
+who already had notes when they shipped got none. That includes the owner. The only way in was
+Help → *Put the tutorials back*, whose name says it restores rather than gives.
+
+**Decision.**
+1. **At every start**, the app adds each tutorial that **no open notebook holds** to the person's
+   **first notebook** (`tutorials::give`, from `App::load_with`), as a note like any other.
+2. **Never one that was deleted.** The test is the notebooks' own history: a tutorial deleted in
+   any of them, at any time (`vcs::deleted_notes`, what *Recently deleted* reads), is not added
+   again. Git syncs the deletion, so another device stays quiet too, and the notebook needs no
+   new file.
+   - **A notebook with no history is skipped**: there is nothing to tell a deletion by. Such a
+     notebook gets them only when made empty, as before.
+3. **Once per person, not once per notebook.** The tutorials' ids are fixed (2026-10-18, point 3).
+   A copy in each notebook would give one id two notes across notebooks, which `multi.rs` assumes
+   cannot happen.
+4. **At most five**, the owner's limit, pinned by a test. A release can change their text; a copy
+   already in a notebook is the person's and is left as it is.
+
+**What it costs, said.**
+- The first notebook may be one shared with others, and the five notes then sync to them too.
+- A deletion made before this rule, in a notebook with no history, is not known, so the tutorial
+  comes back once.
