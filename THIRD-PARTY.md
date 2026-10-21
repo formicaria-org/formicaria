@@ -257,7 +257,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | rustix | v1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustls | v0.23.46 | Apache-2.0 OR ISC OR MIT |
 | rustls-pki-types | v1.15.0 | MIT OR Apache-2.0 |
-| rustls-webpki | v0.103.15 | ISC |
+| rustls-webpki | v0.103.16 | ISC |
 | rustversion | v1.0.23 | MIT OR Apache-2.0 |
 | ryu | v1.0.23 | Apache-2.0 OR BSL-1.0 |
 | safe_arch | v1.2.0 | Zlib OR Apache-2.0 OR MIT |
@@ -328,7 +328,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | wasm-bindgen-shared | v0.2.126 | MIT OR Apache-2.0 |
 | web-time | v1.1.0 | MIT OR Apache-2.0 |
 | webpki-roots | v0.26.11 | CDLA-Permissive-2.0 |
-| webpki-roots | v1.0.9 | CDLA-Permissive-2.0 |
+| webpki-roots | v1.0.10 | CDLA-Permissive-2.0 |
 | weezl | v0.1.12 | MIT OR Apache-2.0 |
 | wide | v1.7.1 | Zlib OR Apache-2.0 OR MIT |
 | windows-link | v0.2.1 | MIT OR Apache-2.0 |
