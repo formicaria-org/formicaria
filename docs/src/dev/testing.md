@@ -3,7 +3,7 @@
 Everything runs through pixi so the toolchain is reproducible. One gate:
 
 ```sh
-pixi run ci        # = fmt + fmt-ui + clippy + test + test-native-git + test-agent-download
+pixi run ci        # = fmt + fmt-ui + clippy + test + test-native-git
                    #   + test-ui + check-ui + deny + checks + third-party-check + docs
                    #   (the list that is true is the `ci` task in pixi.toml)
 ```
@@ -32,7 +32,7 @@ and a mobile CLI run from the wrong one has already re-resolved a dependency and
 |---|---|
 | `default` | everything above, and the optional media tools (`pdftotext`, `vipsthumbnail`, `restic`), so the tests that probe for them exercise them instead of skipping. |
 | `android` | the Android toolchain: `pixi run -e android android-release`, `android-smoke`. |
-| `cross` | the cross-compilation targets. `pixi run -e cross check-cross` type-checks `fm-agent` for Windows, macOS and both iOS targets. |
+| `cross` | the cross-compilation targets. `pixi run -e cross check-cross` type-checks Myrme's `fm-agent` crate for Windows, macOS and both iOS targets. |
 
 ## Opt-in suites — not in the gate, and each for a reason
 
@@ -41,7 +41,7 @@ because they are slow, need a toolchain the gate does not, or are for one platfo
 
 | Task | Run it when |
 |---|---|
-| `pixi run -e cross check-cross` | after touching anything per-OS in `fm-agent`. It found a no-op `std::mem::forget` on a raw pointer and a deprecated `libc::mach_host_self` on its first run, in code that had shipped without ever being compiled for either target. |
+| `pixi run -e cross check-cross` | after touching anything per-OS in Myrme's `fm-agent`. It found a no-op `std::mem::forget` on a raw pointer and a deprecated `libc::mach_host_self` on its first run, in code that had shipped without ever being compiled for either target. |
 | `pixi run check-pins` (in Myrme's repository) | when a model or runtime pin moves. Downloads ~110 MB and checks every pinned runtime is really there. |
 | *(the assistant)* | its own tests — the download wrappers, the evals, `pixi run integration` against this app — run in Myrme's repository, https://github.com/formicaria-org/myrme. |
 | `pixi run -e android android-smoke` | after an Android change, with a device or emulator attached. |

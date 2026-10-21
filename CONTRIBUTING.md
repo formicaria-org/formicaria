@@ -59,10 +59,11 @@ locally that whole time; the gate on a clean runner failed eight times for eight
 none of them a regression. Anything that shells out to git, times something, or sorts something is
 worth this thirty-second check.
 
-[Testing & CI](docs/src/dev/testing.md) covers what is inside the gate, the four pixi environments,
-and four opt-in suites that are not in it — of which **`pixi run test-native-git` is the one to
+[Testing & CI](docs/src/dev/testing.md) covers what is inside the gate, the three pixi environments,
+and the opt-in suites that are not in it. Inside the gate, **`pixi run test-native-git` is the one to
 remember**: `cargo test --workspace` `cfg`s out the libgit2 backend, which is the backend the phone
-uses. Run it whenever you touch `commit_all` or `git_native.rs`.
+uses, so this is the only suite that runs it. Run it on its own whenever you touch `commit_all` or
+`git_native.rs`.
 
 **`pixi run update-test`** is the other one worth knowing. It downloads the release before the
 newest, starts it in a temporary folder, and presses what Settings presses: Check now, Get, Restart,
@@ -125,6 +126,8 @@ Several are enforced by `ci/checks.sh`, so you will be told. They are listed her
 - **A note read → edited → written back is byte-for-byte identical.**
 - **Heavy tools are shelled out to, never linked** — `git`, `restic`, `pdftotext`,
   `vipsthumbnail`. Their often-GPL licences never enter the binary, and they upgrade independently.
+  The one exception is git where no `git` binary exists — Windows and the phones — which link
+  libgit2 instead (`decisions.md#track-m`).
 - **Nothing silently discards a user's text.** A conflict puts both versions where a human can see
   them; a refused write says why.
 

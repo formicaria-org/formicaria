@@ -12,7 +12,7 @@ starts instantly. It always reflects the last build you made; to update what the
 icon runs, rebuild explicitly:
 
 ```sh
-pixi run build          # → target/release/fm-serve (about 27 MB) + ui/dist
+pixi run build          # → target/release/fm-serve (about 33 MB), fm, agent-serve + ui/dist
 ```
 
 The only time the launcher builds for you is the **first** launch (or the first

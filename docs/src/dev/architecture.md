@@ -51,11 +51,18 @@ on three seams so that each layer can change without breaking the others.
 | `fm-cli`   | the `fm` command-line tool over the same core.                   |
 | `fm-fetch` | downloads with a pinned hash: models, runtimes, reference packs.  |
 | `fm-update`| finding, verifying and installing a newer version of the app.     |
-| `fm-agent` | the study assistant as a **deterministic orchestrator** — a fixed pipeline whose two model touch-points and web search sit behind `LlmStep` / `WebSearch` seams, so the whole thing is unit-tested with fakes and needs no model and no network. The model never drives control flow, holds a tool, or loops. |
-| `fm-agent-run` | the out-of-process runner for it. All vault I/O goes through a running `fm-serve` (the `VaultAccess` seam), never a second `FileStore` — so `fm-serve` stays the single writer, and the path is the same one the in-process Android agent takes. |
+| `agent-serve` | the binary of the assistant's resident process (package `fm-agent-serve`). Its code is Myrme's; this crate only gives it a binary in this workspace. |
 
-Both agent crates are behind optional features, and a build without them contains no assistant
-at all — which is what an Android `--no-default-features` build ships.
+**The assistant, Myrme, lives in its own repository**
+([formicaria-org/myrme](https://github.com/formicaria-org/myrme)), and `fm-serve` links its
+`fm-agent-run` crate by a pinned tag. There it is a **deterministic orchestrator** (`fm-agent`): a
+fixed pipeline whose model touch-points and web search sit behind seams, so it is unit-tested with
+fakes and needs no model and no network; the model never drives control flow, holds a tool, or
+loops. All vault I/O goes through a running `fm-serve`, never a second `FileStore`, so `fm-serve`
+stays the single writer.
+
+The assistant is behind an optional `agent` feature, in `fm-serve` and in the phone's shell alike,
+and a build without it contains no assistant at all — which is what an Android `--no-default-features` build ships.
 
 ## The command surface
 

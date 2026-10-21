@@ -9,6 +9,15 @@ _Last measured: 2026-07-24. Text-model numbers are from `model-benchmarks-2026-0
 (`llama-bench` + `/usr/bin/time -v` + on-device `/proc`) unless a newer date is given; whisper +
 the live GPU/VRAM readings are from this session's `/proc` + `nvidia-smi`._
 
+> **2026-10-21 — what has moved since these measurements.** The phone's model is **Qwen3.5-0.8B
+> (Q4_0)** since Myrme 0.7.0 (fm 0.9.7); `lfm2.5-1.2b` and then `lfm2.5-vl-450m` came before it. The
+> laptop default is still `qwen3-vl-4b`. Speech is the multilingual `ggml-base` on every device since
+> 2026-10-18 (`ggml-small` as *Better listening*), not `base.en`. Printed pages go to an OCR
+> (PP-OCRv6, ONNX Runtime) first on Linux, macOS and the phone. The assistant — its catalogue, the
+> admission gate and the bench harness (`agents/bench/`) — is Myrme's repo since 2026-10-18; the
+> current measurements are its `docs/research/2026-10-20-small-model-benchmark-summary.md`. The
+> tables below are kept as measured.
+
 ## The two devices (measured)
 
 | | **Phone** | **Laptop** |
@@ -45,7 +54,7 @@ resident 142 MB; llama resident 35 MB + **747 MB in swap** (peak was 1.41 GB whe
 model); `MemAvailable` steady at ~2.6 GB. So the phone runs audio+text together by paging whichever
 model is idle — no admission-gate refusal, no stall observed.
 
-**Shipped defaults (laptop updated 2026-07-24):** phone = `lfm2.5-1.2b` (unchanged — the sweep found no
+**Shipped defaults as of 2026-07-24 (the phone's has changed since — see the note at the top):** phone = `lfm2.5-1.2b` (unchanged — the sweep found no
 ≤2B model beats it); laptop = **`qwen3-vl-4b`** on the **GPU** (40.1 t/s our-case, weights in VRAM so
 system RAM stays free — RSS 791 MB), which grounds better than the prior `qwen3-4b-2507` (kept as the
 fallback) at the same speed. See the full matrix above + `model-selection-research-2026-07-24-grounded.md`.
@@ -53,7 +62,7 @@ The GPU is the decisive laptop win — 3.2–3.7× over CPU. Non-default rows ar
 is the asset.
 
 **Can we push the phone bigger? Measured 2026-07-24 — a real speed↔quality tradeoff, not a free win.**
-The `agents/bench/` harness (our real StudyAssistant workload, not synthetic) run on-device:
+The `agents/bench/` harness (Myrme's repo since 2026-10-18; our real StudyAssistant workload, not synthetic) run on-device:
 `lfm2.5-1.2b` = **12.4 tok/s our-case, 1.5 GB RSS**, but **0 verbatim quotes** on the grounded-research
 contract; `Qwen3-1.7B` = **8.9 tok/s (~28% slower), 2.4 GB RSS**, but it **follows the quote-first
 contract** (1 quote where the 1.2B managed none). Both loaded safely (MemAvailable held 2.5 GB), so

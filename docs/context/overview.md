@@ -5,7 +5,7 @@ mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file. This file plus [features.md](./features.md)
 are the **always-read** layer; everything else is pulled on demand via the router below.
 
-_Last verified 2026-07-24. The running "what shipped when" narrative that used to live here has
+_Last verified 2026-07-24 (crates and router: v0.11.0, 2026-10-21). The running "what shipped when" narrative that used to live here has
 moved to [archive/overview-last-verified-narrative-through-2026-07-24.md](./archive/overview-last-verified-narrative-through-2026-07-24.md);
 current per-feature status is [features.md](./features.md), the dated log is [sessions/](./sessions/) (snapshots, never updated)._
 
@@ -20,12 +20,12 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | A **compile-time seam** (`fm-query` purity, `Store`/`candidates`, `dispatch`) | the "Architecture" section below + `decisions.md#seams` |
 | **git / sync / merge / proposals** (`vcs`, `git`, `git_native`, `merge.rs`) | `decisions.md#git`, `decisions.md#sync`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | The **phone / Android** build (mobile shell, jniLibs, foreground service) | `mobile-design.md`; `decisions.md#track-m` |
-| The **study assistant / agent** (`fm-agent*`, models, first enable, per-OS support) | **its own repo since 2026-10-18: github.com/formicaria-org/myrme** (code, plan, contract, evals), pinned by tag · **`decisions.md#agent`** — every ruling to then, with "read before" guards on `unavailable()`, `SystemMonitor::sample`, `die_with_supervisor`, the launch path and `models.toml`'s runtime keys · `model-selection-research-2026-07-24-grounded.md` (choosing a model) · `agent-simplification-plan-2026-10-09.md` · `phone-image-to-text-alternatives-2026-10-10.md` · `tools-plan-2026-10-11.md` · `groups-plan-2026-10-12.md` · `sources-2026-10-11.md` · *(superseded by its own delivery: `archive/ai-agents-plan-superseded-2026-09-02.md`)* |
+| The **study assistant / agent** (`fm-agent*`, models, first enable, per-OS support) | **its own repo since 2026-10-18: github.com/formicaria-org/myrme** (code, plan, contract, evals), pinned by tag; [its router](../../../myrme/docs/context/overview.md) and [release table](../../../myrme/docs/context/releases.md) in a sibling checkout · **`decisions.md#agent`** — every ruling to then, with "read before" guards on `unavailable()`, `SystemMonitor::sample`, `die_with_supervisor`, the launch path and `models.toml`'s runtime keys · `model-selection-research-2026-07-24-grounded.md` (choosing a model) · `agent-simplification-plan-2026-10-09.md` · `phone-image-to-text-alternatives-2026-10-10.md` · `tools-plan-2026-10-11.md` · `groups-plan-2026-10-12.md` · `sources-2026-10-11.md` · *(superseded by its own delivery: `archive/ai-agents-plan-superseded-2026-09-02.md`)* |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
 | **Calendars, Gmail, the meeting pass** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail}`, `fm_agent::meetings`) | `decisions.md#agent` (2026-10-09 entries: read-only by scope, secrets per machine, model points/Rust dates) · `known-issues.md` (their limits) · `outstanding.md` §2.16 |
 | **Undo, Recently deleted, Back** (`undo.svelte.ts`, `nav.svelte.ts`, `LAYERS` in `App.svelte`) | `decisions.md#ui` (2026-10-09: Back, undo, the menu-entry refinement) — a panel must join `LAYERS`, a write meant to be undoable goes through `undo.svelte.ts` |
-| **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
+| **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured, to 2026-07-24) · today's phone model: [Myrme's benchmark summary](../../../myrme/docs/research/2026-10-20-small-model-benchmark-summary.md) |
 | **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
 | **Adding** to what ships — a dependency, a file in the release archive, a relaxed guard, a changed default | [`../../CLAUDE.md`](../../CLAUDE.md)'s four questions, then the subject the addition touches. Nothing here checks a change against a prior ruling, so this one is on you |
 | **Papers, PDFs, annotations** (`fm-app/src/paper.rs`, the anchored `asset:` reference, the reader) | `papers-plan.md` — the direction, the four adversarial reviews it survived, and the owner's *separate app* ruling; then `decisions.md#data` |
@@ -96,7 +96,11 @@ fm-app     command library (commands.rs + dto.rs) + vaults.rs,
            behind ONE door: dispatch.rs  ← seam 3 (frontend ⇄ core)
 fm-serve   std-only HTTP server; a transport shell over fm_app::dispatch
 fm-cli     the `fm` binary (add/verify/manifest/backup/restore/check/set/show)
+fm-fetch   resumable, checksum-verified downloads (models, updates)
+fm-update  release versions + signed manifests: the trust root both shells link
+agent-serve  Myrme's assistant, built here (Myrme is pinned by tag; `myrme-bump`)
 ui/        Svelte 5 + Vite; renderers are generic + literal-free
+mobile/    the Tauri phone shell (excluded from the workspace) over the same fm-app
 ```
 
 - **Seam 1 (the insurance policy):** `fm-query` must never depend on

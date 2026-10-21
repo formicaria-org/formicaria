@@ -73,7 +73,7 @@ crates/fm-serve     an HTTP shell over dispatch, and the embedded UI
 crates/fm-cli       the `fm` binary; also what git invokes as the .md merge driver
 crates/fm-fetch     downloads checked against a pinned hash
 crates/fm-update    updating the app in place
-crates/fm-agent     the study assistant's deterministic orchestrator
+crates/agent-serve  the assistant's binary; the assistant itself is Myrme, linked by tag
 ui/                 Svelte 5 + Vite
 mobile/             the Tauri shell for Android and iOS
 docs/src/           this manual

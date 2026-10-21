@@ -78,10 +78,10 @@ The following require only a browser.
 | **Themes** | Colours and type are a CSS file in the vault, so a theme travels with the notes; which one is on is chosen per device. |
 | **Updating** | The app says when a newer version exists, then gets it, checks it and installs it, from Settings. The previous version is kept to go back to. |
 | **Search** | Full-text search over all notes via SQLite FTS5, with case and accent folding. |
-| **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target in a pane alongside the source. |
+| **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target, and Back returns to the source. In the *tiled* layout it opens in a pane alongside. |
 | **Whiteboards** | A note whose body is an Excalidraw scene. It remains a note, so it appears on the board and in the agenda like any other. |
 | **Maths and diagrams** | KaTeX and Mermaid are bundled; `$…$` and ` ```mermaid ` blocks render without network access. |
-| **Media** | Images, PDFs and video are stored once by content hash, referenced from notes and displayed inline. |
+| **Media** | Images, PDFs and video are stored once by content hash, referenced from notes and displayed inline. Drop a file in or paste a screenshot; on Android, share a picture to formicaria from another app. |
 | **Undo and Back** | Undo the last change (a deleted note, a date, a tag, a card moved, an edit) from the ↶ menu or with Ctrl+Z; bring back any note deleted in the last 30 days. Back walks the views and notes you opened, on a phone as in a browser. |
 
 ### Features requiring additional software
@@ -100,7 +100,7 @@ manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria on
 | **Media backup** — encrypted, deduplicated snapshots of your notes *and* their attachments | `restic`, and a repository per vault (the password is set in the app; `RESTIC_PASSWORD` overrides it) | Notes still back up on their own; media remains local |
 | **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
 | **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable. Exercised on Linux and Android; **on macOS and Windows this is compiled and type-checked but has never been run** | Settings shows the reason instead of a switch |
-| **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable | The assistant says it cannot see pictures rather than guessing at one |
+| **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable. A printed page is read first by a small OCR on Linux, macOS and Android | The assistant says it cannot see pictures rather than guessing at one |
 | **Transcribing recordings** — `/transcribe` on audio | nothing on Linux or Windows: a further ~170 MB it fetches when you turn the switch on (the Windows path is untried, like the rest of Windows). **No macOS build exists upstream** | The switch says no runtime is published for this platform |
 | **Meetings from your calendar** — upcoming meetings as notes, kept in step | your calendar's private iCal address, pasted once in Settings; computer only | Nothing is read |
 | **Gmail, read-only** — labelled mail as one note per conversation; the assistant proposes the meetings it fixes | your own Google Cloud client (a ten-minute set-up, walked through in the manual) and, for meetings in prose, the study assistant; computer only; exercised on Linux only | Nothing is read; invitations in calendars still arrive |
@@ -351,8 +351,8 @@ kept as working notes rather than marketing; the current state of each feature i
 ## Development
 
 ```sh
-pixi run ci        # test + test-agent-download + test-ui + check-ui + deny + checks
-                   # + third-party-check + docs — the single gate
+pixi run ci        # fmt + clippy + test + test-native-git + test-ui + check-ui + deny
+                   # + checks + third-party-check + docs — the single gate
 ```
 
 **`pixi run ci` locally *is* the gate.** Run it before you push. GitHub then runs the same gate on
@@ -370,7 +370,7 @@ run by hand, so the build you tested and the build that is published are made by
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
          fm-fetch · fm-update      (downloads, and updating the app in place)
-         fm-agent · fm-agent-run   (the study assistant; optional features)
+         agent-serve               (the assistant's binary; Myrme itself is linked by tag)
 ui/      Svelte 5 + Vite, compiled into the binary at build time
 docs/    mdBook manual
 vault/   notes (a separate git repository; ignored by this one)

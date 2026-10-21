@@ -24,6 +24,8 @@ that has not changed costs one download and touches nothing.
   anything you wrote in it are **never changed**.
 - **When a meeting is cancelled**, its note gains the tag `cancelled`. Notes are **never deleted**.
 - **Meetings that are already over are not added.**
+- **Two meetings at the same time** are marked **⚠ clash** in the Agenda's week, so an overlap does
+  not pass for one meeting after another. A meeting with no end time is drawn as an hour.
 - **A repeating meeting gets one note per occurrence** for the next two months. Later ones appear as
   time passes. If the organiser moves one week, that week's note moves. If they drop a week or move
   the whole series to another day, the dates it no longer has are tagged `cancelled`, never deleted.

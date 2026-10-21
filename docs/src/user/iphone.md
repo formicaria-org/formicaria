@@ -54,8 +54,8 @@ app's own storage, not in a folder you can browse. So set up **Back up** early, 
 rather than the day you need it. Once your notes have somewhere to go, the phone stops being the
 only place they exist, and a phone you replace or an app you remove costs you nothing.
 
-Backing up is under the **Back up** button: add a destination, and from then on backing up fetches
-whatever your other devices have written and sends yours. See
+Give your vault a destination in **Settings → Vaults & backup**; from then on the **Back up**
+button fetches whatever your other devices have written and sends yours. See
 [Backup & versioning](./backup.md).
 
 ## If it will not open

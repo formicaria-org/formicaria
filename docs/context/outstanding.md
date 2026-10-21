@@ -8,6 +8,10 @@ outcome into `known-issues.md` or `decisions.md` — the history lives in `sessi
 git. The first version of this file kept its fixed entries struck through, and within a day it
 had become a changelog with nothing to do in it. That is the failure mode to avoid.
 
+_Partly reconciled against v0.11.0 on 2026-10-21: §2.0c, §2.4, §2.8b, §2.17, §2.19, §2.21 and
+§2.31 checked against the code. The assistant's own queue is Myrme's (`docs/context/plan.md` in
+github.com/formicaria-org/myrme) since 2026-10-18._
+
 _Last reconciled: 2026-07-21 — **§2.5 corrected**: the discussion/proposal backend + its UI were
 rebuilt and committed (green under `cargo test --workspace`), so §2.5 no longer says "reverted"; only
 the **proposal create/diff seam** remains (which is also the AI-agent plan's Phase-2 dependency). A
@@ -358,8 +362,12 @@ no longer the final paragraph, at which point git silently stops parsing them wh
 still passes. The key order is fixed and **`SchemaRev` versions it** — changing the shape means
 bumping that.
 
+> **2026-10-21: removed since.** `preference.rs` went on 2026-10-10 with the rest of the code nothing
+> called (`3a9642c`, *the embedding module*; `agent-simplification-plan-2026-10-09.md`), and the
+> assistant is Myrme's now. Item 8 starts again from this record, in Myrme.
+
 **Item 8 started 2026-08-30 — the pure core of the preference memory:**
-`crates/fm-agent/src/preference.rs` holds `Preference`, cosine similarity, `Memory::nearest`
+`crates/fm-agent/src/preference.rs` held `Preference`, cosine similarity, `Memory::nearest`
 (k = 5, filtered per tool) and `Memory::prompt_block`, plus an `Embed` seam that `OpenAiStep` now
 implements against `llama-server`'s `/v1/embeddings`. Pure and model-free, like every other seam in
 that crate.
@@ -406,7 +414,7 @@ running app. Then the human half — corrected, said why, accepted; a second acc
 third rejected with a reason. **Rebuilding the dataset from `git` alone gave 3 rows across all three
 outcomes, 13/13 field checks passing**, including the pair that matters: the model's `LiFeP04` and
 the human's `LiFePO4` both recoverable, and the rejected plot transcription still readable although
-it never reached the branch. Fixtures and the measured results: `agents/bench/vision/`.
+it never reached the branch. Fixtures and the measured results: `agents/bench/vision/` (Myrme's repo since 2026-10-18).
 
 **Two extraction lessons for whoever writes the external tool** — both found by running it:
 - **Strip the trailer block before reading `%b` as the reason.** With no reason given, `%b` *starts*
@@ -476,6 +484,11 @@ the one M-numbered item still genuinely open, and it is recorded with the read v
 Photograph or screenshot a formula; get LaTeX in the note. The owner intends to **train the model
 and own the architecture**; this entry exists so the constraints found while surveying it are not
 re-derived later.
+
+> **2026-10-21: two premises below have moved.** The phone runs native runtimes from the APK's
+> `nativeLibraryDir` (llama.cpp and whisper, and since 0.9.7 Microsoft's ONNX Runtime, ~19 MB, for
+> Myrme's OCR — `ci/android-stage-onnxruntime.sh`), so a model need not run inside the WebView, and
+> ONNX Runtime is already in the APK. See also `transcription-specialists-grounded-2026-08-31.md` §4.
 
 **The licence constraint decides the design.** The target includes the phone, and Android has no
 subprocesses — so the model must run *inside* the WebView, i.e. ship inside an MIT app. That is
@@ -711,6 +724,8 @@ runner. Android's graph is byte-identical.
 observed; it cannot prove the next one does not exist.
 
 ### 2.8b The Windows and macOS launchers have never been executed
+*(2026-10-21: the files are now `packaging/launcher/Start formicaria.{sh,command,vbs}` and
+`Start formicaria (show messages).bat`; the paragraph below uses their old names.)*
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched
 from an unrelated working directory, from a path containing a space, and the note landed beside the
 app with `~/.config/formicaria/vaults.json` untouched. `Formicaria.command` is byte-identical below
@@ -953,25 +968,23 @@ Shipped in v0.6.4 and run on the owner's phone: one way to do each thing in the 
 the rule for who reads an image, a vision model as the phone's default, and a newer model offered
 after an update (`decisions.md#agent`, 2026-10-10; `agent-simplification-plan-2026-10-09.md`).
 
+> **2026-10-21:** the assistant is Myrme's since 2026-10-18 (its own repo; its plan is
+> `docs/context/plan.md` there), so model measurement, the phone's model and the developer route in
+> `agents/` are Myrme's queue. Removed here: measuring the 450M (the phone runs Qwen3.5-0.8B since
+> Myrme 0.7.0, measured against it — Myrme's `docs/research/2026-10-20-small-model-benchmark-summary.md`),
+> the engine following the app (`refresh_runtime_if_outdated` in `fm-serve/src/agent.rs`, Myrme 0.4.1)
+> and naming a device's Myrme (Settings → *This device's Myrme*, shipped in `be3b559`).
+
 Next, roughly in order:
-1. **Measure `lfm2.5-vl-450m` as a chat model** against `lfm2.5-1.2b`, which it replaced on the
-   phone and which is more than twice its size. Only its image reading was measured. If chat is
-   clearly worse, `lfm2.5-vl-1.6b` is the candidate (unmeasured; its image step may be slow).
-   `agents/bench/run.py`, one model at a time, never beside the running app.
-2. **The owner's own handwritten and photographed pages.** Every image measurement so far used
-   five typeset fixtures (`agents/bench/vision/`).
-3. **Accept an offer on a downloaded desktop copy**: the catalogue refresh and the next-launch
+1. **The owner's own handwritten and photographed pages.** Measurements so far used public pages
+   (Myrme's benchmark summary: 30 GNHK handwritten, 30 rendered typed) and five typeset fixtures
+   (Myrme's `agents/bench/vision/`) — none of the owner's.
+2. **Accept an offer on a downloaded desktop copy**: the catalogue refresh and the next-launch
    switch have only unit tests behind them (`known-issues.md`).
-4. **A computer's model engine should follow the app** the way the catalogue now does
-   (`known-issues.md`, same section).
-5. **A question about a picture in chat.** `/transcribe` is still the only thing that uses an image.
-6. **Renaming a device's word for Myrme in Settings** ("office desktop") — the rest of the plan's
-   naming half shipped 2026-10-18 (`decisions.md`, *the assistant is Myrme*).
-7. **Two commands with no button:** `clear_restic_password` and `clear_git_credential`. The owner
+3. **A question about a picture in chat.** `/transcribe` is still the only thing that uses an image.
+4. **Two commands with no button:** `clear_restic_password` and `clear_git_credential`. The owner
    has not said whether the Backup panel should offer them
    (`sessions/2026-10-10-stale-code-audit.md`).
-8. **The developer route in `agents/`** (a second search back end and second download path): keep
-   or remove is the owner's call, same audit.
 
 ### 2.18 After v0.6.5 — the quick row, the Android workflow, the updater (2026-10-11)
 
@@ -1009,8 +1022,6 @@ Next, roughly in order:
    variables, not the launcher somebody double-clicks.
 3. **See the page reload itself after *Restart*.** Unit-tested only. The owner's first install
    showed the old message, because the fix was written after it.
-4. **Why the caret overshot on the phone is still a diagnosis.** The fix (measure in a twin of the
-   textarea) worked; whether the phone's font-size setting was the cause was never confirmed.
 5. **The phone-test command has not run end to end.** It needs the token from
    `sh ci/phone-test-setup.sh`, or the owner running it with git's stored login.
 6. §2.18 items 2 to 4 and everything in §2.17 are still open.
@@ -1286,7 +1297,8 @@ by each table's own-language names. Limits: `known-issues.md` (*A label from any
 3. **Singapore**: no robot may read the site. A file from the Board, or one food at a time on a
    person's press, are the two ways left; the owner has chosen neither yet.
 4. **A label read from a photograph**: built 2026-10-13 for a computer (`decisions.md#agent`;
-   limits in `known-issues.md`). **Left: the phone**, whose model is unfit (2 packets of 9).
+   limits in `known-issues.md`). **Left: the phone**, whose model is not marked fit to read labels
+   (the 450M got 2 packets of 9; at Myrme 0.7.1 only `qwen3-vl-4b` carries `reads_labels`).
    The ways open: a larger model there (qwen3-vl-4b on its processor would take minutes; not
    measured), a model made for documents (PaddleOCR-VL read tables well but took 2½–4 minutes
    on the phone). The third way is half built the same day: the phone keeps the picture with
@@ -1353,8 +1365,8 @@ and traps: `known-issues.md`, *The editor*.
    `2649ef4`). Not said: which gestures were tried. Worth asking about the two the editor has no
    test for any more: the line being written staying above the keyboard, and a tap in a long
    note landing on its word.
-2. **Draw the rest** (stage 4): pictures and attachments, formulas, diagrams, tables, embedded
-   notes, callout badges, through `renderInto`.
+2. **Draw the rest** (stage 4): diagrams, tables, callout badges. (Pictures, recordings, embedded
+   notes and formulas are drawn since 0.10.0, `11ef5f0`.)
 3. **What becomes of the reading view** once the editor draws everything it does.
 4. **A plain quote cannot be made a callout from the app.** The *Callout* entry was removed on
    the owner's word (2026-10-11); a kind can be chosen only on what is already a callout. Either

@@ -53,13 +53,13 @@ trap, add one. Newest concerns first within each section.
 ## Study assistant — current gaps (2026-07-22; agent shipped on-device, see overview.md)
 
 - **`/research` on the phone covers 3 sources, not the general web (yet).** Mobile web search was
-  wired 2026-07-24 (`crates/fm-agent-run/src/websearch.rs`, `DirectSearch`): the phone can't run the
+  wired 2026-07-24 (`DirectSearch`, now Myrme's `crates/fm-agent-run/src/websearch.rs`): the phone can't run the
   desktop's `search-proxy.py`, so it does the HTTPS in-process (`ureq`/rustls) over three stable
   keyless APIs — **Wikipedia · arXiv · GitHub** — text-only, fail-soft per source. `agent.rs` sets
   `web_direct: true`. **Deliberately omitted: DuckDuckGo (general web)** — it needs brittle HTML
   scraping and blocks scrapers; adding it is the remaining step. (**The desktop searches in-process too**
   since 2026-09-02, when the launch path dropped its shell — so DuckDuckGo is a loss on *both*
-  now, not a desktop advantage. `pixi run search-proxy` + `--searxng-port 8888` remains as an
+  now, not a desktop advantage. Myrme's `pixi run search-proxy` + `--searxng-port 8888` remains as an
   explicit override that restores it.)
 - **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
   deferred; needs a cancel signal threaded to the in-flight model call.
@@ -76,11 +76,11 @@ trap, add one. Newest concerns first within each section.
      "your current draft." Larger change (new vault query for the host's open proposal), so not bundled
      with the history fix.
   - **Cross-device angle (owner, 2026-07-22):** the cycle is fully agent-/device-agnostic *mechanically*
-    (a round can be qwen on the laptop, the next lfm2.5 on the phone — proven by the cross-device
+    (a round can be qwen3-vl-4b on the laptop, the next Qwen3.5-0.8B on the phone — proven by the cross-device
     assertions in `a_user_iterates_with_the_agent_over_several_rounds_before_accepting`). But the phone
     model has a **smaller context window and weaker instruction-following**, so a thread that refines
     cleanly on the laptop can still regress mid-cycle on the phone, and alternating models can mix
-    formatting styles. `history_budget`/`ctx` are per-model in `models.toml`; the both-ends pin above
+    formatting styles. `ctx` is per-model in Myrme's catalogue (`crates/fm-agent-run/models.toml`); the both-ends pin above
     matters most on the phone's tighter budget.
 - **Deleting a first-class discussion root orphans its replies** (they keep a `thread_of` to a gone
   note). Pre-existing; per-message Delete now exists but there's no "delete the whole thread".
@@ -150,11 +150,6 @@ The gray-screen fix and its tests are in
   **What remains:** the window *inside* `pull` (between `repo.merge()` and its commit) still leaves
   `MERGE_HEAD` on a hard kill — deliberately, exactly as an interrupted `git merge` does. The
   difference is that the conflict surface now finds it, explains it, and can settle it.
-- **The phone's `fmblob` handler buffers whole blobs and honours no `Range`**
-  (`mobile/src-tauri/src/lib.rs`, the `blob_response` arm). Ruling 7's streaming/seeking path exists
-  only in `fm-serve/src/blob.rs`; the handler's own doc comment claims otherwise. On a device already
-  swapping 3 GB, opening a large blob is a multi-hundred-MB transient — i.e. an invitation to the
-  renderer kill described below.
 - **The assistant installs itself, and the desktop gaps this section described are closed**
   (2026-09-02, `decisions.md#agent`). `fm-serve` depends on `fm-agent-run/download`, `pixi run
   build` builds that crate, and the archive carries `agent-serve` + `models.toml`; support is
@@ -954,10 +949,6 @@ What stands between that and everyone relying on it is not one gap but several, 
 - **A version that is subtly wrong and noticed late** has no way back once the next update supersedes
   its backup; past that point going back means downloading an older release by hand, which
   `discard_an_index_from_the_future` makes safe.
-- **`models.toml` in `program/` is a no-op** on any machine that has enabled the assistant:
-  `manifest_path()` prefers `<config>/formicaria/tools/models.toml` forever, so a release cannot change
-  the catalogue for exactly the users who have models. Android sidesteps this by rewriting it from
-  `EMBEDDED_MANIFEST` on every start.
 - **The trust residual:** a CI-held signing key defends against transport tampering, not a compromised
   repository or pipeline.
 
@@ -1053,7 +1044,7 @@ note, invitations made meetings).
 
 ## Meetings found in email — the assistant's pass, limits (2026-10-09)
 
-`fm-agent-run/src/meetings.rs` → `fm_agent::meetings`; proposals via `create_proposal` `props` and
+Myrme's `fm-agent-run/src/meetings.rs` → `fm_agent::meetings`; proposals via `create_proposal` `props` and
 `propose_note`. Hermetic tests, plus the ignored `live_meetings` harness run against `qwen3-vl-4b` on
 the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept in the repo).
 
@@ -1117,13 +1108,8 @@ the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept
 
 - **A desktop browser has no text zoom**, and Android's WebView has one (the phone's *Font size*
   setting). Anything that copies a computed font size onto another element is right in every
-  measurement made here and can be wrong on the phone. `caretXY` was, for long notes: the editor
-  scrolled past the caret. It now measures height in a twin of the textarea itself
-  (`ui/src/lib/caret.ts`).
-- **Unverified at the time of writing:** that this was the cause. It is the explanation that fits
-  an error growing with distance down the note; nothing on the phone could be inspected.
-- **Trap:** the caret's *left* still comes from the styled copy (corrected by `undoubled`). It only
-  places menus, which `popup` then keeps on screen.
+  measurement made here and can be wrong on the phone. (The textarea's `caretXY`, which was, went
+  with the textarea when the one editor arrived on 2026-10-11, `9f62c72`.)
 
 ## The quick row above the keyboard — limits (2026-10-11)
 
@@ -1193,8 +1179,9 @@ and *there is one editor*.
   their words, bullets as dots, tick boxes that can be pressed, quotes, code blocks and rules.
   The line the cursor is on shows its marks. The note panel reaches it only through
   `editor/handle.ts`.
-- **Not drawn yet: pictures and attachments, formulas, diagrams, tables, embedded notes, callout
-  badges.** They show as their Markdown while editing and are drawn in the reading view.
+- **Since 0.10.0 it also draws pictures, recordings, embedded notes and formulas** once the cursor
+  leaves their line (`editor/livePreview.ts`, through the reading view's own renderer). **Not drawn
+  yet: diagrams, tables, callout badges** — they show as their Markdown while editing.
 - **On the owner's phone since 2026-10-11, and shipped in v0.6.9.** A build of `2649ef4` was
   installed by cable and the owner reported *"it works"*. Which of the things on the list were
   tried (suggestions and autocorrect, the quick row, a tap landing on its word, the caret above
@@ -1326,11 +1313,6 @@ and on a copy built from source.
 Built the same day it was found (`decisions.md`, *an update offers a newer assistant model*). What
 is left:
 
-- **A computer's model engine does not follow the app.** `provision` fetches the runtime only when
-  `llama-server` is missing, so a changed `runtime_url_*` pin never reaches a downloaded install.
-  Harmless until a new model needs a newer engine; then the offer would download weights the old
-  engine cannot load. The fix has the same shape as the catalogue's: notice the pin moved, and
-  include the engine in what the offer downloads.
 - **On a computer the new model starts at the next launch**, not at once: `fm-serve` keeps no handle
   on the running assistant (the same reason "off" applies at the next launch).
 - **Run on the phone, not on a downloaded desktop app.** The owner accepted the offer on the
@@ -1491,8 +1473,9 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
 
 `fm_agent_run::label`, `ui/src/lib/food/labelText.ts`, `shot.ts`; `decisions.md#agent`, 2026-10-13.
 
-- **Not on the phone.** Its model (`lfm2.5-vl-450m`) is unfit, measured; the picture is kept
-  and the form says why it is not read. Nothing here has run on a phone: the phone shell was compiled for Android
+- **Not on the phone.** Only a model the catalogue marks `reads_labels` is handed a label, and at
+  Myrme 0.7.1 that is `qwen3-vl-4b` alone — not the phone's Qwen3.5-0.8B (the 450M before it got 2
+  packets of 9); the picture is kept and the form says why it is not read. Nothing here has run on a phone: the phone shell was compiled for Android
   with the change (`cargo check --target aarch64-linux-android`), no more.
 - **Never taken through a real camera by me.** Driven end to end in a headless browser at 360
   and 320 px with Open Food Facts' photographs handed to the file input.
@@ -1628,13 +1611,13 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).
 - Optional mlua scripting hatch.
-- **v2:** CM6 live-preview editor, backlinks panel, watched inbox, OCR, video
-  posters, semantic search. (Forward note references + the sliding-pane trail
-  **shipped 2026-07-16**; only the *backlinks* half is still deferred, and it
-  needs a link index — see [plan.md](./plan.md) (Track C, Phase 3).)
-- **Calendar sync, whiteboard-in-a-note + PDF export, and the `Source`/local-model
-  ingest module** are *planned, with the design decided* — see
-  [plan.md](./plan.md) (Track S) rather than re-deriving them.
+- **v2:** watched inbox, video posters, semantic search, OCR of images for search (Myrme's OCR
+  reads printed pages for `/transcribe` only). (Shipped since this list was written: the CodeMirror
+  editor that renders as you write, v0.6.9; the *Linked from* backlinks panel, 2026-07-21, derived by
+  scanning — no link index.)
+- **Whiteboard PDF export and the `Source`/local-model ingest module** are *planned, with the design
+  decided* — see [plan.md](./plan.md) (Track S). (Calendars, read-only, shipped 2026-10-09; the
+  whiteboard-in-a-note shipped.)
 
 ## Historical / no longer relevant
 
@@ -2088,14 +2071,15 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
   `blob_response` (`mobile/src-tauri/src/lib.rs`). Older than 2026-10-18; no gate runs clippy there.
 
 - **Changing a `VaultAccess` method signature breaks the phone, and nothing local tells you.** The
-  trait lives in `crates/fm-agent-run/src/fmserve.rs` (a workspace member, so it compiles in `pixi
-  run ci`); its second implementation lives in `mobile/src-tauri/src/agent.rs`, in a crate
+  trait is Myrme's since 2026-10-18 (`fm_agent_run::fmserve`, in its `docs/context/contract.md`), so a
+  change arrives with a pin bump and compiles in `pixi run ci` through `fm-serve`; its second
+  implementation lives in `mobile/src-tauri/src/agent.rs`, in a crate
   **deliberately excluded from the workspace** so a contributor with no Android toolchain still gets
   a green gate. So `cargo test --workspace` compiles the trait and never the impl, and `pixi run ci`
   passes while the phone will not build. Demonstrated 2026-08-30: `792d819` added `origin: &Origin`
   to `create_proposal` and the mobile impl went unfixed for three commits, surfacing only when
-  someone actually built an APK. **After touching that trait, run `pixi run -e android
-  android-check`** (or a full `android-release`). The same hazard applies to any trait a workspace
+  someone actually built an APK. **After touching that trait — or after a `pixi run myrme-bump` —
+  run `pixi run -e android android-check`** (or a full `android-release`). The same hazard applies to any trait a workspace
   crate declares and the excluded mobile crate implements.
 
 - **Excalidraw reads `--border-radius-md` / `--border-radius-lg`, which `app.css` does not define**

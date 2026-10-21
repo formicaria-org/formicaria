@@ -104,8 +104,8 @@ the marks in with a word to type over. Bold and then italic gives both. **Ctrl+K
 here: it opens Settings, as it does everywhere in the app; the 🔗 button makes a link.
 All four can be changed in **Settings → Keyboard**.
 
-**In the editor a link works.** One press on a finished link opens it (another note opens beside
-this one); a double press puts the cursor in it to change it. A tick box is pressed in place.
+**In the editor a link works.** One press on a finished link opens it (another note opens in its
+place, and Back returns; in the *Tiled* layout it opens beside this one); a double press puts the cursor in it to change it. A tick box is pressed in place.
 
 **To link words you have already written**, select them and paste the address: they become the
 link's text.
