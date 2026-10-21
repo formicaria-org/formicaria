@@ -1,0 +1,6 @@
+name: Over time
+view: totals
+group: Health
+log: health
+add: health
+span: range

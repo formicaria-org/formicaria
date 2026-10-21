@@ -616,15 +616,158 @@ export interface TotalsDef {
   /** Which entries: the value of their `log` property. */
   log: string;
   /** Which of the closed set of add actions the group's add control opens. */
-  add: 'food' | 'workout' | 'body';
-  /** `plan` is the screen where a diet or a regime is chosen and followed. */
-  span: 'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards';
+  add: 'food' | 'workout' | 'body' | 'health';
+  /** `plan` is the screen where a diet or a regime is chosen and followed; `diary` and `month` are
+   *  the Health diary's (2026-10-22). */
+  span: 'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards' | 'diary';
   metrics: Metric[];
   slots: Slot[];
 }
 export interface ViewGroup {
   name: string;
   views: string[];
+}
+
+/** **What kind a Health tracker is**, read off the end of its key (`health.rs`'s `parse_key`). */
+export type TrackerKind =
+  | { kind: 'severity' }
+  | { kind: 'rating' }
+  | { kind: 'bother' }
+  | { kind: 'yesno' }
+  | { kind: 'count' }
+  | { kind: 'amount'; unit: string }
+  | { kind: 'score' };
+/** One thing a person tracks in the Health diary: a key on their Health template. */
+export type Tracker = { key: string; label: string } & TrackerKind;
+/** One day of the diary. A key absent from `values` was not recorded that day. */
+export interface HealthDay {
+  day: string;
+  id?: string;
+  values: Record<string, number>;
+  /** Written more than a day after the day it is about. */
+  late?: boolean;
+  /** The cycle's context set or cleared on this day: the person's words, or `none`. */
+  context?: string;
+}
+/** A span's counts for one tracker. Nothing here labels a day. */
+export interface HealthCount {
+  of: number;
+  recorded: number;
+  /** Days at or above 1. */
+  days: number;
+  /** Days at or above 2, for a severity: IHS's *moderate or severe*. */
+  moderate_or_severe?: number;
+  /** Values not counted: not a whole number the tracker's kind accepts. */
+  odd?: number;
+}
+/** A sentence a Health card carries, and whose. `nhs` marks the NHS website's own words. */
+export interface HealthSaid {
+  by: string;
+  text: string;
+  nhs?: boolean;
+}
+/** One way a Health card counts the diary (`guidance.rs`'s closed set). */
+export interface HealthCheck {
+  id: string;
+  label: string;
+  kind:
+    | 'kept'
+    | 'week_days'
+    | 'month_days'
+    | 'days_over'
+    | 'at_least'
+    | 'run'
+    | 'cycle_lengths'
+    | 'bleeding_days'
+    | 'cycle_spread'
+    | 'spotting_days'
+    | 'heavy_days'
+    | 'around_period';
+  keys?: string[];
+  keys_from?: string[];
+  value?: number;
+  window?: number;
+  min?: number;
+  max?: number;
+  at_or_over?: number;
+  max_by_age?: [number, number, number][];
+  basis: string;
+}
+export interface HealthCard {
+  id: string;
+  shelf: 'diary' | 'nose' | 'daily' | 'cycle' | 'own';
+  name: string;
+  rests_on: 'guideline' | 'consensus' | 'review' | 'definition' | 'own';
+  says: HealthSaid[];
+  urgent?: HealthSaid[];
+  disagree?: string;
+  sources: { by: string; title: string; url: string }[];
+  trackers: string[];
+  choose?: { id: string; label: string }[];
+  checks: HealthCheck[];
+  not_said: string[];
+}
+/** A check counted on a day: the person's count beside the body's number. */
+export interface HealthCounted {
+  id: string;
+  label: string;
+  basis: string;
+  value: number;
+  of: number;
+  recorded: number;
+  from: string;
+  to: string;
+  min?: number;
+  max?: number;
+  at_or_over?: number;
+  within?: boolean;
+  unchosen?: boolean;
+  /** The numbers behind the count: cycle lengths. */
+  values?: number[];
+  /** The cycles counted over; `left_out` says why one is not counted. */
+  cycles?: HealthCycle[];
+  /** Headache days outside every period's window. */
+  outside?: number;
+  /** Why the count is not set beside the number. */
+  not_compared?: string;
+}
+/** One cycle, first day to first day (`cycle.rs`). */
+export interface HealthCycle {
+  start: string;
+  length: number;
+  noted: number;
+  note: string;
+  left_out?: string;
+}
+export interface HealthFollowed {
+  card: string;
+  note: string;
+  since: string;
+  chosen: Record<string, string[]>;
+  checks: HealthCounted[];
+}
+export interface HealthGuidance {
+  nhs_credit: string;
+  cards: HealthCard[];
+  followed: HealthFollowed[];
+}
+/** One ISO week of one tracker. A mean is `sum / recorded`; a part week says how many days it had. */
+export interface HealthWeek {
+  /** The Monday it starts on. */
+  week: string;
+  of: number;
+  recorded: number;
+  days: number;
+  sum: number;
+}
+export interface HealthDays {
+  /** The Health template a new tracker is written into; null until something is tracked. */
+  template: string | null;
+  trackers: Tracker[];
+  days: HealthDay[];
+  counts: Record<string, HealthCount>;
+  /** Per tracker, its weeks, when asked for. */
+  weeks?: Record<string, HealthWeek[]>;
 }
 /** A sum, and how many of the day's entries carried the value at all. */
 export interface MetricSum {

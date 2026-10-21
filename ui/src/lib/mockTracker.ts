@@ -20,6 +20,12 @@ import type {
   FoodDetail,
   FoodPortion,
   PackStatus,
+  Tracker,
+  TrackerKind,
+  HealthDay,
+  HealthDays,
+  HealthCount,
+  HealthWeek,
 } from './types';
 import { addDays, today, whole } from './units';
 
@@ -57,6 +63,12 @@ const TRAINING: TotalsDef = {
   slots: [],
 };
 
+const HEALTH: TotalsDef = { log: 'health', add: 'health', span: 'diary', metrics: [], slots: [] };
+const HEALTH_GROUP: ViewGroup = {
+  name: 'Health',
+  views: ['Diary', 'Over time', 'Guidance'],
+};
+
 const BODY: TotalsDef = {
   log: 'body',
   add: 'body',
@@ -89,6 +101,9 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Week: { totals: { ...TRAINING, span: 'week' }, group: FITNESS_GROUP },
   Exercises: { totals: { ...TRAINING, span: 'cards' }, group: FITNESS_GROUP },
   Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },
+  Diary: { totals: HEALTH, group: HEALTH_GROUP },
+  'Over time': { totals: { ...HEALTH, span: 'range' }, group: HEALTH_GROUP },
+  Guidance: { totals: { ...HEALTH, span: 'plan' }, group: HEALTH_GROUP },
 };
 
 export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) => ({
@@ -686,4 +701,142 @@ export function setProperties(
   }
   x.updated = new Date().toISOString();
   return { previous };
+}
+
+// ── the Health diary (`health.rs`; `decisions.md#ui`, 2026-10-22) ────────────────────────────────
+
+/** As `health::parse_key`: what kind a tracker is, read off the end of its key. */
+const KIND_SUFFIXES: [string, TrackerKind][] = [
+  ['_0to3', { kind: 'severity' }],
+  ['_0to10', { kind: 'rating' }],
+  ['_0to100', { kind: 'bother' }],
+  ['_yes', { kind: 'yesno' }],
+  ['_count', { kind: 'count' }],
+  ['_doses', { kind: 'count' }],
+  ['_score', { kind: 'score' }],
+];
+const UNITS = ['min', 'ml', 'mg', 'g', 'mmhg', 'pct', 'c'];
+const STEM = /^[a-z][a-z0-9_-]{0,31}$/;
+const named = (stem: string) => STEM.test(stem) && !stem.endsWith('_');
+
+export function parseTrackerKey(key: string): { stem: string; kind: TrackerKind } | null {
+  for (const [suffix, kind] of KIND_SUFFIXES)
+    if (key.endsWith(suffix) && named(key.slice(0, -suffix.length)))
+      return { stem: key.slice(0, -suffix.length), kind };
+  const at = key.lastIndexOf('_');
+  if (at < 0) return null;
+  const [stem, unit] = [key.slice(0, at), key.slice(at + 1)];
+  return UNITS.includes(unit) && named(stem) ? { stem, kind: { kind: 'amount', unit } } : null;
+}
+
+const BOUNDS: Partial<Record<TrackerKind['kind'], [number, number]>> = {
+  severity: [0, 3],
+  rating: [0, 10],
+  bother: [0, 100],
+  yesno: [0, 1],
+  count: [0, Number.MAX_SAFE_INTEGER],
+};
+
+export function healthTrackers(notes: ObjectMeta[]): Tracker[] {
+  const found = new Map<string, Tracker>();
+  for (const n of notes) {
+    if (!n.tags.includes('template') || n.props.group !== 'Health') continue;
+    for (const key of Object.keys(n.props)) {
+      const p = parseTrackerKey(key);
+      if (!p || found.has(key)) continue;
+      const words = p.stem.replace(/_/g, ' ');
+      found.set(key, { key, label: words.charAt(0).toUpperCase() + words.slice(1), ...p.kind });
+    }
+  }
+  return [...found.values()].sort((a, b) => (a.key < b.key ? -1 : 1));
+}
+
+export function healthDays(
+  notes: ObjectMeta[],
+  args: { from: string; to: string; weeks?: boolean },
+): HealthDays {
+  const trackers = healthTrackers(notes);
+  const entries = notes
+    .filter((x) => isLog(x, 'health'))
+    .sort((a, b) => a.created.localeCompare(b.created));
+  const days: HealthDay[] = [];
+  const counts: Record<string, HealthCount> = Object.fromEntries(
+    trackers.map((t) => [
+      t.key,
+      {
+        of: 0,
+        recorded: 0,
+        days: 0,
+        ...(t.kind === 'severity' ? { moderate_or_severe: 0 } : {}),
+      },
+    ]),
+  );
+  for (let day = args.from; day <= args.to && days.length < 400; day = addDays(day, 1)) {
+    const here = entries.filter((x) => (x.start ?? '').slice(0, 10) === day);
+    const values: Record<string, number> = {};
+    for (const t of trackers) {
+      const c = counts[t.key];
+      c.of += 1;
+      const b = BOUNDS[t.kind];
+      for (const x of here) {
+        if (!(t.key in x.props)) continue;
+        const v = whole(x.props[t.key]);
+        if (v === null || (b && (v < b[0] || v > b[1]))) {
+          c.odd = (c.odd ?? 0) + 1;
+          continue;
+        }
+        const had = values[t.key];
+        values[t.key] =
+          had === undefined
+            ? v
+            : t.kind === 'count' || t.kind === 'amount'
+              ? had + v
+              : Math.max(had, v);
+      }
+      const v = values[t.key];
+      if (v === undefined) continue;
+      c.recorded += 1;
+      if (v >= 1) c.days += 1;
+      if (v >= 2 && c.moderate_or_severe !== undefined) c.moderate_or_severe += 1;
+    }
+    const first = here[0];
+    const context = here
+      .map((x) => x.props.cycle_context)
+      .find((c) => typeof c === 'string' && c.trim());
+    days.push({
+      day,
+      ...(first ? { id: first.id } : {}),
+      ...(typeof context === 'string' ? { context: context.trim() } : {}),
+      values,
+      ...(first && first.created.slice(0, 10) > addDays(day, 1) ? { late: true } : {}),
+    });
+  }
+  const template =
+    notes
+      .filter((n) => n.tags.includes('template') && n.props.group === 'Health')
+      .sort((a, b) => a.created.localeCompare(b.created))[0]?.id ?? null;
+  const out: HealthDays = { template, trackers, days, counts };
+  if (args.weeks) {
+    // As `fm_query::days::per_week`: ISO weeks from Monday, a part week counting only its days.
+    out.weeks = Object.fromEntries(
+      trackers.map((t) => {
+        const weeks: HealthWeek[] = [];
+        for (const d of days) {
+          const dow = (new Date(`${d.day}T12:00:00`).getDay() + 6) % 7;
+          const week = addDays(d.day, -dow);
+          let w = weeks[weeks.length - 1];
+          if (!w || w.week !== week)
+            weeks.push((w = { week, of: 0, recorded: 0, days: 0, sum: 0 }));
+          w.of += 1;
+          const v = d.values[t.key];
+          if (v === undefined) continue;
+          w.recorded += 1;
+          w.sum += v;
+          if (v >= 1) w.days += 1;
+        }
+        return [t.key, weeks];
+      }),
+    );
+  }
+  return out;
 }

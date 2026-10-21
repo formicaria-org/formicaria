@@ -11,9 +11,9 @@ rather see a note beside the view, choose **Tiled** under *Layout* in Settings.
 whatever you are looking at; pick one to open it. ✕, Escape, Back or a tap outside puts the list
 away.
 
-## The four groups
+## The groups
 
-The views are gathered into four groups, and they are all ways of looking at the same notes:
+The views are gathered into five groups, and they are all ways of looking at the same notes:
 
 | Group | What it is for | Its views |
 |---|---|---|
@@ -21,6 +21,7 @@ The views are gathered into four groups, and they are all ways of looking at the
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |
+| **Health** | a diary of what you track, looking back with a page for a doctor, cards to follow ([Health](./health.md)) | Diary, Over time, Guidance |
 
 - **A group's views are tabs** across the top of its window: in Tasks, *Board* and *Agenda*; in
   Food, *Day*, *Menu*, *Trends* and *Diet*.
@@ -30,7 +31,7 @@ The views are gathered into four groups, and they are all ways of looking at the
   settings. The menu of views lists the same
   places, by the same names, as the sidebar of a wide window.
 - **The ＋ is one control, and what it makes follows what you are looking at.** In Food it logs a
-  food; in Fitness, an exercise or an activity; anywhere else it opens the list of things to make — a note, a
+  food; in Fitness, an exercise or an activity; in Health, something new to track; anywhere else it opens the list of things to make — a note, a
   board, a discussion, a paper, and one entry for each of your
   [templates](./notes.md#templates).
 - **Back** returns to where you came from. Stepping between a group's own views does not add a

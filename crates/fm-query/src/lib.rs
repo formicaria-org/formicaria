@@ -7,6 +7,8 @@
 //! same contract with SQLite FTS5. Both satisfy one interface, so search is not
 //! special and storage stays swappable.
 
+pub mod days;
+
 use fm_model::{Id, Kind, Object, PropertyValue};
 use indexmap::IndexMap;
 use std::collections::BTreeMap;

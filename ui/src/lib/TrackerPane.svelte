@@ -22,6 +22,7 @@
   import Totals from '../renderers/Totals.svelte';
   import Trends from '../renderers/Trends.svelte';
   import SessionScreen from './training/SessionScreen.svelte';
+  import HealthScreen from './health/HealthScreen.svelte';
   import * as nav from './nav.svelte';
   import {
     logDays,
@@ -194,7 +195,9 @@
     // The plan screen asks for its own week (`plan/PlanScreen.svelte`).
     // These screens ask for what they show themselves.
     // …and so does the week, until one of its days is opened: then it is a day like any other.
-    if (!def || !view || ['plan', 'menu', 'cards'].includes(def.span)) return;
+    // The Health diary asks for its own days (`health_days`); it has no metrics to total.
+    if (!def || !view || ['plan', 'menu', 'cards'].includes(def.span) || def.add === 'health')
+      return;
     if (def.span === 'week' && !dayOpen) return;
     const mine = ++asked;
     try {
@@ -513,6 +516,8 @@
   <div class="screen">
     {#if !def}
       <p class="wait">Loading…</p>
+    {:else if def.add === 'health'}
+      <HealthScreen {def} {today} signal={feed} {addSignal} {onsaved} />
     {:else if def.span === 'plan'}
       {#await import('./plan/PlanScreen.svelte') then { default: PlanScreen }}
         <PlanScreen {def} {today} signal={feed} {onsaved} />

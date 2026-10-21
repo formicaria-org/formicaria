@@ -154,6 +154,9 @@ pub enum AddAction {
     Food,
     Workout,
     Body,
+    /// **Track something**: a tracker added to the person's Health template, since a Health day is
+    /// one note the diary writes as it is filled in (`decisions.md#ui`, 2026-10-22).
+    Health,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -177,6 +180,10 @@ pub enum Span {
     /// How each exercise is done, as its source wrote it: cards to read and to add to a session
     /// (`decisions.md#ui`, 2026-10-12, *how an exercise is done is its source's own words*).
     Cards,
+    /// One day of the Health diary: every tracker the person keeps, the same rows every day
+    /// (`decisions.md#ui`, 2026-10-22, *a fifth group, Health*). Its other views are `range`
+    /// (Over time: a month's grid or a bar a week) and `plan` (Guidance).
+    Diary,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -205,7 +212,9 @@ fn totals_def(file: &ViewFile) -> Result<TotalsDef, String> {
             "a totals view needs `log:` — one short lower-case word, like `food`".to_string()
         );
     }
-    if file.metrics.is_empty() {
+    // A Health view's values are the person's own trackers, read from their Health template
+    // (`health::trackers`), so it names none; every other totals view must.
+    if file.metrics.is_empty() && file.add != Some(AddAction::Health) {
         return Err("a totals view needs at least one entry under `metrics:`".to_string());
     }
     for m in &file.metrics {
@@ -213,7 +222,7 @@ fn totals_def(file: &ViewFile) -> Result<TotalsDef, String> {
             return Err(format!("`{}` cannot be a metric", m.key));
         }
     }
-    let add = file.add.ok_or("a totals view needs `add:` — food, workout or body")?;
+    let add = file.add.ok_or("a totals view needs `add:` — food, workout, body or health")?;
     Ok(TotalsDef {
         log: log.to_string(),
         add,
@@ -943,6 +952,9 @@ const SHIPPED: &[(&str, &str)] = &[
     ("training-week", include_str!("shipped/training-week.view")),
     ("training-exercises", include_str!("shipped/training-exercises.view")),
     ("training-plan", include_str!("shipped/training-plan.view")),
+    ("health-diary", include_str!("shipped/health-diary.view")),
+    ("health-over-time", include_str!("shipped/health-over-time.view")),
+    ("health-guidance", include_str!("shipped/health-guidance.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

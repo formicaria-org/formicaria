@@ -293,8 +293,10 @@ fn every_shipped_view_parses_and_can_be_drawn() {
     );
     let shipped: Vec<_> = all.iter().filter(|v| v.renderer != Some(Renderer::Shelf)).collect();
     // Day, Menu, Trends and Diet for food; Week, Exercises and Regime for training. A day's
-    // session is opened from the week and the volume is a line of it: neither is a view.
-    assert_eq!(shipped.len(), 7);
+    // session is opened from the week and the volume is a line of it: neither is a view. Diary,
+    // Over time and Guidance for health (2026-10-22): one to write in, one to look back, one of
+    // cards. Their trackers are the person's own, so they name no metric.
+    assert_eq!(shipped.len(), 10);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));
@@ -522,8 +524,10 @@ fn the_front_end_names_the_shipped_groups_and_views_as_the_files_do() {
     assert!(!shipped.is_empty());
     for v in &shipped {
         let group = v.group.as_deref().unwrap();
+        // A name with a space in it is a quoted key there (`'Over time': {`).
         assert!(
-            mock.contains(&format!("\n  {}: {{", v.name)),
+            mock.contains(&format!("\n  {}: {{", v.name))
+                || mock.contains(&format!("\n  '{}': {{", v.name)),
             "the in-memory backend has no view called {} — it is `{}` in the shipped file",
             v.name,
             v.name

@@ -607,6 +607,9 @@ const READ_ONLY: &[&str] = &[
     "list_views",
     "run_view",
     "log_days",
+    "health_trackers",
+    "health_days",
+    "health_guidance",
     "log_recent",
     "log_recipes",
     "log_routines",
@@ -2382,6 +2385,26 @@ fn dispatch_inner(
             };
             result.group = crate::views::group_of(&crate::views::with_shipped(listed), &name);
             json(result)
+        }
+        // ── The Health diary (`health.rs`; `decisions.md#ui`, 2026-10-22) ───────────────────────────
+        // What the person tracks — the tracker keys on their Health templates — and the diary over a
+        // span with its counts. Both read; the diary is written with `create_notes` and
+        // `set_properties` like every other log.
+        "health_trackers" => {
+            let mut g = lock()?;
+            json(crate::health::trackers(&g.store(scope)).map_err(err)?)
+        }
+        // The cards, and the followed ones counted on `day` (`guidance.rs`). Following is a
+        // `program: health` note written with `create_notes`; stopping gives it a `due`.
+        "health_guidance" => {
+            let mut g = lock()?;
+            json(crate::guidance::health_guidance(&g.store(scope), &s("day")).map_err(err)?)
+        }
+        "health_days" => {
+            let mut g = lock()?;
+            let weeks = args.get("weeks").and_then(Value::as_bool).unwrap_or(false);
+            let store = g.store(scope);
+            json(crate::health::health_days(&store, &s("from"), &s("to"), weeks).map_err(err)?)
         }
         // ── Logged entries (`log.rs`; `decisions.md#data`, 2026-10-11) ───────────────────────────
         // A span of days of one log, asked for by the **name** of a totals view: what each day's

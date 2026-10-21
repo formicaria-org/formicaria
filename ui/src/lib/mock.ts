@@ -32,6 +32,7 @@ import type {
 } from './types';
 import * as tracker from './mockTracker';
 import * as plan from './mockPlan';
+import { healthGuidance } from './health/mockGuidance';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
  *  is stored verbatim (the canonical form is what the server would write back),
@@ -2295,6 +2296,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const a = args as { view: string; from: string; to: string; rows?: boolean };
       return tracker.logDays(notes, a) as T;
     }
+    case 'health_trackers':
+      return tracker.healthTrackers(notes) as T;
+    case 'health_guidance':
+      return healthGuidance(notes, String(args.day)) as T;
+    case 'health_days':
+      return tracker.healthDays(notes, args as { from: string; to: string; weeks?: boolean }) as T;
     case 'log_recent': {
       const a = args as { view: string; slot?: string; q?: string; limit?: number };
       return tracker.logRecent(notes, a) as T;

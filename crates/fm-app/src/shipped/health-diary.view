@@ -1,0 +1,6 @@
+name: Diary
+view: totals
+group: Health
+log: health
+add: health
+span: diary

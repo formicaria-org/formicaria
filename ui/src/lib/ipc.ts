@@ -33,6 +33,9 @@ import type {
   LatestBackup,
   BackupRun,
   LogDays,
+  HealthDays,
+  HealthGuidance,
+  Tracker,
   RecentItem,
   ExerciseLibrary,
   Nutrients,
@@ -1350,6 +1353,13 @@ export const runView = (name: string) => invoke<ViewResult>('run_view', { name }
  *  The view is named, never described — no query crosses the wire. */
 export const logDays = (view: string, from: string, to: string, rows = false) =>
   invoke<LogDays>('log_days', { view, from, to, rows });
+/** What the person tracks in the Health diary (`health_trackers`). */
+export const healthTrackers = () => invoke<Tracker[]>('health_trackers', {});
+/** The Health cards, and the followed ones counted on `day` (`health_guidance`). */
+export const healthGuidance = (day: string) => invoke<HealthGuidance>('health_guidance', { day });
+/** The Health diary over a span, with its counts (`health_days`). */
+export const healthDays = (from: string, to: string, weeks = false) =>
+  invoke<HealthDays>('health_days', { from, to, weeks });
 /** What was logged before, most used in this slot first. */
 export const logRecent = (view: string, opts: { slot?: string; q?: string; limit?: number } = {}) =>
   invoke<RecentItem[]>('log_recent', { view, ...opts });
