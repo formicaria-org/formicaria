@@ -41,9 +41,11 @@ static FILE: Mutex<()> = Mutex::new(());
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct Settings {
-    /// **Your zone** (`decisions.md` 2026-10-23): a name (`Asia/Singapore`) or an offset (`+08:00`).
-    /// Every meeting is shown on this clock — a time written on another is moved onto it. Empty is
-    /// the computer's own zone. Kept under its old name so a saved setting is still read.
+    /// **This computer's zone, when it should not be the system's** (`decisions.md` 2026-10-23): a
+    /// name (`Asia/Singapore`) or an offset (`+08:00`). Empty — the default — follows the computer,
+    /// which is what the owner asked for: the agenda shows the device's time. A meeting read from a
+    /// calendar or an email is put on this clock, and the vault's store keeps it on the vault's own
+    /// (`vault.json`'s `time_zone`). Kept under its old name so a saved setting is still read.
     #[serde(default = "default_offset")]
     offset: String,
     #[serde(default)]
@@ -53,25 +55,10 @@ struct Settings {
     last_checked: u64,
 }
 
-/// Unset until the first start pins it to the computer's zone ([`pin_zone`]). (Until 2026-10-23
-/// this was a fixed `+08:00`, which a settings file written then still holds — right for Singapore.)
+/// Empty: the computer's own zone. (Until 2026-10-23 this was a fixed `+08:00`, which a settings
+/// file written then still holds — right for Singapore, and cleared in the panel by anyone else.)
 fn default_offset() -> String {
     String::new()
-}
-
-/// **The notes' zone is pinned, never followed** (the owner, 2026-10-23: *"if the user changes its
-/// laptop time, the agenda must reflect this"*). A note's stamp is a wall clock on this zone; if an
-/// empty setting followed the laptop, every stored time would silently change meaning the moment the
-/// laptop's zone did. So an empty setting is filled once, with the computer's zone at the time, and a
-/// laptop that later differs is shown in the panel (`system` beside `zone`) instead of obeyed.
-fn pin_zone() {
-    let Some(here) = system_zone() else { return };
-    let _ = edit(|s| {
-        if s.offset.trim().is_empty() {
-            s.offset = here;
-        }
-        Ok(())
-    });
 }
 
 /// The calendar's own zone, as the feed declares it (`X-WR-TIMEZONE`, Google's calendar setting).
@@ -234,7 +221,6 @@ fn pull_all(state: &crate::AppState) {
 /// The background reader: a first pass shortly after start, then once an [`INTERVAL`], keyed on the
 /// stored `last_checked` so a restart does not re-read what was read a minute ago.
 pub fn check_in_background(state: Arc<crate::AppState>) {
-    pin_zone();
     std::thread::spawn(move || {
         // Let the app finish starting first, the same courtesy the updater's check takes.
         std::thread::sleep(Duration::from_secs(8));

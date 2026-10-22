@@ -183,6 +183,25 @@ impl App {
     /// `open_external` a trait rather than a ladder.
     pub fn load_with(cold: ColdStart) -> Result<(Self, Vec<String>), String> {
         let vaults::VaultList { vaults, path: config, writable: config_writable } = vaults::load();
+        // **Anchor each vault's times to a clock, once** (`decisions.md` 2026-10-23, *every device
+        // shows the agenda on its own zone*). A vault with no `time_zone` in its `vault.json` was
+        // written on this device's clock, so that clock is stamped in, before the stores open and
+        // read it. The file then travels with the next commit, and from then on every device shows
+        // the vault's times on its own zone. A stated zone is never changed.
+        if let Some(here) = fm_core::zone::Zone::system().and_then(|z| z.name().map(str::to_string))
+        {
+            for cfg in &vaults {
+                match fm_core::descriptor::Descriptor::anchor_time_zone(&cfg.path, &here) {
+                    Ok(true) => {
+                        eprintln!("note: '{}' keeps its times on {here} (vault.json)", cfg.name)
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        eprintln!("note: could not record the time zone of '{}': {e}", cfg.name)
+                    }
+                }
+            }
+        }
         let mut store = MultiStore::open_with(
             &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
             cold,

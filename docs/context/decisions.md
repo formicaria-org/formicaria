@@ -12862,6 +12862,10 @@ read this entry. The owner has seen them and turned them down.
 
 ## 2026-10-23 — a time written in another zone is moved onto yours; "your zone" is a real zone, pinned once to the computer's `#data` `#agent` `#toolchain`
 
+> SUPERSEDED IN PART (2026-10-23, later, *every device shows the agenda on its own zone*): item 2's
+> pinned setting is reversed — the notes' clock is the vault's (`vault.json`), and the setting is
+> again this computer's, empty by default and following the computer.
+
 > Reverses in part *the feed parser sits in `fm-core`…* (2026-09-12: *"a source's `TZID` or `Z` is
 > resolved to the event's own wall-clock and stored naive"*) and *Phase 1's time-zone rule* in *mail
 > and your own calendars become notes on their own* (2026-10-09: a fixed, stated offset). The
@@ -12912,7 +12916,10 @@ stored times keep one meaning. The other half is **showing** them on the device'
 converting a time typed there back — at the UI's one stamp door (`stamp.ts`, 54 call sites) or its
 IPC layer, plus reminders, which are worked out on the server. The phone has to learn the notes'
 zone too (it has no calendar settings), which argues for keeping it in the vault rather than on
-one machine. Open in `outstanding.md` §2.16 and `known-issues.md`, for the owner to settle. The
+one machine. **Settled the same day by the owner:** *"same note in a different device with another
+default time should update the agenda accordingly, in essence the agenda shows the things in the
+time [zone] of the device the user uses"* — the notes' zone is the vault's, and every device shows
+on its own zone. Not built yet: `outstanding.md` §2.16, item 0. The
 internet check proposed there: the `Date` header of the Google requests the app already makes
 (the clock), and the calendar's own zone (shipped, item 6).
 
@@ -12925,3 +12932,49 @@ none, it carries one (`jiff-tzdb-platform`).
 **The four questions.** `#data`, `#agent`, `#toolchain`. Read: the `Stamp` ruling (2026-07-15), the
 feed parser (2026-09-12), mail and calendars (2026-10-09). Verdict: **contradicts** two standing
 rulings in part — reversed here, with banners on both.
+
+## 2026-10-23 (later) — every device shows the agenda on its own zone; the vault keeps the clock its times are on `#data` `#vault` `#seams`
+
+> Reverses item 2 of *a time written in another zone is moved onto yours* (this morning): the
+> setting is no longer pinned. Amends `Stamp`'s ruling (2026-07-15) in what a stored time *means* —
+> not in its format: no zone is ever written into a note.
+
+**The owner:** *"if the user changes its laptop time, the agenda must reflect this"*, then *"same
+note in a different device with another default time should update the agenda accordingly, in
+essence the agenda shows the things in the time [zone] of the device the user uses in"*, then *"now
+implement it"*.
+
+**Decision.**
+1. **A vault states the clock its times are written on**: `vault.json`'s `time_zone`
+   (`Asia/Singapore`, or an offset). A fact about the vault's content that git cannot supply — the
+   descriptor's own rule — and every device and collaborator must agree on it, so it lives there and
+   not in one machine's settings.
+2. **The store converts, at its one seam.** `FileStore::hydrate` reads a timed `start`/`due` off the
+   vault's clock onto the device's; `put` writes it back. Everything above — every view, the agenda,
+   reminders, logs, the assistant's proposals, the calendar and mail readers — works on the
+   device's time with no change of its own, on the desktop and on the phone. A day without a time
+   never moves. The device's zone is asked of the system each time (`jiff` caches it five
+   minutes), so a laptop that changes zone shows it within five minutes, without a restart.
+3. **Anchored once, never moved.** At start (`App::load_with`, both shells) a vault with no
+   `time_zone` gets this device's — the clock its existing times were written on. A stated zone is
+   never changed by the app.
+4. **`vault.json` is committed with the app's other files** (both git backends). It was not before,
+   which also meant `git_assets_max` and the review-record consent never reached a second clone.
+5. **The calendar setting is this computer's zone again**, empty by default = the system's. The
+   readers put a meeting on it; the store moves it onto the vault's clock.
+
+**Why the store and not the UI.** The UI has 54 call sites that read stamps and `fm-app` has 41
+places that compute with `start`/`due` (reminders, the agenda, logs) before anything is serialised;
+converting at `dispatch`'s output would have left all of those on the vault's clock. Under the
+store there is one read path (`hydrate`) and one write path (`put`), and the residual filter the
+pure engine applies runs over the converted objects, so a date filter means the device's date.
+
+**Kept out / known limits.** A proposal accepted on a device in another zone than the one that made
+it applies its times on the accepting device's clock. Pushed-down SQL never filters on dates, so it
+is unaffected. A paired tablet reads through the host, on the host's clock.
+
+**The four questions.** `#data`, `#vault`, `#seams`. Read: `Stamp` (2026-07-15), the descriptor's
+rule, this morning's entry. Verdict: **contradicts** this morning's item 2 (reversed here, bannered)
+and **extends** the descriptor by one field and the commit's owned files by one. Widens what ships:
+no new crate (`jiff` came this morning); one more file per vault in git history.
+

@@ -35,9 +35,14 @@ cancelled, and how many were left out and why.
 
 ## Your time zone
 
-Your meetings are written on one clock: *Your time zone*, a zone such as `Asia/Singapore` (or an
-offset such as `+08:00`). The first time formicaria starts it fills this in with your computer's
-zone, and after that it stays put — it does not change by itself when your computer does.
+The agenda shows every meeting on **your device's clock**, and follows it: change the time zone
+of your computer or phone, and within a few minutes the agenda shows the same meetings at the local
+hour. The same note shows at the right hour on every device — 17:00 on a laptop in Singapore, 10:00
+on one in Paris.
+
+That works because each notebook says which clock its times are kept on, in its `vault.json`
+(`"time_zone": "Asia/Singapore"`). formicaria writes it the first time it opens the notebook, using
+your device's zone then, and never changes it; it travels with your notes.
 
 A meeting given on another clock is moved onto yours. An event your calendar holds in Paris time,
 at 10:00 on 27 October, is shown at 17:00 in Singapore; the note still says which zone it was
@@ -45,9 +50,8 @@ written in. The same goes for an email that says *"10am Paris time"* or *"15:00 
 assistant proposes 17:00 and shows the email's own words beside it. A time with no zone written
 after it is taken as yours.
 
-If your computer is now in another zone, or your calendar is set to one, the panel says so. When
-you move for good, set your time zone to the new one. (Showing meetings on your computer's clock
-automatically while you travel is planned, not built yet.)
+*Time zone* under Settings → Calendars is normally left empty, which means "this device's". Fill it
+in only if your computer's own setting is wrong.
 
 ## Privacy
 

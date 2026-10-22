@@ -954,16 +954,11 @@ moved onto your zone, which is now a real zone, pinned (`decisions.md`, *a time 
 zone is moved onto yours*). The owner's accepted 10:00 was corrected by hand to 17:00.
 
 Next, roughly in order:
-0. **The agenda follows a laptop that changes zone** (the owner, 2026-10-23: *"if the user changes
-   its laptop time, the agenda must reflect this"*). Stored times stay pinned to the notes' zone;
-   *showing* them is what changes: convert at the UI's stamp door (`stamp.ts`, or `ipc.ts` for every
-   `start`/`due`/reminder `at` that carries a time) from the notes' zone to
-   `Intl.DateTimeFormat().resolvedOptions().timeZone`, and a typed time back. A day alone never moves.
-   **For the owner to settle first:** where the notes' zone lives — this machine's setting (as now;
-   the phone cannot see it) or the vault (`vault.json`, so every device agrees). Recommended: the
-   vault. **With it, the clock check:** the `Date` header of the Google requests the app already
-   makes says whether this computer's clock is off (needs `fm_fetch::get` to hand back that header);
-   the calendar's own zone is already compared (Settings → Calendars).
+0. **The clock check** (the owner, 2026-10-23: *"if internet is available a check that the time
+   makes sense could be useful"*). The agenda now follows each device's zone (`decisions.md`, *every
+   device shows the agenda on its own zone*); what is left is whether the device's **clock** is
+   right: the `Date` header of the Google requests the app already makes (needs `fm_fetch::get` to
+   hand back that header). The calendar's own zone is already compared (Settings → Calendars).
 1. **A deleted one-off meeting is not marked.** Google drops it from the feed rather than marking it
    cancelled, and only repeating series mark their missing dates (`calendar::reconcile`). Apply the
    same *marked, never deleted* rule to one-off meetings within the window, when the feed was read

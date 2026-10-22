@@ -285,7 +285,8 @@ fn commit_all_inner(
     }
     // The vault files `ensure_repo` writes travel with the repo and must be committed, or a
     // collaborator's clone arrives without the merge attribute.
-    for f in [".gitignore", ".gitattributes"] {
+    // And `vault.json`, which says which clock the notes' times are on (2026-10-23).
+    for f in [".gitignore", ".gitattributes", "vault.json"] {
         if vault.join(f).exists() && !blocked.contains(f) {
             index.add_path(Path::new(f)).map_err(map)?;
             ours.push(Path::new(f).to_path_buf());

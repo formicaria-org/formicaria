@@ -84,6 +84,15 @@ pub struct Descriptor {
     /// **What may be done with this vault's review record** — see [`Supervision`]. Absent config is
     /// the conservative default: collect locally, publish nothing.
     pub supervision: Supervision,
+
+    /// **The clock this vault's times are written on** (`Asia/Singapore`, or an offset such as
+    /// `+08:00`) — `decisions.md` 2026-10-23, *every device shows the agenda on its own zone*. A
+    /// note's `start: 2026-10-27T17:00` is a wall clock with no zone in it (`Stamp`'s ruling), so
+    /// something has to say which wall: here, because it is a fact about the vault's content that
+    /// git cannot supply, and every device and collaborator reading the vault must agree on it.
+    /// [`crate::file::FileStore`] reads a timed `start`/`due` on this clock and shows it on the
+    /// device's. `None` — a vault from before 2026-10-23 not yet anchored — converts nothing.
+    pub time_zone: Option<String>,
 }
 
 /// The largest attachment this app will ever put into git, whatever a vault asks for.
@@ -387,7 +396,40 @@ impl Descriptor {
             git_assets_max,
             proposal_limits,
             supervision,
+            time_zone: field("time_zone"),
         })
+    }
+
+    /// **Anchor a vault's times to `zone`, once.** A vault with no `time_zone` was written on
+    /// whatever clock its device kept — for a vault from before 2026-10-23, the clock of the device
+    /// that wrote it, which is the one opening it now. So the app stamps that clock in at start
+    /// (`fm-serve`, the phone shell) and never changes it afterwards: a stated `time_zone` is kept
+    /// even when it is not this device's, because that is exactly the case it exists for.
+    /// Returns whether it wrote.
+    pub fn anchor_time_zone(root: &Path, zone: &str) -> Result<bool, StoreError> {
+        if !root.exists() || Self::read(root)?.time_zone.is_some() {
+            return Ok(false);
+        }
+        let path = root.join("vault.json");
+        let mut v: serde_json::Value = match std::fs::read_to_string(&path) {
+            Ok(t) => serde_json::from_str(&t).map_err(|e| {
+                StoreError::Parse(format!("{} is not valid JSON: {e}", path.display()))
+            })?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::Value::Object(serde_json::Map::new())
+            }
+            Err(e) => return Err(StoreError::Io(format!("{}: {e}", path.display()))),
+        };
+        let Some(obj) = v.as_object_mut() else {
+            return Err(StoreError::Parse(format!("{}: not a JSON object", path.display())));
+        };
+        obj.insert("time_zone".into(), serde_json::Value::String(zone.to_string()));
+        let mut text =
+            serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
+        text.push('\n');
+        std::fs::write(&path, text)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))?;
+        Ok(true)
     }
 
     /// **Change one key in `vault.json`, leaving every other byte alone.**

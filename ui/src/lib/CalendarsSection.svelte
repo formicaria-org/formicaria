@@ -215,22 +215,27 @@
     </form>
 
     <label class="line offset">
-      <span>Your time zone</span>
-      <input bind:value={offset} placeholder={cal.system ?? 'Asia/Singapore'} size="16" />
+      <span>Time zone</span>
+      <input
+        bind:value={offset}
+        placeholder={cal.system ? `${cal.system} (this computer's)` : 'Asia/Singapore'}
+        size="24"
+      />
       <button
         disabled={busy || offset === cal.offset}
         onclick={() => run(() => calendarOffset(offset))}>Save</button
       >
     </label>
     <p class="muted small">
-      A zone such as Asia/Singapore, or an offset such as +08:00. Your meetings are written on this
-      clock: one your calendar or an email puts in another zone — "10am Paris time" — is moved onto
-      it, and the email's own words are kept beside it.
+      Leave it empty: meetings are shown on this computer's clock, and follow it when it changes.
+      Each notebook keeps its own times, so the same meeting shows at the right hour on every
+      device. A meeting your calendar or an email gives in another zone — "10am Paris time" — is
+      moved onto your clock, and the email's own words are kept beside it.
     </p>
-    {#if cal.system && !sameClock(cal.system, cal.zone)}
+    {#if cal.offset.trim() && cal.system && !sameClock(cal.system, cal.zone)}
       <p class="muted small warn" role="status">
-        This computer is now on {cal.system}, but your meetings are on {cal.zone}. If you have
-        moved, set your time zone to {cal.system}.
+        This computer is on {cal.system}, but meetings are put on {cal.zone} because it is set here. Clear
+        it to follow the computer.
       </p>
     {/if}
   {/if}

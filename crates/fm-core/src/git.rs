@@ -848,7 +848,12 @@ fn commit_all_inner(
     if !status.status.success() {
         return Err(failed("git status", &status));
     }
-    if status.stdout.is_empty() {
+    // A clean status is not "nothing to do" when this vault commits attachments: `blobs/` is
+    // gitignored, so a new attachment never makes the status dirty. Until 2026-10-23 that was hidden
+    // by an untracked `vault.json` keeping it dirty for ever; committing `vault.json` exposed it
+    // (`git_differential.rs`, *a backlog is committed in rising steps*). The libgit2 backend has no
+    // such early return.
+    if status.stdout.is_empty() && blobs_within_capped(vault, asset_cap)?.is_empty() {
         return Ok(false);
     }
     // **A conflicted path is never staged, and it never stops the rest.**
@@ -882,7 +887,9 @@ fn commit_all_inner(
     // The config files we author are included because we author them: `ensure_repo` writes
     // the ignore rules and the merge attribute, and they must travel.
     let mut owned: Vec<String> = paths.iter().filter_map(|p| relative(vault, p)).collect();
-    for f in [".gitattributes", ".gitignore", "manifest.json"] {
+    // `vault.json` too (2026-10-23): it says which clock the notes' times are on, and a clone that
+    // arrived without it would read every meeting on the wrong one.
+    for f in [".gitattributes", ".gitignore", "manifest.json", "vault.json"] {
         if vault.join(f).exists() {
             owned.push(f.to_string());
         }

@@ -61,6 +61,13 @@ pub struct FileStore {
     /// What this vault is for, from its `vault.json`. `None` when it has no descriptor —
     /// which is most vaults, and not a gap to fill in with something invented.
     description: Option<String>,
+    /// The clock this vault's times are written on (`vault.json`'s `time_zone`). A timed
+    /// `start`/`due` is read off it onto **this device's** clock in [`Self::hydrate`] and written
+    /// back onto it in `put`, so every view, reminder and command above this seam works on the
+    /// device's time, and the same note shows 17:00 in Singapore and 10:00 in Paris
+    /// (`decisions.md` 2026-10-23, *every device shows the agenda on its own zone*). `None`:
+    /// nothing is converted, as before.
+    zone: Option<crate::zone::Zone>,
     /// Every note file **this app** has written or deleted since the last commit.
     ///
     /// The auto-commit stages exactly these. Staging a directory instead meant that in a
@@ -179,6 +186,7 @@ impl FileStore {
             skipped: Vec::new(),
             name,
             description: desc.description,
+            zone: desc.time_zone.as_deref().and_then(|z| crate::zone::Zone::parse(z).ok()),
             written: Default::default(),
         })
     }
@@ -645,7 +653,19 @@ impl FileStore {
     fn hydrate(&self, content: &str) -> Result<Object, StoreError> {
         let mut obj = frontmatter::from_file(content).map_err(parse)?;
         obj.vault = self.name.clone();
+        if let Some((vault, device)) = self.clocks() {
+            shift(&mut obj, &vault, &device);
+        }
         Ok(obj)
+    }
+
+    /// `(the vault's clock, this device's)` when they differ — the only case with anything to do.
+    /// The device's is asked each time; `jiff` caches it for five minutes, so a laptop whose zone
+    /// changes shows the change within five minutes, with no restart, at the cost of a lookup.
+    fn clocks(&self) -> Option<(crate::zone::Zone, crate::zone::Zone)> {
+        let vault = self.zone.clone()?;
+        let device = crate::zone::Zone::system()?;
+        (vault != device).then_some((vault, device))
     }
 
     /// Every row, or only those whose `kind` is in `kinds`. (Was `load_all`, which several doc
@@ -704,6 +724,13 @@ impl FileStore {
     }
 }
 
+/// Move a note's timed `start`/`due` from one clock to another. A day without a time is the same day
+/// on every clock and is left alone — an all-day deadline never moves.
+fn shift(obj: &mut Object, from: &crate::zone::Zone, to: &crate::zone::Zone) {
+    obj.start = obj.start.map(|s| to.onto(s, from));
+    obj.due = obj.due.map(|s| to.onto(s, from));
+}
+
 impl Store for FileStore {
     fn get(&self, id: Id) -> Result<Option<Object>, StoreError> {
         let content: Option<String> = self
@@ -718,6 +745,17 @@ impl Store for FileStore {
     }
 
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
+        // A time arrives on this device's clock and is written on the vault's (see `zone`).
+        let shifted;
+        let obj = match self.clocks() {
+            Some((vault, device)) => {
+                let mut o = obj.clone();
+                shift(&mut o, &device, &vault);
+                shifted = o;
+                &shifted
+            }
+            None => obj,
+        };
         let content = frontmatter::to_file(obj).map_err(parse)?;
         let path = self.path_for(obj.id);
         self.refuse_if_stale(obj.id, &path)?;

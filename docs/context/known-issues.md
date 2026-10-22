@@ -1012,10 +1012,11 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
   zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is still carried as
   written. A note made before 2026-10-23 from a foreign `TZID` keeps its old time until the event's
   `SEQUENCE` moves (the rule above) — the owner's vault had none.
-- **The agenda does not yet follow a laptop that changes zone.** Stored times are pinned to your zone
-  (Settings → Calendars, filled once with the computer's); a laptop now in another zone is *named*
-  in that panel, but meetings are still shown on the pinned clock until the setting is changed.
-  Showing them on the device's zone is open (`outstanding.md` §2.16), and so is a clock check.
+- **Each device shows the agenda on its own zone** (2026-10-23): the vault keeps its times on
+  `vault.json`'s `time_zone` (stamped once, at start, with the device's), and `FileStore` converts.
+  Limits: a laptop's change of zone shows within five minutes (`jiff`'s cache); a proposal accepted
+  on a device in another zone than the one that made it takes the accepting device's clock; a
+  paired tablet sees the host's clock. A clock check is still open (`outstanding.md` §2.16).
 - **On opening, then every 5 minutes, while the app is open** (an unchanged feed is skipped by its hash). There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.
 - **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.
@@ -2615,4 +2616,21 @@ that logs on completion) before reaching for a retry.
 - **A flag changes the numbers of a card only when it is followed again**: a card already followed
   keeps the bounds on its note, except that a number a flag *hides* stops being measured at once.
 - **Not seen on a phone screen**: the new library shelves, badges and the watch section.
+
+## The disk fills, again and again (2026-10-23)
+
+**The trap.** The owner's laptop (a 211 GB partition) runs out of space every few weeks of work. On
+2026-10-23 it had **1.9 GB** left: a clean build died with *"No space left on device"*, and only
+because a release was being checked. Almost all of it was build output nobody needed:
+`target/debug` **38 GB** (every feature set, every test binary, incremental state), Myrme's
+`target/debug` **15 GB**, the phone shell's `mobile/src-tauri/target` **12 GB** (one tree per
+Android ABI) and Gradle's `gen/android/app/build` **3.7 GB**.
+
+**The fix is one command: `pixi run free-space`** (`ci/free-space.sh`). It deletes only regenerable
+output, in this checkout and the sibling Myrme one, and **keeps `target/release`**, which the
+desktop icon and the running assistant execute. The next `pixi run ci` is a cold build (minutes).
+
+**Before a heavy build** — `pixi run ci`, a release, a phone build, a clean clone — check `df -h /`.
+Under ~15 GB free, run `free-space` first. A clean clone also installs a second ~2.5 GB pixi
+environment; build from a `git worktree` with this checkout's environment instead.
 
