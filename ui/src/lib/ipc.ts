@@ -1432,6 +1432,8 @@ export type CalendarFeed = {
   label: string;
   host: string;
   vault: string;
+  /** The calendar's own zone, as its feed declares it (`X-WR-TIMEZONE`). */
+  zone?: string | null;
   last: {
     at: number;
     error?: string;
@@ -1448,7 +1450,12 @@ export type CalendarFeed = {
 };
 
 export type Calendars = {
+  /** Your zone as saved: a name (`Asia/Singapore`) or an offset (`+08:00`). */
   offset: string;
+  /** The zone in force — the clock every meeting is written on (`decisions.md` 2026-10-23). */
+  zone: string;
+  /** This computer's own zone, when it can be read. */
+  system: string | null;
   lastChecked: number;
   pulling: boolean;
   feeds: CalendarFeed[];
@@ -1461,7 +1468,7 @@ export const calendars = () => invoke<Calendars>('calendars');
 export const calendarAdd = (label: string, url: string, vault: string) =>
   invoke<Calendars>('calendar_add', { label, url, vault });
 export const calendarRemove = (label: string) => invoke<Calendars>('calendar_remove', { label });
-/** The wall clock meetings are shown in, as an offset such as `+08:00`. */
+/** The clock meetings are written on: a zone such as `Asia/Singapore`, or an offset such as `+08:00`. */
 export const calendarOffset = (offset: string) => invoke<Calendars>('calendar_offset', { offset });
 /** Read every calendar now rather than at the next hourly check. */
 export const calendarReadNow = () => invoke<Calendars>('calendar_pull');

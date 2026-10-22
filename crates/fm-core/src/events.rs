@@ -16,25 +16,26 @@
 //! nothing, and knows nothing about a `Store`. Fetching is somebody else's job too — there is no
 //! HTTP client in `fm-core` and there is not going to be one.
 //!
-//! # Why there is no timezone database here
+//! # Time zones: the time is moved onto yours
 //!
-//! [`Stamp`] is deliberately naive, and its own doc says why: *"A 14:30 meeting is at 14:30 where you
-//! are, and the file is the truth: pinning an offset would make the on-disk text drift with travel
-//! and DST."* That decides the hard part of reading a calendar before we start. A
-//! `DTSTART;TZID=Asia/Singapore:20260923T183000` is stored as 18:30 on 2026-09-23 — **the wall clock
-//! the publisher wrote, carried across unchanged**. No conversion happens, so no conversion can be
-//! wrong: the DST bugs that fill other projects' issue trackers (expanding a rule against UTC so it
-//! drifts an hour twice a year; a local time that does not exist on a spring-forward day; one that
-//! happens twice on a fall-back day) arise when converting *between* zones, and we never do.
+//! [`Stamp`] is deliberately naive: *"A 14:30 meeting is at 14:30 where you are, and the file is the
+//! truth."* Until 2026-10-23 that was read as *carry the publisher's wall clock across unchanged*, so
+//! `DTSTART;TZID=Europe/Paris:20261027T100000` became 10:00 on a Singapore agenda — seven hours early
+//! (`decisions.md` 2026-10-23, *a time written in another zone is moved onto yours*). Now the caller
+//! passes **your zone** ([`crate::zone::Zone`]) and a time written on another clock is read on yours,
+//! on its own day, by the zone database — so the DST traps the old note feared (a rule expanded
+//! against UTC, a fixed offset across a change) are avoided by the database rather than by not
+//! converting:
 //!
-//! The one case that genuinely needs an offset is a UTC timestamp — `20260923T103000Z` — because the
-//! venue's wall clock is not recoverable from it without knowing where the venue is. So the caller
-//! passes the offset it wants applied, explicitly, and **when it passes none the time is dropped and
-//! the day is kept**. That is deliberate: reading `Z` as though it were wall-clock time would show a
-//! Singapore event eight hours early, which is precisely the failure that sends someone to a venue at
-//! the wrong time. A missing time says "sometime that day", which is true. Nothing here reads the
-//! machine's local offset — `time`'s `local-offset` feature is not enabled in this workspace, and it
-//! is documented as failing in exactly the multi-threaded process `fm-serve` is.
+//! - a one-off event's `TZID` time is converted here;
+//! - a **series** keeps its written wall clock here, and each occurrence is converted on its own day
+//!   by [`crate::calendar`] ([`EventRecord::onto`]): a weekly 10:00 in Paris is 16:00 in Singapore in
+//!   summer and 17:00 in winter;
+//! - a `TZID` the database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is carried as
+//!   written, as before, and so is a floating time;
+//! - a UTC time (`Z`) is read with the offset your zone has on that day. **With no zone passed, its
+//!   time is dropped and its day kept**: reading `Z` as wall-clock time would show a Singapore event
+//!   eight hours early, and "sometime that day" is true.
 //!
 //! # The shape of the work
 //!
@@ -43,6 +44,7 @@
 //! **never inventing a field that is absent** — an event with no date is returned with no date, for
 //! the caller to drop. Guessing here is how a listing acquires a plausible wrong time.
 
+use crate::zone::Zone;
 use fm_model::Stamp;
 use time::{Date, Time, UtcOffset};
 
@@ -59,7 +61,8 @@ pub struct EventRecord {
     /// that times should be rewritten on a note somebody may have annotated.
     pub seq: Option<u32>,
     pub title: String,
-    /// Wall-clock, naive, as written by the publisher. See the module doc on why there is no offset.
+    /// Wall-clock, naive: on your clock when [`parse_ics`] was given one, else as written. A series
+    /// on another clock keeps its written times until expanded (see [`EventRecord::onto`]).
     pub start: Option<Stamp>,
     pub end: Option<Stamp>,
     pub location: Option<String>,
@@ -73,8 +76,8 @@ pub struct EventRecord {
     /// Verbatim source text for this event, so a later claim about it can be checked against what the
     /// publisher actually said rather than against a paraphrase.
     pub quote: String,
-    /// The `TZID` the start was written in, when one was. Not resolved (see the module doc) — but
-    /// carried, so a meeting written in another zone can say so instead of passing as local time.
+    /// The `TZID` the start was written in, when one was. Converted from when the database knows it
+    /// (see the module doc), and carried either way, so the note says which clock it was written on.
     pub tzid: Option<String>,
     /// `RECURRENCE-ID`, read as a stamp: this record overrides the occurrence of a repeating event
     /// (same `UID`) that was due on this day. Part of the identity — without it, a moved Tuesday
@@ -85,6 +88,9 @@ pub struct EventRecord {
     pub rrule: Option<String>,
     /// `EXDATE`s: occurrences the organiser removed from the series.
     pub exdates: Vec<Stamp>,
+    /// `(written on, read on)` for a series whose `TZID` is another clock than yours: its stamps are
+    /// still as written, and [`crate::calendar`] moves each occurrence onto yours on its own day.
+    pub onto: Option<(Zone, Zone)>,
 }
 
 impl EventRecord {
@@ -189,16 +195,15 @@ fn unescape_text(v: &str) -> String {
 ///
 /// Four shapes, and the fourth is the interesting one:
 /// - `VALUE=DATE:20260923` → an all-day stamp.
-/// - `TZID=Asia/Singapore:20260923T183000` → 18:30, carried across verbatim. The zone name is
-///   *deliberately not resolved*: the wall clock is what a person reads off a poster.
+/// - `TZID=Asia/Singapore:20260923T183000` → 18:30, as written. [`parse_ics`] moves it onto your
+///   zone once it knows whether the event repeats.
 /// - `20260923T183000` (floating, no zone) → the same, which is what "floating" means.
-/// - `20260923T103000Z` → UTC. Only here is an offset needed, and only here can it be absent: with
-///   `offset` given the time is shifted into that offset; with none, the **day is kept and the time
-///   dropped**, because a wrong time is worse than no time.
+/// - `20260923T103000Z` → UTC: with `here` given it is read on that clock, on its own day; with none,
+///   the **day is kept and the time dropped**, because a wrong time is worse than no time.
 pub(crate) fn parse_dt(
     value: &str,
     params: &[(String, String)],
-    offset: Option<UtcOffset>,
+    here: Option<&Zone>,
 ) -> Option<Stamp> {
     let v = value.trim();
     let is_date_only =
@@ -232,10 +237,10 @@ pub(crate) fn parse_dt(
     if !utc {
         return Some(Stamp::at(date, time));
     }
-    match offset {
-        // Shift the instant into the offset the caller asked for, letting the date roll.
-        Some(off) => {
-            let shifted = time::PrimitiveDateTime::new(date, time).assume_utc().to_offset(off);
+    match here {
+        // Read the instant on the caller's clock, letting the date roll.
+        Some(z) => {
+            let shifted = z.from_utc(time::PrimitiveDateTime::new(date, time));
             Some(Stamp::at(shifted.date(), shifted.time()))
         }
         // No offset to apply: say "that day" rather than a time we cannot justify.
@@ -263,10 +268,11 @@ fn url_in_text(text: &str) -> Option<String> {
 
 /// Read every `VEVENT` in an iCalendar document.
 ///
-/// `offset` is applied only to UTC (`Z`) timestamps — see [`parse_dt`]. Malformed events are skipped
+/// `here` is your zone: a `Z` time and a `TZID` time on another clock are read on it — see the module
+/// doc. Malformed events are skipped
 /// rather than failing the document: a feed with one bad entry is still worth the other forty-seven,
 /// and a publisher's mistake is not a reason to show a person nothing.
-pub fn parse_ics(text: &str, offset: Option<UtcOffset>) -> Vec<EventRecord> {
+pub fn parse_ics(text: &str, here: Option<&Zone>) -> Vec<EventRecord> {
     let mut out = Vec::new();
     let mut cur: Option<(EventRecord, Vec<String>)> = None;
     let mut description = String::new();
@@ -284,6 +290,19 @@ pub fn parse_ics(text: &str, offset: Option<UtcOffset>) -> Vec<EventRecord> {
                     rec.url = url_in_text(&description);
                 }
                 rec.quote = raw.join("\n");
+                // Written on another clock than yours: a one-off is moved now; a series keeps its
+                // written times and each occurrence is moved on its own day.
+                let from = rec.tzid.as_deref().and_then(Zone::named);
+                if let (Some(here), Some(from)) = (here, from) {
+                    if &from != here {
+                        if rec.rrule.is_some() {
+                            rec.onto = Some((from, here.clone()));
+                        } else {
+                            rec.start = rec.start.map(|s| here.onto(s, &from));
+                            rec.end = rec.end.map(|s| here.onto(s, &from));
+                        }
+                    }
+                }
                 // A record with no title is not an event anybody can read; everything else is kept.
                 if !rec.title.trim().is_empty() {
                     out.push(rec);
@@ -297,10 +316,10 @@ pub fn parse_ics(text: &str, offset: Option<UtcOffset>) -> Vec<EventRecord> {
         match name.as_str() {
             "SUMMARY" => rec.title = unescape_text(value).trim().to_string(),
             "DTSTART" => {
-                rec.start = parse_dt(value, &params, offset);
+                rec.start = parse_dt(value, &params, here);
                 rec.tzid = params.iter().find(|(k, _)| k == "TZID").map(|(_, v)| v.clone());
             }
-            "RECURRENCE-ID" => rec.recurrence_id = parse_dt(value, &params, offset),
+            "RECURRENCE-ID" => rec.recurrence_id = parse_dt(value, &params, here),
             "RRULE" => {
                 let v = value.trim().to_string();
                 if !v.is_empty() {
@@ -309,9 +328,9 @@ pub fn parse_ics(text: &str, offset: Option<UtcOffset>) -> Vec<EventRecord> {
             }
             // A comma-separated list, and the property may also repeat.
             "EXDATE" => {
-                rec.exdates.extend(value.split(',').filter_map(|v| parse_dt(v, &params, offset)))
+                rec.exdates.extend(value.split(',').filter_map(|v| parse_dt(v, &params, here)))
             }
-            "DTEND" => rec.end = parse_dt(value, &params, offset),
+            "DTEND" => rec.end = parse_dt(value, &params, here),
             "LOCATION" => {
                 let v = unescape_text(value).trim().to_string();
                 if !v.is_empty() {
@@ -349,7 +368,7 @@ pub fn parse_ics(text: &str, offset: Option<UtcOffset>) -> Vec<EventRecord> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use time::macros::{date, offset, time};
+    use time::macros::{date, time};
 
     #[test]
     fn a_folded_line_is_rejoined_before_anything_else_reads_it() {
@@ -362,9 +381,9 @@ mod tests {
     }
 
     #[test]
-    fn a_tzid_time_is_carried_across_as_the_wall_clock_the_publisher_wrote() {
-        // The zone is deliberately not resolved: 18:30 in Singapore is 18:30 on the poster, and
-        // `Stamp` is naive on purpose. No conversion means no conversion bug.
+    fn a_tzid_time_is_carried_across_as_written_when_no_zone_is_given() {
+        // With no zone of yours to read it on, 18:30 in Singapore stays 18:30 — as it was before
+        // 2026-10-23. The next test is what happens when one is given.
         let ics = "BEGIN:VEVENT\nSUMMARY:GDG Monthly Meetup\nDTSTART;TZID=Asia/Singapore:20260923T183000\nDTEND;TZID=Asia/Singapore:20260923T203000\nEND:VEVENT";
         let got = parse_ics(ics, None);
         assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 09 - 23), time!(18:30))));
@@ -398,8 +417,38 @@ mod tests {
         // 18:30Z at +08:00 is 02:30 the following day — the roll is the reason this is computed
         // rather than added to the hour.
         let ics = "BEGIN:VEVENT\nSUMMARY:A late webinar\nDTSTART:20260923T183000Z\nEND:VEVENT";
-        let got = parse_ics(ics, Some(offset!(+8)));
+        let got = parse_ics(ics, Some(&Zone::parse("+08:00").unwrap()));
         assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 09 - 24), time!(02:30))));
+    }
+
+    #[test]
+    fn a_time_written_on_another_clock_is_read_on_yours_on_its_own_day() {
+        // The owner's meeting, 2026-10-23: 10:00 in Paris on the 27th is 17:00 in Singapore (Paris
+        // leaves summer time on the 25th), not 10:00.
+        let sg = Zone::parse("Asia/Singapore").unwrap();
+        let ics = "BEGIN:VEVENT\nSUMMARY:Call\nDTSTART;TZID=Europe/Paris:20261027T100000\nDTEND;TZID=Europe/Paris:20261027T110000\nEND:VEVENT";
+        let got = parse_ics(ics, Some(&sg));
+        assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 10 - 27), time!(17:00))));
+        assert_eq!(got[0].end, Some(Stamp::at(date!(2026 - 10 - 27), time!(18:00))));
+        assert_eq!(got[0].tzid.as_deref(), Some("Europe/Paris"), "still recorded");
+        assert_eq!(got[0].onto, None);
+        // Your own zone, or one the database does not know: as written.
+        let own =
+            "BEGIN:VEVENT\nSUMMARY:Lab\nDTSTART;TZID=Asia/Singapore:20261027T100000\nEND:VEVENT";
+        assert_eq!(
+            parse_ics(own, Some(&sg))[0].start,
+            Some(Stamp::at(date!(2026 - 10 - 27), time!(10:00)))
+        );
+        let windows = "BEGIN:VEVENT\nSUMMARY:Sync\nDTSTART;TZID=W. Europe Standard Time:20261027T100000\nEND:VEVENT";
+        assert_eq!(
+            parse_ics(windows, Some(&sg))[0].start,
+            Some(Stamp::at(date!(2026 - 10 - 27), time!(10:00)))
+        );
+        // A series keeps its written times; the calendar moves each occurrence on its own day.
+        let weekly = "BEGIN:VEVENT\nSUMMARY:Weekly\nDTSTART;TZID=Europe/Paris:20261020T100000\nRRULE:FREQ=WEEKLY\nEND:VEVENT";
+        let got = parse_ics(weekly, Some(&sg));
+        assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 10 - 20), time!(10:00))));
+        assert_eq!(got[0].onto, Some((Zone::named("Europe/Paris").unwrap(), sg)));
     }
 
     #[test]

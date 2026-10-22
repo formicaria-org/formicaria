@@ -566,7 +566,14 @@ function mockMailStatus(): import('./ipc').MailStatus {
 let mockCalendarFeeds: import('./ipc').CalendarFeed[] = [];
 let mockCalendarOffset = '+08:00';
 function mockCalendars(): import('./ipc').Calendars {
-  return { offset: mockCalendarOffset, lastChecked: 0, pulling: false, feeds: mockCalendarFeeds };
+  return {
+    offset: mockCalendarOffset,
+    zone: mockCalendarOffset || 'Asia/Singapore',
+    system: 'Asia/Singapore',
+    lastChecked: 0,
+    pulling: false,
+    feeds: mockCalendarFeeds,
+  };
 }
 let mockUpdateProgress: {
   stage: 'manifest' | 'download' | 'unpack' | 'ready' | 'failed';

@@ -41,8 +41,9 @@ static FILE: Mutex<()> = Mutex::new(());
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct Settings {
-    /// The wall clock a `Z` time is shown in. Stated, because this process cannot read the
-    /// machine's own (see `fm_core::events`).
+    /// **Your zone** (`decisions.md` 2026-10-23): a name (`Asia/Singapore`) or an offset (`+08:00`).
+    /// Every meeting is shown on this clock — a time written on another is moved onto it. Empty is
+    /// the computer's own zone. Kept under its old name so a saved setting is still read.
     #[serde(default = "default_offset")]
     offset: String,
     #[serde(default)]
@@ -52,8 +53,46 @@ struct Settings {
     last_checked: u64,
 }
 
+/// Unset until the first start pins it to the computer's zone ([`pin_zone`]). (Until 2026-10-23
+/// this was a fixed `+08:00`, which a settings file written then still holds — right for Singapore.)
 fn default_offset() -> String {
-    "+08:00".into()
+    String::new()
+}
+
+/// **The notes' zone is pinned, never followed** (the owner, 2026-10-23: *"if the user changes its
+/// laptop time, the agenda must reflect this"*). A note's stamp is a wall clock on this zone; if an
+/// empty setting followed the laptop, every stored time would silently change meaning the moment the
+/// laptop's zone did. So an empty setting is filled once, with the computer's zone at the time, and a
+/// laptop that later differs is shown in the panel (`system` beside `zone`) instead of obeyed.
+fn pin_zone() {
+    let Some(here) = system_zone() else { return };
+    let _ = edit(|s| {
+        if s.offset.trim().is_empty() {
+            s.offset = here;
+        }
+        Ok(())
+    });
+}
+
+/// The calendar's own zone, as the feed declares it (`X-WR-TIMEZONE`, Google's calendar setting).
+fn feed_zone(ics: &[u8]) -> Option<String> {
+    let text = std::str::from_utf8(ics).ok()?;
+    let line = text.lines().find(|l| l.to_ascii_uppercase().starts_with("X-WR-TIMEZONE:"))?;
+    Some(line["X-WR-TIMEZONE:".len()..].trim().to_string()).filter(|z| !z.is_empty())
+}
+
+/// The zone in force: the setting, or the computer's when it is empty — its name, as the assistant
+/// and the panel read it.
+fn effective(s: &Settings) -> String {
+    match s.offset.trim() {
+        "" => system_zone().unwrap_or_else(|| "UTC".into()),
+        z => z.to_string(),
+    }
+}
+
+/// The computer's own zone by name (`Asia/Singapore`), when it can be read.
+fn system_zone() -> Option<String> {
+    fm_core::zone::Zone::system().and_then(|z| z.name().map(str::to_string))
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -69,6 +108,10 @@ struct Feed {
     /// while a new day still gets its pass (repeats are laid out 60 days ahead of *today*).
     #[serde(default)]
     seen: String,
+    /// The calendar's own zone (`X-WR-TIMEZONE`), from its last read: shown when it is not the
+    /// notes' zone, the third clock the owner named (2026-10-23).
+    #[serde(default)]
+    zone: Option<String>,
 }
 
 fn path() -> Option<PathBuf> {
@@ -96,9 +139,9 @@ fn edit<T>(f: impl FnOnce(&mut Settings) -> Result<T, String>) -> Result<T, Stri
     Ok(out)
 }
 
-/// The person's stated wall clock, shared with the mail reader: one setting, one answer.
+/// The person's zone, shared with the mail reader: one setting, one answer.
 pub fn offset() -> String {
-    load().offset
+    effective(&load())
 }
 
 fn now() -> u64 {
@@ -115,6 +158,10 @@ fn host_of(url: &str) -> String {
 fn public(s: &Settings) -> Value {
     json!({
         "offset": s.offset,
+        // What is in force, and the computer's own: the panel shows the second when they differ,
+        // and the assistant reads the first (Myrme, `VaultAccess::zone`).
+        "zone": effective(s),
+        "system": system_zone(),
         "lastChecked": s.last_checked,
         "pulling": PULLING.load(Ordering::SeqCst),
         "feeds": s.feeds.iter().map(|f| json!({
@@ -122,6 +169,7 @@ fn public(s: &Settings) -> Value {
             "host": host_of(&f.url),
             "vault": f.vault,
             "last": f.last,
+            "zone": f.zone,
         })).collect::<Vec<_>>(),
     })
 }
@@ -135,13 +183,19 @@ fn pull_all(state: &crate::AppState) {
     let mut results = Vec::new();
     for f in &s.feeds {
         let mut seen = f.seen.clone();
+        let mut zone = f.zone.clone();
         let outcome = fm_fetch::get(&f.url, LIMIT).map_err(|e| e.to_string()).and_then(|bytes| {
-            let stamp =
-                format!("{}|{}|{}", fm_core::blob::sha256_hex(&bytes), now() / 86_400, s.offset);
+            zone = feed_zone(&bytes).or(zone.take());
+            let stamp = format!(
+                "{}|{}|{}",
+                fm_core::blob::sha256_hex(&bytes),
+                now() / 86_400,
+                effective(&s)
+            );
             if stamp == f.seen {
                 return Ok(None);
             }
-            let args = json!({ "vault": f.vault, "source": f.label, "offset": s.offset });
+            let args = json!({ "vault": f.vault, "source": f.label, "zone": effective(&s) });
             let out =
                 fm_app::dispatch("calendar_sync", &args, &bytes, &state.app, &crate::Desktop)?;
             let v =
@@ -159,15 +213,16 @@ fn pull_all(state: &crate::AppState) {
             // The fetch error names the URL, and the URL is the secret — so only the host is kept.
             Err(e) => Some(json!({ "at": now(), "error": e.replace(&f.url, &host_of(&f.url)) })),
         };
-        results.push((f.label.clone(), last, seen));
+        results.push((f.label.clone(), last, seen, zone));
     }
     let _ = edit(|cur| {
-        for (label, last, seen) in results {
+        for (label, last, seen, zone) in results {
             if let Some(f) = cur.feeds.iter_mut().find(|f| f.label == label) {
                 if let Some(last) = last {
                     f.last = Some(last);
                 }
                 f.seen = seen;
+                f.zone = zone;
             }
         }
         cur.last_checked = now();
@@ -179,6 +234,7 @@ fn pull_all(state: &crate::AppState) {
 /// The background reader: a first pass shortly after start, then once an [`INTERVAL`], keyed on the
 /// stored `last_checked` so a restart does not re-read what was read a minute ago.
 pub fn check_in_background(state: Arc<crate::AppState>) {
+    pin_zone();
     std::thread::spawn(move || {
         // Let the app finish starting first, the same courtesy the updater's check takes.
         std::thread::sleep(Duration::from_secs(8));
@@ -220,7 +276,7 @@ pub fn route(
             s.feeds.retain(|f| f.label != req.label);
             Ok(())
         }),
-        "/api/calendar_offset" => fm_app::commands::parse_offset(&req.offset).and_then(|_| {
+        "/api/calendar_offset" => fm_app::commands::parse_zone(&req.offset).and_then(|_| {
             edit(|s| {
                 s.offset = req.offset.trim().to_string();
                 Ok(())
@@ -273,7 +329,7 @@ fn add(req: &Req, state: &crate::AppState) -> Result<(), String> {
         if s.feeds.iter().any(|f| f.label == label) {
             return Err(format!("there is already a calendar called '{label}'"));
         }
-        s.feeds.push(Feed { label, url, vault, last: None, seen: String::new() });
+        s.feeds.push(Feed { label, url, vault, last: None, seen: String::new(), zone: None });
         // Read the new one at the next tick rather than waiting out the interval.
         s.last_checked = 0;
         Ok(())
@@ -283,6 +339,13 @@ fn add(req: &Req, state: &crate::AppState) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_calendars_own_zone_is_read_from_its_header() {
+        let ics = b"BEGIN:VCALENDAR\r\nX-WR-CALNAME:Personal\r\nX-WR-TIMEZONE:Asia/Singapore\r\nEND:VCALENDAR\r\n";
+        assert_eq!(feed_zone(ics).as_deref(), Some("Asia/Singapore"));
+        assert_eq!(feed_zone(b"BEGIN:VCALENDAR\nEND:VCALENDAR\n"), None);
+    }
 
     /// **The address never reaches a client.** Searched across the whole serialised answer, so a
     /// field somebody adds later without thinking is caught too.
@@ -298,6 +361,7 @@ mod tests {
                 vault: "notes".into(),
                 last: Some(json!({ "error": "x" })),
                 seen: String::new(),
+                zone: None,
             }],
             last_checked: 0,
         };

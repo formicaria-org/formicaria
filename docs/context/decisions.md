@@ -7914,6 +7914,9 @@ but its pane can clip it (`known-issues.md`).
 
 ## 2026-09-12 — the feed parser sits in `fm-core` beside the importer, and Track S #2's `curl` clause is reversed `#toolchain` `#seams`
 
+> SUPERSEDED IN PART (2026-10-23, *a time written in another zone is moved onto yours*): a `TZID`
+> or `Z` time is no longer carried across as the publisher's wall clock; it is converted into your zone.
+
 **The reversal, written before the code** (`CLAUDE.md`'s four questions). `plan.md`'s Track S #2
 designed ICS→notes with two clauses that no longer hold: *"No TLS in `fm-serve` → **shell out to
 `curl`** (add to pixi; **zero new Rust deps**)"*, and a CLI verb, `fm ics pull <url|path>`.
@@ -8193,6 +8196,9 @@ check. The check that failed on Dependabot's own commit stays on that commit and
   it up once rebased onto a `main` that has it (`@dependabot rebase`).
 
 ## 2026-10-09 — mail and your own calendars become notes on their own; the person only answers proposals `#agent` `#data` `#vault`
+
+> SUPERSEDED IN PART (2026-10-23, *a time written in another zone is moved onto yours*): Phase 1's
+> fixed stated offset is now a zone (a name or an offset), filled once with the computer's own.
 
 **The ask.** Agenda items arrive by email (Gmail now, Outlook later). The owner wants meetings and
 tasks to appear, and to move when a later email moves them, **without doing anything** — the only
@@ -12853,3 +12859,69 @@ alone. All three were removed.
 and *A note's header is its title and one ＋*. Verdict: **permitted**. It is styling only: no note
 changes, and nothing new ships. Before adding indentation, folding or an outline to a note's text,
 read this entry. The owner has seen them and turned them down.
+
+## 2026-10-23 — a time written in another zone is moved onto yours; "your zone" is a real zone, pinned once to the computer's `#data` `#agent` `#toolchain`
+
+> Reverses in part *the feed parser sits in `fm-core`…* (2026-09-12: *"a source's `TZID` or `Z` is
+> resolved to the event's own wall-clock and stored naive"*) and *Phase 1's time-zone rule* in *mail
+> and your own calendars become notes on their own* (2026-10-09: a fixed, stated offset). The
+> `Stamp` ruling (2026-07-15) is **unchanged**: no zone is ever written into a note.
+
+**What went wrong (the owner, 2026-10-23).** An email said *"Tuesday 27th at 10am Paris time"*. The
+assistant proposed `2026-10-27T10:00`, the owner accepted it, and the agenda showed 10:00 — on a
+Singapore laptop with a Singapore calendar. The meeting is at **17:00** there: Paris leaves summer
+time on 25 October, so it is UTC+1 on the 27th. An earlier "16:30 Singapore time" had come out right
+only because Singapore is where the laptop is. The owner: *"we need to adjust for: laptop time zone,
+the time zone in the calendar and the one of the meeting."* The calendar reader had the same hole:
+an event written `DTSTART;TZID=Europe/Paris:20261027T100000` was put at 10:00 too.
+
+**Decision.**
+1. **A note's stamp stays naive and means your clock** — `Stamp`'s own words, *"14:30 means 14:30
+   where you are"*. What changes is that a time **written on another clock is moved onto yours when
+   it is read**, instead of being carried across as though it were yours.
+2. **"Your zone" is one setting**, Settings → Calendars (the field that was *offset*), shared by the
+   calendar reader, the mail reader and the assistant. It takes a zone name (`Asia/Singapore`), which
+   follows its own daylight-saving rules, or an offset (`+08:00`) as before. **It is pinned, never
+   followed**: an empty setting is filled once, at start, with the computer's own zone (read through
+   `jiff`, which reads `/etc/localtime`, the Windows registry or Android's tzdata safely in a
+   threaded process — the reason `time`'s `local-offset` was never enabled). Following the laptop
+   would silently change the meaning of every stored time the moment its zone changed.
+6. **Three clocks are compared and shown** (Settings → Calendars): the notes' zone, the computer's
+   (`system`) and each calendar's own (`X-WR-TIMEZONE`, read from the feed already fetched — no new
+   request). When the computer's differs, the panel says so and names the zone to switch to.
+3. **The meeting's zone is read from the email by Rust** (Myrme's `fm_agent::zone`), never by the
+   model: a zone written **right after a time** — a place and "time" (*Paris time*, *ora italiana*),
+   an abbreviation (`CET`, `SGT`, `PT`), an offset (`UTC+2`). A time with no zone written stays as
+   written: the writer's clock cannot be known, and a guess is how a meeting moves by hours. The
+   assistant's box keeps what the email said: *17:00 (10:00 Paris time)*.
+4. **A calendar event's `TZID` is converted** from that zone into yours, on the event's own day. A
+   `TZID` the zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is carried
+   as written, as before; `ics_time_zone` still records it.
+5. A `Z` time and an email's sent time are shifted by your zone's offset **on that day**, not by a
+   fixed one.
+
+**Why the 2026-09-12 reasoning no longer holds.** It argued that no conversion means no conversion
+can be wrong. But the conversion it skipped is the one the person needs: the meeting is at 17:00 on
+their clock whatever the file says. The DST bugs it cited come from converting by fixed offsets or
+by hand; a zone database is how they are avoided.
+
+**Asked the same day, and not yet built: the agenda follows the laptop.** The owner, mid-change:
+*"if the user changes its laptop time, the agenda must reflect this (also if internet is available a
+check that the time makes sense could be useful)"*. Pinning (item 2) is the half that is safe now:
+stored times keep one meaning. The other half is **showing** them on the device's current zone, and
+converting a time typed there back — at the UI's one stamp door (`stamp.ts`, 54 call sites) or its
+IPC layer, plus reminders, which are worked out on the server. The phone has to learn the notes'
+zone too (it has no calendar settings), which argues for keeping it in the vault rather than on
+one machine. Open in `outstanding.md` §2.16 and `known-issues.md`, for the owner to settle. The
+internet check proposed there: the `Date` header of the Google requests the app already makes
+(the clock), and the calendar's own zone (shipped, item 6).
+
+**Kept out.** Reading a zone anywhere but right after a time. Windows zone names in a `TZID`.
+
+**Does it widen what ships? Yes:** one crate, **`jiff`** (MIT OR Unlicense), linked by `fm-core` and
+by Myrme's `fm-agent`. Its default features read the system's zone database; on Windows, which has
+none, it carries one (`jiff-tzdb-platform`).
+
+**The four questions.** `#data`, `#agent`, `#toolchain`. Read: the `Stamp` ruling (2026-07-15), the
+feed parser (2026-09-12), mail and calendars (2026-10-09). Verdict: **contradicts** two standing
+rulings in part — reversed here, with banners on both.

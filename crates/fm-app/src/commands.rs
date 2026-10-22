@@ -2646,24 +2646,22 @@ pub struct CalendarReport {
 /// moves an existing one, a cancellation marks it. **No model and no network here** — the caller
 /// fetched the bytes; this is `decisions.md`'s deterministic half (2026-10-09).
 ///
-/// `offset` is the wall clock a UTC (`Z`) time is shown in, and the clock "today" is read in. The
-/// machine's own offset cannot be read in this process (see `fm_core::events`), so it is the person's
-/// stated setting.
+/// `zone` is the person's own clock (their setting, or the computer's): a `Z` time, or one written in
+/// another `TZID`, is read on it, and "today" is its day (`decisions.md` 2026-10-23).
 pub fn calendar_sync(
     store: &mut dyn Store,
     vault: &str,
     source: &str,
     ics: &str,
-    offset: time::UtcOffset,
+    zone: &fm_core::zone::Zone,
 ) -> Result<CalendarReport, StoreError> {
-    let records = fm_core::events::parse_ics(ics, Some(offset));
+    let records = fm_core::events::parse_ics(ics, Some(zone));
     let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
     let rows = store.query(&q)?.rows;
     // Matched within the destination vault only: the same invite in a second vault is that
     // audience's own note, and moving it from here would reach across an audience boundary.
     let existing = fm_core::calendar::index(rows.iter().filter(|o| o.vault == vault));
-    let now = OffsetDateTime::now_utc().to_offset(offset);
-    let plan = fm_core::calendar::reconcile(&records, &existing, source, now.date());
+    let plan = fm_core::calendar::reconcile(&records, &existing, source, zone.today());
     for mut note in plan.create {
         // `MultiStore::put` routes on `vault`; empty would file the meeting into the default vault.
         note.vault = vault.to_string();
@@ -2676,25 +2674,16 @@ pub fn calendar_sync(
     Ok(CalendarReport { vault: vault.into(), source: source.into(), counts: plan.report })
 }
 
-/// `+08:00` / `-05:30` / `Z` → an offset. Anything else is refused rather than guessed: a wrong
-/// offset moves every meeting by hours, silently.
-pub fn parse_offset(raw: &str) -> Result<time::UtcOffset, String> {
-    let t = raw.trim();
-    if t.is_empty() || t.eq_ignore_ascii_case("z") {
-        return Ok(time::UtcOffset::UTC);
+/// The person's clock, as a command's `zone` (or, from a transport older than 2026-10-23, `offset`)
+/// names it: `Asia/Singapore`, `+08:00`, `Z`. **Empty is the computer's own zone**, and UTC only
+/// where that cannot be read. Anything else is refused rather than guessed: a wrong zone moves every
+/// meeting by hours, silently.
+pub fn parse_zone(raw: &str) -> Result<fm_core::zone::Zone, String> {
+    if raw.trim().is_empty() {
+        return Ok(fm_core::zone::Zone::system()
+            .unwrap_or_else(|| fm_core::zone::Zone::parse("UTC").expect("UTC")));
     }
-    let bad = || format!("'{t}' is not a time zone offset like +08:00");
-    let (sign, rest) = match t.as_bytes()[0] {
-        b'+' => (1i8, &t[1..]),
-        b'-' => (-1i8, &t[1..]),
-        _ => return Err(bad()),
-    };
-    let (h, m) = rest.split_once(':').unwrap_or((rest, "0"));
-    let (h, m): (i8, i8) = (h.parse().map_err(|_| bad())?, m.parse().map_err(|_| bad())?);
-    if !(0..=14).contains(&h) || !(0..60).contains(&m) {
-        return Err(bad());
-    }
-    time::UtcOffset::from_hms(sign * h, sign * m, 0).map_err(|_| bad())
+    fm_core::zone::Zone::parse(raw)
 }
 
 /// What one mail read did — conversations, and the meetings its invites made or moved.
@@ -2718,14 +2707,14 @@ pub fn mail_sync(
     store: &mut dyn Store,
     vault: &str,
     messages: &[serde_json::Value],
-    offset: time::UtcOffset,
+    zone: &fm_core::zone::Zone,
 ) -> Result<MailReport, StoreError> {
     let parsed: Vec<fm_core::mail::Message> =
         messages.iter().filter_map(fm_core::mail::from_gmail).collect();
     let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
     let rows = store.query(&q)?.rows;
     let existing = fm_core::mail::index(rows.iter().filter(|o| o.vault == vault));
-    let (create, update, conversations) = fm_core::mail::reconcile(&parsed, &existing, offset);
+    let (create, update, conversations) = fm_core::mail::reconcile(&parsed, &existing, zone);
     for mut note in create {
         note.vault = vault.to_string();
         store.put(&note)?;
@@ -2737,7 +2726,7 @@ pub fn mail_sync(
     let mut invites = fm_core::calendar::Report::default();
     for m in &parsed {
         for ics in &m.calendars {
-            let r = calendar_sync(store, vault, "mail", ics, offset)?.counts;
+            let r = calendar_sync(store, vault, "mail", ics, zone)?.counts;
             invites.created += r.created;
             invites.moved += r.moved;
             invites.cancelled += r.cancelled;

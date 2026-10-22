@@ -71,6 +71,30 @@
     }
   }
 
+  /** Minutes east of UTC that `zone` is at now: an offset as written, a name through `Intl`. */
+  function offsetNow(zone: string | null | undefined): number | null {
+    if (!zone) return null;
+    const m = /^([+-])(\d{1,2})(?::?(\d{2}))?$/.exec(zone.trim());
+    if (m) return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0));
+    if (/^(z|utc)$/i.test(zone.trim())) return 0;
+    try {
+      const name = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' })
+        .formatToParts(new Date())
+        .find((p) => p.type === 'timeZoneName')?.value;
+      const o = /GMT([+-])(\d{2}):(\d{2})/.exec(name ?? '');
+      if (!o) return 0; // "GMT" alone
+      return (o[1] === '-' ? -1 : 1) * (Number(o[2]) * 60 + Number(o[3]));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Whether two zones read the same clock today (`+08:00` and `Asia/Singapore` do). */
+  function sameClock(a: string | null | undefined, b: string | null | undefined): boolean {
+    const [x, y] = [offsetNow(a), offsetNow(b)];
+    return x === null || y === null || x === y;
+  }
+
   function when(at: number): string {
     return at ? new Date(at * 1000).toLocaleString() : 'not yet';
   }
@@ -137,6 +161,11 @@
             >
           </div>
           <p class="muted small" class:err={!!f.last?.error}>{summary(f)}</p>
+          {#if f.zone && !sameClock(f.zone, cal.zone)}
+            <p class="muted small warn">
+              This calendar is set to {f.zone}; its meetings are moved onto {cal.zone}.
+            </p>
+          {/if}
         </li>
       {:else}
         <li class="muted">No calendars yet.</li>
@@ -187,16 +216,23 @@
 
     <label class="line offset">
       <span>Your time zone</span>
-      <input bind:value={offset} placeholder="+08:00" size="7" />
+      <input bind:value={offset} placeholder={cal.system ?? 'Asia/Singapore'} size="16" />
       <button
         disabled={busy || offset === cal.offset}
         onclick={() => run(() => calendarOffset(offset))}>Save</button
       >
     </label>
     <p class="muted small">
-      As an offset from UTC, such as +08:00 for Singapore. Meetings are shown at this clock. A
-      meeting written in another zone says which one on its note.
+      A zone such as Asia/Singapore, or an offset such as +08:00. Your meetings are written on this
+      clock: one your calendar or an email puts in another zone — "10am Paris time" — is moved onto
+      it, and the email's own words are kept beside it.
     </p>
+    {#if cal.system && !sameClock(cal.system, cal.zone)}
+      <p class="muted small warn" role="status">
+        This computer is now on {cal.system}, but your meetings are on {cal.zone}. If you have
+        moved, set your time zone to {cal.system}.
+      </p>
+    {/if}
   {/if}
 
   {#if error}
@@ -221,6 +257,9 @@
   }
   .err {
     color: var(--danger, #b00020);
+  }
+  .warn {
+    color: var(--text);
   }
   .feeds {
     list-style: none;

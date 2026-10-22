@@ -965,11 +965,10 @@ What stands between that and everyone relying on it is not one gap but several, 
 has 28 tests, and **nothing is wired to it yet** — no fetch, no command, no surface. These are the
 durable limits, not a to-do list:
 
-- **A UTC (`Z`) timestamp with no caller-supplied offset keeps its day and loses its time.** This is
+- **A UTC (`Z`) timestamp with no caller-supplied zone keeps its day and loses its time.** This is
   deliberate, not a gap to close by guessing: reading `10:30Z` as 10:30 wall-clock shows a Singapore
-  event eight hours early. Nothing reads the machine's local offset — `time`'s `local-offset` feature
-  is not enabled here and is documented as failing in exactly the multi-threaded process `fm-serve`
-  is. **If a caller wants a time out of a `Z` feed it must pass the offset it means.**
+  event eight hours early. `parse_ics` takes your zone (`fm_core::zone`, 2026-10-23) and then reads
+  both `Z` and `TZID` times on it; `parse_feed` still takes a fixed offset.
 - **An RSS `pubDate` is never read as the event's date, so most RSS items arrive undated.** `pubDate`
   is when the listing was posted. Only `<ev:startdate>`/`<dc:date>` are read. So a plain events RSS
   feed is good at saying *that* something exists and bad at saying *when* — a real property of the
@@ -1008,9 +1007,15 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
 - **Times move only on a `SEQUENCE` bump.** A publisher that changes times without bumping it (rare;
   Google bumps) leaves the note at the old time. Deliberate: without the bump we cannot tell the
   publisher's change from the person's own edit.
-- **The offset is fixed, so it is wrong across a DST change** for a `Z`-timed meeting. Exact for
-  Singapore. A `TZID` time is carried as written and its zone named in `ics_time_zone` — a Berlin
-  10:00 is shown as 10:00, not converted.
+- **Your zone, not a fixed offset, since 2026-10-23** (`decisions.md`, *a time written in another
+  zone is moved onto yours*). A `TZID` time is converted onto it, a series week by week; a `TZID` the
+  zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is still carried as
+  written. A note made before 2026-10-23 from a foreign `TZID` keeps its old time until the event's
+  `SEQUENCE` moves (the rule above) — the owner's vault had none.
+- **The agenda does not yet follow a laptop that changes zone.** Stored times are pinned to your zone
+  (Settings → Calendars, filled once with the computer's); a laptop now in another zone is *named*
+  in that panel, but meetings are still shown on the pinned clock until the setting is changed.
+  Showing them on the device's zone is open (`outstanding.md` §2.16), and so is a clock check.
 - **On opening, then every 5 minutes, while the app is open** (an unchanged feed is skipped by its hash). There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.
 - **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.
@@ -1059,8 +1064,12 @@ the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept
 - **Day words it does not read** are dropped, not guessed: "la settimana prossima", "a fine mese",
   "after the holidays", ordinal weekdays ("il secondo martedì"). A weekday names the *next* such day
   after the message was sent; "giovedì prossimo" is read the same as "giovedì".
-- **"Today" is UTC's day** in the runner (it cannot read the machine's offset). Within a few hours of
-  midnight a same-day meeting may be judged past or upcoming by the neighbouring day.
+- **"Today" is the day on your zone** since 2026-10-23 (Myrme reads it from `/api/calendars`, or the
+  computer's own); UTC's only where neither can be read.
+- **A meeting time is moved onto your zone only when the email names its zone right after it**
+  ("10am Paris time", "15:00 CET", "3pm UTC+2", "alle 10 ora italiana"). "10am your time", or a time
+  with nothing after it, stays as written — the writer's clock cannot be known. A range's end that
+  lands on another day than its start is dropped.
 - **A call-off or a move counts only from an email that arrived since the last read** (2026-10-15,
   `meetings::plan`). On a first read, or after a change of rules, nothing counts as new: a meeting
   is then moved only when its old time is gone from the model's answer, and marked cancelled only

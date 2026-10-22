@@ -426,8 +426,7 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
         }
         batch.push(v);
     }
-    let offset = crate::calendar::offset();
-    let args = json!({ "vault": s.vault, "offset": offset });
+    let args = json!({ "vault": s.vault, "zone": crate::calendar::offset() });
     let body = serde_json::to_vec(&batch).map_err(|e| e.to_string())?;
     let out =
         fm_app::dispatch("mail_sync", &args, &body, &state.app, &crate::Desktop)?.into_bytes();

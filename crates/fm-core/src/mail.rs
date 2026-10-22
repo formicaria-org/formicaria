@@ -26,10 +26,11 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::zone::Zone;
 use fm_model::{Kind, Object, PropertyValue, Stamp};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use time::{OffsetDateTime, UtcOffset};
+use time::OffsetDateTime;
 
 /// The conversation a note stands for — Gmail's `threadId`.
 pub const GMAIL_THREAD: &str = "gmail_thread";
@@ -378,8 +379,8 @@ pub fn trim_quoted(text: &str) -> String {
 
 /// The block one message adds to its conversation note. The marker is invisible in the read view and
 /// is how a re-read recognises a message it has already written.
-pub fn render(m: &Message, offset: UtcOffset) -> String {
-    let stamp = sent(m, offset);
+pub fn render(m: &Message, zone: &Zone) -> String {
+    let stamp = sent(m, zone);
     let from = if m.from.is_empty() { "(unknown sender)" } else { &m.from };
     let mut out = format!("{}\n### {from} — {stamp}\n", marker(&m.id));
     let mut who = Vec::new();
@@ -402,11 +403,12 @@ pub fn render(m: &Message, offset: UtcOffset) -> String {
     out
 }
 
-/// When a message was sent, as its heading shows it: `YYYY-MM-DD HH:MM` on the given clock.
-fn sent(m: &Message, offset: UtcOffset) -> String {
+/// When a message was sent, as its heading shows it: `YYYY-MM-DD HH:MM` on the given clock, with the
+/// offset that clock had that day.
+fn sent(m: &Message, zone: &Zone) -> String {
     let when = OffsetDateTime::from_unix_timestamp(m.at)
         .unwrap_or(OffsetDateTime::UNIX_EPOCH)
-        .to_offset(offset);
+        .to_offset(zone.offset_at(m.at));
     format!(
         "{}-{:02}-{:02} {:02}:{:02}",
         when.year(),
@@ -560,7 +562,7 @@ pub fn index<'a>(notes: impl IntoIterator<Item = &'a Object>) -> HashMap<String,
 pub fn reconcile(
     messages: &[Message],
     existing: &HashMap<String, Object>,
-    offset: UtcOffset,
+    zone: &Zone,
 ) -> (Vec<Object>, Vec<Object>, Report) {
     let mut report = Report { messages: messages.len(), ..Default::default() };
     // thread -> (note, is new)
@@ -591,7 +593,7 @@ pub fn reconcile(
         };
         let when = OffsetDateTime::from_unix_timestamp(m.at)
             .unwrap_or(OffsetDateTime::UNIX_EPOCH)
-            .to_offset(offset);
+            .to_offset(zone.offset_at(m.at));
         let stamp = Stamp::at(when.date(), when.time());
         // Compared through its text form: a stamp written to frontmatter is read back by the generic
         // YAML loader, which need not hand it back as a `Stamp`. Matching only the variant made every
@@ -601,7 +603,7 @@ pub fn reconcile(
             Err(_) => true,
         };
         if !note.body.contains(&marker(&m.id)) {
-            place(&mut note.body, &render(m, offset), &sent(m, offset));
+            place(&mut note.body, &render(m, zone), &sent(m, zone));
             changed.insert(m.thread_id.clone());
         }
         let mut people = participants(&note);
@@ -653,7 +655,9 @@ fn participants(note: &Object) -> Vec<String> {
 mod tests {
     use super::*;
     use serde_json::json;
-    use time::macros::offset;
+    fn sg() -> Zone {
+        Zone::parse("+08:00").unwrap()
+    }
 
     fn b64(s: &str) -> String {
         // Test-only encoder, so fixtures can be written as readable text.
@@ -801,7 +805,7 @@ mod tests {
         let mut b = msg("2", "t", 1_760_003_600, "Luca");
         b.text = "Porto le slide.".into();
         b.attachments = vec!["slide.pdf".into()];
-        let (create, update, report) = reconcile(&[b, a], &HashMap::new(), offset!(+8));
+        let (create, update, report) = reconcile(&[b, a], &HashMap::new(), &sg());
         assert_eq!((create.len(), update.len()), (1, 0));
         let n = &create[0];
         assert_eq!(n.title.as_deref(), Some("Progetto"));
@@ -826,14 +830,14 @@ mod tests {
     #[test]
     fn a_reply_is_appended_below_the_persons_own_writing_and_a_re_read_adds_nothing() {
         let (create, _, _) =
-            reconcile(&[msg("1", "t", 1_760_000_000, "Maria")], &HashMap::new(), offset!(+8));
+            reconcile(&[msg("1", "t", 1_760_000_000, "Maria")], &HashMap::new(), &sg());
         let mut note = create[0].clone();
         note.title = Some("Progetto — mie note".into());
         note.body = format!("{}\nDa fare: rispondere entro lunedì.\n", note.body);
         let mine = note.body.clone();
         let existing = index([&note]);
         let (create, update, _) =
-            reconcile(&[msg("2", "t", 1_760_090_000, "Luca")], &existing, offset!(+8));
+            reconcile(&[msg("2", "t", 1_760_090_000, "Luca")], &existing, &sg());
         assert!(create.is_empty());
         let n = &update[0];
         assert_eq!(n.id, note.id);
@@ -845,7 +849,7 @@ mod tests {
         let (c, u, _) = reconcile(
             &[msg("1", "t", 1_760_000_000, "Maria"), msg("2", "t", 1_760_090_000, "Luca")],
             &existing,
-            offset!(+8),
+            &sg(),
         );
         assert!(c.is_empty() && u.is_empty(), "a re-read must not touch the note");
     }
@@ -857,14 +861,13 @@ mod tests {
         let (create, _, _) = reconcile(
             &[msg("1", "t", 1_760_000_000, "Maria"), msg("3", "t", 1_760_090_000, "Luca")],
             &HashMap::new(),
-            offset!(+8),
+            &sg(),
         );
         let mut note = create[0].clone();
         note.body =
             note.body.replace("<!-- gmail:3 -->", "Da fare: rispondere.\n\n<!-- gmail:3 -->");
         let existing = index([&note]);
-        let (_, update, _) =
-            reconcile(&[msg("2", "t", 1_760_040_000, "Bea")], &existing, offset!(+8));
+        let (_, update, _) = reconcile(&[msg("2", "t", 1_760_040_000, "Bea")], &existing, &sg());
         let b = &update[0].body;
         let (maria, bea, luca) =
             (b.find("### Maria").unwrap(), b.find("### Bea").unwrap(), b.find("### Luca").unwrap());
@@ -873,7 +876,7 @@ mod tests {
         assert!(b.contains("\n\n<!-- gmail:3 -->"), "the later message keeps its spacing:\n{b}");
         // Sent last: at the end, as before.
         let (_, update, _) =
-            reconcile(&[msg("4", "t", 1_760_200_000, "Bea")], &index([&update[0]]), offset!(+8));
+            reconcile(&[msg("4", "t", 1_760_200_000, "Bea")], &index([&update[0]]), &sg());
         let b = &update[0].body;
         assert!(b.find("gmail:4").unwrap() > b.find("### Luca").unwrap(), "{b}");
     }

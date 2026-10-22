@@ -949,7 +949,21 @@ the on-device model only for prose, and the person's only act is answering a pro
 labelled conversation's every message, reads on opening and every 5 minutes, and proposes a
 "Person — who they are" title (`sessions/2026-10-15-meetings-that-track-the-conversation-0.8.2.md`).
 
+**2026-10-23:** a time written on another clock ("10am Paris time", a calendar's foreign `TZID`) is
+moved onto your zone, which is now a real zone, pinned (`decisions.md`, *a time written in another
+zone is moved onto yours*). The owner's accepted 10:00 was corrected by hand to 17:00.
+
 Next, roughly in order:
+0. **The agenda follows a laptop that changes zone** (the owner, 2026-10-23: *"if the user changes
+   its laptop time, the agenda must reflect this"*). Stored times stay pinned to the notes' zone;
+   *showing* them is what changes: convert at the UI's stamp door (`stamp.ts`, or `ipc.ts` for every
+   `start`/`due`/reminder `at` that carries a time) from the notes' zone to
+   `Intl.DateTimeFormat().resolvedOptions().timeZone`, and a typed time back. A day alone never moves.
+   **For the owner to settle first:** where the notes' zone lives — this machine's setting (as now;
+   the phone cannot see it) or the vault (`vault.json`, so every device agrees). Recommended: the
+   vault. **With it, the clock check:** the `Date` header of the Google requests the app already
+   makes says whether this computer's clock is off (needs `fm_fetch::get` to hand back that header);
+   the calendar's own zone is already compared (Settings → Calendars).
 1. **A deleted one-off meeting is not marked.** Google drops it from the feed rather than marking it
    cancelled, and only repeating series mark their missing dates (`calendar::reconcile`). Apply the
    same *marked, never deleted* rule to one-off meetings within the window, when the feed was read

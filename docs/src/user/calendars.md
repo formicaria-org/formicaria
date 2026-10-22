@@ -35,9 +35,19 @@ cancelled, and how many were left out and why.
 
 ## Your time zone
 
-Some calendars give times in UTC. formicaria shows them at the clock you set under *Your time
-zone* (for example `+08:00` for Singapore). A meeting written in another zone keeps the time it was
-written in and says which zone on its note.
+Your meetings are written on one clock: *Your time zone*, a zone such as `Asia/Singapore` (or an
+offset such as `+08:00`). The first time formicaria starts it fills this in with your computer's
+zone, and after that it stays put — it does not change by itself when your computer does.
+
+A meeting given on another clock is moved onto yours. An event your calendar holds in Paris time,
+at 10:00 on 27 October, is shown at 17:00 in Singapore; the note still says which zone it was
+written in. The same goes for an email that says *"10am Paris time"* or *"15:00 CET"*: the
+assistant proposes 17:00 and shows the email's own words beside it. A time with no zone written
+after it is taken as yours.
+
+If your computer is now in another zone, or your calendar is set to one, the panel says so. When
+you move for good, set your time zone to the new one. (Showing meetings on your computer's clock
+automatically while you travel is planned, not built yet.)
 
 ## Privacy
 

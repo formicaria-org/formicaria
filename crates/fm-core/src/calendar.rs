@@ -151,6 +151,12 @@ fn expand(
             let mut occ = r.clone();
             occ.start = Some(Stamp { date: day, time: start.time });
             occ.end = r.end.map(|e| Stamp { date: e.date + shift, time: e.time });
+            // Written on another clock: each occurrence is moved onto yours on its own day, so a
+            // daylight-saving change in either zone lands on the right week (2026-10-23).
+            if let Some((from, here)) = occ.onto.take() {
+                occ.start = occ.start.map(|s| here.onto(s, &from));
+                occ.end = occ.end.map(|s| here.onto(s, &from));
+            }
             occ.recurrence_id = Some(Stamp::day(day));
             occ.rrule = None;
             occ.exdates.clear();
@@ -453,6 +459,20 @@ mod tests {
         let mut d: Vec<String> = plan.create.iter().map(|n| n.start.unwrap().to_string()).collect();
         d.sort();
         d
+    }
+
+    #[test]
+    fn a_series_on_another_clock_is_moved_onto_yours_week_by_week() {
+        // A weekly 10:00 in Paris, read in Singapore (2026-10-23): Paris leaves summer time on 25
+        // October, so the meeting is at 16:00 until then and 17:00 after. Converting the first
+        // occurrence once would put every later week an hour early.
+        let sg = crate::zone::Zone::parse("Asia/Singapore").unwrap();
+        let text = "BEGIN:VEVENT\nUID:p\nSUMMARY:Paris weekly\nDTSTART;TZID=Europe/Paris:20261013T100000\n\
+                    DTEND;TZID=Europe/Paris:20261013T110000\nRRULE:FREQ=WEEKLY;COUNT=3\nEND:VEVENT\n";
+        let plan = reconcile(&parse_ics(text, Some(&sg)), &HashMap::new(), "work", TODAY);
+        assert_eq!(days(&plan), ["2026-10-13T16:00", "2026-10-20T16:00", "2026-10-27T17:00"]);
+        let late = plan.create.iter().find(|n| n.start.unwrap().date == date!(2026 - 10 - 27));
+        assert_eq!(late.unwrap().due.unwrap().to_string(), "2026-10-27T18:00");
     }
 
     #[test]

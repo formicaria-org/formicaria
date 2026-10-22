@@ -42,6 +42,8 @@ pub mod events;
 pub mod calendar;
 // The `RRULE` subset real calendars use, expanded into dates. Refuses what it cannot read exactly.
 pub mod recur;
+// The person's own clock, and a time written on another moved onto it (`decisions.md` 2026-10-23).
+pub mod zone;
 // One email read from Gmail's JSON, and one note per conversation. Pure; the transport fetches.
 pub mod mail;
 // In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.

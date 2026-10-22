@@ -2066,11 +2066,14 @@ fn dispatch_inner(
         "calendar_sync" => {
             let ics =
                 std::str::from_utf8(body).map_err(|_| "the calendar was not text".to_string())?;
-            let offset = commands::parse_offset(&s("offset"))?;
+            // `offset` is the name a transport older than 2026-10-23 sends.
+            let zone = commands::parse_zone(
+                &Some(s("zone")).filter(|z| !z.is_empty()).unwrap_or(s("offset")),
+            )?;
             let mut g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
             json(
-                commands::calendar_sync(&mut g.store(scope), &cfg.name, &s("source"), ics, offset)
+                commands::calendar_sync(&mut g.store(scope), &cfg.name, &s("source"), ics, &zone)
                     .map_err(err)?,
             )
         }
@@ -2079,11 +2082,14 @@ fn dispatch_inner(
         "mail_sync" => {
             let messages: Vec<Value> = serde_json::from_slice(body)
                 .map_err(|e| format!("the mail could not be read: {e}"))?;
-            let offset = commands::parse_offset(&s("offset"))?;
+            // `offset` is the name a transport older than 2026-10-23 sends.
+            let zone = commands::parse_zone(
+                &Some(s("zone")).filter(|z| !z.is_empty()).unwrap_or(s("offset")),
+            )?;
             let mut g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
             json(
-                commands::mail_sync(&mut g.store(scope), &cfg.name, &messages, offset)
+                commands::mail_sync(&mut g.store(scope), &cfg.name, &messages, &zone)
                     .map_err(err)?,
             )
         }
@@ -4875,11 +4881,13 @@ mod tests {
     }
 
     #[test]
-    fn an_offset_that_is_not_one_is_refused_rather_than_guessed() {
-        assert!(commands::parse_offset("+08:00").is_ok());
-        assert!(commands::parse_offset("-05:30").is_ok());
-        for bad in ["8", "+8:75", "Asia/Singapore", "+15:00"] {
-            assert!(commands::parse_offset(bad).is_err(), "{bad} must be refused");
+    fn a_zone_that_is_not_one_is_refused_rather_than_guessed() {
+        assert!(commands::parse_zone("+08:00").is_ok());
+        assert!(commands::parse_zone("-05:30").is_ok());
+        assert!(commands::parse_zone("Asia/Singapore").is_ok(), "a zone name, since 2026-10-23");
+        assert!(commands::parse_zone("").is_ok(), "empty is the computer's own zone");
+        for bad in ["8", "+8:75", "Singapore", "+15:00"] {
+            assert!(commands::parse_zone(bad).is_err(), "{bad} must be refused");
         }
     }
 
