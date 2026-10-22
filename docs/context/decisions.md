@@ -12584,6 +12584,35 @@ Done). **Not on the phone yet.**
 **Left as they are**: Settings' search and key capture are inline, not levels; a tiled note's
 "Full screen" on a desktop is not a step.
 
+## 2026-10-21 — a label is read by the OCR first, on a computer and on a phone `#agent` `#ui`
+
+> Builds on *a label is read from a photograph, and the person checks it* (2026-10-13): the reader
+> still decides no number, the page's `labelText.ts` reads the figures, the person checks them.
+
+**The ask.** The owner, for Myrme 0.8.0: labels read with the OCR, *"stay with only 1 and 2 and
+drop the vocabulary"* — the OCR turned when it reads too little, and labels on the phone through the
+OCR's text.
+
+**Decision.**
+1. **Myrme 0.8.0 reads a label with the OCR first** (`fm_agent_run::label::read_with`, contract
+   1.7): turned when upright holds fewer than four figures, and handed to a vision model fit for
+   labels only when the OCR found too little. Both `/api/read_label` and the phone's `read_label`
+   pass it the process's one OCR (`fm_agent_run::ocr::shared`, from the assistant's tools folder;
+   on the phone with the APK's ONNX Runtime). **So a phone reads labels**, whether or not the
+   assistant is running, once its tools are on the phone.
+2. **`labelText.ts` reads an OCR's plain lines for what they are** — the faults it was taught are
+   listed in Myrme's `docs/research/2026-10-20-packet-labels.md` §3d: a "g" read as 9, two tables
+   side by side, the serving column first, kJ/kcal pairs, values over 100 g in 100 g left empty,
+   two unrelated names on a line left empty, reading from the table's heading down, and the names
+   of eleven more languages. What it still cannot tell apart stays empty, never guessed.
+3. **Measured** on thirty packets with figures checked by hand on the photos, at the 1024 px the
+   page sends: **153 of 210 figures right, 14 wrong, in 0.6 s** a label on a laptop CPU; the phone's
+   vision model got 85 right in 28 s, the laptop's 88 in 40 s. Nine of the fourteen wrong are two
+   packets printed out of line with their names; both raise the form's doubts.
+4. **The picture is still sent at 1024 px**: the OCR read it as well as the full photo (155 right).
+
+**Not measured yet:** the time on the phone.
+
 ## 2026-10-22 — a fifth group, Health: a day diary the person shapes, grounded cards, and a cycle that only counts `#ui` `#data`
 
 > **Extends** *four groups over notes* (2026-10-12) by a fifth group, and *the tracker's domain parts

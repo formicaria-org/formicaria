@@ -50,8 +50,8 @@ fm-core = { path = "../../crates/fm-core", features = ["native-git"] }
 # The study agent, run IN-PROCESS on the phone: the same runner as the desktop, but its VaultAccess
 # calls fm_app::dispatch directly (no localhost fm-serve, which Android has none of). Optional +
 # behind the `agent` feature above, so a notes-only build links neither.
-fm-agent = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.7.1", optional = true }
-fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.7.1", optional = true }
+fm-agent = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.8.0", optional = true }
+fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.8.0", optional = true }
 fm-update = { path = "../../crates/fm-update", optional = true }
 fm-fetch = { path = "../../crates/fm-fetch", optional = true }
 

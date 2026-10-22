@@ -184,7 +184,7 @@ A packet of pasta is not in a table of generic foods. Three buttons at the top o
 are for it. **Scan a barcode** takes a picture of the barcode: a packet you have written down
 before opens straight away, and any other starts a form with its number filled in, from which
 you can look it up. **Photograph a label** has the assistant read the nutrition table off a
-picture and fill the form for you to check (see below; on a computer, not yet on a phone).
+picture and fill the form for you to check (see below; on a computer and on a phone).
 Each of these opens the camera; **or choose one from the gallery**, beside it, uses a picture you
 already took.
 **Type in a label** opens the same form empty: copy the label as it is printed — energy is the
@@ -211,8 +211,8 @@ not type it. The picture is read on your device and is not kept. If nothing can 
 again closer and in good light.
 
 **Photograph a label** (also **Photograph the label** in the form) takes or chooses a picture
-of the packet's nutrition table. The assistant on your device reads the table, and the form is
-filled with what it found: what the figures are for, the serving if one is printed, energy, fat,
+of the packet's nutrition table. The assistant on your device reads the table — with its text
+reader (OCR), in about a second — and the form is filled with what it found: what the figures are for, the serving if one is printed, energy, fat,
 saturates, carbohydrate, sugars, fibre, protein, and salt or sodium. Nothing is saved until you
 press **Save it**.
 
@@ -220,15 +220,16 @@ press **Save it**.
   up, and the form cannot always tell. When the figures do not add up (sugars above
   carbohydrate, energy that does not match the rest) it says so in red, but a wrong figure can
   also look perfectly reasonable.
-- **Take the picture upright, close, and in good light**, with the table filling it. A table
-  photographed sideways is not read; **Turn the picture and read it again** turns it a quarter
-  turn each press. **What was read** shows the assistant's own words.
-- **It needs the assistant, with a model that reads labels well.** On a computer that is the
-  model the assistant installs by default; a reading takes from a quarter of a minute to a
-  minute. **On a phone it is not read yet**: the phone's small model got two packets right
-  out of nine when it was measured. The picture is taken and kept with the food all the same,
-  so you can type the label in now, or save it and have it read on your computer later (next
-  section). The barcode still works there.
+- **Take the picture close and in good light**, with the table filling it. A table photographed
+  sideways is turned and read again by itself; if it still reads badly, **Turn the picture and
+  read it again** turns it a quarter turn each press. **What was read** shows the text as it was
+  read.
+- **It needs the assistant to have been turned on once**, on a computer or a phone: the text
+  reader comes with it. Measured on thirty packets in many languages, it read about three
+  figures in four right, and wrongly far less often than the assistant's picture-reading models,
+  in a second instead of half a minute. Where it finds too little, a computer's model that reads
+  labels well reads the picture instead. A label in a script it does not know (Hebrew, Greek
+  names) or a table a few millimetres high comes back mostly empty: type it in.
 - The picture goes to the assistant on your own device and nowhere else.
 - Labels are read in English, Italian, French, German, Spanish and Portuguese. A table printed
   sideways on (nutrients across the top) or two tables side by side may be read wrongly or not

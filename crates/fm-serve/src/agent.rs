@@ -186,6 +186,13 @@ fn read_manifest() -> Option<fm_agent_run::manifest::Manifest> {
     manifest_path().and_then(|p| fm_agent_run::manifest::Manifest::read(&p).ok())
 }
 
+/// **The OCR a label is read with** (Myrme 0.8.0, contract 1.7): the one the assistant's tools hold,
+/// opened once in this process by Myrme. There whenever the tools are, whether or not the assistant
+/// is running; absent (the vision model reads, if one fit is running) where ONNX Runtime is not.
+fn label_ocr() -> Option<std::sync::Arc<dyn fm_agent_run::ocr::ReadPage>> {
+    fm_agent_run::ocr::shared(&agents_dir()?, &read_manifest()?, None).ok()
+}
+
 /// Provision the assistant — fetch the runtime, the model, and the projector if one is wanted —
 /// then start it. Runs on its own thread; the caller returns immediately.
 ///
@@ -1107,7 +1114,9 @@ pub fn route(
         "/api/label_reader" => (
             "200 OK",
             "application/json",
-            fm_agent_run::label::ready_json(r.reader().as_ref()).to_string().into_bytes(),
+            fm_agent_run::label::ready_json_with(label_ocr().as_deref(), r.reader().as_ref())
+                .to_string()
+                .into_bytes(),
         ),
         // A packet's label, read off a photograph (`fm_agent_run::label`). The picture comes by
         // value, goes to the reader the assistant named, and is kept nowhere; what comes back is
@@ -1116,7 +1125,11 @@ pub fn route(
             let req: LabelReq = serde_json::from_slice(body).unwrap_or_default();
             let read = match fm_app::wire::b64_decode(&req.data) {
                 None => Err("The picture did not arrive whole. Take it again.".to_string()),
-                Some(image) => fm_agent_run::label::read(r.reader().as_ref(), &image),
+                Some(image) => fm_agent_run::label::read_with(
+                    label_ocr().as_deref(),
+                    r.reader().as_ref(),
+                    &image,
+                ),
             };
             match read {
                 Ok(got) => (

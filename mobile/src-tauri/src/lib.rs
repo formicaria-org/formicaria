@@ -648,7 +648,11 @@ fn fm_blocking(
     // is kept nowhere; text comes back, and the page reads the figures out of it.
     if cmd == "label_reader" {
         #[cfg(agent_shell)]
-        return Ok(agent::label_reader().to_string());
+        {
+            use tauri::Manager;
+            let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
+            return Ok(agent::label_reader(&dir).to_string());
+        }
         #[cfg(not(agent_shell))]
         return Ok(serde_json::json!({
             "ready": false, "model": "",
@@ -662,7 +666,9 @@ fn fm_blocking(
             let data = args.get("data").and_then(|v| v.as_str()).unwrap_or_default();
             let image =
                 b64_decode(data).ok_or("The picture did not arrive whole. Take it again.")?;
-            return agent::read_label(&image).map(|v| v.to_string());
+            use tauri::Manager;
+            let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
+            return agent::read_label(&dir, &image).map(|v| v.to_string());
         }
         #[cfg(not(agent_shell))]
         return Err(

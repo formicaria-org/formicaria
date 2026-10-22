@@ -58,7 +58,7 @@ fm-app = { path = "../fm-app" }
 # assistant with no checkout, no `bash` and no `python3`. Until 2026-09-02 this feature existed and
 # nothing on the desktop turned it on, which is why the archive could carry no assistant at all.
 # From Myrme's repository, pinned by tag (`decisions.md`, 2026-10-18); never a branch.
-fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.7.1", features = ["download"], optional = true }
+fm-agent-run = { git = "https://github.com/formicaria-org/myrme.git", tag = "v0.8.0", features = ["download"], optional = true }
 serde = { workspace = true }
 serde_json = "1"
 # The one thing in the sharing path that must not be hand-rolled. Everything else it needs —

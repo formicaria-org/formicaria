@@ -299,3 +299,125 @@ describe('a label read out of its transcription', () => {
     expect(none.doubts[0]).toMatch(/what the figures are for/);
   });
 });
+
+// **An OCR's plain lines** (2026-10-21): each case below is a line the OCR read off a real packet
+// in the thirty-packet eval, cut down to what the case needs.
+describe("an OCR's lines", () => {
+  it('reads a "g" taken for a 9 as the unit it is', () => {
+    const r = readLabel(
+      [
+        'Valeurs nutritionnelles Pour Par portion',
+        'moyennes 100g 15g',
+        'Matières grasses 9 30.9 4.6 7%',
+        'dont acides gras saturés g 10.6 1.6 8%',
+        'Protéines 9 6.3 0.9 2%',
+        'Sel 9 0.107 0.016 0%',
+      ].join('\n'),
+    );
+    expect(r.form.values).toMatchObject({
+      fat_mg: 30.9,
+      saturated_fat_mg: 10.6,
+      protein_mg: 6.3,
+      sodium_ug: 0.107,
+    });
+  });
+
+  it('parts two tables printed side by side', () => {
+    const r = readLabel(
+      [
+        'VALORI NUTRIZIONALI MEDI 100g 85g %AR2/85g 100g 85g %AR2/85g',
+        'ENERGIA kJ 1521 1293 15% CARBOIDRATI 9 70,9 60,3 23%',
+        'kcal 359 305 15% di cui ZUCCHERI g 3,5 3,0 3%',
+        'SALE 9 0,013 0,011 0%',
+      ].join('\n'),
+    );
+    expect(r.form.values).toMatchObject({ kcal: 359, carbs_mg: 70.9, sugars_mg: 3.5 });
+  });
+
+  it('takes the per-100 column when the serving one is printed first', () => {
+    const r = readLabel(
+      [
+        'Average quantity: per serving per 100g',
+        'Energy 484kJ 2420kJ',
+        'Protein 2.5g 12.5g',
+        'Fat, total 9.2g 46.0g',
+      ].join('\n'),
+    );
+    expect(r.form.basis).toBe('100g');
+    expect(r.form.values).toMatchObject({ kcal: 2420, protein_mg: 12.5, fat_mg: 46 });
+  });
+
+  it('keeps the kcal that agrees with the kJ when a line holds two columns', () => {
+    const r = readLabel(
+      ['Per 100 g Per biscotto (ca.13g)', 'ENERGIA 2024 kJ 263 kJ 63 kcal 3% 3%', '482 kcal'].join(
+        '\n',
+      ),
+    );
+    expect(r.form.values.kcal).toBe(482);
+  });
+
+  it('parts a nutrient and its "of which" run into one line, and not one name', () => {
+    const run = readLabel(
+      ['Per 100 g', 'GRASSI di cui acidi grassi saturi 6.8g 0.6g 1.7g 0.2g'].join('\n'),
+    );
+    expect(run.form.values).toMatchObject({ fat_mg: 6.8, saturated_fat_mg: 0.6 });
+    // "grassi saturi" is saturated fat, one name.
+    const one = readLabel(['Per 100ml', 'grassi saturi 24g 12g (60%)'].join('\n'));
+    expect(one.form.values.saturated_fat_mg).toBe(24);
+  });
+
+  it('leaves empty a line naming two unrelated nutrients, and an impossible figure', () => {
+    const r = readLabel(
+      [
+        'Per: 100ml 330ml',
+        'Carbohydrate: of which saturates: 10.6g',
+        'of which sugars: 10.6g',
+        'PROTEINE 119 2.69',
+      ].join('\n'),
+    );
+    expect(r.form.values.saturated_fat_mg).toBeUndefined();
+    expect(r.form.values.carbs_mg).toBeUndefined();
+    expect(r.form.values.protein_mg).toBeUndefined();
+    expect(r.form.values.sugars_mg).toBe(10.6);
+  });
+
+  it('reads a heading run together ("Por100g"), and nothing printed above the table', () => {
+    const r = readLabel(
+      [
+        'Ingredienti: farina, acqua, sale 2,5%',
+        'DICHIARAZIONE Por100g Per fetta',
+        'GRASSI 6,8g 1,7g',
+      ].join('\n'),
+    );
+    expect(r.form.basis).toBe('100g');
+    expect(r.form.values.sodium_ug).toBeUndefined();
+    expect(r.form.values.fat_mg).toBe(6.8);
+  });
+
+  it('pairs "kJ/kcal" with the two figures after it', () => {
+    const r = readLabel(
+      ['Dichiarazione Nutrizionale 100g', 'Energia - Valor energético kJ/kcal 1518/358'].join('\n'),
+    );
+    expect(r.form.values.kcal).toBe(358);
+    const misread = readLabel(['100g', 'Energia-Energie kl/kcal 1518/358'].join('\n'));
+    expect(misread.form.values.kcal).toBe(358);
+  });
+
+  it('reads the Baltic, Dutch and Nordic names', () => {
+    const r = readLabel(
+      [
+        'ø/100 g ø/12,5 g %RI',
+        'Rasvad/Tauki/Riebalai 44,2 g 5,5g 8%',
+        'Süsivesikud/Ogļhidrāti/Angliavandeniai 19,9 g 2,5g 1%',
+        'Eiwitten 11,5 g 1,4g 3%',
+        'Sool/Sāls/Druska 0,03 g <0,01g <1%',
+      ].join('\n'),
+    );
+    expect(r.form.values).toMatchObject({
+      fat_mg: 44.2,
+      carbs_mg: 19.9,
+      protein_mg: 11.5,
+      sodium_ug: 0.03,
+    });
+  });
+});

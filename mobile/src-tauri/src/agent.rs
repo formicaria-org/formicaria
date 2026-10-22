@@ -76,17 +76,28 @@ fn reader() -> &'static std::sync::Mutex<Option<fm_agent_run::ImageReader>> {
     R.get_or_init(|| std::sync::Mutex::new(None))
 }
 
+/// **The OCR a label is read with** (Myrme 0.8.0, contract 1.7): the assistant's own, opened once in
+/// this process by Myrme, with the APK's ONNX Runtime. There whenever its files are on the phone,
+/// whether or not the assistant is running — which is what lets a phone read a label at all: its
+/// vision model was never fit to.
+fn label_ocr(agents_dir: &std::path::Path) -> Option<std::sync::Arc<dyn fm_agent_run::ocr::ReadPage>> {
+    let manifest = catalogue(agents_dir).ok()?;
+    let bundle = bundle()?;
+    fm_agent_run::ocr::shared(agents_dir, &manifest, Some(bundle.dir())).ok()
+}
+
 /// A packet's label read off a photograph (`fm_agent_run::label`): text back, nothing written.
-pub fn read_label(image: &[u8]) -> Result<Value, String> {
+pub fn read_label(agents_dir: &std::path::Path, image: &[u8]) -> Result<Value, String> {
     let reader = reader().lock().ok().and_then(|g| g.clone());
-    let got = fm_agent_run::label::read(reader.as_ref(), image)?;
+    let got =
+        fm_agent_run::label::read_with(label_ocr(agents_dir).as_deref(), reader.as_ref(), image)?;
     Ok(serde_json::json!({ "text": got.text, "model": got.model }))
 }
 
 /// Whether a label can be read on this phone, asked before anybody takes a picture.
-pub fn label_reader() -> Value {
+pub fn label_reader(agents_dir: &std::path::Path) -> Value {
     let reader = reader().lock().ok().and_then(|g| g.clone());
-    fm_agent_run::label::ready_json(reader.as_ref())
+    fm_agent_run::label::ready_json_with(label_ocr(agents_dir).as_deref(), reader.as_ref())
 }
 
 fn set_present(name: &str, present: bool) {

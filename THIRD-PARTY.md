@@ -97,8 +97,8 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | filetime | v0.2.29 | MIT/Apache-2.0 |
 | find-msvc-tools | v0.1.9 | MIT OR Apache-2.0 |
 | flate2 | v1.1.9 | MIT OR Apache-2.0 |
-| fm-agent | v0.7.1 | MIT |
-| fm-agent-run | v0.7.1 | MIT |
+| fm-agent | v0.8.0 | MIT |
+| fm-agent-run | v0.8.0 | MIT |
 | fm-app | v0.0.0 | MIT |
 | fm-cli | v0.0.0 | MIT |
 | fm-core | v0.0.0 | MIT |
@@ -146,6 +146,11 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | itertools | v0.14.0 | MIT OR Apache-2.0 |
 | itertools | v0.15.0 | MIT OR Apache-2.0 |
 | itoa | v1.0.18 | MIT OR Apache-2.0 |
+| jiff | v0.2.38 | Unlicense OR MIT |
+| jiff-core | v0.1.1 | Unlicense OR MIT |
+| jiff-static | v0.2.38 | Unlicense OR MIT |
+| jiff-tzdb | v0.1.9 | Unlicense OR MIT |
+| jiff-tzdb-platform | v0.1.3 | Unlicense OR MIT |
 | jobserver | v0.1.35 | MIT OR Apache-2.0 |
 | js-sys | v0.3.103 | MIT OR Apache-2.0 |
 | lazy_static | v1.5.1 | MIT OR Apache-2.0 |
