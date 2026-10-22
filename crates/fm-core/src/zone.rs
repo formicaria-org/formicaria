@@ -144,7 +144,9 @@ mod tests {
         assert!(Zone::parse("+08:00").is_ok());
         assert!(Zone::parse("-05:30").is_ok());
         assert!(Zone::parse("Z").is_ok());
-        for bad in ["", "8", "+25:00", "Paris", "SGT", "+08:61"] {
+        // Nothing that could be one of the database's aliases (`Singapore`, `Japan`): those exist on
+        // some systems and not others (`fm-app`'s dispatch test, 2026-10-23).
+        for bad in ["", "8", "+25:00", "Paris time", "Europe/Atlantis", "+08:61"] {
             assert!(Zone::parse(bad).is_err(), "{bad} must be refused");
         }
         assert!(Zone::named("W. Europe Standard Time").is_none(), "a Windows name is not guessed");

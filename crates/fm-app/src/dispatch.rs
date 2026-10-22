@@ -4886,7 +4886,10 @@ mod tests {
         assert!(commands::parse_zone("-05:30").is_ok());
         assert!(commands::parse_zone("Asia/Singapore").is_ok(), "a zone name, since 2026-10-23");
         assert!(commands::parse_zone("").is_ok(), "empty is the computer's own zone");
-        for bad in ["8", "+8:75", "Singapore", "+15:00"] {
+        // Never a bare city: the zone database's own aliases ("Singapore", "Japan", "Egypt") are
+        // valid where the system ships its `backward` links and refused where it does not — this
+        // test passed on the laptop and failed on GitHub's runner (2026-10-23).
+        for bad in ["8", "+8:75", "Singapore time", "Europe/Atlantis", "+15:00"] {
             assert!(commands::parse_zone(bad).is_err(), "{bad} must be refused");
         }
     }
