@@ -540,7 +540,7 @@ ship inside the binary. Generated from the production dependency closure
 | delaunator | 5.1.0 | ISC |
 | detect-node-es | 1.1.0 | MIT |
 | devalue | 5.9.4 | MIT |
-| dompurify | 3.4.16 | Apache-2.0 (elected from `MPL-2.0 OR Apache-2.0`) |
+| dompurify | 3.4.17 | Apache-2.0 (elected from `MPL-2.0 OR Apache-2.0`) |
 | es-toolkit | 1.52.0 | MIT |
 | es6-promise-pool | 2.5.0 | MIT |
 | esm-env | 1.2.2 | MIT |
