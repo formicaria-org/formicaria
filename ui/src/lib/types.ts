@@ -670,7 +670,10 @@ export interface RecordItem {
     | 'procedure'
     | 'device'
     | 'contact'
-    | 'none_known';
+    | 'none_known'
+    | 'thought'
+    | 'worry'
+    | 'writing';
   title: string;
   status?: string;
   start?: string;
@@ -695,6 +698,8 @@ export interface HealthSaid {
   by: string;
   text: string;
   nhs?: boolean;
+  /** In our own words, not the source's: shown as ours, never as a quotation. */
+  paraphrase?: boolean;
 }
 /** One way a Health card counts the diary (`guidance.rs`'s closed set). */
 export interface HealthCheck {

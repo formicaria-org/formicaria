@@ -8,6 +8,14 @@ day is one note in your own notebook, a plain file like everything else. You cho
 body's (the NHS, NICE, the International Headache Society, FIGO), it names the body and quotes it,
 and it never puts a word to you. It is a record to bring to a doctor, not a doctor.
 
+NICE is given **in our own words**, with the recommendation's number and a link: NICE allows its text
+to be reused in the UK only, and formicaria is used everywhere. Such lines say *In our words*.
+
+**Everything stays on your device.** The diary, the record and Mind are notes in your notebook;
+nothing in Health sends anything anywhere. Your notes go only where your own backup sends them. The
+assistant's model runs on your device too. If you turn its web research on, only the search questions
+it writes go out (to Wikipedia, arXiv and GitHub), never your notes.
+
 > **New, and not yet tried on a phone.** Built in October 2026 and tried on a computer only. The
 > screens are laid out for a narrow window, but nobody has used them on a phone yet.
 
@@ -213,16 +221,37 @@ clinician can.
   affected by headache for any part or the whole of the day."* (ICHD-3, definition of terms)
 - **Chronic migraine**: headache *"on ≥15 days/month for >3 months"*, with migraine features *"on
   ≥8 days/month"*. (ICHD-3, 1.3)
-- **Painkillers**: NICE asks a clinician to be alert to medication overuse headache when a headache
-  *"developed or worsened"* while taking *"triptans, opioids, ergots or combination analgesic
-  medications on 10 days per month or more or paracetamol, aspirin or an NSAID, either alone or in
-  any combination, on 15 days per month or more"*, for 3 months or more. (NICE CG150, 1.2.7) The
-  thresholds *"are based on expert opinion rather than on formal evidence"*. (ICHD-3, 8.2)
+- **Painkillers**, in our words: clinicians should think of medication overuse headache when a
+  headache began or got worse while someone took triptans, opioids, ergots or combination
+  painkillers on 10 or more days a month, or paracetamol, aspirin or an NSAID on 15 or more days a
+  month, for 3 months or longer (NICE CG150, 1.2.7). The thresholds *"are based on expert opinion
+  rather than on formal evidence"*. (ICHD-3, 8.2)
 - **A long-lasting blocked or runny nose**: two or more symptoms, one a blockage or a discharge,
   *"for ≥12 weeks"*. (EPOS 2020, 1.2.2.6)
-- **How long to keep a diary**: *"for at least one month"* (ICHD-3); *"for a minimum of 8 weeks"*
-  (NICE CG150, 1.1.4); for a link with periods, *"for at least 2 menstrual cycles"* (NICE CG150,
-  1.2.6).
+- **How long to keep a diary**: *"for at least one month"* (ICHD-3); at least 8 weeks (NICE
+  CG150, 1.1.4); for a link with periods, at least 2 menstrual cycles (NICE CG150, 1.2.6).
+
+## Mind
+
+A private notebook, not a test: nothing you write in it is scored, judged or read by the app.
+
+- **Mood and activity** (a starter): your mood from 0 to 10, the things you planned and did, and
+  how much pleasure and achievement they brought. Planning activities and doing them (behavioural
+  activation) is the self-help with the strongest research behind it: across 105 trials it helped
+  with low mood, also when people did it on their own (Cuijpers 2026; the COBRA trial, 2016).
+- **Sleep** (a starter): how long you slept, how long it took, times awake, how well.
+- **Mind notes**: **＋ → Start Mind notes** writes templates for a **thought record**, **worry
+  time** and a piece of **writing**, kept on the Library's **mind** shelf. They are our own wording:
+  the well-known worksheets are not free to carry.
+- **Writing it down**: people often feel worse straight after writing about something hard; any good
+  tends to come later, and with a few days between sessions (Frattaroli 2006; Guo 2023).
+- **Mood (PHQ-9)** and **Anxiety (GAD-7)**: the questionnaires themselves, which their makers let
+  anyone carry, answered on their cards and never named as a diagnosis.
+
+If keeping any of this makes you feel worse, stop or take a break: in one trial, people who rated
+their mood every day did no better. When low mood lasts, see someone: help from a person does
+better than help on your own once it is more than mild (Karyotaki 2021). The contacts below are on
+every Mind screen and at the top of every Mind note.
 
 ## When to get help now
 

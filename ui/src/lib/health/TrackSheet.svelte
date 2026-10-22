@@ -8,6 +8,7 @@
   import { healthRecord } from '../ipc';
   import {
     KINDS,
+    MIND_TEMPLATES,
     RECORD_TEMPLATES,
     STARTERS,
     TEMPLATE,
@@ -42,11 +43,38 @@
 
   /** Whether the record's templates are in the notebook already: they are offered until they are. */
   let recordStarted = $state(true);
+  let mindStarted = $state(true);
   $effect(() => {
     void healthRecord()
-      .then((r) => (recordStarted = r.templates.length > 0))
+      .then((r) => {
+        recordStarted = r.templates.some((k) => !['thought', 'worry', 'writing'].includes(k));
+        mindStarted = r.templates.includes('thought');
+      })
       .catch(() => undefined);
   });
+  async function startMind() {
+    if (busy) return;
+    busy = true;
+    failed = '';
+    try {
+      await createNotesUndoable(
+        MIND_TEMPLATES.map((t) => ({
+          title: t.title,
+          body: t.body,
+          tags: ['template'],
+          props: { shelf: 'mind', record: t.record },
+        })),
+        'started Mind notes',
+      );
+      mindStarted = true;
+      onsaved();
+      onclose();
+    } catch (e) {
+      failed = String(e);
+    } finally {
+      busy = false;
+    }
+  }
   async function startRecord() {
     if (busy) return;
     busy = true;
@@ -157,6 +185,22 @@
           <small
             >Their sections are the International Patient Summary's; a medicine's lines are FDA's My
             Medicine Record. A result keeps the lab's own range, as printed.</small
+          >
+        </button>
+      </section>
+    {/if}
+
+    {#if !mindStarted}
+      <section aria-label="mind notes">
+        <button type="button" class="starter" disabled={busy} onclick={startMind}>
+          <strong>Start Mind notes</strong>
+          <span
+            >Templates for a thought record, worry time and a piece of writing, made from ＋ like
+            any note and kept on the Library's mind shelf. Nothing in them is scored.</span
+          >
+          <small
+            >In our own words: the well-known worksheets are not free to carry. Each note opens with
+            995 and National mindline 1771.</small
           >
         </button>
       </section>

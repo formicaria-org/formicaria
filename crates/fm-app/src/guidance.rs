@@ -36,6 +36,10 @@ pub struct Said {
     pub text: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub nhs: bool,
+    /// In our own words, not the source's: what its terms allow (NICE outside the UK), or a
+    /// paper's finding said plainly. Shown as ours, never as a quotation.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub paraphrase: bool,
 }
 
 /// Something a card asks the person to sort their own trackers into.
@@ -143,6 +147,9 @@ pub struct Card {
 #[derive(Debug, Deserialize)]
 struct Library {
     nhs_credit: String,
+    /// Why NICE is in our words (its terms allow reuse in the UK only).
+    #[allow(dead_code)]
+    nice_note: String,
     cards: Vec<Card>,
 }
 
@@ -220,7 +227,7 @@ fn own_card(o: &Object) -> Card {
         says: if body.is_empty() {
             Vec::new()
         } else {
-            vec![Said { by: "You".into(), text: body.to_string(), nhs: false }]
+            vec![Said { by: "You".into(), text: body.to_string(), nhs: false, paraphrase: false }]
         },
         urgent: Vec::new(),
         disagree: String::new(),
@@ -880,6 +887,24 @@ mod tests {
                 }
                 for from in &c.keys_from {
                     assert!(card.choose.iter().any(|x| &x.id == from), "{}: {from}", card.id);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn nice_is_never_quoted_only_said_in_our_words() {
+        // NICE's terms: reuse in the UK only, and outside it *"may be subject to a licence and
+        // fee"*. So nothing of NICE's is carried as a quotation (decisions.md, 2026-10-22, late night).
+        for card in &library().cards {
+            for s in card.says.iter().chain(&card.urgent) {
+                if s.by.contains("NICE") {
+                    assert!(s.paraphrase, "{}: {} is quoted", card.id, s.by);
+                }
+            }
+            for c in &card.checks {
+                if c.basis.contains("NICE") {
+                    assert!(!c.basis.contains('"'), "{}: {} quotes NICE", card.id, c.basis);
                 }
             }
         }

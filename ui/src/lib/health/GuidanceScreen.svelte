@@ -415,10 +415,18 @@
       {/if}
 
       {#each open.says as said, i (i)}
-        <blockquote>
-          <p>{said.text}</p>
-          <cite>{said.by}</cite>
-        </blockquote>
+        {#if said.paraphrase}
+          <!-- In our words: what its terms allow (NICE outside the UK), or a finding said plainly. -->
+          <div class="ours">
+            <p>{said.text}</p>
+            <cite>In our words, from {said.by}</cite>
+          </div>
+        {:else}
+          <blockquote>
+            <p>{said.text}</p>
+            <cite>{said.by}</cite>
+          </blockquote>
+        {/if}
       {/each}
       {#if open.says.some((s) => s.nhs) || open.urgent?.some((s) => s.nhs)}
         <p class="note">{data?.nhs_credit}</p>
@@ -829,6 +837,9 @@
     background: none;
     font-size: var(--text-xl);
     cursor: pointer;
+  }
+  .ours p {
+    margin: 0;
   }
   blockquote {
     margin: 0;

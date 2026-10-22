@@ -367,7 +367,8 @@ test('the diary is in sections, and a medicine named by the person goes under Me
   render(HealthScreen, { def: DIARY, today: TODAY, signal: 0, onsaved: () => {} });
   await screen.findByRole('group', { name: 'Headache' });
   const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-  expect(headings).toEqual(['Headache', 'Nose and eyes', 'Medication', 'Every day', 'Yours']);
+  // Sleep has a starter of its own, so it is its own section.
+  expect(headings).toEqual(['Headache', 'Nose and eyes', 'Sleep', 'Medication', 'Yours']);
   // The bedding is where the dust-mite card's shelf is; a person's own word is theirs.
   const nose = screen.getByRole('list', { name: 'Nose and eyes' });
   expect(within(nose).getByRole('group', { name: 'Bedding washed' })).toBeTruthy();
@@ -547,4 +548,35 @@ test('PHQ-9 is answered on its card, counted when whole, and its contacts come f
   await waitFor(() => expect(within(followed).getByRole('alert').textContent).toMatch(/995/));
   expect(followed.textContent).toMatch(/PHQ-9 total, latest\s*9/);
   expect(followed.textContent).not.toMatch(/depression|diagnos|risk/i);
+});
+
+test('Mind: the starter says what it is and is not, the contacts stay on screen, and Mind notes open with them', async () => {
+  const view = render(HealthScreen, {
+    def: DIARY,
+    today: TODAY,
+    signal: 0,
+    addSignal: 0,
+    onsaved: () => {},
+  });
+  await fireEvent.click(await screen.findByRole('button', { name: 'Track something' }));
+  let sheet = await screen.findByRole('dialog', { name: 'track something' });
+  const mind = within(sheet).getByRole('button', { name: /^Mood and activity/ });
+  expect(mind.textContent).toMatch(/nothing you write is scored/);
+  expect(mind.textContent).toMatch(/995/);
+  await fireEvent.click(mind);
+
+  // The rows are a section of their own, with the caution and the contacts under them.
+  await screen.findByRole('list', { name: 'Mood and activity' });
+  expect(screen.getByRole('group', { name: 'Pleasure' })).toBeTruthy();
+  const note = screen.getByRole('note');
+  expect(note.textContent).toMatch(/stop or take a break/);
+  expect(note.textContent).toMatch(/mindline 1771/);
+
+  // Mind notes: templates on the mind shelf, never the diary's own template.
+  await view.rerender({ addSignal: 1 });
+  sheet = await screen.findByRole('dialog', { name: 'track something' });
+  await fireEvent.click(await within(sheet).findByRole('button', { name: /Start Mind notes/ }));
+  const record = await handle<{ templates: string[] }>('health_record', {});
+  expect(record.templates).toEqual(expect.arrayContaining(['thought', 'worry', 'writing']));
+  expect((await days(TODAY, TODAY)).trackers.map((t) => t.key)).not.toContain('record');
 });

@@ -26,6 +26,9 @@
     named,
     perOf,
     sectioned,
+    sectionOf,
+    CONTACTS_LINE,
+    MIND_LINE,
   } from './starters';
 
   interface Props {
@@ -453,6 +456,9 @@
             {/if}
           {/if}
         {/if}
+        {#if pickedTracker && sectionOf(pickedTracker.key) === 'Mood and activity'}
+          <p class="mind" role="note">{CONTACTS_LINE}</p>
+        {/if}
         <button type="button" class="go quiet" onclick={() => (doctor = true)}
           >For the doctor</button
         >
@@ -580,6 +586,9 @@
           {/each}
         </ul>
       {/each}
+      {#if sections.some((x) => x.name === 'Mood and activity')}
+        <p class="mind" role="note">{MIND_LINE} {CONTACTS_LINE}</p>
+      {/if}
       {#if known.length}
         <h3 class="section">From Food and your body log</h3>
         <ul class="rows elsewhere" aria-label="From Food and your body log">
@@ -694,6 +703,13 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+  }
+  .mind {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface-hover);
+    font-size: var(--text-sm);
   }
   .elsewhere li {
     flex-direction: row;

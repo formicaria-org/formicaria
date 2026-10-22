@@ -99,7 +99,10 @@
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
     gap: 1.5rem;
     padding: 1rem;
-    align-items: end;
+    /* **Top, not bottom** (2026-10-22). Shelves side by side used to sit on a common floor, so a
+       short shelf beside the rest (thirty books tall) began below the window, and the owner
+       saw only the rest: a named shelf looked missing. Every shelf's name is read first. */
+    align-items: start;
   }
   .shelf {
     display: flex;

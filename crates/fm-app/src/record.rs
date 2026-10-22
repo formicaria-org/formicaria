@@ -16,7 +16,9 @@ use std::collections::BTreeMap;
 
 /// The property a record note is known by, and its kinds.
 pub const RECORD: &str = "record";
-pub const KINDS: [&str; 10] = [
+/// The last three are the person's own Mind notes (a thought record, worry time, a piece of
+/// writing), kept on the `mind` shelf; the doctor's page never shows them.
+pub const KINDS: [&str; 13] = [
     "medicine",
     "allergy",
     "condition",
@@ -27,6 +29,9 @@ pub const KINDS: [&str; 10] = [
     "device",
     "contact",
     "none_known",
+    "thought",
+    "worry",
+    "writing",
 ];
 /// Whether an item is in force: a medicine *current · stopped · on hold*, an allergy or a condition
 /// *active · inactive · remission · resolved* (IPS `status` and `clinicalStatus`). Not `status`, which

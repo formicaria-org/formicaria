@@ -18,6 +18,13 @@ export const TEMPLATE = {
     '_pct _c an amount in that unit, _score a questionnaire total.',
 };
 
+/** Said on every Mind screen and note (owner, 2026-10-22: Mind ships with Singapore's contacts). */
+export const CONTACTS_LINE =
+  'In an emergency: 995. National mindline 1771, 24 hours (WhatsApp +65 6669 1771).';
+/** The one caution the research asks for: in one trial, daily mood rating did no better (MONARCA I). */
+export const MIND_LINE =
+  'A private notebook, not a test: nothing you write is scored. If keeping it makes you feel worse, stop or take a break.';
+
 export interface Starter {
   name: string;
   /** What the starter is for, in a line. */
@@ -75,8 +82,8 @@ export const STARTERS: Starter[] = [
     about: 'Two readings in the morning and two in the evening, for 7 days.',
     keys: ['am1', 'am2', 'pm1', 'pm2'].flatMap((t) => [`bp_${t}_sys_mmhg`, `bp_${t}_dia_mmhg`]),
     source:
-      'NICE NG136 1.2.7: 2 readings at least 1 minute apart, seated, twice daily, for at least 4 ' +
-      'days and ideally 7, the first day left out. The diary layout follows the BIHS home diary.',
+      'NICE NG136 1.2.7, in our words: two readings a minute apart, sitting, morning and evening, ' +
+      'for 4 to 7 days, the first day left out. The layout follows the BIHS home diary.',
   },
   {
     name: 'Bladder',
@@ -90,8 +97,29 @@ export const STARTERS: Starter[] = [
       'drinks_ml',
     ],
     source:
-      'NICE NG123 1.3: a bladder diary for "a minimum of 3 days … covering … both working and ' +
-      'leisure days".',
+      'NICE NG123 1.3, in our words: a bladder diary over at least 3 days, working and leisure days both.',
+  },
+  {
+    name: 'Mood and activity',
+    about:
+      'Your mood, and what you planned and did, with how much pleasure and achievement it brought.',
+    keys: [
+      'mood_0to10',
+      'activities_planned_count',
+      'activities_done_count',
+      'pleasure_0to10',
+      'achievement_0to10',
+    ],
+    source:
+      'Behavioural activation: plan something, do it, note how it felt (Cuijpers 2026, 105 trials; ' +
+      'the COBRA trial, 2016). In our own words; the mood scale is your own 0 to 10.',
+    before: `${MIND_LINE} ${CONTACTS_LINE}`,
+  },
+  {
+    name: 'Sleep',
+    about: 'How long you slept, how long it took, times awake, and how well.',
+    keys: ['sleep_min', 'fall_asleep_min', 'awakenings_count', 'awake_min', 'sleep_quality_0to10'],
+    source: 'In our own words, after the morning sleep diary of Carney et al. 2012.',
   },
 ];
 
@@ -111,6 +139,16 @@ export const LABELS: Record<string, string> = {
       [`bp_${t}_dia_mmhg`, `${name}, diastolic`],
     ]),
   ),
+  mood_0to10: 'Mood',
+  activities_planned_count: 'Things planned',
+  activities_done_count: 'Things done of those planned',
+  pleasure_0to10: 'Pleasure',
+  achievement_0to10: 'Achievement',
+  sleep_min: 'Sleep',
+  fall_asleep_min: 'Time to fall asleep',
+  awakenings_count: 'Times awake in the night',
+  awake_min: 'Time awake in the night',
+  sleep_quality_0to10: 'How well you slept',
   voids_count: 'Times passing urine',
   night_voids_count: 'Times at night',
   urine_ml: 'Urine measured',
@@ -175,6 +213,8 @@ export const SECTIONS = [
   'Cycle',
   'Blood pressure',
   'Bladder',
+  'Mood and activity',
+  'Sleep',
   'Medication',
   'Every day',
   'Yours',
@@ -292,3 +332,28 @@ export function stemOf(name: string): string {
     .slice(0, 32)
     .replace(/_+$/, '');
 }
+
+/** **Mind notes**: templates for a thought record, worry time and a piece of writing, kept on the
+ *  Library's `mind` shelf. Our own wording: the templates people know are not free to carry
+ *  (`health-plan-2026-10-22.md` §10.2). Each opens with the contacts. */
+export const MIND_TEMPLATES: { title: string; record: string; body: string }[] = [
+  {
+    title: 'Thought record',
+    record: 'thought',
+    body:
+      `${CONTACTS_LINE}\n\n## What happened\n\n## The thought\n\n## How it felt, and how strong (0 to 100)\n\n` +
+      '## What else could be true\n\n## How it feels now (0 to 100)\n',
+  },
+  {
+    title: 'Worry time',
+    record: 'worry',
+    body: `${CONTACTS_LINE}\n\n## The worries\n\n## Which of them I can do something about\n\n## What I will do, and when\n`,
+  },
+  {
+    title: 'Writing',
+    record: 'writing',
+    body:
+      `${CONTACTS_LINE}\n\nPeople often feel worse straight after writing about something hard; ` +
+      'any good tends to come later, and with a few days between sessions. Stop when you need to.\n\n',
+  },
+];

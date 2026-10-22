@@ -745,3 +745,82 @@ NHS and NICE reuse terms for the diary layouts; SOS and IMH; peak-flow units (L/
 
 Held: peak flow, ACT, GINA, POEM, WHO-5; visits from meetings and the OCR for reports are next.
 
+
+## 10. Mind: diaries for mental health (2026-10-22, research; a proposal, not built)
+
+> The owner: *"What about mental health and diaries, nothing in that department?"*, then *"requires
+> a research … grounded on reputable sources and research"*. Two reviews, read at source unless
+> marked.
+
+### 10.1 What the evidence says (PubMed abstracts and regulators' own pages)
+
+| Practice | Evidence | Checked |
+|---|---|---|
+| **Activity planning (behavioural activation)** | Cuijpers 2026, 105 trials ([PMID 42492146](https://pubmed.ncbi.nlm.nih.gov/42492146/)): SMD 0.67 against control; *"Self-guided BA was also effective (k = 15; SMD = 0.36)"*. COBRA ([Lancet 2016, PMID 27461440](https://pubmed.ncbi.nlm.nih.gov/27461440/)): delivered by junior workers, *"non-inferior to CBT"* | source |
+| **Thought records** | Ciharova 2021 ([PMID 34264703](https://pubmed.ncbi.nlm.nih.gov/34264703/)): *"no evidence of a difference"* between challenging thoughts, activity planning and full CBT | source |
+| **Guided against unguided** | Karyotaki 2021 ([PMID 33471111](https://pubmed.ncbi.nlm.nih.gov/33471111/), n = 9,751): guided is better right after treatment, with no difference at 6–12 months; unguided works about as well for mild symptoms. Unguided self-help left fewer people worse than control: 5.8 % against 9.1 % ([PMID 29540243](https://pubmed.ncbi.nlm.nih.gov/29540243/)) | source |
+| **Mood tracking on its own** | Kauer 2012 ([PMID 22732135](https://pubmed.ncbi.nlm.nih.gov/22732135/)): raises emotional self-awareness, with no direct effect on depression. MONARCA I ([PMID 26220802](https://pubmed.ncbi.nlm.nih.gov/26220802/)): *"no significant effects"*, and a *"tendency towards more sustained depressive symptoms in the intervention group"*. MONARCA II: no effect on symptoms, with higher quality of life | source |
+| **Expressive writing** | Frattaroli 2006, 146 trials ([PMID 17073523](https://pubmed.ncbi.nlm.nih.gov/17073523/)): *"average r-effect size of .075"*. Guo 2023 ([PMID 36536513](https://pubmed.ncbi.nlm.nih.gov/36536513/)): the benefit *"emerged after a delay"*, and was larger with days between sessions. People often feel worse right after writing (Pennebaker & Beall 1986, *search*) | source / search |
+| **Engagement** | Baumel 2019 ([PMID 31573916](https://pubmed.ncbi.nlm.nih.gov/31573916/)): 3.3 % still use a mental-health app at 30 days | source |
+| **Privacy** | Huckvale 2019: 81 % of depression apps sent data to third parties. FTC against [BetterHelp](https://www.ftc.gov/news-events/news/press-releases/2023/03/ftc-ban-betterhelp-revealing-consumers-data-including-sensitive-mental-health-information-facebook-others-targeted) (2023: health questionnaires sent to Facebook and others) and [Cerebral](https://www.ftc.gov/news-events/news/press-releases/2024/04/proposed-ftc-order-will-prohibit-telehealth-firm-cerebral-using-or-disclosing-sensitive-data) (2024: data on about 3.2M people). Mozilla 2023: 19 of 32 apps carried its privacy warning | source |
+| **Regulation** | MHRA, digital mental-health tools (Feb 2025): a tool that *"tracks 'anxiety levels' over time"* has a medical purpose. Storing, showing and an easily checked calculation are *low functionality*, which is **not a regulated device**. Processing the entries with **AI is high functionality, which is a device**. APA's app model asks how a tool responds to safety concerns and who it shares data with | source |
+
+### 10.2 What may be carried (licences read at source)
+
+- **GAD-7**: carried word for word, as Pfizer allows (*"no permission is required to reproduce,
+  translate, display or distribute"*). It has 7 items over 2 weeks, scored 0–21, with the manual's
+  *"Scores of 5, 10, and 15 represent cutpoints for mild, moderate, and severe anxiety"*. The 0–4
+  band is left unnamed, and the manual's yellow-flag and red-flag wording is not used.
+- **No other template may be carried**, so each is **our own wording, citing its source**:
+  - Every Mind Matters, though on nhs.uk, has its own terms: *"You must not use any part of the
+    content on our site for commercial purposes without obtaining a licence"*. The NHS website's open
+    licence does not cover it.
+  - NHS trusts' guides, Get Self Help and Psychology Tools all forbid reposting or commercial use.
+  - The Consensus Sleep Diary is *"free for not-for-profit use"*.
+  - formicaria is MIT, so its users may reuse it commercially, and those terms would not pass on.
+- **NICE: a finding that reaches back to 0.12 and 0.13.** NICE's terms (18.1–18.2) allow reuse in
+  the UK under its UK Open Content Licence. Outside the UK, *"Except for personal use, study or
+  personal research"*, use needs an agreement and *"may be subject to a licence and fee"*. The
+  shipped cards quote CG150, NG136, NG88, NG73, NG123 and NG225 word for word. Short quotations may
+  fall under copyright's quotation exceptions, but by this project's own rule that is a gap. **For
+  the owner:** paraphrase NICE in our own words with the recommendation number and a link
+  (recommended), or ask NICE.
+
+### 10.3 Proposed: a *Mind* section of the diary, and *Mind* notes on the shelf
+
+**Framed as a private wellbeing notebook, never as monitoring a condition** (MHRA): no *"track
+your depression"* and no *"prevents"*.
+
+| Piece | Built as | Rests on |
+|---|---|---|
+| **Mood today** | a 0–10 tracker in our own words, unanchored (no free, validated single item was found) | NG222 1.4.11, self-monitoring (cited, not quoted) |
+| **Activity and mood** (behavioural activation) | a *Mind* starter: *planned something*, *did it*, *pleasure 0–10*, *achievement 0–10*. Our own wording; a day's activities are lines in the day note's text | Cuijpers 2026, COBRA; NG222's BA *"link between an individual's activities and their mood"* (cited) |
+| **Thought record** | a template note on the record shelf (`shelf: mind`): what happened · the thought · how it felt and how strong (0–100) · what else could be true · how it feels now. Our own wording; the columns are common CBT practice and are cited to NICE and Ciharova, not copied from any sheet | Ciharova 2021; NG222 Table 1 (cited) |
+| **Worry time** | a template note: the worries · which can be acted on · the plan. Our own wording | CG113 self-help (cited) |
+| **Sleep** | a starter: in bed, minutes to fall asleep, times awake, minutes awake, up, quality 0–10. Our own wording | Carney 2012 (cited, not copied, and not given its name) |
+| **Writing** | a template note for expressive writing, saying beforehand that people often feel worse right after writing and any good comes later, and suggesting days between sessions. The Timeline is already the journal | Frattaroli 2006; Guo 2023 |
+| **GAD-7** | a card beside PHQ-9, carried word for word | Pfizer |
+
+**Safety and privacy, from the research:**
+1. **Contacts on every Mind screen**, in the same place, all the time: 995 and mindline 1771. They
+   are not triggered by a score, and no risk is predicted (NG225 1.6.1).
+2. **Never score, classify or flag a journal or a thought record.** Charts show only the person's
+   own numbers.
+3. **Myrme stays out of Mind notes** unless the person asks of one note. AI over these entries is
+   what MHRA counts as high functionality. **This needs a Myrme-side rule**, an exclusion by
+   `shelf: mind`, which goes through Myrme's contract.
+4. **A line on the Mind starter**: *"if keeping this makes you feel worse, stop or take a break"*
+   (the MONARCA I trend). No streaks and no reminders unless asked.
+5. **Privacy**, as for the cycle: backups and remotes are copies, and a vault of its own is the
+   simplest way to keep these notes private.
+6. **When low mood lasts, see someone.** Guided help beats unguided for moderate and severe
+   symptoms. Said once, in our own words, citing Karyotaki 2021.
+
+**Held:** a panic diary (no open template, and no source for its fields); a bipolar mood chart
+(−3 to +3, a signed scale this app does not have yet; the NIMH-LCM's terms are unknown; CG185 is
+cited only).
+
+**Built 2026-10-22 (late night)**, per `decisions.md` of that night: §10's Mind (starters, Mind
+notes, the three cards with GAD-7), contacts on every Mind screen, NICE paraphrased on every card
+and in the manual (with a test), and the manual's *everything stays local*.
+

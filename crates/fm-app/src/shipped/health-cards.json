@@ -9,11 +9,13 @@
       "says": [
         {
           "by": "NICE CG150, 1.1.4",
-          "text": "…record the following for a minimum of 8 weeks: frequency, duration and severity of headaches; any associated symptoms; all prescribed and over the counter medications taken to relieve headaches; possible precipitants; relationship of headaches to menstruation."
+          "text": "Keep the diary for at least 8 weeks, writing down how often headaches come, how long they last and how bad they are, anything that comes with them, every medicine taken for them (prescribed or bought), what may have set them off, and how they fall against periods.",
+          "paraphrase": true
         },
         {
           "by": "NICE CG150, 1.3.1",
-          "text": "Consider using a headache diary: to record the frequency, duration and severity of headaches; to monitor the effectiveness of headache interventions; as a basis for discussion with the person about their headache disorder and its impact."
+          "text": "A diary can show how often, how long and how bad headaches are, whether a treatment is helping, and give the person and their clinician something to talk through.",
+          "paraphrase": true
         },
         {
           "by": "ICHD-3, 1.3, note 2",
@@ -55,7 +57,7 @@
           "label": "Days since the diary was started",
           "kind": "kept",
           "min": 56,
-          "basis": "NICE CG150 1.1.4: \"for a minimum of 8 weeks\""
+          "basis": "NICE CG150 1.1.4: at least 8 weeks"
         }
       ],
       "not_said": [
@@ -70,11 +72,13 @@
       "says": [
         {
           "by": "NICE CG150, 1.2.7",
-          "text": "Be alert to the possibility of medication overuse headache in people whose headache developed or worsened while they were taking the following drugs for 3 months or more: triptans, opioids, ergots or combination analgesic medications on 10 days per month or more or paracetamol, aspirin or an NSAID, either alone or in any combination, on 15 days per month or more."
+          "text": "Clinicians should think of medication overuse headache when a headache began or got worse while someone took triptans, opioids, ergots or combination painkillers on 10 or more days a month, or paracetamol, aspirin or an NSAID on 15 or more days a month, for 3 months or longer.",
+          "paraphrase": true
         },
         {
           "by": "NICE CG150, 1.3.6",
-          "text": "Explain the risk of medication overuse headache to people who are using acute treatments for their headache disorder."
+          "text": "People taking medicines for headaches should be told about the risk of medication overuse headache.",
+          "paraphrase": true
         },
         {
           "by": "NHS, Migraine",
@@ -134,7 +138,7 @@
             "simple"
           ],
           "at_or_over": 15,
-          "basis": "NICE CG150 1.2.7: \"on 15 days per month or more\", for 3 months or more"
+          "basis": "NICE CG150 1.2.7: 15 or more days a month, for 3 months or longer"
         },
         {
           "id": "specific",
@@ -144,7 +148,7 @@
             "specific"
           ],
           "at_or_over": 10,
-          "basis": "NICE CG150 1.2.7: \"on 10 days per month or more\", for 3 months or more"
+          "basis": "NICE CG150 1.2.7: 10 or more days a month, for 3 months or longer"
         }
       ],
       "not_said": [
@@ -594,11 +598,13 @@
       "says": [
         {
           "by": "NICE NG136, 1.2.7",
-          "text": "…for each blood pressure recording, 2 consecutive measurements are taken, at least 1 minute apart and with the person seated and blood pressure is recorded twice daily, ideally in the morning and evening and blood pressure recording continues for at least 4 days, ideally for 7 days. Discard the measurements taken on the first day and use the average value of all the remaining measurements to confirm a diagnosis of hypertension."
+          "text": "At home: two readings a minute or more apart, sitting down, morning and evening, for at least 4 days and ideally 7. The first day's readings are left out and the rest averaged.",
+          "paraphrase": true
         },
         {
           "by": "NICE NG136, 1.2.8",
-          "text": "…clinic blood pressure of 140/90 mmHg or higher and ABPM daytime average or HBPM average of 135/85 mmHg or higher."
+          "text": "High blood pressure is confirmed by a clinic reading of 140/90 or higher together with a home average of 135/85 or higher.",
+          "paraphrase": true
         },
         {
           "by": "NHS, High blood pressure",
@@ -645,7 +651,7 @@
           ],
           "max": 135,
           "max_second": 85,
-          "basis": "NICE NG136 1.2.7 and 1.2.8: \"HBPM average of 135/85 mmHg or higher\""
+          "basis": "NICE NG136 1.2.7–1.2.8: a home average of 135/85 or higher"
         }
       ],
       "not_said": [
@@ -790,11 +796,13 @@
       "says": [
         {
           "by": "NICE NG88, Context",
-          "text": "Heavy menstrual bleeding (HMB) is defined as excessive menstrual blood loss which interferes with a woman's physical, social, emotional and/or material quality of life."
+          "text": "Heavy menstrual bleeding is defined by what it does to someone's life (physically, socially, emotionally or materially), not by an amount of blood.",
+          "paraphrase": true
         },
         {
           "by": "NICE NG88, 1.1.1",
-          "text": "…ensure that any intervention aims to improve this rather than focusing on blood loss."
+          "text": "Treatment should aim to improve that, rather than to reduce a measured loss.",
+          "paraphrase": true
         },
         {
           "by": "NHS, Heavy periods",
@@ -868,7 +876,8 @@
         },
         {
           "by": "NICE CG150, 1.2.6",
-          "text": "Diagnose menstrual‑related migraine using a headache diary (see recommendation 1.1.4) for at least 2 menstrual cycles."
+          "text": "Migraine linked to periods is diagnosed with a headache diary kept for at least 2 menstrual cycles.",
+          "paraphrase": true
         }
       ],
       "sources": [
@@ -1009,7 +1018,8 @@
         },
         {
           "by": "NICE NG225, 1.6.1",
-          "text": "Do not use risk assessment tools and scales to predict future suicide or repetition of self-harm."
+          "text": "Risk tools and scales should not be used to predict suicide or self-harm.",
+          "paraphrase": true
         }
       ],
       "sources": [
@@ -1111,6 +1121,246 @@
         "It does not judge or predict risk: NICE says scales must not be used to predict self-harm.",
         "If the last question is not \"Not at all\", the contacts above are for now, and a clinician is for soon."
       ]
+    },
+    {
+      "id": "anxiety-gad7",
+      "shelf": "mind",
+      "name": "Anxiety (GAD-7)",
+      "rests_on": "definition",
+      "urgent": [
+        {
+          "by": "SCDF, Singapore",
+          "text": "995: Fire / Rescue / Emergency Ambulance"
+        },
+        {
+          "by": "National mindline 1771, Singapore",
+          "text": "1771: \"Get 24-hour access to our helpline\". WhatsApp +65 6669 1771."
+        }
+      ],
+      "says": [
+        {
+          "by": "GAD-7 instructions (Pfizer)",
+          "text": "Scores of 5, 10, and 15 represent cutpoints for mild, moderate, and severe anxiety"
+        },
+        {
+          "by": "GAD-7",
+          "text": "Developed by Drs. Robert L. Spitzer, Janet B.W. Williams, Kurt Kroenke and colleagues, with an educational grant from Pfizer Inc. No permission required to reproduce, translate, display or distribute."
+        }
+      ],
+      "sources": [
+        {
+          "by": "Pfizer (phqscreeners.com)",
+          "title": "PHQ and GAD-7 screeners",
+          "url": "https://www.phqscreeners.com/select-screener"
+        },
+        {
+          "by": "SCDF",
+          "title": "Emergency 995",
+          "url": "https://www.scdf.gov.sg/"
+        },
+        {
+          "by": "mindline",
+          "title": "National mindline 1771",
+          "url": "https://www.mindline.sg/"
+        }
+      ],
+      "trackers": [],
+      "form": {
+        "prompt": "Over the last 2 weeks, how often have you been bothered by the following problems?",
+        "answers": [
+          "Not at all",
+          "Several days",
+          "More than half the days",
+          "Nearly every day"
+        ],
+        "items": [
+          {
+            "key": "gad7_a_0to3",
+            "text": "Feeling nervous, anxious or on edge"
+          },
+          {
+            "key": "gad7_b_0to3",
+            "text": "Not being able to stop or control worrying"
+          },
+          {
+            "key": "gad7_c_0to3",
+            "text": "Worrying too much about different things"
+          },
+          {
+            "key": "gad7_d_0to3",
+            "text": "Trouble relaxing"
+          },
+          {
+            "key": "gad7_e_0to3",
+            "text": "Being so restless that it is hard to sit still"
+          },
+          {
+            "key": "gad7_f_0to3",
+            "text": "Becoming easily annoyed or irritable"
+          },
+          {
+            "key": "gad7_g_0to3",
+            "text": "Feeling afraid as if something awful might happen"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "total",
+          "label": "GAD-7 total, latest",
+          "kind": "questionnaire",
+          "keys": [
+            "gad7_a_0to3",
+            "gad7_b_0to3",
+            "gad7_c_0to3",
+            "gad7_d_0to3",
+            "gad7_e_0to3",
+            "gad7_f_0to3",
+            "gad7_g_0to3"
+          ],
+          "basis": "GAD-7 instructions: 0 to 3 for each answer, added; 0 to 21"
+        }
+      ],
+      "not_said": [
+        "A score is not a diagnosis, and the app does not name one.",
+        "It does not judge risk."
+      ]
+    },
+    {
+      "id": "activity-mood",
+      "shelf": "mind",
+      "name": "Activity and mood",
+      "rests_on": "review",
+      "urgent": [
+        {
+          "by": "SCDF, Singapore",
+          "text": "995: Fire / Rescue / Emergency Ambulance"
+        },
+        {
+          "by": "National mindline 1771, Singapore",
+          "text": "1771: \"Get 24-hour access to our helpline\". WhatsApp +65 6669 1771."
+        }
+      ],
+      "says": [
+        {
+          "by": "Cuijpers et al. 2026, 105 trials",
+          "paraphrase": true,
+          "text": "Planning activities and doing them (behavioural activation) helped with low mood across many trials, and it also helped when people did it on their own, though less."
+        },
+        {
+          "by": "COBRA trial, Lancet 2016",
+          "paraphrase": true,
+          "text": "Delivered by junior workers with little training, behavioural activation did as well as cognitive behavioural therapy."
+        },
+        {
+          "by": "NICE NG222",
+          "paraphrase": true,
+          "text": "Behavioural activation looks at the link between what a person does and how they feel."
+        },
+        {
+          "by": "Karyotaki et al. 2021",
+          "paraphrase": true,
+          "text": "Self-help works about as well alone as with support when symptoms are mild; when they are more than mild, help from someone does better at first."
+        }
+      ],
+      "sources": [
+        {
+          "by": "Cuijpers et al., Clin Psychol Rev 2026",
+          "title": "Behavioural activation for depression: meta-analysis",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42492146/"
+        },
+        {
+          "by": "Richards et al., Lancet 2016",
+          "title": "Behavioural activation versus CBT (COBRA)",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/27461440/"
+        },
+        {
+          "by": "NICE",
+          "title": "Depression in adults: treatment and management (NG222)",
+          "url": "https://www.nice.org.uk/guidance/ng222"
+        },
+        {
+          "by": "Karyotaki et al., JAMA Psychiatry 2021",
+          "title": "Guided and unguided internet CBT",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/33471111/"
+        }
+      ],
+      "trackers": [
+        "mood_0to10",
+        "pleasure_0to10",
+        "achievement_0to10",
+        "activities_planned_count",
+        "activities_done_count"
+      ],
+      "checks": [
+        {
+          "id": "done",
+          "label": "Days this week you did something you planned",
+          "kind": "week_days",
+          "keys": [
+            "activities_done_count"
+          ],
+          "basis": "Behavioural activation: plan something, do it, and note how it felt"
+        }
+      ],
+      "not_said": [
+        "It is not treatment, and it is not a substitute for help when low mood lasts.",
+        "If keeping this makes you feel worse, stop or take a break: in one trial, people who rated their mood daily did not do better.",
+        "Nothing you write is scored or judged."
+      ]
+    },
+    {
+      "id": "writing",
+      "shelf": "mind",
+      "name": "Writing it down",
+      "rests_on": "review",
+      "urgent": [
+        {
+          "by": "SCDF, Singapore",
+          "text": "995: Fire / Rescue / Emergency Ambulance"
+        },
+        {
+          "by": "National mindline 1771, Singapore",
+          "text": "1771: \"Get 24-hour access to our helpline\". WhatsApp +65 6669 1771."
+        }
+      ],
+      "says": [
+        {
+          "by": "Frattaroli 2006, 146 studies",
+          "paraphrase": true,
+          "text": "Writing about what has been hard has a small effect on wellbeing, on average."
+        },
+        {
+          "by": "Guo 2023, 31 trials",
+          "paraphrase": true,
+          "text": "Any benefit tends to come later, not right away, and is larger with a few days between sessions."
+        },
+        {
+          "by": "Pennebaker and Beall 1986 (from a secondary source)",
+          "paraphrase": true,
+          "text": "Straight after writing, people often feel worse for a while."
+        }
+      ],
+      "sources": [
+        {
+          "by": "Frattaroli, Psychol Bull 2006",
+          "title": "Experimental disclosure and its moderators: a meta-analysis",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/17073523/"
+        },
+        {
+          "by": "Guo, Br J Clin Psychol 2023",
+          "title": "Expressive writing: a meta-analysis",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/36536513/"
+        }
+      ],
+      "trackers": [],
+      "checks": [],
+      "not_said": [
+        "Nothing you write is read, scored or judged by the app.",
+        "Expect to feel worse right after writing; stop when you need to.",
+        "Your journal is the Timeline; a Writing note is one entry, kept on the Mind shelf."
+      ]
     }
-  ]
+  ],
+  "nice_note": "NICE is given in our own words, with the recommendation's number and a link: NICE allows its text to be reused in the UK only."
 }

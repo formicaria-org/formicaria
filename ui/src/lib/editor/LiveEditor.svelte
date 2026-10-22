@@ -249,24 +249,40 @@
     line-height: var(--lh-md);
     overflow: auto;
   }
-  .editor :global(.cm-h1) {
-    font-size: 1.6em;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-  .editor :global(.cm-h2) {
-    font-size: 1.35em;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-  .editor :global(.cm-h3) {
-    font-size: 1.15em;
-    font-weight: 650;
-  }
+  .editor :global(.cm-h1),
+  .editor :global(.cm-h2),
+  .editor :global(.cm-h3),
   .editor :global(.cm-h4),
   .editor :global(.cm-h5),
   .editor :global(.cm-h6) {
-    font-weight: 650;
+    font-weight: 700;
+    line-height: 1.3;
+    padding-top: 0.35em;
+  }
+  /* The read view's scale (`app.css`, *Headings*): the same steps, so a note looks the same open
+     or being written. A heading line is a line here, so its space above is padding. */
+  .editor :global(.cm-h1) {
+    font-size: 1.75em;
+    padding-top: 0.6em;
+    padding-bottom: 0.15em;
+    border-bottom: 1px solid var(--border);
+  }
+  .editor :global(.cm-h2) {
+    font-size: 1.4em;
+    padding-top: 0.55em;
+    padding-bottom: 0.1em;
+    border-bottom: 1px solid var(--border);
+  }
+  .editor :global(.cm-h3) {
+    font-size: 1.2em;
+    padding-top: 0.45em;
+  }
+  .editor :global(.cm-h4) {
+    font-size: 1.05em;
+  }
+  .editor :global(.cm-h6) {
+    font-size: 0.9em;
+    color: var(--text-muted);
   }
   .editor :global(.cm-strong) {
     font-weight: 700;

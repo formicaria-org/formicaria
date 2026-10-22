@@ -878,6 +878,9 @@ const RECORD_KINDS = [
   'device',
   'contact',
   'none_known',
+  'thought',
+  'worry',
+  'writing',
 ];
 export function healthRecord(notes: ObjectMeta[]): HealthRecord {
   const own = new Set(['record', 'record_status', 'about', 'shelf']);
