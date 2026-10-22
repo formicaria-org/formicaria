@@ -290,6 +290,9 @@ catalogue = { cmd = "cargo run -q -p fm-agent-serve -- --print-catalogue > agent
 # Move to the newest Myrme release this app can link (same contract major, enough minor): tries the
 # release tags newest first and keeps the first that builds. Then `pixi run ci`. Nothing committed.
 myrme-bump = "sh ci/myrme-bump.sh"
+# Delete regenerable build output (debug targets, the phone's builds) in this checkout and the
+# sibling Myrme one; keeps target/release, which the running app is. `known-issues.md`, *The disk fills*.
+free-space = "sh ci/free-space.sh"
 # Run the app in your browser against the REAL vault — this is how formicaria
 # runs. Builds the UI, then serves it + a JSON/bytes API over the same commands,
 # and (via FM_OPEN, set by the launcher) opens your default browser. Lean default
