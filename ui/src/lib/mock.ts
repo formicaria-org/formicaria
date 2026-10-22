@@ -2298,6 +2298,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'health_trackers':
       return tracker.healthTrackers(notes) as T;
+    case 'health_record':
+      return tracker.healthRecord(notes) as T;
     case 'health_guidance':
       return healthGuidance(notes, String(args.day)) as T;
     case 'health_days':

@@ -28,6 +28,10 @@ Press **＋** in Health and choose **Track something**. Start from one of these,
 - **Nose and eyes**: a runny, blocked or itchy nose, sneezing, itchy and watery eyes, each from
   none to severe, as the US FDA's nasal symptom score counts them.
 - **Cycle**: see [The cycle](#the-cycle).
+- **Blood pressure**: two readings in the morning and two in the evening, systolic and diastolic, in
+  mmHg, as NICE asks for a home reading: for at least 4 days and ideally 7.
+- **Bladder**: times passing urine (and at night), urine measured, leaks, pads and drinks, for at
+  least 3 days, as NICE asks of a bladder diary.
 
 **Your own**: give it a name ("Bedding washed", "Ibuprofen", "Sleep") and say how it is recorded:
 
@@ -38,7 +42,9 @@ Press **＋** in Health and choose **Track something**. Start from one of these,
 | How much it bothered you | `_0to100` | a slider, from *not at all bothersome* to *extremely bothersome* |
 | Yes or no | `_yes` | Yes, No |
 | How many times | `_count` | − and ＋ |
+| Doses of a medicine | `_doses` | − and ＋, under *Medication* |
 | An amount | the unit: `_min`, `_ml`, `_mg`, `_g`, `_mmhg`, `_pct`, `_c` | a number with its unit |
+| An amount to a tenth | `_c10` (°C), `_mmoll10` (mmol/L) | typed as 38.1, kept as 381 |
 | A questionnaire score | `_score` | a number, and a link to the questionnaire's owner |
 
 What you track is kept on one note, **Health diary**, tagged `template`. Each thing you track is a
@@ -51,7 +57,9 @@ their owners do not allow it. Fill one in where its owner publishes it and type 
 ## The diary
 
 **Diary** shows one day, with the same rows every day whether or not anything happened. Step back a
-day with **‹**.
+day with **‹**. The rows are in sections: *Headache*, *Nose and eyes* (the bedding is here too),
+*Cycle*, *Medication* (anything recorded as doses), *Every day* (sleep, caffeine) and *Yours*
+(anything else you named). The section comes from what a thing is, so there is nothing to set.
 
 - **A row you leave alone is "not recorded".** "None" or "No" is recorded. The month counts the two
   apart, and a doctor reading it can tell them apart too.
@@ -64,7 +72,7 @@ day with **‹**.
 
 **Over time** shows one thing you track at a time, chosen from **Showing**, in one of two ways.
 
-**Month** is a grid of the month,
+**Month** is a grid of the month (press a day to open it in Diary; Back returns to the month),
 shaded by the value, dashed where nothing was recorded, with a dot where a day was written in
 later. Under it are the counts: days recorded, days at 1 or more and, for none to severe, the days
 that were moderate or severe.
@@ -76,9 +84,36 @@ days were recorded, and a week with none says *nothing recorded* rather than sho
 **Mark** puts the days of one yes/no tracker under the bars, for example *Bedding washed* under
 *Headache*.
 
+## From Food and your body log
+
+What you already log elsewhere is shown in the Diary, under *From Food and your body log*, and not
+asked for again: the **water** in what you ate and drank, **caffeine** and **alcohol** from Food,
+and your **weight** and **steps**. They are changed where they were logged. Caffeine is only as
+complete as the food list: some of its tables do not carry it.
+
+## The record
+
+Some things change rarely and are asked about at every visit. In **Health → ＋ → Start a health
+record**, formicaria writes templates for them into your notebook, once: **Medicine**, **Allergy or
+intolerance**, **Condition**, **Result**, **Visit**, **Immunization**, **Procedure**, **Device**,
+**Contact** and **No known allergies**. Make one from **＋** like any note. Each is kept on the
+Library's **health** shelf, and is an ordinary note you can link to and from.
+
+- **A medicine** has a status, current, stopped or on hold, and its first and last day. Keep a
+  stopped one: it is history worth having.
+- **A result** keeps the value, and the range and flag **as the lab printed them**, with the report
+  attached. Ranges belong to the lab that printed them. The app never looks one up, colours a result
+  or explains it.
+- **No known allergies** says so, so it is not mistaken for allergies not written down.
+
+The sections are the International Patient Summary's, the standard for a record a person carries;
+a medicine's lines follow FDA's *My Medicine Record*.
+
 ## For the doctor
 
-In **Over time**, **For the doctor** makes a page of the diary:
+In **Over time**, **For the doctor** makes a page of the diary. It opens with your record, **as of
+today**: current medicines, allergies, conditions, past operations and devices, which is what NHS,
+FDA and AHRQ guidance tells people to bring. Then:
 
 - for **this month**, or for **the last 8 weeks**, which is the least NICE asks a headache diary to
   cover;
@@ -103,8 +138,14 @@ not read as more than it is. Where reputable sources disagree, the card says so 
 - **Keeping a diary**: *Keep a headache diary*; *Painkiller days*.
 - **Nose and allergy**: *Fewer dust mites in the bedroom*; *Rinsing the nose with salt water*;
   *Hay fever self-care*; *When to see someone*.
-- **Every day**: *Sleep*; *Caffeine*; *Water*; *Blood pressure at home*.
-- **Cycle**: *Your cycle*; *Heavy periods*; *Periods and migraine*.
+- **Every day**: *Sleep*; *Caffeine*; *Water* (counted from Food, beside EFSA's 2.0 L for women or
+  2.5 L for men, by the sex in your profile); *Blood pressure at home* (your 7-day average, the
+  first day left out as NICE asks, beside the NHS's *"135/85 or higher when checked at home"*).
+- **Cycle**: *Your cycle*; *Heavy periods*; *Periods and migraine*; *Premenstrual symptoms* (the
+  cycles your diary covers, beside the NHS's *"at least 2 menstrual cycles"*).
+- **Mind**: *Mood (PHQ-9)*: the questionnaire itself, which its makers allow anyone to carry,
+  answered on the card. It is counted when every question is answered, as its instructions score
+  it, and never named as a diagnosis.
 - **Yours**: the cards you write.
 
 **Follow** a card, and what it counts appears at the top of Guidance. It also adds the things the
@@ -189,6 +230,10 @@ A diary is for the weeks ahead, not for an emergency. For a sudden, very bad hea
 numbness, trouble speaking or seeing, confusion, a seizure, or a high temperature with a stiff neck,
 call your local emergency number now. *When to see someone* in Guidance quotes the NHS's full lists.
 999 is the UK's number; where you live, use your own.
+
+In Singapore: **995** for an emergency ambulance, and **National mindline 1771**, a 24-hour helpline
+(WhatsApp +65 6669 1771). *Mood (PHQ-9)* and *Premenstrual symptoms* show them on the card, and at
+the top of what is followed whenever PHQ-9's last question is answered other than *Not at all*.
 
 ## Where the words come from
 

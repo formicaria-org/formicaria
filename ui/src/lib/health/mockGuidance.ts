@@ -122,6 +122,79 @@ CARDS.push({
   not_said: ['Nothing is predicted.'],
 });
 
+const PHQ = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((k) => `phq9_${k}_0to3`);
+CARDS.push({
+  id: 'mood-phq9',
+  shelf: 'mind',
+  name: 'Mood (PHQ-9)',
+  rests_on: 'definition',
+  urgent: [
+    { by: 'SCDF, Singapore', text: '995: Fire / Rescue / Emergency Ambulance' },
+    {
+      by: 'National mindline 1771, Singapore',
+      text: '1771: "Get 24-hour access to our helpline".',
+    },
+  ],
+  says: [
+    { by: 'PHQ-9 instructions (Pfizer)', text: 'Scores of 5, 10, 15, and 20 represent cutpoints…' },
+  ],
+  sources: [
+    { by: 'Pfizer', title: 'PHQ screeners', url: 'https://www.phqscreeners.com/select-screener' },
+  ],
+  trackers: [],
+  form: {
+    prompt: 'Over the last 2 weeks, how often have you been bothered by any of the following:',
+    answers: ['Not at all', 'Several days', 'More than half the days', 'Nearly every day'],
+    items: PHQ.map((key, i) => ({ key, text: `Question ${i + 1}?` })),
+  },
+  checks: [
+    {
+      id: 'total',
+      label: 'PHQ-9 total, latest',
+      kind: 'questionnaire',
+      keys: PHQ,
+      basis: '0 to 3 each, added',
+    },
+  ],
+  not_said: ['A score is not a diagnosis.'],
+});
+
+/** As `guidance::measure_questionnaire`: the latest day in 4 weeks with every item answered. */
+function questionnaire(
+  entries: ObjectMeta[],
+  day: string,
+  c: HealthCard['checks'][number],
+): HealthCounted {
+  const keys = c.keys ?? [];
+  for (let d = day; d >= addDays(day, -27); d = addDays(d, -1)) {
+    const here = entries.filter((e) => (e.start ?? '').slice(0, 10) === d);
+    const values = keys.map((k) => here.map((e) => e.props[k]).find((v) => typeof v === 'number'));
+    if (values.every((v) => typeof v === 'number'))
+      return {
+        id: c.id,
+        label: c.label,
+        basis: c.basis,
+        value: (values as number[]).reduce((a, b) => a + b, 0),
+        values: values as number[],
+        of: 1,
+        recorded: 1,
+        from: d,
+        to: day,
+      };
+  }
+  return {
+    id: c.id,
+    label: c.label,
+    basis: c.basis,
+    value: 0,
+    of: 0,
+    recorded: 0,
+    from: addDays(day, -27),
+    to: day,
+    not_compared: 'not filled in in the last 4 weeks',
+  };
+}
+
 /** As `cycle::cycles`, without contexts: first day to first day, a marked gap left out. */
 function cycleLengths(
   entries: ObjectMeta[],
@@ -236,6 +309,7 @@ export function healthGuidance(notes: ObjectMeta[], day: string): HealthGuidance
     );
     const checks: HealthCounted[] = card.checks.map((c) => {
       if (c.kind === 'cycle_lengths') return cycleLengths(entries, day, c);
+      if (c.kind === 'questionnaire') return questionnaire(entries, day, c);
       const keys =
         c.kind === 'kept' && !c.keys?.length
           ? card.trackers

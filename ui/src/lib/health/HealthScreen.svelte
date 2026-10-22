@@ -16,7 +16,17 @@
   import DoctorPage from './DoctorPage.svelte';
   import GuidanceScreen from './GuidanceScreen.svelte';
   import TrackSheet from './TrackSheet.svelte';
-  import { BOTHER, BOTHER_CREDIT, SCORE_HOLDERS, SEVERITY, UNITS, WORDS } from './starters';
+  import {
+    BOTHER,
+    BOTHER_CREDIT,
+    SCORE_HOLDERS,
+    SEVERITY,
+    UNITS,
+    WORDS,
+    named,
+    perOf,
+    sectioned,
+  } from './starters';
 
   interface Props {
     def: TotalsDef;
@@ -25,11 +35,26 @@
     signal: unknown;
     /** Counts up each time the group's plus is pressed. */
     addSignal?: number;
+    /** The day to open on: one chosen in another of the group's views, or today. */
+    start?: string;
+    /** A day was chosen in the month: open it in Diary. Back returns to the month. */
+    onday?: (day: string) => void;
     onsaved: () => void;
+    /** The window's id, so two Health windows keep their sheets and Back apart. */
+    pane?: string;
   }
-  let { def, today, signal, addSignal = 0, onsaved }: Props = $props();
+  let {
+    def,
+    today,
+    signal,
+    addSignal = 0,
+    start,
+    onday,
+    onsaved,
+    pane = 'health',
+  }: Props = $props();
 
-  let selected = $state(untrack(() => today));
+  let selected = $state(untrack(() => (start && start <= today ? start : today)));
   let month = $state(untrack(() => today.slice(0, 8) + '01'));
   let data = $state<HealthDays | null>(null);
   let failed = $state('');
@@ -77,20 +102,25 @@
     tracking = true;
   });
   $effect(() => {
-    if (tracking) nav.openLayer('health-track', () => (tracking = false));
-    else nav.closeLayer('health-track');
+    if (tracking) nav.openLayer(`health-track:${pane}`, () => (tracking = false));
+    else nav.closeLayer(`health-track:${pane}`);
   });
-  $effect(() => () => nav.closeLayer('health-track'));
+  $effect(() => () => nav.closeLayer(`health-track:${pane}`));
   $effect(() => {
-    if (doctor) nav.openLayer('health-doctor', () => (doctor = false));
-    else nav.closeLayer('health-doctor');
+    if (doctor) nav.openLayer(`health-doctor:${pane}`, () => (doctor = false));
+    else nav.closeLayer(`health-doctor:${pane}`);
   });
-  $effect(() => () => nav.closeLayer('health-doctor'));
+  $effect(() => () => nav.closeLayer(`health-doctor:${pane}`));
 
-  const trackers = $derived(data?.trackers ?? []);
+  // Each with its plain name where the key's own words read badly (`starters.ts` `LABELS`).
+  const trackers = $derived((data?.trackers ?? []).map(named));
+  /** The things tracked, in the Diary's sections (`starters.ts`). */
+  const sections = $derived(sectioned(trackers));
   const day = $derived(data?.days.find((d) => d.day === selected));
   $effect(() => {
-    if (trackers.length && !trackers.some((t) => t.key === picked)) picked = trackers[0].key;
+    // The first in the Diary's own order, so Over time opens where the Diary does.
+    if (trackers.length && !trackers.some((t) => t.key === picked))
+      picked = sections[0]?.items[0]?.key ?? trackers[0].key;
   });
 
   // ── writing a day ──────────────────────────────────────────────────────────────────────────
@@ -157,12 +187,25 @@
       });
   }
 
+  /** Tenths are typed as a decimal and kept whole: 38.1 °C is kept as 381. */
+  const per = (t: Tracker) => (t.kind === 'amount' ? perOf(t.unit) : 1);
   function typedNumber(t: Tracker, raw: string) {
     const s = raw.trim();
     if (s === '') return record(t, null);
-    const n = Math.round(Number(s));
+    const n = Math.round(Number(s) * per(t));
     if (Number.isFinite(n) && n >= 0) record(t, n);
   }
+
+  // ── what fm already knows: Food's log and the body log ─────────────────────────────────────
+  /** Read, not typed again: each with its name, and its value in the unit people read it in. */
+  const ELSEWHERE: { key: string; label: string; show: (v: number) => string }[] = [
+    { key: 'water_mg', label: 'Water, from Food', show: (v) => `${Math.round(v / 1000)} ml` },
+    { key: 'caffeine_ug', label: 'Caffeine, from Food', show: (v) => `${Math.round(v / 1000)} mg` },
+    { key: 'alcohol_mg', label: 'Alcohol, from Food', show: (v) => `${(v / 1000).toFixed(1)} g` },
+    { key: 'weight_g', label: 'Weight', show: (v) => `${(v / 1000).toFixed(1)} kg` },
+    { key: 'steps', label: 'Steps', show: (v) => v.toLocaleString() },
+  ];
+  const known = $derived(ELSEWHERE.filter((e) => day?.elsewhere?.[e.key] !== undefined));
 
   // ── the month ──────────────────────────────────────────────────────────────────────────────
   const monthName = $derived(
@@ -198,7 +241,9 @@
         ? v
           ? 'Yes'
           : 'No'
-        : String(v);
+        : per(t) > 1
+          ? (v / per(t)).toFixed(1)
+          : String(v);
 
   // ── over time ──────────────────────────────────────────────────────────────────────────────
   // **A week is the unit**, as in Fitness (`decisions.md#ui`, 2026-10-16): how many days of it, or
@@ -233,7 +278,8 @@
     pickedTracker
       ? trackWeeks.map((w, i) => {
           const v = weekValue(pickedTracker, w);
-          const every = trackWeeks.length > 13 ? 4 : 1;
+          // A label every week fits only a few weeks wide; a phone has room for six.
+          const every = trackWeeks.length > 13 ? 4 : trackWeeks.length > 6 ? 2 : 1;
           return {
             key: w.week,
             value: v ?? 0,
@@ -251,7 +297,7 @@
 </script>
 
 {#if def.span === 'plan'}
-  <GuidanceScreen {today} {signal} {onsaved} />
+  <GuidanceScreen {today} {signal} {onsaved} {pane} />
 {:else}
   <div class="health">
     {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
@@ -277,7 +323,11 @@
         <label class="pick">
           <span>Showing</span>
           <select bind:value={picked}>
-            {#each trackers as t (t.key)}<option value={t.key}>{t.label}</option>{/each}
+            {#each sections as sec (sec.name)}
+              <optgroup label={sec.name}>
+                {#each sec.items as t (t.key)}<option value={t.key}>{t.label}</option>{/each}
+              </optgroup>
+            {/each}
           </select>
         </label>
         {#if shape === 'month'}
@@ -304,18 +354,21 @@
                 {#each week as cell, j (j)}
                   {#if cell}
                     {@const v = cell.values[picked]}
-                    <span
+                    <!-- A day is opened in Diary, to see it whole or fill it in. -->
+                    <button
+                      type="button"
                       class="cell"
-                      role="img"
                       data-level={level(pickedTracker, v)}
                       data-late={cell.late ? '1' : undefined}
+                      disabled={cell.day > today || !onday}
                       aria-label={`${dayLabel(cell.day)}: ${v === undefined ? 'not recorded' : shown(pickedTracker, v)}${cell.late ? ', written in later' : ''}`}
+                      onclick={() => onday?.(cell.day)}
                     >
                       <span class="n">{Number(cell.day.slice(8))}</span>
                       {#if v !== undefined && pickedTracker.kind !== 'severity' && pickedTracker.kind !== 'yesno'}<span
                           class="v">{v}</span
                         >{/if}
-                    </span>
+                    </button>
                   {:else}
                     <span class="pad"></span>
                   {/if}
@@ -363,6 +416,7 @@
             <p class="measure">{measure(pickedTracker)}</p>
             <Bars
               {bars}
+              most={isDays(pickedTracker) ? 7 : 0}
               selected={weekShown?.week}
               onpick={(k) => {
                 pickedWeek = k;
@@ -428,98 +482,117 @@
         </div>
       {/if}
 
-      <ul class="rows">
-        {#each trackers as t (t.key)}
-          {@const v = valueOf(t)}
-          <li>
-            <span class="label">{t.label}</span>
-            {#if t.kind === 'severity'}
-              <div class="chips" role="group" aria-label={t.label}>
-                {#each WORDS[t.key] ?? SEVERITY as word, n (n)}
+      {#each sections as sec (sec.name)}
+        {#if sections.length > 1}<h3 class="section">{sec.name}</h3>{/if}
+        <ul class="rows" aria-label={sec.name}>
+          {#each sec.items as t (t.key)}
+            {@const v = valueOf(t)}
+            <li>
+              <span class="label">{t.label}</span>
+              {#if t.kind === 'severity'}
+                <div class="chips" role="group" aria-label={t.label}>
+                  {#each WORDS[t.key] ?? SEVERITY as word, n (n)}
+                    <button
+                      type="button"
+                      class:on={v === n}
+                      aria-pressed={v === n}
+                      onclick={() => record(t, v === n ? null : n)}>{word}</button
+                    >
+                  {/each}
+                </div>
+              {:else if t.kind === 'yesno'}
+                <div class="chips" role="group" aria-label={t.label}>
                   <button
                     type="button"
-                    class:on={v === n}
-                    aria-pressed={v === n}
-                    onclick={() => record(t, v === n ? null : n)}>{word}</button
+                    class:on={v === 1}
+                    aria-pressed={v === 1}
+                    onclick={() => record(t, v === 1 ? null : 1)}>Yes</button
                   >
-                {/each}
-              </div>
-            {:else if t.kind === 'yesno'}
-              <div class="chips" role="group" aria-label={t.label}>
-                <button
-                  type="button"
-                  class:on={v === 1}
-                  aria-pressed={v === 1}
-                  onclick={() => record(t, v === 1 ? null : 1)}>Yes</button
-                >
-                <button
-                  type="button"
-                  class:on={v === 0}
-                  aria-pressed={v === 0}
-                  onclick={() => record(t, v === 0 ? null : 0)}>No</button
-                >
-              </div>
-            {:else if t.kind === 'rating'}
-              <div class="chips wrap" role="group" aria-label={t.label}>
-                {#each Array(11) as _, n (n)}
                   <button
                     type="button"
-                    class:on={v === n}
-                    aria-pressed={v === n}
-                    onclick={() => record(t, v === n ? null : n)}>{n}</button
+                    class:on={v === 0}
+                    aria-pressed={v === 0}
+                    onclick={() => record(t, v === 0 ? null : 0)}>No</button
                   >
-                {/each}
-              </div>
-            {:else if t.kind === 'bother'}
-              <div class="bother">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={v ?? 0}
-                  class:unset={v === undefined}
-                  aria-label={t.label}
-                  onchange={(e) => record(t, Number((e.currentTarget as HTMLInputElement).value))}
-                />
-                <span class="ends"
-                  ><span>{BOTHER.low}</span><span>{v ?? '—'}</span><span>{BOTHER.high}</span></span
-                >
-              </div>
-            {:else if t.kind === 'count'}
-              <div class="stepper" role="group" aria-label={t.label}>
-                <button
-                  type="button"
-                  aria-label="one less"
-                  disabled={v === 0}
-                  onclick={() => record(t, Math.max(0, (v ?? 1) - 1))}>−</button
-                >
-                <span class="count" aria-live="polite">{v ?? '—'}</span>
-                <button type="button" aria-label="one more" onclick={() => record(t, (v ?? 0) + 1)}
-                  >＋</button
-                >
-              </div>
-            {:else}
-              <div class="amount">
-                <input
-                  type="number"
-                  inputmode="numeric"
-                  min="0"
-                  step="1"
-                  value={v ?? ''}
-                  aria-label={t.label}
-                  onchange={(e) => typedNumber(t, (e.currentTarget as HTMLInputElement).value)}
-                />
-                {#if t.kind === 'amount'}<span>{unitLabel(t.unit)}</span>{/if}
-                {#if t.kind === 'score' && holder(t.key)}
-                  <a href={holder(t.key).url} target="_blank" rel="noopener noreferrer"
-                    >{holder(t.key).name}</a
+                </div>
+              {:else if t.kind === 'rating'}
+                <div class="chips wrap" role="group" aria-label={t.label}>
+                  {#each Array(11) as _, n (n)}
+                    <button
+                      type="button"
+                      class:on={v === n}
+                      aria-pressed={v === n}
+                      onclick={() => record(t, v === n ? null : n)}>{n}</button
+                    >
+                  {/each}
+                </div>
+              {:else if t.kind === 'bother'}
+                <div class="bother">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={v ?? 0}
+                    class:unset={v === undefined}
+                    aria-label={t.label}
+                    onchange={(e) => record(t, Number((e.currentTarget as HTMLInputElement).value))}
+                  />
+                  <span class="ends"
+                    ><span>{BOTHER.low}</span><span>{v ?? '—'}</span><span>{BOTHER.high}</span
+                    ></span
                   >
-                {/if}
-              </div>
-            {/if}
-          </li>
-        {/each}
-      </ul>
+                </div>
+              {:else if t.kind === 'count'}
+                <div class="stepper" role="group" aria-label={t.label}>
+                  <button
+                    type="button"
+                    aria-label="one less"
+                    disabled={v === 0}
+                    onclick={() => record(t, Math.max(0, (v ?? 1) - 1))}>−</button
+                  >
+                  <span class="count" aria-live="polite">{v ?? '—'}</span>
+                  <button
+                    type="button"
+                    aria-label="one more"
+                    onclick={() => record(t, (v ?? 0) + 1)}>＋</button
+                  >
+                </div>
+              {:else}
+                <div class="amount">
+                  <input
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    step={per(t) > 1 ? 0.1 : 1}
+                    value={v === undefined ? '' : v / per(t)}
+                    aria-label={t.label}
+                    onchange={(e) => typedNumber(t, (e.currentTarget as HTMLInputElement).value)}
+                  />
+                  {#if t.kind === 'amount'}<span>{unitLabel(t.unit)}</span>{/if}
+                  {#if t.kind === 'score' && holder(t.key)}
+                    <a href={holder(t.key).url} target="_blank" rel="noopener noreferrer"
+                      >{holder(t.key).name}</a
+                    >
+                  {/if}
+                </div>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/each}
+      {#if known.length}
+        <h3 class="section">From Food and your body log</h3>
+        <ul class="rows elsewhere" aria-label="From Food and your body log">
+          {#each known as e (e.key)}
+            <li>
+              <span class="label">{e.label}</span><span>{e.show(day!.elsewhere![e.key])}</span>
+            </li>
+          {/each}
+        </ul>
+        <p class="note">
+          Logged in Food and Fitness, and changed there; shown here so nothing is typed twice.
+        </p>
+      {/if}
       {#if cycling}
         <label class="context">
           <span class="label">Cycle context</span>
@@ -535,7 +608,7 @@
           >
         </label>
       {/if}
-      <ManualLink page="user/health.html" section="the-diary" />
+      <p class="manual"><ManualLink page="user/health.html" section="the-diary" /></p>
       {#if bothers}<p class="note">{BOTHER_CREDIT}</p>{/if}
       {#if trackers.some((t) => t.kind === 'severity')}
         <p class="note">
@@ -600,6 +673,31 @@
   .step button:disabled {
     opacity: 0.3;
     cursor: default;
+  }
+  /* The manual's link, drawn as a link: the component's own button carries no style. */
+  .manual {
+    margin: 0;
+  }
+  .manual :global(.manual-link) {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .section {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .elsewhere li {
+    flex-direction: row;
+    justify-content: space-between;
   }
   .rows {
     list-style: none;
@@ -750,6 +848,15 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--surface);
+  }
+  .cell {
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .cell:disabled {
+    cursor: default;
   }
   .cell[data-level='none'] {
     border-style: dashed;

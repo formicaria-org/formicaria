@@ -35,6 +35,7 @@ import type {
   LogDays,
   HealthDays,
   HealthGuidance,
+  HealthRecord,
   Tracker,
   RecentItem,
   ExerciseLibrary,
@@ -1355,6 +1356,8 @@ export const logDays = (view: string, from: string, to: string, rows = false) =>
   invoke<LogDays>('log_days', { view, from, to, rows });
 /** What the person tracks in the Health diary (`health_trackers`). */
 export const healthTrackers = () => invoke<Tracker[]>('health_trackers', {});
+/** The health record: every note with a `record` kind (`health_record`). */
+export const healthRecord = () => invoke<HealthRecord>('health_record', {});
 /** The Health cards, and the followed ones counted on `day` (`health_guidance`). */
 export const healthGuidance = (day: string) => invoke<HealthGuidance>('health_guidance', { day });
 /** The Health diary over a span, with its counts (`health_days`). */

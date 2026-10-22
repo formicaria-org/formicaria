@@ -18,12 +18,15 @@
     target?: number;
     selected?: string;
     height?: number;
+    /** The most a bar can be, when that is known (seven days in a week), so one day is drawn as one
+     *  day and not as the tallest bar there is. */
+    most?: number;
     onpick?: (key: string) => void;
   }
-  let { bars, target = 0, selected, height = 140, onpick }: Props = $props();
+  let { bars, target = 0, selected, height = 140, most = 0, onpick }: Props = $props();
 
   const targetOf = (b: Bar) => b.target ?? target;
-  const top = $derived(Math.max(...bars.map((b) => Math.max(b.value, targetOf(b))), 1) * 1.1);
+  const top = $derived(Math.max(most, ...bars.map((b) => Math.max(b.value, targetOf(b))), 1) * 1.1);
   let grown = $state(false);
   $effect(() => {
     // One frame at zero height, then the real one, so the bars rise once when they arrive.

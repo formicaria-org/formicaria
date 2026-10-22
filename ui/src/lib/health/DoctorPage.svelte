@@ -6,12 +6,12 @@
   // kept, and says so; it names no condition.
   import { untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { healthDays } from '../ipc';
+  import { healthDays, healthRecord } from '../ipc';
   import { isPhone } from '../platform';
   import { createNotesUndoable } from '../undo.svelte';
   import { addDays, dayLabel } from '../units';
-  import type { HealthDays, Tracker } from '../types';
-  import { BOTHER_CREDIT, SEVERITY, UNITS, WORDS } from './starters';
+  import type { HealthDays, RecordItem, Tracker } from '../types';
+  import { BOTHER_CREDIT, SEVERITY, UNITS, WORDS, named, perOf, sectioned } from './starters';
 
   interface Props {
     /** The first day of the month the page opens on. */
@@ -39,7 +39,10 @@
     const [from, to] = range;
     untrack(async () => {
       try {
-        data = await healthDays(from, to);
+        [data, record] = await Promise.all([
+          healthDays(from, to),
+          healthRecord().then((r) => r.items),
+        ]);
         failed = '';
       } catch (e) {
         failed = String(e);
@@ -54,7 +57,38 @@
     return () => document.body.classList.remove('fm-print-doctor');
   });
 
-  const shown = $derived((data?.trackers ?? []).filter((t) => !left.includes(t.key)));
+  /** In the Diary's sections' order, as the person reads them there. */
+  const ordered = $derived(sectioned((data?.trackers ?? []).map(named)).flatMap((x) => x.items));
+
+  // ── the record, first: what a person is asked to bring (FDA, NHS, AHRQ) ───────────────────────
+  let record = $state<RecordItem[]>([]);
+  /** What is in force: a medicine or a device not stopped, an allergy or a condition not resolved. */
+  const inForce = (r: RecordItem) => !['stopped', 'inactive', 'resolved'].includes(r.status ?? '');
+  const PARTS: { kind: RecordItem['kind']; heading: string; all?: boolean }[] = [
+    { kind: 'medicine', heading: 'Medicines' },
+    { kind: 'allergy', heading: 'Allergies and intolerances' },
+    { kind: 'condition', heading: 'Conditions' },
+    { kind: 'procedure', heading: 'Past operations and procedures', all: true },
+    { kind: 'device', heading: 'Devices' },
+  ];
+  const parts = $derived(
+    PARTS.map((p) => ({
+      ...p,
+      items: record.filter((r) => r.kind === p.kind && (p.all || inForce(r))),
+      none: record.find((r) => r.kind === 'none_known' && r.about === p.kind),
+    })).filter((p) => p.items.length || p.none),
+  );
+  /** One line of an item: its name, and what was written about it that a doctor reads first. */
+  const line = (r: RecordItem) =>
+    [
+      r.title,
+      r.fields.dose_text ?? r.fields.reaction ?? '',
+      r.start ? `since ${dayLabel(r.start)}` : '',
+      r.status && r.status !== 'current' && r.status !== 'active' ? r.status : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  const shown = $derived(ordered.filter((t) => !left.includes(t.key)));
   const unitLabel = (u: string) => UNITS.find((x) => x.unit === u)?.label ?? u;
   const heading = (t: Tracker) =>
     t.kind === 'amount' ? `${t.label} (${unitLabel(t.unit)})` : t.label;
@@ -67,7 +101,9 @@
           ? v
             ? 'Yes'
             : 'No'
-          : String(v);
+          : t.kind === 'amount' && perOf(t.unit) > 1
+            ? (v / perOf(t.unit)).toFixed(1)
+            : String(v);
   const daysOf = (n: number) => (n === 1 ? '1 day' : `${n} days`);
   const period = $derived(`${dayLabel(range[0])} – ${dayLabel(range[1])}`);
   const late = $derived(data?.days.some((d) => d.late) ?? false);
@@ -116,6 +152,11 @@
     return [
       period,
       '',
+      ...parts.flatMap((p) => [
+        `**${p.heading}**, as of ${dayLabel(today)}`,
+        ...(p.items.length ? p.items.map((r) => `- ${line(r)}`) : [`- ${p.none!.title}`]),
+        '',
+      ]),
       md(['', 'Recorded', 'At 1 or more', 'At 2 or more']),
       md(['---', '---', '---', '---']),
       ...counts,
@@ -182,7 +223,7 @@
       {#if data && data.trackers.length}
         <fieldset>
           <legend>On the page</legend>
-          {#each data.trackers as t (t.key)}
+          {#each ordered as t (t.key)}
             <label
               ><input
                 type="checkbox"
@@ -216,6 +257,18 @@
       <article class="page">
         <h1>Health diary</h1>
         <p class="period">{period}</p>
+        {#if parts.length}
+          <section class="record" aria-label="the record">
+            <h2>As of {dayLabel(today)}</h2>
+            {#each parts as p (p.kind)}
+              <h3>{p.heading}</h3>
+              <ul>
+                {#each p.items as r (r.id)}<li>{line(r)}</li>{/each}
+                {#if !p.items.length && p.none}<li>{p.none.title}</li>{/if}
+              </ul>
+            {/each}
+          </section>
+        {/if}
         {#if shown.length === 0}
           <p class="note">Nothing chosen to show.</p>
         {:else}
@@ -375,6 +428,19 @@
   .go:disabled {
     opacity: 0.5;
     cursor: default;
+  }
+  .record h2 {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-md);
+  }
+  .record h3 {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+  }
+  .record ul {
+    margin: var(--space-1) 0 var(--space-2);
+    padding-left: var(--space-4);
+    font-size: var(--text-sm);
   }
   .page h1 {
     margin: 0;

@@ -573,8 +573,16 @@ Open, found while building:
   **Diary** to write in, **Over time** to look back (Month | Weeks, *For the doctor* at its foot),
   **Guidance**. `health-month.view` and `Span::Month` are removed. `decisions.md`, 2026-10-22
   (evening).
-- Next: the phone layout, shown to the owner; sections in Diary; pressing a day in the month to
-  open it in Diary; blood pressure's four readings a day.
+- ✅ **Released in 0.12.0** (2026-10-22), with the phone layout by width and *Keep as a note* on
+  the doctor's page.
+- ✅ **Sections in Diary**: Headache · Nose and eyes · Cycle · Medication · Every day · Yours,
+  read off the key (`starters.ts` `sectionOf`): a starter's keys are its own, a card's trackers sit
+  on its shelf, `_doses` is Medication (a new *Doses of a medicine* kind), and anything else is
+  Yours. Nothing is stored. The pickers in Over time and the doctor's page follow the same order.
+- ✅ **A day pressed in the month opens in Diary**, through `TrackerPane`'s `openDay` (Food's own
+  path, now also Health's). Back returns to the month; a day to come cannot be pressed.
+- Next: blood pressure's four readings a day; Singapore crisis numbers before PHQ-9 or the
+  premenstrual card; tried on a phone.
 
 The original order, for reference:
 
@@ -587,3 +595,153 @@ The original order, for reference:
 6. Cards 1–10 in `plans.json` with their checks, then *Yours*; then the Cycle starter and cards
    11, 12 and 14. PHQ-9 and the rhinitis definition
    follow only once §7 is settled.
+
+## 9. Broader: the record on a Library shelf, the diary widened, and what fm already knows (2026-10-22, late)
+
+> **A proposal, researched, not built.** The owner: *"it needs to be broader and talk with the other
+> information in fm (everything stays a note, at most structured after all). What would a person
+> need to track in this sort of view is the first question"*, then *"run the research round,
+> Library shelf for the record"*. Two reviews, read at source unless marked.
+
+### 9.1 What a health record holds
+
+**HL7 FHIR International Patient Summary**, v2.0.1 STU 2
+([structure](https://hl7.org/fhir/uv/ips/en/Structure-of-the-International-Patient-Summary.html)):
+*"(R) denotes a required section … (S) denotes a recommended section; others are optional."*
+
+| Tier | Sections |
+|---|---|
+| Required | Problem List, Allergies and Intolerances, Medication Summary |
+| Recommended | Immunizations, Diagnostic Results, History of Procedures, Medical Devices |
+| Optional | Vital Signs, Past Problems, Pregnancy, Social History, Plan of Care, Functional Status, Advance Directives, Alerts, Patient Story |
+
+An empty required section is stated, not left blank (*"emptyReason"*). A medicines list may say
+*"known not to be under any relevant medication"*.
+
+Patient-facing records group the same things:
+- **Apple HealthKit:** allergy, condition, immunization, lab result, medication, procedure and vital
+  sign records.
+- **Android Health Connect:** the same plus visits, practitioners and pregnancy.
+- **The NHS App:** prescriptions, appointments, test results, vaccinations, conditions and
+  allergies, documents.
+
+**What patients are told to keep and bring:**
+- **FDA's *My Medicine Record*** (form FDA 3664, [PDF](https://www.fda.gov/media/73856/download)):
+  what, what it looks like, how much, how and when, start and stop, why, who told me to; allergies
+  to *"any medicine, dietary supplement, food, skin cleaner, medical tape"*; *"My Medical Conditions
+  and Operations"*; *"These are my medicines as of [date]"*.
+- **NHS, *What to ask your doctor*:** *"List or bring all your medicines and pills – including
+  vitamins and supplements. Write down details of your symptoms"*; afterwards *"Write down what you
+  discussed and what happens next. Keep your notes."*
+- **AHRQ:** *"Bring all the medicines you take … Know your current medical conditions, past
+  surgeries, and illnesses."*
+
+**What people use and drop** (PubMed abstracts):
+- Ancker 2015 ([PMID 26290186](https://pubmed.ncbi.nlm.nih.gov/26290186/)): *"tracking this data
+  feels like work"*; *"physicians trust technologically measured data such as lab reports over
+  patients' self-tracked data"*.
+- Krebs & Duncan 2015 ([PMID 26537656](https://pubmed.ncbi.nlm.nih.gov/26537656/)): 45.7 % stopped
+  using some health apps, *"primarily due to high data entry burden"*.
+- Clinicians judge self-tracked data by *"accuracy and reliability, completeness, context"*
+  ([West 2017, PMID 29209601](https://pubmed.ncbi.nlm.nih.gov/29209601/)).
+
+**Results belong to their lab** ([MedlinePlus](https://medlineplus.gov/lab-tests/how-to-understand-your-lab-results/)):
+*"labs often use different testing methods, they often use different reference ranges … You can't
+compare your results to reference ranges that you might find elsewhere"*, and *"It's common for
+healthy people to sometimes have results outside the reference range."* Apps interpreting numbers
+cause *"anxiety, confusion"* ([van der Mee 2024, PMID 39133906](https://pubmed.ncbi.nlm.nih.gov/39133906/)).
+
+### 9.2 The record: notes on the Library shelf `health`
+
+**Everything is an ordinary note, made from a template, shelved `shelf: health`**, linked with
+`[[links]]`. Few fields are required (a name, a status, a date) and the rest are optional, because
+data entry is what makes people stop. Keys follow the diary's rules: whole numbers, unit in the key.
+
+| Note (template) | Fields (IPS name) |
+|---|---|
+| **Medicine** | name (medication), strength and form, `dose_text` (dosage.text), schedule or `as_needed` (dosage.timing), `start`/`due` as start and stop (effective), `status`: current · stopped · on hold (status), reason → [[condition]], prescriber → [[contact]], `looks_like` (FDA) |
+| **Allergy or intolerance** | substance (code), `type`: allergy · intolerance, reaction, severity, onset, `status`: active · inactive · resolved; food, tape and skin products too (FDA) |
+| **Condition** | name (code), `status`: active · remission · resolved (clinicalStatus), onset, resolved, severity |
+| **Result** | test (code), value with its unit in the key (`ige_dpt_kua_per_l_x100: 1320` for 13.20), **the lab's own** `ref_low`/`ref_high`/`ref_text` and `lab_flag` as printed, date, lab → [[contact]], the report attached (PDF or photo), status: preliminary · final · amended |
+| **Visit** | date (on the Agenda), with → [[contact]], questions to ask, what was said, next steps |
+| **Immunization**, **procedure**, **device** | name, date, status (and dose number, body site, since) |
+| **Contact** | name, role (GP, allergist, lab, pharmacy), phone |
+| **None known** | a note per required section saying so, so *none* is told apart from *not recorded* (IPS emptyReason) |
+
+**Rules carried from the research:**
+1. **The lab's range, never the app's.** A result shows its value beside the lab's own printed range
+   and flag. Nothing is coloured *normal/abnormal*, explained or compared across labs, and the
+   assistant is not asked to read it.
+2. **A different unit is a different key.** Nothing is converted silently.
+3. **A medicine stopped is kept**, with status *stopped* and a last day: archived, not deleted (Apple,
+   FDA).
+4. **Doses stay in the diary.** The diary's `<medicine>_doses` tracker and the medicine note link to
+   each other; the note holds the plan and the diary holds what was taken.
+
+**What it connects to in fm:**
+- **The Agenda:** visits are dated notes; a medicine's `start`/`due` place it.
+- **Reminders:** a dose time is a note's own date, said at its time (`reminders.rs`).
+- **Meetings from calendar and mail:** a clinic appointment already becomes a meeting note; *Make it
+  a visit* adds the shelf and the template's fields.
+- **Image → text:** a photographed lab report is read by the same OCR as a food label, and the
+  person checks every figure. Nothing is guessed.
+- **For the doctor:** the page opens with the record, *"as of"* today. It lists current medicines
+  (including over-the-counter medicines and supplements), allergies, active conditions and past
+  operations, then the diary's counts. This is the one-page summary FDA, NHS and AHRQ ask a person
+  to bring.
+
+### 9.3 Read, not typed twice: what fm already logs
+
+| Value | Where fm has it | Used by |
+|---|---|---|
+| Water | Food's log, `water_mg`: the water in foods **and** drinks, which is EFSA's *total* water | the *Water* card can now count (it could not from drinks alone) |
+| Caffeine | Food's log, `caffeine_ug` (USDA foods; Ciqual and BLS do not carry it, so it is partial) | the *Caffeine* card, with the gap said |
+| Alcohol | Food's log, `alcohol_mg` | a trigger row, or a card when one is sourced |
+| Weight, steps | the body log (`weight_g`, `steps`) | Over time, the doctor's page |
+| Activity | Fitness sessions | Over time |
+| Period days | the Cycle starter | Food and Fitness flags, later |
+
+In the Diary these appear as read-only rows that name where they come from, and open there.
+
+### 9.4 The diary widened: what to add, from the research
+
+| Diary | Holder | Ship as | Notes |
+|---|---|---|---|
+| **Home blood pressure** | NICE NG136; BIHS and NHS Lothian diaries | **starter** | 4 readings a day: `bp_am1_sys_mmhg`, `bp_am1_dia_mmhg` … `pm2`, over 7 days, the first discarded (NICE 1.2.7). The card quotes nhs.uk: *"135/85 or higher when checked at home"*. A target only if the person types the one they were given (BIHS has a *"Target BP (if advised)"* field) |
+| **Peak flow** | Asthma + Lung UK; NHS | **starter** | `peak_flow_am_lmin`, `peak_flow_pm_lmin`, each *"the highest of"* 3 blows; the person's own best. **No zones**. ACT needs a QualityMetric licence and fee (**hold**); GINA's questions need copyright approval (**link only**) |
+| **Blood glucose** | NICE NG17, NG28 | **kinds only** | Readings named by the person (before breakfast …), in tenths of mmol/L. **No targets**: NICE: *"Agree an individualised HbA1c target with each adult"* |
+| **Bladder diary** | NICE NG123: *"a minimum of 3 days"* | **starter** | Voids (ml), urgency 0–4 in our own words (ABUHB's wording needs permission), leaks, pads, drinks (ml) |
+| **Bowel** | Bristol Stool Form Scale, © Norgine | **kinds only** | A type 1–7 number. Norgine's descriptions and pictures are not carried |
+| **Temperature** | NHS: *"A high temperature is usually considered to be 38C or above."* | **kind** | Tenths of °C. The quote may sit beside it, attributed |
+| **Pain** | British Pain Society (digitising needs permission); BPI (licence) | **kind only** | 0–10 in our own words |
+| **Eczema (POEM)** | University of Nottingham: free for non-commercial use | **link only** | formicaria is MIT, so anyone may use it commercially, and carrying POEM would pass on a right we do not have |
+| **Wellbeing (WHO-5)** | WHO, CC BY-NC-SA 3.0 IGO | **link only** | Same reason: non-commercial and share-alike, inside an MIT app |
+| **Mood (PHQ-9)** | Pfizer: *"No permission is required"* | **owner's choice** | Item 9 is about self-harm. Singapore contacts read at source: **995** ([SCDF](https://www.scdf.gov.sg/)), **mindline 1771**, 24 hours, WhatsApp +65 6669 1771 ([mindline.sg](https://www.mindline.sg/)). SOS 1767 and the IMH helpline were not reachable to read. Either PHQ-9 with these always shown beside it, or PHQ-8, which leaves item 9 out (unread at source) |
+
+**Unread at source:** ACT and GINA terms; the ICIQ bladder diary terms; Norgine's own page; the
+NHS and NICE reuse terms for the diary layouts; SOS and IMH; peak-flow units (L/min, from memory).
+
+### 9.5 Order, proposed
+
+1. **The record**:
+   - the templates and the `shelf: health` shelf;
+   - result notes with the lab's own range and an attached report;
+   - medicine notes linked to the diary's doses;
+   - *none known* notes.
+2. **The doctor's page opens with the record**, as of today.
+3. **Read, not typed**: water, caffeine and alcohol from Food; weight and steps from the body log.
+   The *Water* card gains its check.
+4. **The diary widened**: the blood-pressure starter (which settles §5.3 card 10), peak flow, the
+   bladder diary, and the temperature, glucose, bowel and pain kinds.
+5. **Visits** from calendar meetings; a photographed report read by the OCR.
+6. **PHQ-9 or PHQ-8**, once the owner chooses.
+
+**Built 2026-10-22 (night)**, per `decisions.md` of that night:
+- the record (`record.rs`, `health_record`; *Start a health record*; the record first on the doctor's
+  page);
+- values read from Food and the body log (`health::elsewhere`); *Water* counted (`food_mean`);
+- the *Blood pressure* (`bp_home`) and *Bladder* starters; tenths units;
+- PHQ-9 and *Premenstrual symptoms*, with Singapore's contacts.
+
+Held: peak flow, ACT, GINA, POEM, WHO-5; visits from meetings and the OCR for reports are next.
+

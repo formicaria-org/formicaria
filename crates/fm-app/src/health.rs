@@ -54,7 +54,9 @@ pub enum TrackerKind {
 
 /// The units a tracker may be measured in. **Grows only with a source for the unit**; a key ending
 /// in anything else is not a tracker.
-const UNITS: &[&str] = &["min", "ml", "mg", "g", "mmhg", "pct", "c"];
+/// `c10` and `mmoll10` are tenths, of a degree Celsius and of a millimole per litre: a temperature
+/// of 38.1 °C is `381`, a glucose of 5.4 mmol/L is `54`, so the number stays whole.
+const UNITS: &[&str] = &["min", "ml", "mg", "g", "mmhg", "pct", "c", "c10", "mmoll10"];
 
 impl TrackerKind {
     /// The least and the most a recorded value may be, where the kind bounds it.
@@ -250,6 +252,69 @@ pub struct HealthDay {
     /// words, or `none` where one ended.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<String>,
+    /// **What fm already knows about the day, read and not typed again**: from Food's log the water
+    /// (`water_mg`, foods and drinks alike), caffeine (`caffeine_ug`) and alcohol (`alcohol_mg`);
+    /// from the body log the weight (`weight_g`, a mean) and steps. Only what was logged.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub elsewhere: BTreeMap<String, i64>,
+}
+
+/// The values read from the other logs, as one `totals` definition so `log::log_days` reads them
+/// exactly as Food and its trends do.
+fn elsewhere_def() -> crate::views::TotalsDef {
+    use crate::views::{AddAction, Agg, Metric, Role, Span, TotalsDef};
+    let m = |key: &str, agg: Agg, log: Option<&str>| Metric {
+        key: key.into(),
+        label: key.into(),
+        role: Role::Detail,
+        agg,
+        log: log.map(str::to_string),
+    };
+    TotalsDef {
+        log: "food".into(),
+        add: AddAction::Food,
+        span: Span::Day,
+        metrics: vec![
+            m("water_mg", Agg::Sum, None),
+            m("caffeine_ug", Agg::Sum, None),
+            m("alcohol_mg", Agg::Sum, None),
+            m("weight_g", Agg::Mean, Some("body")),
+            m("steps", Agg::Sum, Some("body")),
+        ],
+        slots: Vec::new(),
+    }
+}
+
+/// Each day's values from the other logs, by day.
+pub fn elsewhere(
+    store: &dyn Store,
+    from: &str,
+    to: &str,
+) -> Result<BTreeMap<String, BTreeMap<String, i64>>, StoreError> {
+    let def = elsewhere_def();
+    let days = crate::log::log_days(store, &def, from, to, false)?;
+    Ok(days
+        .days
+        .into_iter()
+        .map(|d| {
+            let values = def
+                .metrics
+                .iter()
+                .filter_map(|m| {
+                    let s = d.sums.get(&m.key)?;
+                    (s.n > 0).then(|| {
+                        let v = if m.agg == crate::views::Agg::Mean {
+                            s.sum / s.n as i64
+                        } else {
+                            s.sum
+                        };
+                        (m.key.clone(), v)
+                    })
+                })
+                .collect();
+            (d.day, values)
+        })
+        .collect())
 }
 
 /// What a span holds for one tracker: the days it covers, the days recorded, and the days at or
@@ -328,6 +393,7 @@ pub fn health_days(
     let trackers = of_templates(&templates);
     let template = templates.first().map(|o| o.id.to_string());
     let (series, mut notes) = read(store, &trackers, from, to)?;
+    let mut others = elsewhere(store, &day_string(from), &day_string(to))?;
     let mut days = Vec::new();
     let mut d = from;
     loop {
@@ -347,6 +413,7 @@ pub fn health_days(
             values,
             late,
             context,
+            elsewhere: others.remove(&day_string(d)).unwrap_or_default(),
         });
         match d.next_day() {
             Some(n) if n <= to => d = n,
@@ -586,5 +653,31 @@ mod tests {
         );
         assert!(health_days(&s, "2026-10-01", "2026-10-05", false).unwrap().weeks.is_none());
         assert!(health_days(&s, "2026-10-05", "2026-10-01", false).is_err());
+    }
+
+    #[test]
+    fn what_food_and_the_body_log_hold_is_read_into_the_days_not_typed_again() {
+        let logged = |log: &str, d: u8, kv: &[(&str, i64)]| {
+            note("", |o| {
+                o.extra.insert(LOG.into(), PropertyValue::Text(log.into()));
+                o.start = Some(Stamp::day(day(d)));
+                for (k, v) in kv {
+                    o.extra.insert((*k).into(), PropertyValue::Int(*v));
+                }
+            })
+        };
+        let s = store(vec![
+            logged("food", 2, &[("water_mg", 1_500_000), ("caffeine_ug", 95_000)]),
+            logged("food", 2, &[("water_mg", 250_000)]),
+            logged("body", 2, &[("weight_g", 71_000)]),
+            logged("body", 2, &[("weight_g", 71_400)]),
+        ]);
+        let got = health_days(&s, "2026-10-01", "2026-10-03", false).unwrap();
+        assert!(got.days[0].elsewhere.is_empty());
+        let e = &got.days[1].elsewhere;
+        assert_eq!(e["water_mg"], 1_750_000, "added up, foods and drinks alike");
+        assert_eq!(e["caffeine_ug"], 95_000);
+        assert_eq!(e["weight_g"], 71_200, "a weight is a mean, never a sum");
+        assert!(!e.contains_key("alcohol_mg"), "nothing logged is not a zero");
     }
 }

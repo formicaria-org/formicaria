@@ -648,6 +648,36 @@ export interface HealthDay {
   late?: boolean;
   /** The cycle's context set or cleared on this day: the person's words, or `none`. */
   context?: string;
+  /** What fm already holds for the day, read not typed: `water_mg`, `caffeine_ug`, `alcohol_mg`
+   *  from Food's log; `weight_g` (a mean) and `steps` from the body log. */
+  elsewhere?: Record<string, number>;
+}
+/** The record, and the kinds that already have a template. */
+export interface HealthRecord {
+  items: RecordItem[];
+  templates: string[];
+}
+/** One item of the health record (`record.rs`): an ordinary note with a `record` kind. */
+export interface RecordItem {
+  id: string;
+  kind:
+    | 'medicine'
+    | 'allergy'
+    | 'condition'
+    | 'result'
+    | 'visit'
+    | 'immunization'
+    | 'procedure'
+    | 'device'
+    | 'contact'
+    | 'none_known';
+  title: string;
+  status?: string;
+  start?: string;
+  due?: string;
+  about?: string;
+  /** Its other properties as written: a dose, a reaction, a result's value and the lab's range. */
+  fields: Record<string, string>;
 }
 /** A span's counts for one tracker. Nothing here labels a day. */
 export interface HealthCount {
@@ -682,7 +712,11 @@ export interface HealthCheck {
     | 'cycle_spread'
     | 'spotting_days'
     | 'heavy_days'
-    | 'around_period';
+    | 'around_period'
+    | 'cycles_kept'
+    | 'food_mean'
+    | 'bp_home'
+    | 'questionnaire';
   keys?: string[];
   keys_from?: string[];
   value?: number;
@@ -691,11 +725,14 @@ export interface HealthCheck {
   max?: number;
   at_or_over?: number;
   max_by_age?: [number, number, number][];
+  min_female?: number;
+  min_male?: number;
+  max_second?: number;
   basis: string;
 }
 export interface HealthCard {
   id: string;
-  shelf: 'diary' | 'nose' | 'daily' | 'cycle' | 'own';
+  shelf: 'diary' | 'nose' | 'daily' | 'cycle' | 'mind' | 'own';
   name: string;
   rests_on: 'guideline' | 'consensus' | 'review' | 'definition' | 'own';
   says: HealthSaid[];
@@ -704,6 +741,8 @@ export interface HealthCard {
   sources: { by: string; title: string; url: string }[];
   trackers: string[];
   choose?: { id: string; label: string }[];
+  /** A questionnaire carried word for word, its holder allowing it: answers score 0, 1, 2 … */
+  form?: { prompt: string; answers: string[]; items: { key: string; text: string }[] };
   checks: HealthCheck[];
   not_said: string[];
 }

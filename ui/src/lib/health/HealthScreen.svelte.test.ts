@@ -91,7 +91,7 @@ test('the month shows one tracker and counts recorded days, days at 1 or more, a
   expect(within(dl).getByText('2 days')).toBeTruthy();
   expect(within(dl).getByText('1 day')).toBeTruthy();
   // The other 28 days of October were not recorded, and say so.
-  expect(screen.getAllByRole('img', { name: /not recorded/ })).toHaveLength(28);
+  expect(screen.getAllByRole('button', { name: /not recorded/ })).toHaveLength(28);
   // It counts; it does not name a condition.
   expect(document.body.textContent).not.toMatch(/migraine|chronic|overuse|diagnos/i);
 });
@@ -155,8 +155,9 @@ test('the doctor’s page leads with the counts, lists every day, and leaves out
   await fireEvent.click(within(page).getByRole('button', { name: 'Save as CSV' }));
   const text = await (saved as unknown as Blob).text();
   const lines = text.trim().split('\n');
-  expect(lines[0]).toBe('day,bedding_washed_yes,headache_0to3,written_later');
-  expect(lines).toContain('2026-10-13,1,2,1');
+  // Columns in the Diary's sections' order: Headache, then Nose and eyes' bedding.
+  expect(lines[0]).toBe('day,headache_0to3,bedding_washed_yes,written_later');
+  expect(lines).toContain('2026-10-13,2,1,1');
   expect(lines).toContain('2026-10-15,,,');
   vi.unstubAllGlobals();
 
@@ -176,11 +177,7 @@ test('over time draws a week at a time, says how many days each had, and marks a
   await fireEvent.click(await screen.findByRole('button', { name: '4 weeks' }));
   // Weeks from Monday 28 Sep to the week of 19 Oct.
   await waitFor(() => expect(screen.getAllByRole('button', { name: /^Week of/ })).toHaveLength(4));
-  // The first tracker in key order is shown first; a yes/no is the days it was answered yes.
-  expect(screen.getByText('Days in the week answered yes')).toBeTruthy();
-  await fireEvent.change(screen.getByRole('combobox', { name: 'Showing' }), {
-    target: { value: 'headache_0to3' },
-  });
+  // It opens on the first thing in the Diary's order: Headache, whose bar is the days at mild or worse.
   expect(await screen.findByText('Days in the week at mild or worse')).toBeTruthy();
   const w12 = screen.getByRole('button', { name: /^Week of .*12.*: 1, recorded on 2 of 7 days/ });
   expect(w12).toBeTruthy();
@@ -347,4 +344,207 @@ test('yours: a card the person writes counts their tracker against their own num
   expect(
     within(screen.getByRole('region', { name: 'Yours' })).getByText('Wash the bedding'),
   ).toBeTruthy();
+});
+
+test('the diary is in sections, and a medicine named by the person goes under Medication', async () => {
+  await handle('create_notes', {
+    notes: [
+      {
+        title: 'Health diary',
+        tags: ['template'],
+        props: {
+          group: 'Health',
+          headache_0to3: 0,
+          runny_nose_0to3: 0,
+          bedding_washed_yes: 0,
+          ibuprofen_doses: 0,
+          sleep_min: 0,
+          walked_dog_yes: 0,
+        },
+      },
+    ],
+  });
+  render(HealthScreen, { def: DIARY, today: TODAY, signal: 0, onsaved: () => {} });
+  await screen.findByRole('group', { name: 'Headache' });
+  const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+  expect(headings).toEqual(['Headache', 'Nose and eyes', 'Medication', 'Every day', 'Yours']);
+  // The bedding is where the dust-mite card's shelf is; a person's own word is theirs.
+  const nose = screen.getByRole('list', { name: 'Nose and eyes' });
+  expect(within(nose).getByRole('group', { name: 'Bedding washed' })).toBeTruthy();
+  const yours = screen.getByRole('list', { name: 'Yours' });
+  expect(within(yours).getByRole('group', { name: 'Walked dog' })).toBeTruthy();
+  expect(
+    within(screen.getByRole('list', { name: 'Medication' })).getByText('Ibuprofen'),
+  ).toBeTruthy();
+});
+
+test('a day pressed in the month is opened in Diary, and a day to come cannot be', async () => {
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', headache_0to3: 0 } },
+      { title: 'Health diary', start: '2026-10-13', props: { log: 'health', headache_0to3: 2 } },
+    ],
+  });
+  const opened: string[] = [];
+  render(HealthScreen, {
+    def: MONTH,
+    today: TODAY,
+    signal: 0,
+    onsaved: () => {},
+    onday: (d: string) => opened.push(d),
+  });
+  const day13 = await screen.findByRole('button', { name: /\b13\b.*Moderate/ });
+  await fireEvent.click(day13);
+  expect(opened).toEqual(['2026-10-13']);
+  const later = screen.getByRole('button', { name: /\b30\b.*not recorded/ });
+  expect((later as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('the diary opens on a day handed to it', async () => {
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', headache_0to3: 0 } },
+    ],
+  });
+  render(HealthScreen, {
+    def: DIARY,
+    today: TODAY,
+    start: '2026-10-13',
+    signal: 0,
+    onsaved: () => {},
+  });
+  const h = await screen.findByRole('heading', { level: 2 });
+  expect(h.textContent).not.toBe('Today');
+  expect(h.textContent).toMatch(/13/);
+});
+
+test('a health record is started once, and the page for the doctor opens with it, as of today', async () => {
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', headache_0to3: 0 } },
+    ],
+  });
+  // The group's plus opens Track something.
+  const view = render(HealthScreen, {
+    def: DIARY,
+    today: TODAY,
+    signal: 0,
+    addSignal: 0,
+    onsaved: () => {},
+  });
+  await screen.findByRole('group', { name: 'Headache' });
+  await view.rerender({ addSignal: 1 });
+  const sheet = await screen.findByRole('dialog', { name: 'track something' });
+  await fireEvent.click(
+    await within(sheet).findByRole('button', { name: /Start a health record/ }),
+  );
+  // The templates are notes, shelved `health`, known by `record`, and never the diary's template.
+  const record = await handle<{ items: unknown[]; templates: string[] }>('health_record', {});
+  expect(record.templates).toContain('medicine');
+  expect(record.templates).toContain('none_known');
+  expect((await days(TODAY, TODAY)).trackers.map((t) => t.key)).toEqual(['headache_0to3']);
+
+  // A medicine, an allergy, a stopped medicine, and no known allergies would not show beside one.
+  await handle('create_notes', {
+    notes: [
+      {
+        title: 'Fluticasone nasal spray',
+        start: '2026-09-01',
+        props: { record: 'medicine', record_status: 'current', dose_text: '2 sprays each nostril' },
+      },
+      { title: 'Cetirizine', props: { record: 'medicine', record_status: 'stopped' } },
+      {
+        title: 'House dust mite',
+        props: { record: 'allergy', record_status: 'active', reaction: 'blocked nose' },
+      },
+      { title: 'IgE D. pteronyssinus', props: { record: 'result', ref_text: '< 0.35 kUA/L' } },
+    ],
+  });
+  cleanup();
+  render(HealthScreen, { def: MONTH, today: TODAY, signal: 0, onsaved: () => {} });
+  await fireEvent.click(await screen.findByRole('button', { name: 'For the doctor' }));
+  const page = await screen.findByRole('dialog', { name: 'for the doctor' });
+  const rec = await within(page).findByRole('region', { name: 'the record' });
+  expect(rec.textContent).toMatch(/Fluticasone nasal spray · 2 sprays each nostril · since/);
+  expect(rec.textContent).toMatch(/House dust mite · blocked nose/);
+  expect(rec.textContent).not.toMatch(/Cetirizine/);
+  // A result is the lab's document: it is not summarised or judged on the page.
+  expect(rec.textContent).not.toMatch(/IgE|normal|abnormal/);
+});
+
+test('what Food and the body log hold for a day is shown in the diary, read and not typed', async () => {
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', headache_0to3: 0 } },
+      {
+        title: 'Water',
+        start: TODAY,
+        props: { log: 'food', water_mg: 1_500_000, caffeine_ug: 95_000 },
+      },
+      {
+        title: 'Coffee',
+        start: TODAY,
+        props: { log: 'food', water_mg: 250_000, caffeine_ug: 80_000 },
+      },
+      { title: 'Weight', start: TODAY, props: { log: 'body', weight_g: 71_400 } },
+    ],
+  });
+  render(HealthScreen, { def: DIARY, today: TODAY, signal: 0, onsaved: () => {} });
+  const list = await screen.findByRole('list', { name: 'From Food and your body log' });
+  expect(list.textContent).toMatch(/Water, from Food\s*1750 ml/);
+  expect(list.textContent).toMatch(/Caffeine, from Food\s*175 mg/);
+  expect(list.textContent).toMatch(/Weight\s*71\.4 kg/);
+});
+
+test('a temperature is typed to a tenth and kept whole', async () => {
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', temperature_c10: 0 } },
+    ],
+  });
+  render(HealthScreen, { def: DIARY, today: TODAY, signal: 0, onsaved: () => {} });
+  const input = await screen.findByRole('spinbutton', { name: 'Temperature' });
+  await fireEvent.change(input, { target: { value: '38.1' } });
+  await waitFor(async () =>
+    expect((await days(TODAY, TODAY)).days[0].values).toEqual({ temperature_c10: 381 }),
+  );
+});
+
+test('PHQ-9 is answered on its card, counted when whole, and its contacts come first when the last answer is not "Not at all"', async () => {
+  await handle('create_notes', {
+    notes: [
+      {
+        title: 'Mood (PHQ-9)',
+        start: '2026-10-01',
+        props: { program: 'health', plan: 'mood-phq9' },
+      },
+    ],
+  });
+  render(HealthScreen, {
+    def: { ...DIARY, span: 'plan' },
+    today: TODAY,
+    signal: 0,
+    onsaved: () => {},
+  });
+  const shelf = await screen.findByRole('region', { name: 'Mind' });
+  await fireEvent.click(within(shelf).getByRole('button', { name: /Mood \(PHQ-9\)/ }));
+  const card = await screen.findByRole('article', { name: 'Mood (PHQ-9)' });
+  // The contacts are on the card from the start.
+  expect(card.textContent).toMatch(/995/);
+  expect(card.textContent).toMatch(/1771/);
+  const answer = (i: number, word: string) =>
+    fireEvent.click(
+      within(within(card).getByRole('group', { name: `Question ${i}?` })).getByRole('button', {
+        name: word,
+      }),
+    );
+  for (let i = 1; i <= 8; i++) await answer(i, 'Several days');
+  await answer(9, 'Several days');
+  await fireEvent.click(within(card).getByRole('button', { name: "Save today's answers" }));
+  await within(card).findByRole('status');
+  await fireEvent.click(within(card).getByRole('button', { name: 'back to the cards' }));
+  const followed = await screen.findByRole('region', { name: 'followed' });
+  await waitFor(() => expect(within(followed).getByRole('alert').textContent).toMatch(/995/));
+  expect(followed.textContent).toMatch(/PHQ-9 total, latest\s*9/);
+  expect(followed.textContent).not.toMatch(/depression|diagnos|risk/i);
 });

@@ -485,8 +485,8 @@
 
   /// A bar in the trend was chosen: go to that day, in the group's day view.
   function openDay(d: string) {
-    // Only where the group's first view is this log's own day screen.
-    if (def?.add !== 'food') return;
+    // Only where the group's first view is this log's own day screen: Food's Day, Health's Diary.
+    if (def?.add !== 'food' && def?.add !== 'health') return;
     const first = group?.views[0];
     if (!first || first === view) return;
     carried.give(pane.id, d);
@@ -517,7 +517,16 @@
     {#if !def}
       <p class="wait">Loading…</p>
     {:else if def.add === 'health'}
-      <HealthScreen {def} {today} signal={feed} {addSignal} {onsaved} />
+      <HealthScreen
+        {def}
+        {today}
+        start={selected}
+        signal={feed}
+        {addSignal}
+        {onsaved}
+        onday={openDay}
+        pane={pane.id}
+      />
     {:else if def.span === 'plan'}
       {#await import('./plan/PlanScreen.svelte') then { default: PlanScreen }}
         <PlanScreen {def} {today} signal={feed} {onsaved} />

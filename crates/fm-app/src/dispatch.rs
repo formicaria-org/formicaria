@@ -610,6 +610,7 @@ const READ_ONLY: &[&str] = &[
     "health_trackers",
     "health_days",
     "health_guidance",
+    "health_record",
     "log_recent",
     "log_recipes",
     "log_routines",
@@ -2399,6 +2400,11 @@ fn dispatch_inner(
         "health_guidance" => {
             let mut g = lock()?;
             json(crate::guidance::health_guidance(&g.store(scope), &s("day")).map_err(err)?)
+        }
+        // The health record: every note with a `record` kind, on the Library's `health` shelf.
+        "health_record" => {
+            let mut g = lock()?;
+            json(crate::record::health_record(&g.store(scope)).map_err(err)?)
         }
         "health_days" => {
             let mut g = lock()?;

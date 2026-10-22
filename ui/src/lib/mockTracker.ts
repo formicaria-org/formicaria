@@ -26,6 +26,8 @@ import type {
   HealthDays,
   HealthCount,
   HealthWeek,
+  RecordItem,
+  HealthRecord,
 } from './types';
 import { addDays, today, whole } from './units';
 
@@ -715,7 +717,7 @@ const KIND_SUFFIXES: [string, TrackerKind][] = [
   ['_doses', { kind: 'count' }],
   ['_score', { kind: 'score' }],
 ];
-const UNITS = ['min', 'ml', 'mg', 'g', 'mmhg', 'pct', 'c'];
+const UNITS = ['min', 'ml', 'mg', 'g', 'mmhg', 'pct', 'c', 'c10', 'mmoll10'];
 const STEM = /^[a-z][a-z0-9_-]{0,31}$/;
 const named = (stem: string) => STEM.test(stem) && !stem.endsWith('_');
 
@@ -799,6 +801,28 @@ export function healthDays(
       if (v >= 1) c.days += 1;
       if (v >= 2 && c.moderate_or_severe !== undefined) c.moderate_or_severe += 1;
     }
+    // As `health::elsewhere`: Food's water, caffeine and alcohol summed; the body log's weight a
+    // mean and its steps summed, for the day.
+    const elsewhere: Record<string, number> = {};
+    const onDay = (log: string) =>
+      notes.filter(
+        (x) => isLog(x, log) && (x.start ?? '').slice(0, 10) === day && !x.props.planned,
+      );
+    for (const k of ['water_mg', 'caffeine_ug', 'alcohol_mg']) {
+      const vs = onDay('food')
+        .map((x) => whole(x.props[k]))
+        .filter((v) => v !== null) as number[];
+      if (vs.length) elsewhere[k] = vs.reduce((a, b) => a + b, 0);
+    }
+    const weights = onDay('body')
+      .map((x) => whole(x.props.weight_g))
+      .filter((v) => v !== null) as number[];
+    if (weights.length)
+      elsewhere.weight_g = Math.floor(weights.reduce((a, b) => a + b, 0) / weights.length);
+    const steps = onDay('body')
+      .map((x) => whole(x.props.steps))
+      .filter((v) => v !== null) as number[];
+    if (steps.length) elsewhere.steps = steps.reduce((a, b) => a + b, 0);
     const first = here[0];
     const context = here
       .map((x) => x.props.cycle_context)
@@ -807,6 +831,7 @@ export function healthDays(
       day,
       ...(first ? { id: first.id } : {}),
       ...(typeof context === 'string' ? { context: context.trim() } : {}),
+      ...(Object.keys(elsewhere).length ? { elsewhere } : {}),
       values,
       ...(first && first.created.slice(0, 10) > addDays(day, 1) ? { late: true } : {}),
     });
@@ -839,4 +864,55 @@ export function healthDays(
     );
   }
   return out;
+}
+
+/** As `record::health_record`: every note (not a template) with a `record` kind, in kind order. */
+const RECORD_KINDS = [
+  'medicine',
+  'allergy',
+  'condition',
+  'result',
+  'visit',
+  'immunization',
+  'procedure',
+  'device',
+  'contact',
+  'none_known',
+];
+export function healthRecord(notes: ObjectMeta[]): HealthRecord {
+  const own = new Set(['record', 'record_status', 'about', 'shelf']);
+  const templates = [
+    ...new Set(
+      notes
+        .filter((n) => n.tags.includes('template') && typeof n.props.record === 'string')
+        .map((n) => String(n.props.record)),
+    ),
+  ].sort();
+  const items = notes
+    .filter(
+      (n) =>
+        !n.tags.includes('template') &&
+        typeof n.props.record === 'string' &&
+        RECORD_KINDS.includes(n.props.record),
+    )
+    .map((n) => ({
+      id: n.id,
+      kind: n.props.record as RecordItem['kind'],
+      title: n.title ?? '',
+      ...(typeof n.props.record_status === 'string' ? { status: n.props.record_status } : {}),
+      ...(n.start ? { start: n.start.slice(0, 10) } : {}),
+      ...(n.due ? { due: n.due.slice(0, 10) } : {}),
+      ...(typeof n.props.about === 'string' ? { about: n.props.about } : {}),
+      fields: Object.fromEntries(
+        Object.entries(n.props)
+          .filter(([k, v]) => !own.has(k) && String(v).trim())
+          .map(([k, v]) => [k, String(v)]),
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        RECORD_KINDS.indexOf(a.kind) - RECORD_KINDS.indexOf(b.kind) ||
+        a.title.localeCompare(b.title),
+    );
+  return { items, templates };
 }

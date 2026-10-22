@@ -5,7 +5,16 @@
   import Icon from '../Icon.svelte';
   import ManualLink from '../ManualLink.svelte';
   import { createNotesUndoable, setPropertiesUndoable } from '../undo.svelte';
-  import { KINDS, STARTERS, TEMPLATE, UNITS, stemOf, type Starter } from './starters';
+  import { healthRecord } from '../ipc';
+  import {
+    KINDS,
+    RECORD_TEMPLATES,
+    STARTERS,
+    TEMPLATE,
+    UNITS,
+    stemOf,
+    type Starter,
+  } from './starters';
 
   interface Props {
     /** The Health template's id, or null when the person tracks nothing yet. */
@@ -18,7 +27,7 @@
   let { template, known, onclose, onsaved }: Props = $props();
 
   let name = $state('');
-  let kind = $state(KINDS[0].kind);
+  let kind = $state(KINDS[0].id);
   let unit = $state(UNITS[0].unit);
   let busy = $state(false);
   let failed = $state('');
@@ -26,10 +35,46 @@
   const stem = $derived(stemOf(name));
   const key = $derived.by(() => {
     if (!stem) return '';
-    const k = KINDS.find((x) => x.kind === kind)!;
+    const k = KINDS.find((x) => x.id === kind)!;
     return k.kind === 'amount' ? `${stem}_${unit}` : `${stem}${k.suffix}`;
   });
   const taken = $derived(key !== '' && known.includes(key));
+
+  /** Whether the record's templates are in the notebook already: they are offered until they are. */
+  let recordStarted = $state(true);
+  $effect(() => {
+    void healthRecord()
+      .then((r) => (recordStarted = r.templates.length > 0))
+      .catch(() => undefined);
+  });
+  async function startRecord() {
+    if (busy) return;
+    busy = true;
+    failed = '';
+    try {
+      await createNotesUndoable(
+        RECORD_TEMPLATES.map((t) => ({
+          title: t.title,
+          body: t.body,
+          tags: ['template'],
+          props: {
+            shelf: 'health',
+            record: t.record,
+            ...(t.status ? { record_status: t.status } : {}),
+            ...(t.about ? { about: t.about } : {}),
+          },
+        })),
+        'started a health record',
+      );
+      recordStarted = true;
+      onsaved();
+      onclose();
+    } catch (e) {
+      failed = String(e);
+    } finally {
+      busy = false;
+    }
+  }
 
   /** Keys a starter would add that are not tracked already. */
   const missing = (s: Starter) => s.keys.filter((k) => !known.includes(k));
@@ -92,11 +137,30 @@
       {/each}
     </section>
 
-    <ManualLink
-      page="user/health.html"
-      section="keeping-cycle-notes-to-yourself"
-      label="Keeping cycle notes to yourself"
-    />
+    <p class="manual">
+      <ManualLink
+        page="user/health.html"
+        section="keeping-cycle-notes-to-yourself"
+        label="Keeping cycle notes to yourself"
+      />
+    </p>
+
+    {#if !recordStarted}
+      <section aria-label="a health record">
+        <button type="button" class="starter" disabled={busy} onclick={startRecord}>
+          <strong>Start a health record</strong>
+          <span
+            >Templates for medicines, allergies, conditions, results, visits, immunizations,
+            procedures, devices and contacts. Made from ＋ like any note, and kept on the Library's
+            health shelf.</span
+          >
+          <small
+            >Their sections are the International Patient Summary's; a medicine's lines are FDA's My
+            Medicine Record. A result keeps the lab's own range, as printed.</small
+          >
+        </button>
+      </section>
+    {/if}
 
     <section class="own" aria-label="your own">
       <h3>Or name it yourself</h3>
@@ -108,7 +172,7 @@
       <label>
         <span>Recorded as</span>
         <select bind:value={kind}>
-          {#each KINDS as k (k.kind)}<option value={k.kind}>{k.label}</option>{/each}
+          {#each KINDS as k (k.id)}<option value={k.id}>{k.label}</option>{/each}
         </select>
       </label>
       {#if kind === 'amount'}
@@ -229,6 +293,20 @@
   }
   .starter span {
     font-size: var(--text-sm);
+  }
+  /* The manual's link, drawn as a link: the component's own button carries no style. */
+  .manual {
+    margin: 0;
+  }
+  .manual :global(.manual-link) {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
   }
   .starter .before {
     color: var(--text);

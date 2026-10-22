@@ -58,6 +58,7 @@ pub mod packs;
 pub mod paper;
 pub mod plan;
 pub mod product;
+pub mod record;
 pub mod refs;
 pub mod reminders;
 pub mod scope;

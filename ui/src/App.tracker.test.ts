@@ -6,7 +6,8 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
-import { clearFaults, reset, seedTrackerDemo, setLabelReader } from './lib/mock';
+import { clearFaults, handle, reset, seedTrackerDemo, setLabelReader } from './lib/mock';
+import { today as todayNow } from './lib/units';
 import * as nav from './lib/nav.svelte';
 import { clear as clearUndo } from './lib/undo.svelte';
 import * as trackers from './lib/trackers.svelte';
@@ -1057,4 +1058,102 @@ test('Back from a day chosen in Trends returns to Trends', async () => {
         .getAttribute('aria-current'),
     ).toBe('page'),
   );
+});
+
+/// The same in Health (2026-10-22): a day pressed in Over time's month opens in Diary, and Back
+/// returns to the month.
+test('Back from a day opened in Health’s month returns to Over time', async () => {
+  const today = todayNow();
+  const first = today.slice(0, 8) + '01';
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', headache_0to3: 0 } },
+      { title: 'Health diary', start: first, props: { log: 'health', headache_0to3: 2 } },
+    ],
+  });
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Health' }));
+  const group = await screen.findByRole('group', { name: 'Health' });
+  await fireEvent.click(within(group).getByRole('button', { name: 'Over time' }));
+  const day1 = await screen.findByRole('button', { name: /\b1\b.*Moderate/ });
+  await fireEvent.click(day1);
+  await waitFor(() =>
+    expect(within(group).getByRole('button', { name: 'Diary' }).getAttribute('aria-current')).toBe(
+      'page',
+    ),
+  );
+  // The Diary is on that day, with its value.
+  const headache = await screen.findByRole('group', { name: 'Headache' });
+  expect(
+    within(headache).getByRole('button', { name: 'Moderate' }).getAttribute('aria-pressed'),
+  ).toBe('true');
+  await nav.idle();
+  history.back();
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole('group', { name: 'Health' }))
+        .getByRole('button', { name: 'Over time' })
+        .getAttribute('aria-current'),
+    ).toBe('page'),
+  );
+});
+
+/// **Back in Health closes what was opened, one step at a time, and only then leaves** (2026-10-22;
+/// `decisions.md#ui`, *Back is one step, everywhere*). Android's back key is this same history step.
+test('Back in Health closes the sheet, the page for the doctor, a card and the form, one at a time', async () => {
+  await handle('create_notes', {
+    notes: [
+      { title: 'Health diary', tags: ['template'], props: { group: 'Health', headache_0to3: 0 } },
+    ],
+  });
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Health' }));
+  const group = await screen.findByRole('group', { name: 'Health' });
+  const current = (tab: string) =>
+    within(screen.getByRole('group', { name: 'Health' }))
+      .getByRole('button', { name: tab })
+      .getAttribute('aria-current');
+
+  // Diary's plus: Track something. Back closes it and stays in Diary.
+  await fireEvent.click(await screen.findByRole('button', { name: 'add to Health' }));
+  await screen.findByRole('dialog', { name: 'track something' });
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'track something' })).toBeNull());
+  expect(current('Diary')).toBe('page');
+
+  // Over time's page for the doctor.
+  await fireEvent.click(within(group).getByRole('button', { name: 'Over time' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'For the doctor' }));
+  await screen.findByRole('dialog', { name: 'for the doctor' });
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'for the doctor' })).toBeNull());
+  expect(current('Over time')).toBe('page');
+
+  // A card in Guidance, then the form for one's own: each closed by one Back.
+  await fireEvent.click(
+    within(screen.getByRole('group', { name: 'Health' })).getByRole('button', { name: 'Guidance' }),
+  );
+  const diaryShelf = await screen.findByRole('region', { name: 'Keeping a diary' });
+  await fireEvent.click(within(diaryShelf).getByRole('button', { name: /Painkiller days/ }));
+  await screen.findByRole('article', { name: 'Painkiller days' });
+  await nav.idle();
+  history.back();
+  await waitFor(() =>
+    expect(screen.queryByRole('article', { name: 'Painkiller days' })).toBeNull(),
+  );
+  expect(current('Guidance')).toBe('page');
+
+  const yours = await screen.findByRole('region', { name: 'Yours' });
+  await fireEvent.click(within(yours).getByRole('button', { name: /Write your own/ }));
+  await screen.findByRole('form', { name: 'your own card' });
+  await nav.idle();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('form', { name: 'your own card' })).toBeNull());
+  expect(current('Guidance')).toBe('page');
 });

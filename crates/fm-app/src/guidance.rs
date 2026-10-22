@@ -60,7 +60,15 @@ pub struct Choice {
 ///   (`max_by_age`), and compared only when the person's year of birth is known;
 /// - `spotting_days`: days of spotting with no flow;
 /// - `heavy_days`: days of the latest period at flow 3;
-/// - `around_period`: of the last three periods, how many had a headache on days −2 to +3.
+/// - `around_period`: of the last three periods, how many had a headache on days −2 to +3;
+/// - `cycles_kept`: cycles of the last six months with a diary entry on every day;
+///
+/// and on what fm already holds, or a questionnaire of a set shape:
+/// - `food_mean`: the week's average a day of a value in Food's log, beside a number that depends
+///   on the sex in the person's profile (`min_female`, `min_male`), compared only when it is there;
+/// - `bp_home`: NICE NG136's home reading, the last 7 days with the first day left out, from at
+///   least 4 days, beside the `max` systolic and `max_second` diastolic;
+/// - `questionnaire`: the latest day all of `keys` were answered, and their total.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Check {
     pub id: String,
@@ -88,6 +96,14 @@ pub struct Check {
     /// A most that depends on age: `[from, to, most]`, ages inclusive (FIGO's regularity).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub max_by_age: Vec<[i64; 3]>,
+    /// A least that depends on the sex in the profile (EFSA's water: 2.0 L women, 2.5 L men).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_female: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_male: Option<i64>,
+    /// A second most, for a pair of numbers (a diastolic beside a systolic).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_second: Option<i64>,
     /// Whose number it is, in the source's words.
     pub basis: String,
 }
@@ -113,6 +129,10 @@ pub struct Card {
     pub trackers: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub choose: Vec<Choice>,
+    /// A questionnaire the card carries word for word, because its holder allows it: a prompt,
+    /// the answers (scored 0, 1, 2 … in order) and the items, each with the key it is kept under.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub form: Option<Form>,
     #[serde(default)]
     pub checks: Vec<Check>,
     /// What the card does not claim, said so nobody reads it in.
@@ -175,6 +195,9 @@ fn own_card(o: &Object) -> Card {
             max: int("own_max").filter(|_| int("own_min").is_none()),
             at_or_over: None,
             max_by_age: Vec::new(),
+            min_female: None,
+            min_male: None,
+            max_second: None,
             basis: "Your own number".into(),
         }
     });
@@ -204,9 +227,22 @@ fn own_card(o: &Object) -> Card {
         sources: Vec::new(),
         trackers: stem.map(|_| vec![key]).unwrap_or_default(),
         choose: Vec::new(),
+        form: None,
         checks: check.into_iter().collect(),
         not_said,
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Form {
+    pub prompt: String,
+    pub answers: Vec<String>,
+    pub items: Vec<FormItem>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct FormItem {
+    pub key: String,
+    pub text: String,
 }
 
 /// What the person chose for a card: keys, by the id of the choice.
@@ -430,14 +466,147 @@ fn measure(check: &Check, s: &Series, keys_empty: bool, day: Date) -> Counted {
     }
 }
 
-const CYCLE_KINDS: [&str; 6] = [
+const CYCLE_KINDS: [&str; 7] = [
     "cycle_lengths",
     "bleeding_days",
     "cycle_spread",
     "spotting_days",
     "heavy_days",
     "around_period",
+    "cycles_kept",
 ];
+
+fn blank(check: &Check, from: Date, day: Date) -> Counted {
+    Counted {
+        id: check.id.clone(),
+        label: check.label.clone(),
+        basis: check.basis.clone(),
+        value: 0,
+        of: 0,
+        recorded: 0,
+        from: day_string(from),
+        to: day_string(day),
+        min: check.min,
+        max: check.max,
+        at_or_over: check.at_or_over,
+        within: None,
+        unchosen: false,
+        values: Vec::new(),
+        cycles: Vec::new(),
+        outside: None,
+        not_compared: String::new(),
+    }
+}
+
+/// `food_mean`: the average a day over this week's days that logged the value, in the key's unit
+/// divided by `value` (water is logged in mg; it is shown and compared in ml).
+fn measure_food(
+    check: &Check,
+    food: &BTreeMap<String, BTreeMap<String, i64>>,
+    sex: Option<&str>,
+    day: Date,
+) -> Counted {
+    let mut c = blank(check, monday_of(day), day);
+    let key = check.keys.first().cloned().unwrap_or_default();
+    let per = check.value.unwrap_or(1).max(1);
+    let days: Vec<i64> = food.values().filter_map(|v| v.get(&key).copied()).collect();
+    c.of = food.len();
+    c.recorded = days.len();
+    if days.is_empty() {
+        c.not_compared = "nothing logged in Food this week".into();
+        return c;
+    }
+    c.value = days.iter().sum::<i64>() / days.len() as i64 / per;
+    let least = match sex {
+        Some("female") => check.min_female,
+        Some("male") => check.min_male,
+        _ => None,
+    };
+    match least {
+        Some(m) => {
+            c.min = Some(m);
+            c.within = Some(c.value >= m);
+        }
+        None if check.min_female.is_some() => {
+            c.not_compared =
+                "the sex in your profile is not set, and the body gives a number for each".into();
+        }
+        None => {}
+    }
+    c
+}
+
+/// `bp_home`, as NICE NG136 1.2.7: the last 7 days, *"Discard the measurements taken on the first
+/// day and use the average value of all the remaining measurements"*, from at least 4 days. The keys
+/// come in pairs, systolic then diastolic; a reading is a pair with both.
+fn measure_bp(check: &Check, all: &BTreeMap<String, (Series, usize)>, day: Date) -> Counted {
+    let from = day - Duration::days(6);
+    let mut c = blank(check, from, day);
+    c.of = 7;
+    let pairs: Vec<(&String, &String)> =
+        check.keys.chunks(2).filter(|p| p.len() == 2).map(|p| (&p[0], &p[1])).collect();
+    let mut by_day: Vec<(Date, Vec<(i64, i64)>)> = Vec::new();
+    let mut d = from;
+    while d <= day {
+        let readings: Vec<(i64, i64)> = pairs
+            .iter()
+            .filter_map(|(sys, dia)| {
+                let s = all.get(*sys)?.0.get(&d)?;
+                let t = all.get(*dia)?.0.get(&d)?;
+                Some((*s, *t))
+            })
+            .collect();
+        if !readings.is_empty() {
+            by_day.push((d, readings));
+        }
+        d += Duration::days(1);
+    }
+    c.recorded = by_day.len();
+    if by_day.len() < 4 {
+        c.not_compared = "NICE asks for readings on at least 4 days".into();
+        return c;
+    }
+    let kept: Vec<(i64, i64)> =
+        by_day.iter().skip(1).flat_map(|(_, r)| r.iter().copied()).collect();
+    let n = kept.len() as i64;
+    let sys = (kept.iter().map(|r| r.0).sum::<i64>() + n / 2) / n;
+    let dia = (kept.iter().map(|r| r.1).sum::<i64>() + n / 2) / n;
+    c.value = sys;
+    c.values = vec![sys, dia];
+    c.from = day_string(by_day[1].0);
+    c.within = match (check.max, check.max_second) {
+        (Some(a), Some(b)) => Some(sys < a && dia < b),
+        _ => None,
+    };
+    c
+}
+
+/// `questionnaire`: the latest day in the last 4 weeks with every one of `keys` answered, and the
+/// total. Each item's answer is in `values`, in order, so a screen can see each.
+fn measure_questionnaire(
+    check: &Check,
+    all: &BTreeMap<String, (Series, usize)>,
+    day: Date,
+) -> Counted {
+    let from = day - Duration::days(27);
+    let mut c = blank(check, from, day);
+    let mut d = day;
+    while d >= from {
+        let answers: Option<Vec<i64>> =
+            check.keys.iter().map(|k| all.get(k).and_then(|(s, _)| s.get(&d).copied())).collect();
+        if let Some(a) = answers {
+            c.value = a.iter().sum();
+            c.values = a;
+            c.from = day_string(d);
+            c.recorded = 1;
+            c.of = 1;
+            return c;
+        }
+        d -= Duration::days(1);
+    }
+    c.not_compared = "not filled in in the last 4 weeks".into();
+    c
+}
 
 /// **Count one cycle check on `day`** (`cycle.rs` does the arithmetic). `age` is from the person's
 /// profile, when they gave a year of birth.
@@ -541,6 +710,13 @@ fn measure_cycle(
             c.recorded = of;
             c.outside = Some(outside);
         }
+        "cycles_kept" => {
+            c.of = all.len();
+            c.value = all.iter().filter(|cy| cy.noted as i64 == cy.length).count() as i64;
+            c.recorded = c.value as usize;
+            c.within = check.min.map(|m| c.value >= m);
+            c.cycles = all;
+        }
         other => unreachable!("not a cycle check: {other}"),
     }
     c
@@ -591,15 +767,25 @@ pub fn health_guidance(store: &dyn Store, day: &str) -> Result<Guidance, StoreEr
         .collect();
     let all = series(store, &trackers, day - Duration::days(LOOK_BACK), day)?;
     // The cycle reads days of notes, and the person's age; only when a followed card asks.
-    let cyclic = wanted
-        .iter()
-        .any(|(_, card, _)| card.checks.iter().any(|c| CYCLE_KINDS.contains(&c.kind.as_str())));
-    let (notes, age) = if cyclic {
-        let notes = crate::health::day_notes(store, day - Duration::days(LOOK_BACK), day)?;
-        let born = crate::plan::plan_profile(store)?.born;
-        (notes, born.map(|b| i64::from(day.year()) - b))
+    let asks = |kinds: &[&str]| {
+        wanted
+            .iter()
+            .any(|(_, card, _)| card.checks.iter().any(|c| kinds.contains(&c.kind.as_str())))
+    };
+    let (cyclic, food_asked) = (asks(&CYCLE_KINDS), asks(&["food_mean"]));
+    // The person's profile (age, sex) only when a followed card's number depends on it.
+    let profile = if cyclic || food_asked { Some(crate::plan::plan_profile(store)?) } else { None };
+    let age = profile.as_ref().and_then(|p| p.born).map(|b| i64::from(day.year()) - b);
+    let sex = profile.as_ref().and_then(|p| p.sex.clone());
+    let notes = if cyclic {
+        crate::health::day_notes(store, day - Duration::days(LOOK_BACK), day)?
     } else {
-        (Default::default(), None)
+        Default::default()
+    };
+    let food = if food_asked {
+        crate::health::elsewhere(store, &day_string(monday_of(day)), &day_string(day))?
+    } else {
+        Default::default()
     };
     for (note, card, chosen) in wanted {
         let checks = card
@@ -609,6 +795,12 @@ pub fn health_guidance(store: &dyn Store, day: &str) -> Result<Guidance, StoreEr
                 if CYCLE_KINDS.contains(&c.kind.as_str()) {
                     let headache = merged(&all, &keys_of(c, &chosen));
                     return measure_cycle(c, &notes, &headache, age, day);
+                }
+                match c.kind.as_str() {
+                    "food_mean" => return measure_food(c, &food, sex.as_deref(), day),
+                    "bp_home" => return measure_bp(c, &all, day),
+                    "questionnaire" => return measure_questionnaire(c, &all, day),
+                    _ => {}
                 }
                 // `kept` reads the card's own trackers: the diary it asks for.
                 let keys = if c.kind == "kept" && c.keys.is_empty() {
@@ -639,7 +831,11 @@ mod tests {
     use fm_model::Stamp;
     use time::Month;
 
-    const KINDS: [&str; 12] = [
+    const KINDS: [&str; 16] = [
+        "food_mean",
+        "bp_home",
+        "cycles_kept",
+        "questionnaire",
         "kept",
         "week_days",
         "month_days",
@@ -661,7 +857,7 @@ mod tests {
         assert!(lib.cards.len() >= 10);
         for card in &lib.cards {
             assert!(
-                ["diary", "nose", "daily", "cycle"].contains(&card.shelf.as_str()),
+                ["diary", "nose", "daily", "cycle", "mind"].contains(&card.shelf.as_str()),
                 "{}",
                 card.id
             );
@@ -885,5 +1081,109 @@ mod tests {
             blank.checks.is_empty()
                 && blank.not_said.iter().any(|n| n.contains("could not be read"))
         );
+    }
+
+    fn food(s: &mut MemoryStore, d: Date, water_mg: i64) {
+        put(s, |o| {
+            o.extra.insert("log".into(), PropertyValue::Text("food".into()));
+            o.start = Some(Stamp::day(d));
+            o.extra.insert("water_mg".into(), PropertyValue::Int(water_mg));
+        });
+    }
+
+    #[test]
+    fn water_is_read_from_food_and_set_beside_the_number_for_the_sex_in_the_profile() {
+        let mut s = MemoryStore::new();
+        // Monday 19 and Tuesday 20 October: 1.8 L and 2.4 L; Wednesday nothing logged.
+        food(&mut s, day(Month::October, 19), 1_500_000);
+        food(&mut s, day(Month::October, 19), 300_000);
+        food(&mut s, day(Month::October, 20), 2_400_000);
+        follow(&mut s, "water", day(Month::October, 1), &[]);
+        let g = health_guidance(&s, "2026-10-22").unwrap();
+        let c = &g.followed[0].checks[0];
+        // Without a sex in the profile: counted, not compared.
+        assert_eq!((c.value, c.recorded, c.within), (2100, 2, None));
+        assert!(c.not_compared.contains("sex"));
+        put(&mut s, |o| {
+            o.extra.insert("profile".into(), PropertyValue::Bool(true));
+            o.extra.insert("sex".into(), PropertyValue::Text("male".into()));
+        });
+        let g = health_guidance(&s, "2026-10-22").unwrap();
+        let c = &g.followed[0].checks[0];
+        assert_eq!((c.min, c.within), (Some(2500), Some(false)));
+    }
+
+    #[test]
+    fn home_blood_pressure_leaves_out_the_first_day_and_needs_four() {
+        let mut s = MemoryStore::new();
+        follow(&mut s, "home-bp", day(Month::October, 1), &[]);
+        let reading = |s: &mut MemoryStore, d: u8, am: (i64, i64), pm: (i64, i64)| {
+            entry(
+                s,
+                day(Month::October, d),
+                &[
+                    ("bp_am1_sys_mmhg", am.0),
+                    ("bp_am1_dia_mmhg", am.1),
+                    ("bp_pm1_sys_mmhg", pm.0),
+                    ("bp_pm1_dia_mmhg", pm.1),
+                ],
+            )
+        };
+        // The first day is high, as first days are; it is left out.
+        reading(&mut s, 16, (160, 100), (158, 98));
+        reading(&mut s, 17, (130, 80), (128, 82));
+        reading(&mut s, 18, (132, 84), (130, 80));
+        let g = health_guidance(&s, "2026-10-22").unwrap();
+        let c = &g.followed[0].checks[0];
+        assert!(
+            c.within.is_none() && c.not_compared.contains("4 days"),
+            "three days are not enough"
+        );
+        reading(&mut s, 19, (126, 78), (128, 80));
+        let g = health_guidance(&s, "2026-10-22").unwrap();
+        let c = &g.followed[0].checks[0];
+        assert_eq!(c.values, vec![129, 81], "the 16th's 160/100 is not in it");
+        assert_eq!((c.recorded, c.within, c.from.as_str()), (4, Some(true), "2026-10-17"));
+    }
+
+    #[test]
+    fn a_questionnaire_is_the_latest_day_with_every_item_answered() {
+        let mut s = MemoryStore::new();
+        follow(&mut s, "mood-phq9", day(Month::October, 1), &[]);
+        let keys = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+        let answers = |s: &mut MemoryStore, d: u8, v: [i64; 9]| {
+            let kv: Vec<(String, i64)> =
+                keys.iter().zip(v).map(|(k, v)| (format!("phq9_{k}_0to3"), v)).collect();
+            let kv: Vec<(&str, i64)> = kv.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+            entry(s, day(Month::October, d), &kv)
+        };
+        answers(&mut s, 5, [1, 1, 2, 1, 0, 1, 0, 0, 0]);
+        answers(&mut s, 19, [2, 2, 1, 2, 1, 1, 1, 0, 1]);
+        // A day with one item missing is not a filled-in questionnaire.
+        entry(&mut s, day(Month::October, 21), &[("phq9_a_0to3", 3)]);
+        let g = health_guidance(&s, "2026-10-22").unwrap();
+        let c = &g.followed[0].checks[0];
+        assert_eq!((c.value, c.from.as_str(), c.values[8]), (11, "2026-10-19", 1));
+        let card = g.cards.iter().find(|c| c.id == "mood-phq9").unwrap();
+        assert_eq!(card.form.as_ref().unwrap().items.len(), 9);
+        assert!(card.urgent.iter().any(|u| u.text.contains("995")));
+    }
+
+    #[test]
+    fn a_premenstrual_diary_counts_the_cycles_covered_every_day() {
+        let mut s = MemoryStore::new();
+        follow(&mut s, "premenstrual", day(Month::August, 1), &[]);
+        // Two cycles, Aug 3–30 kept every day, Aug 31–Sep 27 with a gap; a third under way.
+        for (m, d) in [(Month::August, 3), (Month::August, 31), (Month::September, 28)] {
+            entry(&mut s, day(m, d), &[("period_start_yes", 1)]);
+        }
+        let mut d = day(Month::August, 4);
+        while d < day(Month::August, 31) {
+            entry(&mut s, d, &[("mood_low_0to3", 1)]);
+            d = d.next_day().unwrap();
+        }
+        let g = health_guidance(&s, "2026-10-22").unwrap();
+        let c = &g.followed[0].checks[0];
+        assert_eq!((c.value, c.of, c.min, c.within), (1, 2, Some(2), Some(false)));
     }
 }
