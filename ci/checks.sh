@@ -1167,6 +1167,20 @@ if [ -n "$leaks" ]; then
     fail=1
 fi
 
+# **And no account of the owner's own circumstances** (2026-10-23): comments, tests and records
+# had narrated a person's phone, laptop, vault and mail ("measured on the owner's phone") — where
+# they are, what they carry, who writes to them. Describe it as a role instead: "a user's phone".
+# Case-insensitive on its own, so the unit-number shape above keeps its exact case.
+owner=$(git grep -nIiE "owner'?s (own |real |private |personal )?(phones?|laptops?|devices?|vaults?|mail|mailbox|gmail|inbox|conversations|desktop|notes?)\b" \
+        -- . ':!ci/checks.sh' ':!*.lock' ':!ui/pnpm-lock.yaml' 2>/dev/null)
+if [ -n "$owner" ]; then
+    echo "  FAIL: the owner's own circumstances described in tracked files:"
+    echo "$owner" | head -20 | sed 's/^/        /'
+    echo "        Write the role instead — \"a user's phone\", \"a user's vault\" — and leave out where"
+    echo "        they are, which device, and who is in their mail (CLAUDE.md, *Never write personal details*)."
+    fail=1
+fi
+
 echo "[check] every 'pixi run <task>' in the docs is a task that exists..."
 # The toolchain is pixi-only, so a documented command is the *only* way in — and a reader who types
 # one that does not exist has no way to tell a typo from a missing dependency. `MASTERPLAN.md` sent
