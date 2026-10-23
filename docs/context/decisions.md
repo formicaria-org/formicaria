@@ -29,7 +29,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
-- **`#git` / `#sync`** (git, merge, collaboration): ***One person's devices are kept level: a stuck send is shown, and leaving, returning and reconnecting back up*** (2026-10-17; amends *formicaria backs up by itself* — read before changing when `autoBackup` runs, what a write does when nothing changed, or how an open note meets arriving changes) · ***The backup's squash stops at a commit an open proposal stands on*** (2026-10-15; read before changing `newest_foreign` or where `create_proposal` branches from) · ***The body merge stops shelling out where there is no shell*** (read before touching `merge::text_3way`, `vcs`'s hand-written arms, or either backend's `commit_all*` — it is a shipped vault-freezing bug and its two guards) · ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
+- **`#git` / `#sync`** (git, merge, collaboration): ***`vault.json` is merged key by key, and one already left with markers is settled at open*** (2026-10-23; read before changing `descriptor::merge_texts`, the `fm-vault` driver or what `load_with` does before the stores open) · ***One person's devices are kept level: a stuck send is shown, and leaving, returning and reconnecting back up*** (2026-10-17; amends *formicaria backs up by itself* — read before changing when `autoBackup` runs, what a write does when nothing changed, or how an open note meets arriving changes) · ***The backup's squash stops at a commit an open proposal stands on*** (2026-10-15; read before changing `newest_foreign` or where `create_proposal` branches from) · ***The body merge stops shelling out where there is no shell*** (read before touching `merge::text_3way`, `vcs`'s hand-written arms, or either backend's `commit_all*` — it is a shipped vault-freezing bug and its two guards) · ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
   exception is now "any device with no git binary" — read before touching `deny.toml`'s scope or
   `fm-serve`'s target-gated dependency) · ***A backend that cannot finish a merge must
   refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
@@ -13011,3 +13011,46 @@ next sync. A device cannot know which clock a vault was written on from its own 
 **The four questions.** `#data`, `#vault`, `#ui`. Verdict: **reverses** two items of this afternoon's
 entry (bannered); nothing new ships.
 
+
+## 2026-10-23 (night) — `vault.json` is merged key by key, and one already left with markers is settled at open `#git` `#sync` `#vault`
+
+> Extends *Backup is two tiers* (its `manifest.json merge=fm-manifest` driver) to the vault's own
+> settings file.
+
+**What went wrong:** 0.15.0 wrote a time zone into `vault.json` at start; one device wrote it while
+another (on the fix) took it out, and the next sync merged the file as plain text. `<<<<<<<` landed
+inside the JSON. A `vault.json` that does not parse makes `Descriptor::read` fail, so while the app
+ran every proposal was refused (HTTP 500, seen only in the assistant's log), the unfinished merge
+refused every commit, and at the next start the vault would not open at all. The 2026-10-23
+(evening) clean-up could not help: it reads the file as JSON, and skipped it.
+
+**Decision.**
+1. **`vault.json merge=fm-vault`** → `fm merge-vault` on a desktop; on a phone `git_native::merged_text`
+   routes the path by name to the same `descriptor::merge_texts`. Key by key: the side that changed a
+   key wins, an edit beats a deletion, and **two different values keep both** — the winner chosen from
+   content alone (larger serialisation, so every device writes the same bytes), the other kept as
+   `conflict-<key>`, the note merge's rule. `Descriptor::read` ignores keys it does not know, so the
+   vault keeps working with the disagreement in plain sight. 0.15.0's `time_zone` is dropped from every
+   side. **The driver never exits non-zero**, for the manifest's reason: an unmerged path freezes the vault.
+2. **Settled at open** (`Descriptor::settle_conflicted`, before the stores open): a `vault.json` with
+   markers is split into its sides (diff3's base when present), merged by the same function, written,
+   and — when the merge it came from is still unfinished — marked resolved (`Keep::Edited`, either
+   backend), which finishes that merge. Sides that are not JSON are left exactly as they are.
+3. **Not added: a UI notice for a hand-broken `vault.json`.** It already fails loudly where it matters
+   (the vault is listed as not opened, with the parse error); the silent case was the merge, and that
+   no longer produces one.
+
+**The four questions.** `#git`, `#sync`, `#vault`. Verdict: **extends an exception** — the manifest
+driver's, for the same reason. **It widens what ships**: one more line in every vault's
+`.gitattributes` and one hidden `fm` subcommand. Tests: `descriptor` unit tests;
+`two_devices_changing_vault_json_do_not_conflict` (desktop driver); `vault_json_merges_the_same_way_on_both_backends`;
+`a_vault_json_left_with_markers_is_settled_on_either_device`; nested objects (`supervision`, `proposals`)
+merged key by key too, so two consent answers changed on two devices are two edits.
+
+**Why the two-device tests missed it.** They drove notes and `manifest.json` through `vcs` and
+`commands`, and **never ran start-up on either device** — so nothing a device writes when it opens a
+vault was ever synced in a test. `two_devices_start_change_settings_and_sync_without_a_conflict`
+(`mixed_device_collaboration.rs`) now does: each device starts through `App::load`, changes a
+different setting, and both pull; it fails without this fix. **A test that calls `App::load` must point
+`FM_VAULTS` at a list inside its own temp directory** — unset, it opens the machine's real vault list and
+runs start-up on the real vaults (its first draft did, on a developer's notebook).

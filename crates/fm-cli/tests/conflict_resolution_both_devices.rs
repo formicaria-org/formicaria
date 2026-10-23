@@ -369,6 +369,65 @@ fn mid_merge_markers(dir: &Path) -> std::path::PathBuf {
     vault
 }
 
+/// A vault mid-merge with `vault.json` conflicted the way a version without `merge=fm-vault` left
+/// it (2026-10-23): one side took 0.15.0's time zone out, the other stamped a different one, and the
+/// text merge wrote markers inside the JSON.
+fn mid_merge_vault_json(dir: &Path) -> std::path::PathBuf {
+    let vault = dir.join("vault");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    g(&vault, &["init", "-q", "-b", "main"]);
+    g(&vault, &["config", "user.name", "Tester"]);
+    g(&vault, &["config", "user.email", "t@example.com"]);
+    let json = |zone: &str| {
+        format!("{{\n  \"git_assets_max\": \"50MB\",\n  \"time_zone\": \"{zone}\"\n}}\n")
+    };
+    std::fs::write(vault.join("vault.json"), json("America/Denver")).unwrap();
+    std::fs::write(vault.join(format!("notes/{ID}.md")), note("base")).unwrap();
+    g(&vault, &["add", "-A"]);
+    g(&vault, &["commit", "-qm", "base"]);
+    g(&vault, &["checkout", "-q", "-b", "theirs"]);
+    std::fs::write(vault.join("vault.json"), json("Africa/Accra")).unwrap();
+    g(&vault, &["commit", "-qam", "theirs"]);
+    g(&vault, &["checkout", "-q", "main"]);
+    std::fs::write(vault.join("vault.json"), "{\n  \"git_assets_max\": \"50MB\"\n}\n").unwrap();
+    g(&vault, &["commit", "-qam", "ours"]);
+    g(&vault, &["merge", "theirs"]);
+    vault
+}
+
+/// **A `vault.json` already left with markers is settled at open, on either device**, and the merge
+/// it belongs to is finished — before this the vault could not open at all, and its merge sat
+/// unfinished, refusing every commit.
+#[test]
+fn a_vault_json_left_with_markers_is_settled_on_either_device() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = mid_merge_vault_json(dir.path());
+        let text = std::fs::read_to_string(vault.join("vault.json")).unwrap();
+        assert!(text.contains("<<<<<<<"), "native={native}: the setup must reproduce the markers");
+        assert!(fm_core::descriptor::Descriptor::read(&vault).is_err());
+
+        vcs::force_native(native);
+        let out = fm_core::descriptor::Descriptor::settle_conflicted(&vault);
+        vcs::force_native(false);
+        assert!(out.unwrap_or_else(|e| panic!("native={native}: {e}")), "native={native}");
+
+        assert!(vcs::conflicted(&vault).unwrap().is_empty(), "native={native}: settled");
+        assert!(!vault.join(".git/MERGE_HEAD").exists(), "native={native}: merge finished");
+        let show = g(&vault, &["show", "HEAD:vault.json"]);
+        let committed: serde_json::Value =
+            serde_json::from_slice(&show.stdout).unwrap_or_else(|e| panic!("native={native}: {e}"));
+        assert_eq!(committed, serde_json::json!({"git_assets_max": "50MB"}), "native={native}");
+        let desc = fm_core::descriptor::Descriptor::read(&vault).unwrap();
+        assert_eq!(desc.git_assets_max, Some(50_000_000), "native={native}");
+    }
+}
+
 fn head(vault: &Path) -> String {
     String::from_utf8_lossy(&g(vault, &["rev-parse", "HEAD"]).stdout).trim().to_string()
 }

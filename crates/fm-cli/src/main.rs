@@ -113,6 +113,19 @@ enum Cmd {
         /// %B — their version.
         theirs: PathBuf,
     },
+    /// Git's merge driver for `vault.json` — git calls this, you don't. The vault's settings are
+    /// merged key by key, and two different values are both kept (one as `conflict-<key>`), so it
+    /// **cannot** conflict; merged as plain text it left `<<<<<<<` markers in a file the vault cannot
+    /// open without. Always exits 0.
+    #[command(hide = true)]
+    MergeVault {
+        /// %O — the common ancestor.
+        base: PathBuf,
+        /// %A — our version, and where git expects the answer written.
+        ours: PathBuf,
+        /// %B — their version.
+        theirs: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -159,6 +172,17 @@ fn main() -> Result<()> {
         // that missed an entry.
         if let Err(e) = merged.write_file(ours) {
             eprintln!("fm merge-manifest: keeping our manifest ({e})");
+        }
+        return Ok(());
+    }
+    // The same rules for `vault.json`, for the same reason: never `Err`, never a non-zero exit. A
+    // side that cannot be read is no information (`descriptor::merge_texts`), and a failed write
+    // keeps ours, which git staged clean.
+    if let Cmd::MergeVault { base, ours, theirs } = &cli.cmd {
+        let read = |p: &PathBuf| std::fs::read_to_string(p).unwrap_or_default();
+        let merged = fm_core::descriptor::merge_texts(&read(base), &read(ours), &read(theirs));
+        if let Err(e) = std::fs::write(ours, merged) {
+            eprintln!("fm merge-vault: keeping our vault.json ({e})");
         }
         return Ok(());
     }
@@ -314,7 +338,7 @@ fn main() -> Result<()> {
             println!("restic repo OK{}", if read_data { " (data re-read)" } else { "" });
         }
         // Answered above, before the vault was opened.
-        Cmd::MergeMd { .. } | Cmd::MergeManifest { .. } => {
+        Cmd::MergeMd { .. } | Cmd::MergeManifest { .. } | Cmd::MergeVault { .. } => {
             unreachable!("handled before the store is opened")
         }
     }

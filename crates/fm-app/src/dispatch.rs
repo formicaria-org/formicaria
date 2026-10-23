@@ -183,6 +183,24 @@ impl App {
     /// `open_external` a trait rather than a ladder.
     pub fn load_with(cold: ColdStart) -> Result<(Self, Vec<String>), String> {
         let vaults::VaultList { vaults, path: config, writable: config_writable } = vaults::load();
+        // **A `vault.json` a text merge left markers in is settled first**, before anything reads it:
+        // it does not parse, and a descriptor that does not parse keeps its vault from opening. Both
+        // versions are between the markers, so the answer is the key-by-key merge a pull now makes
+        // (`decisions.md` 2026-10-23, *`vault.json` is merged key by key*). Recorded below, like the
+        // removal after it, so the next commit carries it.
+        let settled: Vec<&vaults::VaultConfig> = vaults
+            .iter()
+            .filter(|cfg| match fm_core::descriptor::Descriptor::settle_conflicted(&cfg.path) {
+                Ok(done) => done,
+                Err(e) => {
+                    eprintln!(
+                        "note: '{}': vault.json has conflict markers, kept as is: {e}",
+                        cfg.name
+                    );
+                    false
+                }
+            })
+            .collect();
         // **0.15.0's start-up stamp comes out** (`decisions.md` 2026-10-23, *the vault's clock is read
         // from its first commit*): it wrote the opening device's zone into `vault.json`, which on a
         // device in another zone was the wrong clock. Removed before the stores open, and recorded below so
@@ -210,6 +228,13 @@ impl App {
         // **Only at open, never on a timer**, so the deliberate property that a note being edited by
         // hand is not swept mid-sentence still holds for the whole session. And only paths that are
         // ours *by construction* — see `adoptable`.
+        for cfg in &settled {
+            store.seed_written(&cfg.name, vec![cfg.path.join("vault.json")]);
+            eprintln!(
+                "note: '{}': vault.json had conflict markers; both versions merged",
+                cfg.name
+            );
+        }
         for cfg in &stripped {
             store.seed_written(&cfg.name, vec![cfg.path.join("vault.json")]);
             eprintln!("note: '{}': the time zone 0.15.0 wrote at start is removed", cfg.name);

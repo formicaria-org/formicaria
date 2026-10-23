@@ -32,6 +32,16 @@ fn install_driver(repo: &Path) {
         .args(["config", "merge.fm.driver", &format!("'{}' merge-md %O %A %B %L", fm.display())])
         .output()
         .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args([
+            "config",
+            "merge.fm-vault.driver",
+            &format!("'{}' merge-vault %O %A %B", fm.display()),
+        ])
+        .output()
+        .unwrap();
 }
 
 fn no_identity(vault: &Path) {
@@ -177,6 +187,58 @@ fn a_concurrent_edit_merges_the_same_way_on_both_backends() {
             .unwrap_or_else(|e| panic!("{name} produced a readable note: {e}\n{text}"));
     }
     assert_eq!(sub_text, nat_text, "the two backends produced different merged notes");
+}
+
+/// **`vault.json` merges the same way on a phone and a laptop** (2026-10-23): the desktop through
+/// `fm merge-vault`, the phone by routing the path to the same `descriptor::merge_texts`. One side
+/// lowers the attachment limit while the other describes the vault and stamps 0.15.0's time zone;
+/// both must come back clean, with both changes, no stamp, and the same bytes.
+#[test]
+fn vault_json_merges_the_same_way_on_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let git_in = |dir: &Path, args: &[&str]| {
+        Command::new("git").arg("-C").arg(dir).args(args).output().unwrap();
+    };
+    let mut results = Vec::new();
+    for backend in ["subprocess", "native"] {
+        let (_bare, mine, theirs, _url) = diverged(backend);
+        let base = "{\n  \"git_assets_max\": \"50MB\"\n}\n";
+        fs::write(theirs.path().join("vault.json"), base).unwrap();
+        git_in(theirs.path(), &["add", "vault.json"]);
+        git_in(theirs.path(), &["commit", "-m", "the vault's settings"]);
+        git_in(theirs.path(), &["push", "origin", "HEAD"]);
+        let pull = if backend == "native" { git_native::pull } else { git::pull };
+        pull(mine.path()).unwrap();
+
+        let stamped = "{\n  \"description\": \"shared notes\",\n  \"git_assets_max\": \"50MB\",\n  \"time_zone\": \"Africa/Accra\"\n}\n";
+        fs::write(theirs.path().join("vault.json"), stamped).unwrap();
+        git_in(theirs.path(), &["commit", "-am", "theirs"]);
+        git_in(theirs.path(), &["push", "origin", "HEAD"]);
+
+        fs::write(mine.path().join("vault.json"), "{\n  \"git_assets_max\": \"20MB\"\n}\n")
+            .unwrap();
+        let commit = if backend == "native" { git_native::commit_all } else { git::commit_all };
+        commit(mine.path(), "auto: mine", &[mine.path().join("vault.json")]).unwrap();
+
+        let pulled = pull(mine.path()).unwrap();
+        let merged = fs::read_to_string(mine.path().join("vault.json")).unwrap();
+        results.push((backend, pulled, merged));
+    }
+
+    for (name, pulled, text) in &results {
+        assert!(matches!(pulled, git::Pulled::Merged { .. }), "{name} merged cleanly: {pulled:?}");
+        assert!(!text.contains("<<<<<<<"), "{name}: no markers:\n{text}");
+        let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            parsed,
+            serde_json::json!({"description": "shared notes", "git_assets_max": "20MB"}),
+            "{name}: both changes, no stamp"
+        );
+    }
+    assert_eq!(results[0].2, results[1].2, "the two backends wrote different vault.json files");
 }
 
 /// And a real disagreement must fail the same way on both: markers **in the body**, the note

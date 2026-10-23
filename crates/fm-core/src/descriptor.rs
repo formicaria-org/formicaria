@@ -211,6 +211,186 @@ pub fn vault_name(root: &std::path::Path, desc: Option<&Descriptor>, given: &str
         .unwrap_or_else(|| "vault".to_string())
 }
 
+/// The key formicaria 0.15.0 stamped at start; see [`Descriptor::strip_legacy_time_zone`].
+const LEGACY_TIME_ZONE: &str = "time_zone";
+
+/// **Merge three versions of `vault.json`, key by key.** The engine behind `fm merge-vault` on a
+/// desktop and the path routing in `git_native` on a phone, so the two devices write the same file.
+///
+/// Merged as text, two devices changing the file at once left `<<<<<<<` inside a JSON document,
+/// and from then on [`Descriptor::read`] failed: proposals were refused while the app ran, and the
+/// vault would not open at the next start (2026-10-23). So **this never conflicts**, for the same
+/// reason `fm merge-manifest` never does: a non-zero exit from a driver leaves an unmerged path that
+/// stops every commit in the vault.
+///
+/// - Each key takes the three-way rule: both sides agree, or the side that changed it wins.
+/// - **An edit beats a deletion**, as a tag does in the note merge: losing a setting someone chose,
+///   silently, is worse than keeping one someone removed.
+/// - **Two different edits keep both**: the winner is chosen from content only (the larger
+///   serialisation), so every device computes the same file, and the other value is kept under
+///   `conflict-<key>` — the note merge's rule (`merge::DEMOTED_PREFIX`). [`Descriptor::read`]
+///   ignores keys it does not know, so the vault keeps working and the other value is still there
+///   for whoever opens the file.
+/// - 0.15.0's `time_zone` is dropped from every side, since nothing else ever wrote it.
+/// - A side that is not a JSON object is no information, not a failure; the other side stands.
+///
+/// The result is pretty-printed with sorted keys, so it is the same bytes on every device.
+pub fn merge_texts(base: &str, ours: &str, theirs: &str) -> String {
+    use serde_json::{Map, Value};
+    let object = |t: &str| -> Option<Map<String, Value>> {
+        let mut m = serde_json::from_str::<Value>(t).ok()?.as_object()?.clone();
+        m.remove(LEGACY_TIME_ZONE);
+        Some(m)
+    };
+    let (o, t) = match (object(ours), object(theirs)) {
+        (Some(o), Some(t)) => (o, t),
+        (Some(one), None) | (None, Some(one)) => return pretty(&one),
+        (None, None) => return ours.to_string(),
+    };
+    pretty(&merge_maps(&object(base).unwrap_or_default(), &o, &t))
+}
+
+/// [`merge_texts`]'s rule over one JSON object. **A nested object both sides changed is merged the
+/// same way, key by key** — `supervision` and `proposals` are objects, and one device changing
+/// `supervision.collect` while another changes `supervision.publish` is two edits to two settings,
+/// not one disagreement about all of them. A `conflict-<key>` from inside one stays inside it, where
+/// the reader of that object ignores it like any key it does not know.
+fn merge_maps(
+    b: &serde_json::Map<String, serde_json::Value>,
+    o: &serde_json::Map<String, serde_json::Value>,
+    t: &serde_json::Map<String, serde_json::Value>,
+) -> serde_json::Map<String, serde_json::Value> {
+    use serde_json::{Map, Value};
+    let demoted = |k: &String| k.starts_with(crate::merge::DEMOTED_PREFIX);
+    let keys: std::collections::BTreeSet<&String> =
+        b.keys().chain(o.keys()).chain(t.keys()).collect();
+    let mut out = Map::new();
+    let mut losers: Vec<(String, Value)> = Vec::new();
+    for key in keys.iter().copied().filter(|k| !demoted(k)) {
+        let (bv, ov, tv) = (b.get(key), o.get(key), t.get(key));
+        let kept = if ov == tv || tv == bv {
+            ov
+        } else if ov == bv {
+            tv
+        } else {
+            match (ov, tv) {
+                (Some(Value::Object(x)), Some(Value::Object(y))) => {
+                    let under = match bv {
+                        Some(Value::Object(m)) => m.clone(),
+                        _ => Map::new(),
+                    };
+                    out.insert(key.clone(), Value::Object(merge_maps(&under, x, y)));
+                    continue;
+                }
+                (Some(x), Some(y)) => {
+                    let (sx, sy) = (x.to_string(), y.to_string());
+                    let (win, lose) = if sx >= sy { (x, y) } else { (y, x) };
+                    losers.push((key.clone(), lose.clone()));
+                    Some(win)
+                }
+                (edit, None) | (None, edit) => edit,
+            }
+        };
+        if let Some(v) = kept {
+            out.insert(key.clone(), v.clone());
+        }
+    }
+
+    // A `conflict-<key>` is a set of values, and merges as one: kept unless a side that had it
+    // removed it, plus whatever this merge demoted, minus a value equal to the winner.
+    let as_set = |m: &Map<String, Value>, k: &str| -> Vec<Value> {
+        match m.get(k) {
+            Some(Value::Array(a)) => a.clone(),
+            Some(v) => vec![v.clone()],
+            None => Vec::new(),
+        }
+    };
+    let mut sets: std::collections::BTreeMap<String, Vec<Value>> = Default::default();
+    for key in keys.iter().copied().filter(|k| demoted(k)) {
+        let (bs, os, ts) = (as_set(b, key), as_set(o, key), as_set(t, key));
+        let kept = os
+            .iter()
+            .chain(ts.iter())
+            .filter(|v| !(bs.contains(v) && (!os.contains(v) || !ts.contains(v))))
+            .cloned()
+            .collect();
+        sets.insert(key.clone(), kept);
+    }
+    for (key, v) in losers {
+        sets.entry(format!("{}{key}", crate::merge::DEMOTED_PREFIX)).or_default().push(v);
+    }
+    for (key, values) in sets {
+        let field = &key[crate::merge::DEMOTED_PREFIX.len()..];
+        let mut unique: Vec<Value> = Vec::new();
+        for v in values {
+            if Some(&v) != out.get(field) && !unique.contains(&v) {
+                unique.push(v);
+            }
+        }
+        unique.sort_by_key(|v| v.to_string());
+        if !unique.is_empty() {
+            out.insert(key, Value::Array(unique));
+        }
+    }
+    out
+}
+
+fn pretty(m: &serde_json::Map<String, serde_json::Value>) -> String {
+    let mut text = serde_json::to_string_pretty(m).unwrap_or_else(|_| "{}".into());
+    text.push('\n');
+    text
+}
+
+/// **The versions inside a file git's text merge left markers in**, as `(base, ours, theirs)`.
+/// Lines outside a conflict belong to all three. A diff3-style `|||||||` section is the base; without
+/// one the base has nothing for that conflict, so [`merge_texts`] keeps what either side has there.
+/// `None` when a marker is out of order, which is not a file this can read.
+pub fn split_conflict(text: &str) -> Option<(String, String, String)> {
+    #[derive(PartialEq)]
+    enum In {
+        Outside,
+        Ours,
+        Base,
+        Theirs,
+    }
+    let (mut base, mut ours, mut theirs) = (String::new(), String::new(), String::new());
+    let mut at = In::Outside;
+    for line in text.split_inclusive('\n') {
+        at = match (&at, line) {
+            (In::Outside, l) if l.starts_with("<<<<<<<") => In::Ours,
+            (In::Ours, l) if l.starts_with("|||||||") => In::Base,
+            (In::Ours | In::Base, l) if l.starts_with("=======") => In::Theirs,
+            (In::Theirs, l) if l.starts_with(">>>>>>>") => In::Outside,
+            (_, l)
+                if ["<<<<<<<", "|||||||", "=======", ">>>>>>>"]
+                    .iter()
+                    .any(|m| l.starts_with(m)) =>
+            {
+                return None
+            }
+            (In::Outside, l) => {
+                base.push_str(l);
+                ours.push_str(l);
+                theirs.push_str(l);
+                continue;
+            }
+            (In::Ours, l) => {
+                ours.push_str(l);
+                continue;
+            }
+            (In::Base, l) => {
+                base.push_str(l);
+                continue;
+            }
+            (In::Theirs, l) => {
+                theirs.push_str(l);
+                continue;
+            }
+        };
+    }
+    (at == In::Outside).then_some((base, ours, theirs))
+}
+
 impl Descriptor {
     /// Read `<root>/vault.json`. **An absent file is `Ok(default)`, never an error** — the
     /// overwhelming majority of vaults will not have one, and a notebook that refused to
@@ -424,6 +604,47 @@ impl Descriptor {
         text.push('\n');
         std::fs::write(&path, text)
             .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))?;
+        Ok(true)
+    }
+
+    /// **Settle a `vault.json` that a text merge left with conflict markers in it** — the file a
+    /// version without [`merge_texts`] produced when two devices changed it at once (2026-10-23:
+    /// 0.15.0's start-up stamp, written by one device and removed by another). Both versions are
+    /// still in the file between the markers, so the answer is the same key-by-key merge a
+    /// pull now makes, computed from them. Returns whether it wrote, so the caller can mark the
+    /// path resolved and record it for the next commit.
+    ///
+    /// Run at open because that is the only moment it can help: a `vault.json` that does not parse
+    /// makes [`Descriptor::read`] fail, which keeps the vault from opening at all. A file whose
+    /// sides cannot be read as JSON is left exactly as it is — a person has to look at it.
+    pub fn repair_conflict_markers(root: &Path) -> Result<bool, StoreError> {
+        let path = root.join("vault.json");
+        let Ok(text) = std::fs::read_to_string(&path) else { return Ok(false) };
+        if !crate::merge::has_conflict_markers(&text) {
+            return Ok(false);
+        }
+        let Some((base, ours, theirs)) = split_conflict(&text) else { return Ok(false) };
+        let merged = merge_texts(&base, &ours, &theirs);
+        if serde_json::from_str::<serde_json::Value>(&merged).is_err() {
+            return Ok(false);
+        }
+        std::fs::write(&path, merged)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))?;
+        Ok(true)
+    }
+
+    /// [`Descriptor::repair_conflict_markers`], then **the merge it came from marked resolved**.
+    /// Clean text over an unmerged path settles nothing as far as git is concerned (see
+    /// [`crate::git::Keep::Edited`]): the path stays unmerged and `commit_all` keeps refusing every
+    /// commit in the vault. So when `vault.json` is one of the merge's conflicts, the repaired file is
+    /// recorded as its answer, through whichever backend this device has.
+    pub fn settle_conflicted(root: &Path) -> Result<bool, StoreError> {
+        if !Self::repair_conflict_markers(root)? {
+            return Ok(false);
+        }
+        if crate::vcs::conflicts(root)?.iter().any(|p| p == "vault.json") {
+            crate::vcs::resolve_conflict(root, "vault.json", crate::git::Keep::Edited)?;
+        }
         Ok(true)
     }
 
@@ -671,5 +892,154 @@ mod tests {
         let d = tempdir().unwrap();
         std::fs::write(d.path().join("vault.json"), "{ not json").unwrap();
         assert!(Descriptor::read(d.path()).is_err());
+    }
+
+    fn json(text: &str) -> serde_json::Value {
+        serde_json::from_str(text).unwrap_or_else(|e| panic!("{e}:\n{text}"))
+    }
+
+    /// The case that broke a vault: one device wrote 0.15.0's stamp, the other took it out. The key
+    /// is dropped from every side, so the two agree and nothing is left to conflict.
+    #[test]
+    fn the_legacy_time_zone_cannot_make_a_merge_disagree() {
+        let base = r#"{"git_assets_max":"50MB","time_zone":"America/Denver"}"#;
+        let ours = r#"{"git_assets_max":"50MB"}"#;
+        let theirs = r#"{"git_assets_max":"50MB","time_zone":"Africa/Accra"}"#;
+        assert_eq!(json(&merge_texts(base, ours, theirs)), json(r#"{"git_assets_max":"50MB"}"#));
+    }
+
+    /// Each key takes the side that changed it, so two devices changing different settings both win.
+    #[test]
+    fn different_keys_changed_on_each_side_both_land() {
+        let base = r#"{"name":"lab","git_assets_max":"50MB"}"#;
+        let ours = r#"{"name":"lab","git_assets_max":"20MB"}"#;
+        let theirs = r#"{"name":"lab","git_assets_max":"50MB","description":"shared notes"}"#;
+        assert_eq!(
+            json(&merge_texts(base, ours, theirs)),
+            json(r#"{"name":"lab","git_assets_max":"20MB","description":"shared notes"}"#)
+        );
+    }
+
+    /// A key one side removed and the other left alone is removed; one the other side changed is kept.
+    #[test]
+    fn a_deletion_stands_unless_the_other_side_edited_the_key() {
+        let base = r#"{"name":"lab","description":"old"}"#;
+        let ours = r#"{"description":"old"}"#;
+        let theirs = r#"{"name":"lab","description":"new"}"#;
+        assert_eq!(json(&merge_texts(base, ours, theirs)), json(r#"{"description":"new"}"#));
+        let theirs = r#"{"name":"lab 2","description":"old"}"#;
+        assert_eq!(
+            json(&merge_texts(base, ours, theirs)),
+            json(r#"{"name":"lab 2","description":"old"}"#),
+            "an edit beats a deletion"
+        );
+    }
+
+    /// Two different values: both kept, the same file from either side, and it still reads.
+    #[test]
+    fn a_real_disagreement_keeps_both_and_both_devices_write_the_same_bytes() {
+        let base = r#"{"name":"lab"}"#;
+        let (a, b) = (r#"{"name":"lab A"}"#, r#"{"name":"lab B"}"#);
+        let one = merge_texts(base, a, b);
+        assert_eq!(one, merge_texts(base, b, a), "the side a device is on must not matter");
+        assert_eq!(json(&one), json(r#"{"name":"lab B","conflict-name":["lab A"]}"#));
+
+        let d = tempdir().unwrap();
+        std::fs::write(d.path().join("vault.json"), &one).unwrap();
+        assert_eq!(Descriptor::read(d.path()).unwrap().name.as_deref(), Some("lab B"));
+    }
+
+    /// Merging again after that adds nothing: the record of the disagreement does not grow.
+    #[test]
+    fn a_kept_disagreement_merges_as_a_fixed_point() {
+        let settled =
+            merge_texts(r#"{"name":"lab"}"#, r#"{"name":"lab A"}"#, r#"{"name":"lab B"}"#);
+        assert_eq!(merge_texts(&settled, &settled, &settled), settled);
+        let edited = r#"{"name":"lab C"}"#;
+        assert_eq!(
+            json(&merge_texts(&settled, edited, &settled)),
+            json(edited),
+            "a side that settled it by hand settles it everywhere"
+        );
+    }
+
+    /// Two devices changing two different consent answers made two edits, not one disagreement.
+    #[test]
+    fn a_nested_setting_is_merged_key_by_key() {
+        let base =
+            r#"{"supervision":{"collect":true,"publish":false},"proposals":{"max_files":5}}"#;
+        let ours =
+            r#"{"supervision":{"collect":false,"publish":false},"proposals":{"max_files":5}}"#;
+        let theirs =
+            r#"{"supervision":{"collect":true,"publish":true},"proposals":{"max_files":9}}"#;
+        let merged = merge_texts(base, ours, theirs);
+        assert_eq!(
+            json(&merged),
+            json(r#"{"supervision":{"collect":false,"publish":true},"proposals":{"max_files":9}}"#)
+        );
+        let d = tempdir().unwrap();
+        std::fs::write(d.path().join("vault.json"), &merged).unwrap();
+        let desc = Descriptor::read(d.path()).unwrap();
+        assert_eq!(desc.supervision, Supervision { collect: false, publish: true });
+        assert_eq!(desc.proposal_limits.max_files, 9);
+    }
+
+    /// The same sub-key set two ways keeps both inside its object, and the object still reads.
+    #[test]
+    fn a_nested_disagreement_stays_inside_its_object() {
+        let base = r#"{"proposals":{"max_files":5,"max_open":3}}"#;
+        let ours = r#"{"proposals":{"max_files":7,"max_open":3}}"#;
+        let theirs = r#"{"proposals":{"max_files":9,"max_open":4}}"#;
+        let merged = merge_texts(base, ours, theirs);
+        assert_eq!(merged, merge_texts(base, theirs, ours), "the same bytes from either side");
+        assert_eq!(
+            json(&merged),
+            json(r#"{"proposals":{"max_files":9,"conflict-max_files":[7],"max_open":4}}"#)
+        );
+        let d = tempdir().unwrap();
+        std::fs::write(d.path().join("vault.json"), &merged).unwrap();
+        assert_eq!(Descriptor::read(d.path()).unwrap().proposal_limits.max_files, 9);
+    }
+
+    /// A side that is not JSON is no information, never a reason to fail or to write markers.
+    #[test]
+    fn an_unreadable_side_leaves_the_other_standing() {
+        let ok = r#"{"name":"lab"}"#;
+        assert_eq!(json(&merge_texts("", "<<<<<<< broken", ok)), json(ok));
+        assert_eq!(json(&merge_texts("", ok, "not json")), json(ok));
+    }
+
+    /// The file a text merge already left behind: both versions are between the markers.
+    #[test]
+    fn a_file_with_conflict_markers_is_repaired_from_its_two_sides() {
+        let d = tempdir().unwrap();
+        let conflicted = "{\n<<<<<<< HEAD\n  \"git_assets_max\": \"50MB\"\n=======\n  \"git_assets_max\": \"50MB\",\n  \"time_zone\": \"Africa/Accra\"\n>>>>>>> origin/main\n}\n";
+        std::fs::write(d.path().join("vault.json"), conflicted).unwrap();
+        assert!(Descriptor::read(d.path()).is_err(), "the state that kept the vault shut");
+
+        assert!(Descriptor::repair_conflict_markers(d.path()).unwrap());
+        let text = std::fs::read_to_string(d.path().join("vault.json")).unwrap();
+        assert_eq!(json(&text), json(r#"{"git_assets_max":"50MB"}"#));
+        assert_eq!(Descriptor::read(d.path()).unwrap().git_assets_max, Some(50_000_000));
+        assert!(!Descriptor::repair_conflict_markers(d.path()).unwrap(), "nothing left to do");
+    }
+
+    /// The diff3 style carries the base too, which lets a deletion stand.
+    #[test]
+    fn a_diff3_conflict_uses_its_base() {
+        let text = "<<<<<<< ours\n{\"description\":\"old\"}\n||||||| base\n{\"name\":\"lab\",\"description\":\"old\"}\n=======\n{\"name\":\"lab\",\"description\":\"new\"}\n>>>>>>> theirs\n";
+        let (base, ours, theirs) = split_conflict(text).unwrap();
+        assert_eq!(json(&merge_texts(&base, &ours, &theirs)), json(r#"{"description":"new"}"#));
+    }
+
+    /// Markers out of order are not a file this can read; it is left for a person.
+    #[test]
+    fn markers_out_of_order_are_left_alone() {
+        assert!(split_conflict("=======\n{}\n<<<<<<< a\n>>>>>>> b\n").is_none());
+        let d = tempdir().unwrap();
+        let odd = "<<<<<<< a\n=======\n<<<<<<< b\n>>>>>>> c\n";
+        std::fs::write(d.path().join("vault.json"), odd).unwrap();
+        assert!(!Descriptor::repair_conflict_markers(d.path()).unwrap());
+        assert_eq!(std::fs::read_to_string(d.path().join("vault.json")).unwrap(), odd);
     }
 }

@@ -38,6 +38,10 @@ fn install_driver(repo: &Path) {
             &format!("'{}' merge-manifest %O %A %B", fm.display()),
         ],
     );
+    g(
+        repo,
+        &["config", "merge.fm-vault.driver", &format!("'{}' merge-vault %O %A %B", fm.display())],
+    );
 }
 
 /// Set up one repo holding a note, and a clone of it, both ready to merge through us.
@@ -604,13 +608,56 @@ fn two_people_attaching_files_do_not_conflict_in_the_manifest() {
     assert_eq!(parsed["blobs"].as_object().unwrap().len(), 3);
 }
 
+/// **The same contract for `vault.json`** (2026-10-23). One device wrote 0.15.0's time zone into it
+/// at start while another took it out; git's text merge put `<<<<<<<` inside the JSON, and a
+/// `vault.json` that does not parse keeps the vault from opening. Through `fm merge-vault` the pull
+/// is clean, each side's own change lands, and the old stamp is gone.
+#[test]
+fn two_devices_changing_vault_json_do_not_conflict() {
+    if !have_git() {
+        eprintln!("skipping merge test: git not on PATH");
+        return;
+    }
+    let base = "{\n  \"git_assets_max\": \"50MB\",\n  \"time_zone\": \"America/Denver\"\n}\n";
+    let (ours, theirs) = two_clones_with_file("vault.json", base);
+
+    fs::write(ours.path().join("vault.json"), "{\n  \"git_assets_max\": \"20MB\"\n}\n").unwrap();
+    g(ours.path(), &["commit", "-am", "we take the stamp out and lower the limit"]);
+    let stamped = "{\n  \"description\": \"shared notes\",\n  \"git_assets_max\": \"50MB\",\n  \"time_zone\": \"Africa/Accra\"\n}\n";
+    fs::write(theirs.path().join("vault.json"), stamped).unwrap();
+    g(theirs.path(), &["commit", "-am", "they stamp another zone and describe the vault"]);
+
+    let out = g(theirs.path(), &["pull", "--no-rebase", "-q", "origin", "main"]);
+    let merged = fs::read_to_string(theirs.path().join("vault.json")).unwrap();
+
+    assert!(
+        out.status.success(),
+        "the pull must not stop on vault.json:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!merged.contains("<<<<<<<"), "no markers in the vault's own settings:\n{merged}");
+    let parsed: serde_json::Value = serde_json::from_str(&merged).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({"description": "shared notes", "git_assets_max": "20MB"}),
+        "each side's change, and no stamp"
+    );
+    let desc = fm_core::descriptor::Descriptor::read(theirs.path()).unwrap();
+    assert_eq!(desc.git_assets_max, Some(20_000_000));
+}
+
 /// [`two_clones`] for the manifest: same shape, but the tracked file under test is
 /// `manifest.json` rather than a note.
 fn two_clones_with_manifest(initial: &str) -> (tempfile::TempDir, tempfile::TempDir) {
+    two_clones_with_file("manifest.json", initial)
+}
+
+/// [`two_clones`] with one tracked file at the vault root instead of a note.
+fn two_clones_with_file(name: &str, initial: &str) -> (tempfile::TempDir, tempfile::TempDir) {
     let ours = tempdir().unwrap();
     git::ensure_repo(ours.path()).unwrap();
     g(ours.path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
-    fs::write(ours.path().join("manifest.json"), initial).unwrap();
+    fs::write(ours.path().join(name), initial).unwrap();
     g(ours.path(), &["add", "-A"]);
     g(ours.path(), &["commit", "-m", "base"]);
 

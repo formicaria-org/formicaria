@@ -587,7 +587,11 @@ fn ensuring_a_repo_repeatedly_does_not_duplicate_lines() {
     // Each rule exactly once, matched on the *whole line*. A `contains("merge=fm")` here
     // would also match `merge=fm-manifest` and so count two rules as a duplicated one — the
     // substring is a trap now that there are two drivers.
-    for rule in ["*.md merge=fm text eol=lf", "manifest.json merge=fm-manifest text eol=lf"] {
+    for rule in [
+        "*.md merge=fm text eol=lf",
+        "manifest.json merge=fm-manifest text eol=lf",
+        "vault.json merge=fm-vault text eol=lf",
+    ] {
         assert_eq!(attrs.lines().filter(|l| l.trim() == rule).count(), 1, "{rule}\n{attrs}");
     }
 }

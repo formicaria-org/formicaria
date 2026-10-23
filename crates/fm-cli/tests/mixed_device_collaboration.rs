@@ -74,6 +74,10 @@ fn install_driver(repo: &Path) {
             &format!("'{}' merge-manifest %O %A %B", fm.display()),
         ],
     );
+    g(
+        repo,
+        &["config", "merge.fm-vault.driver", &format!("'{}' merge-vault %O %A %B", fm.display())],
+    );
 }
 
 /// Put the built `fm` **beside the test binary**, because `git::ensure_repo` — which runs inside
@@ -706,4 +710,129 @@ fn two_open_proposals_accept_one_after_the_other_on_the_phone() {
 
     assert!(body_of(phone.path(), &first).contains("transcript one"));
     assert!(body_of(phone.path(), &second).contains("transcript two"));
+}
+
+// ===========================================================================
+// Start-up on both devices, then sync.
+// ===========================================================================
+
+struct NoHost;
+impl fm_app::Host for NoHost {
+    fn open_external(&self, _p: &Path) -> Result<(), String> {
+        Err("not in a test".into())
+    }
+}
+
+fn call(app: &fm_app::App, cmd: &str, args: serde_json::Value) -> serde_json::Value {
+    let out =
+        fm_app::dispatch(cmd, &args, &[], app, &NoHost).unwrap_or_else(|e| panic!("{cmd}: {e}"));
+    serde_json::from_slice(&out.into_bytes()).unwrap_or(serde_json::Value::Null)
+}
+
+/// **Start the app the way a relaunch does**: `App::load`, through the `FM_VAULT` override, so
+/// everything start-up writes into a vault before anyone touches it happens here too.
+///
+/// **`FM_VAULTS` must name a list inside the test's own directory.** Unset, `App::load` reads the
+/// machine's real vault list and runs start-up on the real vaults — a first draft of this test did
+/// exactly that to a developer's notebook (2026-10-23). A path that does not exist lists no vaults,
+/// so `FM_VAULT` is the only one opened.
+fn start(vault: &Path) -> fm_app::App {
+    let list = vault.with_file_name("vaults.json");
+    assert!(!list.exists() && list.starts_with(std::env::temp_dir()), "{}", list.display());
+    // Safety: the tests in this file hold `serial()`, and nothing else reads these variables.
+    unsafe {
+        std::env::set_var("FM_VAULTS", &list);
+        std::env::set_var("FM_VAULT", vault);
+    }
+    let app = fm_app::App::load().expect("load").0;
+    let listed = call(&app, "list_vaults", serde_json::json!({}));
+    assert_eq!(listed.as_array().map(Vec::len), Some(1), "only the test's vault: {listed}");
+    app
+}
+
+/// **Two devices start the app on one vault, each change a setting, and sync both ways** — the
+/// journey none of the tests here took until 2026-10-23, which is how 0.15.0 shipped a start-up
+/// write to `vault.json` that collided on the first sync between two devices. Each device runs
+/// its own start-up (here: taking out a legacy `time_zone` that history still holds) and changes a
+/// different setting; after a pull each way both are clean, both hold both settings, and their
+/// `vault.json`s are the same bytes. Any future start-up write that cannot travel fails here.
+#[test]
+fn two_devices_start_change_settings_and_sync_without_a_conflict() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+    ensure_fm_beside_test_binary();
+    let remote = tempfile::tempdir().unwrap();
+    Command::new("git").args(["init", "--bare", "-b", "main"]).arg(remote.path()).output().unwrap();
+    let url = remote.path().to_str().unwrap();
+
+    // The vault as history has it: the tutorials every notebook gets, and a `vault.json` still
+    // carrying the stamp 0.15.0 wrote.
+    let seed = tempfile::tempdir().unwrap();
+    git::ensure_repo(seed.path()).unwrap();
+    g(seed.path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
+    identity(seed.path(), "seed", "seed@example.org");
+    std::fs::create_dir_all(seed.path().join("notes")).unwrap();
+    for (name, text) in fm_app::tutorials::TUTORIALS {
+        std::fs::write(seed.path().join("notes").join(name), text).unwrap();
+    }
+    std::fs::write(
+        seed.path().join("vault.json"),
+        "{\n  \"git_assets_max\": \"50MB\",\n  \"time_zone\": \"America/Denver\"\n}\n",
+    )
+    .unwrap();
+    g(seed.path(), &["add", "-A"]);
+    g(seed.path(), &["commit", "-m", "base"]);
+    g(seed.path(), &["remote", "add", "origin", url]);
+    g(seed.path(), &["push", "-u", "origin", "main"]);
+
+    let (laptop_home, phone_home) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (laptop, phone) = (laptop_home.path().join("v"), phone_home.path().join("v"));
+    for (dir, name, email) in
+        [(&laptop, "Ada", "ada@example.org"), (&phone, "Ravi", "ravi@example.org")]
+    {
+        Command::new("git").arg("clone").arg(url).arg(dir).output().unwrap();
+        identity(dir, name, email);
+    }
+    install_driver(&laptop);
+    let v = serde_json::json!({ "vault": "v", "message": "auto" });
+
+    // The laptop starts, lowers the attachment limit, records and sends it.
+    on_laptop(|| {
+        let app = start(&laptop);
+        call(&app, "set_git_assets_max", serde_json::json!({ "vault": "v", "max": "20MB" }));
+        call(&app, "commit", v.clone());
+        call(&app, "push", v.clone());
+    });
+    // The phone starts on the old history, allows publishing, records, and takes the laptop's work.
+    on_phone(|| {
+        let app = start(&phone);
+        call(&app, "set_supervision", serde_json::json!({ "vault": "v", "publish": true }));
+        call(&app, "commit", v.clone());
+        call(&app, "pull", v.clone());
+        call(&app, "push", v.clone());
+    });
+    // And the laptop takes the phone's.
+    on_laptop(|| {
+        let app = start(&laptop);
+        call(&app, "pull", v.clone());
+    });
+
+    let want = serde_json::json!({
+        "git_assets_max": "20MB",
+        "supervision": { "collect": true, "publish": true }
+    });
+    let mut files = Vec::new();
+    for (name, dir) in [("laptop", &laptop), ("phone", &phone)] {
+        assert!(vcs::conflicted(dir).unwrap().is_empty(), "{name}: no conflict left");
+        assert!(!dir.join(".git/MERGE_HEAD").exists(), "{name}: no merge left open");
+        let text = std::fs::read_to_string(dir.join("vault.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&text)
+            .unwrap_or_else(|e| panic!("{name}: vault.json must parse ({e}):\n{text}"));
+        assert_eq!(parsed, want, "{name}: both settings, and no stamp");
+        files.push(text);
+    }
+    assert_eq!(files[0], files[1], "the two devices hold different vault.json files");
 }

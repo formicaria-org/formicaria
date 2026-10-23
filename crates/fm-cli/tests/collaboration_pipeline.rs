@@ -51,6 +51,10 @@ fn install_driver(repo: &Path) {
             &format!("'{}' merge-manifest %O %A %B", fm.display()),
         ],
     );
+    g(
+        repo,
+        &["config", "merge.fm-vault.driver", &format!("'{}' merge-vault %O %A %B", fm.display())],
+    );
 }
 
 /// The merge backends every scenario runs on: the desktop subprocess driver always, and the phone's

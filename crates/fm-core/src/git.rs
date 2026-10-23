@@ -536,7 +536,12 @@ fn write_gitattributes(vault: &Path) -> Result<(), StoreError> {
     // — and once it is conflicted `commit_all` correctly refuses to commit anything else in the
     // vault, so the whole thing silently stops recording. Merged as a union it cannot conflict
     // at all: the key *is* the content, so agreement is structural.
-    ensure_line(&vault.join(".gitattributes"), "manifest.json merge=fm-manifest text eol=lf")
+    ensure_line(&vault.join(".gitattributes"), "manifest.json merge=fm-manifest text eol=lf")?;
+    // The vault's own settings, the same trap a third time. Two devices changing `vault.json` at
+    // once (2026-10-23: one wrote 0.15.0's time zone, the other took it out) got markers from the
+    // text merge, and a `vault.json` that does not parse keeps the vault from opening. Merged key
+    // by key it cannot conflict (`descriptor::merge_texts`).
+    ensure_line(&vault.join(".gitattributes"), "vault.json merge=fm-vault text eol=lf")
 }
 
 /// Make sure `line` is present in a line-oriented config file, leaving every other byte of
@@ -600,6 +605,9 @@ fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
         ("merge.fm-manifest.name", "formicaria blob-inventory union merge".to_string()),
         // No %L: a union has no conflict to mark.
         ("merge.fm-manifest.driver", format!("'{exe}' merge-manifest %O %A %B")),
+        ("merge.fm-vault.name", "formicaria vault.json key-by-key merge".to_string()),
+        // No %L either: a disagreement is kept as `conflict-<key>`, never as markers.
+        ("merge.fm-vault.driver", format!("'{exe}' merge-vault %O %A %B")),
     ] {
         let out = git(vault).args(["config", key, &value]).output().map_err(spawn)?;
         if !out.status.success() {
@@ -616,9 +624,14 @@ fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
 /// failure of anything. The only outcome that matters is that no *stale* definition survives
 /// this call, and an unset that could not run leaves us no worse than before.
 fn clear_merge_driver(vault: &Path) -> Result<(), StoreError> {
-    for key in
-        ["merge.fm.driver", "merge.fm.name", "merge.fm-manifest.driver", "merge.fm-manifest.name"]
-    {
+    for key in [
+        "merge.fm.driver",
+        "merge.fm.name",
+        "merge.fm-manifest.driver",
+        "merge.fm-manifest.name",
+        "merge.fm-vault.driver",
+        "merge.fm-vault.name",
+    ] {
         let _ = git(vault).args(["config", "--unset-all", key]).output();
     }
     Ok(())

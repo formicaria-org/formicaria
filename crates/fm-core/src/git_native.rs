@@ -1097,6 +1097,15 @@ fn merged_text(
             serde_json::to_string_pretty(&union).map_err(|e| StoreError::Io(e.to_string()))?;
         return Ok((text + "\n", crate::merge::Merged::Clean));
     }
+    // `vault.json` likewise: the desktop's `merge=fm-vault`, routed here by name. Through the note
+    // merger it fell to a line-based merge and came back with markers inside the JSON, which keeps
+    // the vault from opening (2026-10-23).
+    if path == "vault.json" {
+        return Ok((
+            crate::descriptor::merge_texts(base, ours, theirs),
+            crate::merge::Merged::Clean,
+        ));
+    }
     crate::merge::merge_texts(base, ours, theirs, 7)
 }
 
