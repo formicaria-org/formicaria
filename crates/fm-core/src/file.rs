@@ -61,13 +61,16 @@ pub struct FileStore {
     /// What this vault is for, from its `vault.json`. `None` when it has no descriptor —
     /// which is most vaults, and not a gap to fill in with something invented.
     description: Option<String>,
-    /// The clock this vault's times are written on (`vault.json`'s `time_zone`). A timed
+    /// The clock this vault's times are written on: `vault.json`'s `notes_time_zone`, else the one
+    /// the caller reads from the vault's first commit ([`Self::default_clock`]). A timed
     /// `start`/`due` is read off it onto **this device's** clock in [`Self::hydrate`] and written
     /// back onto it in `put`, so every view, reminder and command above this seam works on the
     /// device's time, and the same note shows 17:00 in Singapore and 10:00 in Paris
     /// (`decisions.md` 2026-10-23, *every device shows the agenda on its own zone*). `None`:
     /// nothing is converted, as before.
     zone: Option<crate::zone::Zone>,
+    /// Whether `zone` was stated in `vault.json` — then nothing replaces it.
+    stated: bool,
     /// Every note file **this app** has written or deleted since the last commit.
     ///
     /// The auto-commit stages exactly these. Staging a directory instead meant that in a
@@ -186,7 +189,8 @@ impl FileStore {
             skipped: Vec::new(),
             name,
             description: desc.description,
-            zone: desc.time_zone.as_deref().and_then(|z| crate::zone::Zone::parse(z).ok()),
+            zone: desc.notes_time_zone.as_deref().and_then(|z| crate::zone::Zone::parse(z).ok()),
+            stated: desc.notes_time_zone.is_some(),
             written: Default::default(),
         })
     }
@@ -657,6 +661,20 @@ impl FileStore {
             shift(&mut obj, &vault, &device);
         }
         Ok(obj)
+    }
+
+    /// The vault's clock when its `vault.json` states none: read by the caller from the vault's first
+    /// commit, so every device holding the vault answers the same with nothing written. A stated
+    /// clock is kept.
+    pub fn default_clock(&mut self, zone: crate::zone::Zone) {
+        if !self.stated {
+            self.zone = Some(zone);
+        }
+    }
+
+    /// The vault's clock, as a person reads it (`Asia/Singapore`, `+08:00`), when it has one.
+    pub fn clock_label(&self) -> Option<String> {
+        self.zone.as_ref().map(crate::zone::Zone::label)
     }
 
     /// `(the vault's clock, this device's)` when they differ — the only case with anything to do.

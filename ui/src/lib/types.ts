@@ -399,6 +399,10 @@ export interface PullResult {
  *  the first-run screen — shown when there are none — must not wait on the network. */
 export interface VaultInfo {
   name: string;
+  /** The clock this vault's times are kept on (`Asia/Singapore`, `+08:00`): stated in its
+   *  `vault.json`, else read from its first commit. `null` when it has neither. Each device shows
+   *  the times on its own zone; this says what they are converted from. */
+  clock?: string | null;
   /** For display, so two vaults both called `notes` are tellable apart. */
   path: string;
   /** Index 0 — where every fresh capture lands. */

@@ -206,6 +206,18 @@ impl MultiStore {
     ///
     /// With no vaults there is no default to fall back to, so this is where a write over
     /// the first-run state becomes loud rather than indexing `[0]` and panicking.
+    /// Give `vault` its clock when its `vault.json` states none — see [`FileStore::default_clock`].
+    pub fn default_clock(&mut self, vault: &str, zone: crate::zone::Zone) {
+        if let Some(v) = self.vaults.iter_mut().find(|v| v.name() == vault) {
+            v.default_clock(zone);
+        }
+    }
+
+    /// Each vault's clock as a person reads it, by vault name — for the label beside the agenda.
+    pub fn clocks(&self) -> Vec<(String, Option<String>)> {
+        self.vaults.iter().map(|v| (v.name().to_string(), v.clock_label())).collect()
+    }
+
     fn route(&mut self, vault: &str) -> Result<&mut FileStore, StoreError> {
         if self.vaults.is_empty() {
             return Err(StoreError::NoVaults);

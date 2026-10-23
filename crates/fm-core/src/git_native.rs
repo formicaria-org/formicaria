@@ -1022,6 +1022,27 @@ pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
     Ok(Some(commit.time().seconds()))
 }
 
+/// Twin of [`crate::git::founding_offset`]: the author offset of the oldest root commit reachable
+/// from `HEAD`, in seconds east of UTC. `git_differential` holds the two together.
+pub fn founding_offset(vault: &Path) -> Result<Option<i32>, StoreError> {
+    let Ok(repo) = Repository::open(vault) else { return Ok(None) };
+    let Ok(mut walk) = repo.revwalk() else { return Ok(None) };
+    if walk.push_head().is_err() {
+        return Ok(None);
+    }
+    let mut oldest: Option<(i64, i32)> = None;
+    for oid in walk.flatten() {
+        let Ok(c) = repo.find_commit(oid) else { continue };
+        if c.parent_count() == 0 {
+            let when = c.author().when();
+            if oldest.is_none_or(|(at, _)| when.seconds() < at) {
+                oldest = Some((when.seconds(), when.offset_minutes() * 60));
+            }
+        }
+    }
+    Ok(oldest.map(|(_, off)| off))
+}
+
 /// Twin of [`crate::git::last_sent`] — when this vault's notes last left the device. Peels the
 /// remote-tracking ref rather than `HEAD`, and reads the same `Commit::time()` clock the
 /// subprocess arm gets from `--format=%ct`. Every "no such moment" state (no repo, no commits,

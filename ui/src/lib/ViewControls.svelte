@@ -25,6 +25,7 @@
   /// re-fetch anything — `feedKey` is a constant for both kinds — they choose which component
   /// draws the cards already in hand. They are two ways of reading one view, not an edit to it.
   import { rendererKind, type Pane, type Feed } from './panes';
+  import ZoneLabel from './ZoneLabel.svelte';
 
   interface Props {
     pane: Pane;
@@ -73,6 +74,7 @@
       >L</button
     >
   </div>
+  <ZoneLabel />
 {:else if pane.kind === 'timeline'}
   <!-- One renderer, two densities, chosen per window and remembered. Words rather than initials —
        there are only two, and "Feed"/"List" say what they are without being learned. -->

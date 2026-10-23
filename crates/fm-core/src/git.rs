@@ -1664,6 +1664,48 @@ pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().parse().ok())
 }
 
+/// **The UTC offset this vault was begun at** — the author offset of its first commit, in seconds
+/// east of UTC (`+0800` → 28800). With several first commits (two histories merged), the oldest.
+///
+/// The clock a vault's times are on when its `vault.json` does not say (`decisions.md` 2026-10-23,
+/// *the vault's clock is read from its first commit*): every clone has that commit and it never
+/// changes, so every device answers the same, with nothing written. `None` with no repo or no
+/// commits — then nothing is converted.
+pub fn founding_offset(vault: &Path) -> Result<Option<i32>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(None);
+    }
+    let out = git(vault)
+        .args(["log", "--max-parents=0", "--format=%at %ai", "HEAD"])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Ok(None);
+    }
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|l| {
+            let (at, rest) = l.split_once(' ')?;
+            Some((at.parse::<i64>().ok()?, offset_seconds(rest.rsplit(' ').next()?)?))
+        })
+        .min_by_key(|(at, _)| *at)
+        .map(|(_, off)| off))
+}
+
+/// `+0800` / `-0530` → seconds east of UTC.
+fn offset_seconds(s: &str) -> Option<i32> {
+    let (sign, d) = match s.as_bytes().first()? {
+        b'+' => (1, &s[1..]),
+        b'-' => (-1, &s[1..]),
+        _ => return None,
+    };
+    if d.len() != 4 || !d.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let (h, m): (i32, i32) = (d[..2].parse().ok()?, d[2..].parse().ok()?);
+    Some(sign * (h * 3600 + m * 60))
+}
+
 /// **When this vault's notes last left the device** — the committer time of the remote-tracking
 /// ref, in seconds since the epoch. The twin of [`last_commit`], and the fact the app could not
 /// state about itself.

@@ -167,6 +167,15 @@ fn main() -> Result<()> {
     // reload": every invocation reads the current on-disk truth.
     let mut store = FileStore::open(&cli.vault)
         .with_context(|| format!("opening vault at {}", cli.vault.display()))?;
+    // The vault's clock when its `vault.json` states none: its first commit's offset, as the app
+    // reads it at start (`decisions.md` 2026-10-23), so `fm show` prints times on this machine's.
+    if let Some(z) = fm_core::vcs::founding_offset(&cli.vault)
+        .ok()
+        .flatten()
+        .and_then(fm_core::zone::Zone::fixed)
+    {
+        store.default_clock(z);
+    }
 
     match cli.cmd {
         Cmd::Capture { text } => {

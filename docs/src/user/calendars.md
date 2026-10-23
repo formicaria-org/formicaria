@@ -40,9 +40,13 @@ of your computer or phone, and within a few minutes the agenda shows the same me
 hour. The same note shows at the right hour on every device — 17:00 on a laptop in Singapore, 10:00
 on one in Paris.
 
-That works because each notebook says which clock its times are kept on, in its `vault.json`
-(`"time_zone": "Asia/Singapore"`). formicaria writes it the first time it opens the notebook, using
-your device's zone then, and never changes it; it travels with your notes.
+The small label beside the agenda's M / W / L switch says which zone you are looking at — for
+example *Paris · GMT+1*; hold the pointer on it to see the clock your notes are kept on.
+
+That works because each notebook has one clock its times are kept on: the zone its first save was
+made in (for most people, home), the same on every device. To set it yourself — useful if you live
+where clocks change in summer — add `"notes_time_zone": "Europe/Rome"` to the notebook's
+`vault.json`.
 
 A meeting given on another clock is moved onto yours. An event your calendar holds in Paris time,
 at 10:00 on 27 October, is shown at 17:00 in Singapore; the note still says which zone it was

@@ -12935,6 +12935,10 @@ rulings in part — reversed here, with banners on both.
 
 ## 2026-10-23 (later) — every device shows the agenda on its own zone; the vault keeps the clock its times are on `#data` `#vault` `#seams`
 
+> SUPERSEDED IN PART (2026-10-23, evening, *the vault's clock is read from its first commit*): items
+> 1 and 3 — the key is now `notes_time_zone`, and nothing is stamped at start; an unstated clock is
+> read from the vault's first commit.
+
 > Reverses item 2 of *a time written in another zone is moved onto yours* (this morning): the
 > setting is no longer pinned. Amends `Stamp`'s ruling (2026-07-15) in what a stored time *means* —
 > not in its format: no zone is ever written into a note.
@@ -12977,4 +12981,35 @@ is unaffected. A paired tablet reads through the host, on the host's clock.
 rule, this morning's entry. Verdict: **contradicts** this morning's item 2 (reversed here, bannered)
 and **extends** the descriptor by one field and the commit's owned files by one. Widens what ships:
 no new crate (`jiff` came this morning); one more file per vault in git history.
+
+## 2026-10-23 (evening) — the vault's clock is read from its first commit; the agenda says its zone `#data` `#vault` `#ui`
+
+> Reverses items 1 and 3 of *every device shows the agenda on its own zone* (this afternoon, 0.15.0).
+
+**What went wrong (the owner, on 0.15.0):** *"I have the newest release and yet I see on my phone
+(that is in Paris time) the appointments in Singapore time."* 0.15.0 stamped each vault at start
+with the clock of **whichever device opened it first**. The phone, in Paris, updated first and
+stamped `Europe/Paris` on a vault written in Singapore: every stored time was then read as Paris
+time and nothing was converted. The laptop would have stamped `Asia/Singapore`, and the two
+`vault.json`s would have collided on the next sync. A device cannot know which clock a vault was
+written on from its own clock.
+
+**Decision.**
+1. **Nothing is written at start.** An unstated clock is **read from the vault's first commit**: its
+   author offset (`+0800`), the oldest root when histories were merged (`vcs::founding_offset`,
+   both backends, held together by `git_differential`). Every clone has that commit and it never
+   changes, so the laptop and the phone read the same clock and nothing can collide. The owner's
+   vault: first commit `+0800`, 1,180 commits at `+0800` and 117 at `+0200` — which is why the
+   *recent* offset would have been the wrong evidence.
+2. **A stated clock wins**: `vault.json`'s `notes_time_zone` (a zone name follows daylight saving;
+   the first-commit clock is a fixed offset, exact for Singapore, an hour out half the year for a
+   vault begun where clocks change — those set it by hand).
+3. **0.15.0's `time_zone` key is removed at start**, wherever found (only 0.15.0 ever wrote it), and
+   the removal recorded for the next commit — so a phone's `Europe/Paris` stamp never travels.
+4. **The agenda says its zone, minimally** (the owner: *"the time zone should be observable label
+   somewhere, minimal"*): `Paris · GMT+1` beside the M/W/L switch, from the device's own zone; the
+   tooltip names the vaults' clocks (`list_vaults` now carries each vault's `clock`).
+
+**The four questions.** `#data`, `#vault`, `#ui`. Verdict: **reverses** two items of this afternoon's
+entry (bannered); nothing new ships.
 

@@ -183,25 +183,16 @@ impl App {
     /// `open_external` a trait rather than a ladder.
     pub fn load_with(cold: ColdStart) -> Result<(Self, Vec<String>), String> {
         let vaults::VaultList { vaults, path: config, writable: config_writable } = vaults::load();
-        // **Anchor each vault's times to a clock, once** (`decisions.md` 2026-10-23, *every device
-        // shows the agenda on its own zone*). A vault with no `time_zone` in its `vault.json` was
-        // written on this device's clock, so that clock is stamped in, before the stores open and
-        // read it. The file then travels with the next commit, and from then on every device shows
-        // the vault's times on its own zone. A stated zone is never changed.
-        if let Some(here) = fm_core::zone::Zone::system().and_then(|z| z.name().map(str::to_string))
-        {
-            for cfg in &vaults {
-                match fm_core::descriptor::Descriptor::anchor_time_zone(&cfg.path, &here) {
-                    Ok(true) => {
-                        eprintln!("note: '{}' keeps its times on {here} (vault.json)", cfg.name)
-                    }
-                    Ok(false) => {}
-                    Err(e) => {
-                        eprintln!("note: could not record the time zone of '{}': {e}", cfg.name)
-                    }
-                }
-            }
-        }
+        // **0.15.0's start-up stamp comes out** (`decisions.md` 2026-10-23, *the vault's clock is read
+        // from its first commit*): it wrote the opening device's zone into `vault.json`, which on a
+        // phone abroad was the wrong clock. Removed before the stores open, and recorded below so
+        // the next commit carries the removal.
+        let stripped: Vec<&vaults::VaultConfig> = vaults
+            .iter()
+            .filter(|cfg| {
+                fm_core::descriptor::Descriptor::strip_legacy_time_zone(&cfg.path).unwrap_or(false)
+            })
+            .collect();
         let mut store = MultiStore::open_with(
             &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
             cold,
@@ -219,6 +210,22 @@ impl App {
         // **Only at open, never on a timer**, so the deliberate property that a note being edited by
         // hand is not swept mid-sentence still holds for the whole session. And only paths that are
         // ours *by construction* — see `adoptable`.
+        for cfg in &stripped {
+            store.seed_written(&cfg.name, vec![cfg.path.join("vault.json")]);
+            eprintln!("note: '{}': the time zone 0.15.0 wrote at start is removed", cfg.name);
+        }
+        // **Each vault's clock, when its `vault.json` states none: its first commit's offset.**
+        // Every clone has that commit and it never changes, so the laptop and the phone read the
+        // same clock with nothing written; the store converts each timed note onto this device's.
+        for cfg in &vaults {
+            if let Some(z) = fm_core::vcs::founding_offset(&cfg.path)
+                .ok()
+                .flatten()
+                .and_then(fm_core::zone::Zone::fixed)
+            {
+                store.default_clock(&cfg.name, z);
+            }
+        }
         for cfg in &vaults {
             let adopted = adoptable(&cfg.path);
             if !adopted.is_empty() {
@@ -3106,6 +3113,10 @@ struct EnvVar {
 #[derive(serde::Serialize)]
 struct VaultInfo {
     name: String,
+    /// The clock this vault's times are kept on (`Asia/Singapore`, `+08:00`) — stated in its
+    /// `vault.json`, else read from its first commit; `None` when it has neither. Shown in the
+    /// agenda's time-zone label (`decisions.md` 2026-10-23).
+    clock: Option<String>,
     /// For display, so two vaults both called `notes` are tellable apart.
     path: String,
     /// Index 0 — where every fresh capture lands. The UI has to be able to say so.
@@ -4700,7 +4711,12 @@ fn refusal(c: &PathCheck, name: &str) -> String {
 fn scoped_infos(g: &Vaults, scope: &Scope) -> Vec<VaultInfo> {
     let mine: Vec<VaultConfig> =
         g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
-    infos(&mine)
+    let clocks = g.all.clocks();
+    let mut out = infos(&mine);
+    for (info, cfg) in out.iter_mut().zip(&mine) {
+        info.clock = clocks.iter().find(|(n, _)| *n == cfg.name).and_then(|(_, c)| c.clone());
+    }
+    out
 }
 
 fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
@@ -4725,6 +4741,8 @@ fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
     v.iter()
         .enumerate()
         .map(|(i, e)| VaultInfo {
+            // Filled from the open stores by `scoped_infos`, which has them.
+            clock: None,
             label: labels.get(i).cloned().flatten(),
             // **Not `store_names[i]`.** That indexed the open stores positionally against the
             // *config* list, and `MultiStore::open_with` skips a vault that fails to open — so the

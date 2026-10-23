@@ -52,6 +52,21 @@ impl Zone {
         TimeZone::get(name.trim().trim_matches('"')).ok().map(Zone)
     }
 
+    /// A fixed offset, in seconds east of UTC — a vault's clock read from its first commit.
+    pub fn fixed(seconds: i32) -> Option<Zone> {
+        Offset::from_seconds(seconds).ok().map(|o| Zone(TimeZone::fixed(o)))
+    }
+
+    /// How it is named to a person: `Asia/Singapore`, or `+08:00` for a fixed offset.
+    pub fn label(&self) -> String {
+        if let Some(n) = self.name() {
+            return n.to_string();
+        }
+        let s = self.0.to_offset(jiff::Timestamp::UNIX_EPOCH).seconds();
+        let (sign, a) = if s < 0 { ('-', -s) } else { ('+', s) };
+        format!("{sign}{:02}:{:02}", a / 3600, a % 3600 / 60)
+    }
+
     /// The computer's own zone, when it can be read.
     pub fn system() -> Option<Zone> {
         TimeZone::try_system().ok().map(Zone)

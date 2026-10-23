@@ -1012,11 +1012,13 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
   zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is still carried as
   written. A note made before 2026-10-23 from a foreign `TZID` keeps its old time until the event's
   `SEQUENCE` moves (the rule above) — the owner's vault had none.
-- **Each device shows the agenda on its own zone** (2026-10-23): the vault keeps its times on
-  `vault.json`'s `time_zone` (stamped once, at start, with the device's), and `FileStore` converts.
-  Limits: a laptop's change of zone shows within five minutes (`jiff`'s cache); a proposal accepted
-  on a device in another zone than the one that made it takes the accepting device's clock; a
-  paired tablet sees the host's clock. A clock check is still open (`outstanding.md` §2.16).
+- **Each device shows the agenda on its own zone** (2026-10-23): the vault's clock is
+  `vault.json`'s `notes_time_zone` when stated, else its **first commit's offset** — a fixed offset,
+  so a vault begun where clocks change in summer is an hour out half the year until it states a
+  zone. A vault with no commits converts nothing. Limits: a laptop's change of zone shows within
+  five minutes (`jiff`'s cache); a proposal accepted on a device in another zone than the one that
+  made it takes the accepting device's clock; a paired tablet sees the host's clock. A clock check
+  is still open (`outstanding.md` §2.16).
 - **On opening, then every 5 minutes, while the app is open** (an unchanged feed is skipped by its hash). There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.
 - **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.

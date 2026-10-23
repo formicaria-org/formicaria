@@ -1504,3 +1504,63 @@ fn accepting_an_already_merged_proposal_adds_no_commit() {
     assert_eq!(g(v.path(), &["rev-list", "--count", "HEAD"]), count, "no empty merge commit");
     assert!(!git_native::branch_open(v.path(), br), "and it is closed out");
 }
+
+/// **The vault's clock is read from its first commit, and both backends must read the same one** —
+/// the laptop runs the git CLI and the phone libgit2, and a disagreement would show the same
+/// meeting at two hours (`decisions.md` 2026-10-23, *the vault's clock is read from its first
+/// commit*). The later commit is from another zone and must not move it; two roots (merged
+/// histories) take the oldest.
+#[test]
+fn both_backends_read_the_vault_clock_from_the_same_first_commit() {
+    if !have_git() {
+        return;
+    }
+    let dir = tempdir().unwrap();
+    let v = dir.path();
+    assert_eq!(git::founding_offset(v).unwrap(), None, "no repo: no clock");
+    assert_eq!(git_native::founding_offset(v).unwrap(), None);
+    let commit = |file: &str, date: &str| {
+        fs::write(v.join(file), date).unwrap();
+        let out = Command::new("git").current_dir(v).args(["add", file]).output().unwrap();
+        assert!(out.status.success());
+        let out = Command::new("git")
+            .current_dir(v)
+            .args(["-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "-m", file])
+            .env("GIT_AUTHOR_DATE", date)
+            .env("GIT_COMMITTER_DATE", date)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    };
+    g(v, &["init", "-q"]);
+    assert_eq!(git::founding_offset(v).unwrap(), None, "no commits: no clock");
+    assert_eq!(git_native::founding_offset(v).unwrap(), None);
+    commit("a", "2026-07-15T11:03:32+08:00");
+    commit("b", "2026-10-20T09:00:00+02:00");
+    assert_eq!(git::founding_offset(v).unwrap(), Some(8 * 3600));
+    assert_eq!(git_native::founding_offset(v).unwrap(), Some(8 * 3600));
+    // A second, older root merged in: the oldest root decides, on both.
+    g(v, &["checkout", "-q", "--orphan", "other"]);
+    g(v, &["rm", "-rfq", "."]);
+    commit("c", "2026-01-01T09:00:00-05:30");
+    g(v, &["checkout", "-q", "-"]);
+    let out = Command::new("git")
+        .current_dir(v)
+        .args([
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@x",
+            "merge",
+            "-q",
+            "--allow-unrelated-histories",
+            "-m",
+            "m",
+            "other",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(git::founding_offset(v).unwrap(), Some(-(5 * 3600 + 30 * 60)));
+    assert_eq!(git_native::founding_offset(v).unwrap(), Some(-(5 * 3600 + 30 * 60)));
+}
