@@ -187,14 +187,16 @@
       <button class="primary" disabled={busy} onclick={signIn}>Sign in with Google</button>
       <p class="muted small">
         Google shows a warning that it has not checked this app — that is because the app is your
-        own Google Cloud project. Choose <em>Continue</em>. While the project is in testing, Google
+        own Google Cloud project. Choose <em>Continue</em> (once the project is published:
+        <em>Advanced</em>, then <em>Go to … (unsafe)</em>). While the project is in testing, Google
         ends the sign-in every 7 days and mail stops —
         <a href={AUDIENCE} target="_blank" rel="noopener noreferrer">publish the app</a> in your
         Google Cloud project to stop that (<a
           href={MANUAL_WEEKLY}
           target="_blank"
           rel="noopener noreferrer">how</a
-        >).
+        >). Already published? A sign-in made before you published still ends on its 7th day; sign
+        in once more and the new one will not.
       </p>
     {/if}
 

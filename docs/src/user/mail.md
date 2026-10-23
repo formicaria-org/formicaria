@@ -72,8 +72,12 @@ the project menu says `formicaria`**: a link opens whichever project you chose l
 2. In formicaria, open **Settings → Connections → Mail**. Paste the Client ID and secret, check the label, choose
    **Read mail from** (two weeks ago by default) and the notebook, and press **Save**.
 3. Press **Sign in with Google**. Google opens in a new tab and warns that it has not verified the
-   app. That is because the app is your own project. Choose **Continue**. Google lists one
-   permission, *read your email messages and settings*. Allow it, then close the tab.
+   app. That is because the app is your own project, and the developer it names is you. Choose
+   **Continue** — or, once the project is published, **Advanced** and then **Go to formicaria
+   (unsafe)**, which is how Google words the same choice for an unverified app. Google lists one
+   permission, *view your email messages and settings*: tick it if there is a box, and **Continue**.
+   Then close the tab. Google emails you a security alert that formicaria now has access; that is
+   this sign-in.
 
 ## Things to know
 
@@ -114,7 +118,9 @@ says `formicaria`.)
 
 **What publishing changes, and what it does not.** Nobody else can use your client: they would need its
 ID and secret, which only you have. Google keeps showing its *"Google hasn't verified this app"*
-screen at sign-in — choose **Continue**, as before — and an unverified app may be used by at most 100
+screen at sign-in, now with no **Continue** button: choose **Advanced**, then **Go to formicaria
+(unsafe)**. The *Audience* page keeps saying the app *requires verification*; that is the same fact,
+not a step left to do. An unverified app may be used by at most 100
 Google accounts in its lifetime
 ([Google's page on this](https://support.google.com/cloud/answer/15549945)), which one person is far
 inside. You do **not** need to send the app to Google for verification.

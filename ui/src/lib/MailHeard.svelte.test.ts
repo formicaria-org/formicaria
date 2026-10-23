@@ -77,6 +77,10 @@ describe('what the assistant made of the mail', () => {
     expect(screen.getByRole('link', { name: 'how, step by step' }).getAttribute('href')).toBe(
       '/manual/user/mail.html#stop-the-weekly-sign-out',
     );
+    // 2026-10-23: a person who had already published was told to publish. A sign-in from before
+    // publishing still ends on day 7, so the card says what to do then.
+    expect(alert.textContent).toMatch(/Already published\? A sign-in made before you published/);
+    expect(alert.textContent).toMatch(/Sign in once\s+more and the new one will not/);
   });
 
   it('shows nothing where there is no mail', async () => {

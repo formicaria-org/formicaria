@@ -116,6 +116,12 @@
         >how, step by step</a
       >).
     </p>
+    <!-- formicaria cannot see whether the project is published, so the card speaks to both: a sign-in
+         made while the project was in testing still ends on its 7th day after publishing (2026-10-23). -->
+    <p class="heard-said">
+      Already published? A sign-in made before you published still ends on its 7th day. Sign in once
+      more and the new one will not.
+    </p>
   </section>
 {:else if st?.connected}
   <section class="mail-heard">
