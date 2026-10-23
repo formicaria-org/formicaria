@@ -70,7 +70,7 @@ and it needs a device to judge.
 
 - **`native-git` has no pull/merge**, so the app cannot sync. It is linked and compiled in, and
   `commit_all`/`clone` work, but the merge half is deliberately absent.
-- **arm64 is unbuilt.** Only `--target x86_64` (the emulator) has been built. The owner's phone
+- **arm64 is unbuilt.** Only `--target x86_64` (the emulator) has been built. A user's phone
   needs `--target aarch64`, which should be a flag change and has not been proven.
 - **`open_external` is an honest `Unsupported`** — Android needs an `Intent`, which needs
   `tauri-plugin-opener`. So a PDF cannot be opened yet.

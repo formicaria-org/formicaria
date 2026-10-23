@@ -1,6 +1,6 @@
 //! **"When I press backup it should commit and push. I do not commit as a user."**
 //!
-//! The owner's phone showed **180 notes not in history** in a vault that *has* a remote, and
+//! A user's phone showed **180 notes not in history** in a vault that *has* a remote, and
 //! pressing Backup did not clear them. That is the whole complaint, and it is a fair one: `Backup`
 //! is the only durability affordance in the product, so whatever it does has to be sufficient.
 //! "Record all N in history" existing as a second, separate button the user has to know about is
@@ -172,7 +172,7 @@ fn record_unrecorded_also_clears_them() {
     assert_eq!(unrecorded_count(&app), 0, "record_unrecorded must leave nothing outstanding");
 }
 
-/// **The owner's actual complaint, as an assertion: Backup must be sufficient on its own.**
+/// **A user's actual complaint, as an assertion: Backup must be sufficient on its own.**
 ///
 /// *"When I press backup it should commit and push. I do not commit as a user, that is a background
 /// concept."* — and they are right. So this models a session that has been running since **before**

@@ -87,7 +87,7 @@ test('a window in the list switches to it, and its × closes it', async () => {
   expect(screen.queryByRole('menu', { name: 'open windows' })).toBeNull();
   const row = screen.getByRole('navigation', { name: 'open views' });
   expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Board · status');
-  // **And it stays there** (v0.6.2, the owner's phone): closing the list stepped history back a
+  // **And it stays there** (v0.6.2, a user's phone): closing the list stepped history back a
   // moment later, onto the window just left, so the switch undid itself.
   await new Promise((r) => setTimeout(r, 100));
   expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Board · status');

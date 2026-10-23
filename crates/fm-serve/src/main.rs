@@ -1034,7 +1034,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // here. **Any authenticated peer counts, not just loopback.** The alternative — only this
     // machine keeps the app alive — kills the server out from under someone actively working on
     // a paired tablet, which is the whole use case; and `FM_AUTO_SHUTDOWN` is set by the desktop
-    // launcher, i.e. the owner's normal way of starting it, so that failure would be the common
+    // launcher, i.e. the normal way of starting it, so that failure would be the common
     // path rather than an edge case. A tablet left face-up is handled where it belongs: the UI
     // stops beating when the page is hidden.
     //

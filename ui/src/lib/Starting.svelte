@@ -10,7 +10,7 @@
   /// webview is created *before* the shell has opened the vaults, so the first `list_vaults` can be
   /// answered late — or, when startup failed, never. The user then holds a phone showing a blank
   /// window with no error, no spinner and nothing to tap, which is exactly how "the app is broken"
-  /// and "the app is still opening" became indistinguishable (the owner's phone, 2026-07-31: a gray
+  /// and "the app is still opening" became indistinguishable (a user's phone, 2026-07-31: a gray
   /// screen on the first open, fine on the second).
   ///
   /// So: silence, then a status, then — if the backend gave a reason — the reason and a Retry.

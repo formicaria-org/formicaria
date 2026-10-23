@@ -19,7 +19,7 @@ in the same exchange as its own note.
    calendar the same evening.
 2. **Repeating meetings** (`fm_core::recur`), one note per occurrence for 60 days ahead. A rule
    outside the subset is refused and counted, never guessed.
-3. **Gmail, read-only by scope**, through the owner's own Google Cloud client. The set-up needed
+3. **Gmail, read-only by scope**, through a user's own Google Cloud client. The set-up needed
    real hand-holding: Italian console labels (`?hl=en` helps), the Get-started form, scopes, a
    Desktop client.
 4. **The text question.** It was first kept out of the vault for privacy. The owner reversed that:
@@ -49,5 +49,5 @@ in the same exchange as its own note.
   since 2026-09-09, so local builds were unsigned. The route that worked: run `release.yml` by
   hand on `main`, take its signed `android-apk` artifact, check the certificate, and install it by
   cable (`known-issues.md`).
-- **Real data out of public tests.** Tests first written from the owner's mail carried names, a
+- **Real data out of public tests.** Tests first written from a user's mail carried names, a
   room and course codes. They were replaced with invented ones before anything was committed.

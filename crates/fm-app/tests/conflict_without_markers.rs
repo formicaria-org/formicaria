@@ -51,7 +51,7 @@ fn note(id: &str, body: &str) -> String {
 const ID: &str = "01KY1TK571KRCB5PKAH3FCGCYE";
 
 /// Build a vault mid-merge with exactly one delete/modify conflict: `main` deleted the note, the
-/// branch we merge edited it. This is the owner's situation, reduced.
+/// branch we merge edited it. This is a user's situation, reduced.
 fn vault_with_delete_modify_conflict(dir: &Path) -> std::path::PathBuf {
     let vault = dir.join("vault");
     std::fs::create_dir_all(vault.join("notes")).unwrap();

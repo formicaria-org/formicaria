@@ -50,7 +50,7 @@ describe('nthIndexOf', () => {
 
 // **The caret must never land inside a link or image destination.**
 //
-// Built from a real corruption on the owner's phone (2026-08-20). One note had been rewritten to
+// Built from a real corruption on a user's phone (2026-08-20). One note had been rewritten to
 // `asset:sha256-a52bb![JPEG_….jpg](asset:sha256-cd63457f…)` — a whole second image reference
 // spliced five characters into the first one's hash — and the app logged
 // `asset_status: parse error: not an asset reference` on every startup thereafter, with a

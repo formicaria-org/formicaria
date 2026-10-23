@@ -3,7 +3,7 @@
 #
 # Layer 3 of docs/context/logseq-import-plan-2026-10-14.md. Run `pixi run import-corpus` first: it
 # leaves the imported vault in target/import-corpus/work/vault, which is what this serves. Nothing
-# here touches the owner's real vaults, config or port 8765; the vault is a throwaway the Rust test
+# here touches a user's real vaults, config or port 8765; the vault is a throwaway the Rust test
 # re-creates on every run.
 #
 #   pixi run import-render            # FM_RENDER_SAMPLE=60 notes without attachments, plus all with

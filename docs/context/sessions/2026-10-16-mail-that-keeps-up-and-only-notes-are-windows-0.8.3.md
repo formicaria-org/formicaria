@@ -16,7 +16,7 @@ different fault each time — and none was the model's:
   a read that writes something raises a counter the assistant asks for at every poll.
 - **Google ended the sign-in on its 7th day**, and the only word of it was in Settings — the new Mail
   section hid itself while disconnected. Now a red *Mail stopped* card with the sign-in. The lasting
-  remedy is the owner's Google Cloud *Publish app*; Google asked for a home page, a privacy policy and
+  remedy is a user's Google Cloud *Publish app*; Google asked for a home page, a privacy policy and
   terms first, so the website gained `privacy.html` and `terms.html`, and the manual links every
   console page.
 - **The model was right and our check dropped it** — a quote shortened with "…" was looked for whole

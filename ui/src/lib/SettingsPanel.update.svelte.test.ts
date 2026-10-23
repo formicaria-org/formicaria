@@ -192,7 +192,7 @@ describe('SettingsPanel — getting a newer version', () => {
   });
 
   /// *Check now* used to exist only in the "up to date" state. A copy that had remembered an old
-  /// release then offered it for ever, with nothing to press but *Get* — on the owner's phone that
+  /// release then offered it for ever, with nothing to press but *Get* — on a user's phone that
   /// was v0.6.3 with v0.6.5 already out. An offer is not the end of the road.
   it('can look again while a version is on offer, and replaces a stale offer', async () => {
     const stale = new Date(2026, 9, 9, 14, 15).getTime() / 1000;

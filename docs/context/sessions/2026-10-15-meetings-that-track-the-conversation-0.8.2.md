@@ -16,7 +16,7 @@ showed the old times. Each step of finding out why turned up a real fault, found
   `proposal_shown` counted as a change, feeding the next refresh (220 bumps in 52 minutes, measured
   against the running server).
 - **The emails never arrived** — Gmail labels sit on messages; today's replies carried none (read
-  from the owner's mailbox, read-only). The reader now follows labelled conversations.
+  from a user's mailbox, read-only). The reader now follows labelled conversations.
 - **The model reported every moved meeting at its old time** — it re-read our own box first, and
   was asked which meetings an exchange *fixes*. Now: box hidden, "where do the meetings stand now",
   `fixed`/`cancelled`. A near-copied quote ("16th **of** October") stands as the email's own words;
@@ -36,7 +36,7 @@ showed the old times. Each step of finding out why turned up a real fault, found
 ## How it was checked
 
 A live harness (`crates/fm-agent/tests/live_meetings.rs`, ignored in CI) ran `qwen3-vl-4b` over the
-owner's real conversations, kept in the session's scratch folder and never in the repo; the tests
+user's real conversations, kept in the session's scratch folder and never in the repo; the tests
 use invented names. Final run: two moves with their Zoom links, a move to the following week, a
 confirmation, a call-off, and five titles — all right; the roles plausible, not always exact.
 

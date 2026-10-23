@@ -209,7 +209,7 @@
   }
   /** Switch to an open window — a move like any other, so Back returns from it. **Recorded here, not
    *  left implicit:** the phone picks windows from a menu, and closing that menu used to step history
-   *  back onto the window you had just left (v0.6.2, reported on the owner's phone the same day). */
+   *  back onto the window you had just left (v0.6.2, reported on a user's phone the same day). */
   function selectWindow(i: number) {
     focused = i;
     persistWorkspace();
@@ -2042,7 +2042,7 @@
     commitPending = true;
     // **A debounce with a ceiling.** Plain `clearTimeout` + 5 s means every write pushes the deadline
     // out, so a *burst* of writes defers the commit indefinitely — it does not fire late, it does not
-    // fire at all. That is not hypothetical: 142 notes were written in one minute on the owner's phone
+    // fire at all. That is not hypothetical: 142 notes were written in one minute on a user's phone
     // (2026-07-31), each one resetting this timer, and when the process ended the pending commit died
     // with the tab and the in-memory write-record died with the process. The notes were then
     // unstageable for good.
@@ -2233,7 +2233,7 @@
   /// **Changes that are not leaving this device** — a failed automatic send, or changes that have
   /// waited past the point a working loop would have sent them (`autoBackup.ts`, `unsentVaults`).
   /// The second does not depend on the loop running at all, which is what five silent days on the
-  /// owner's phone needed (2026-10-17).
+  /// user's phone needed (2026-10-17).
   const unsentNow = $derived(
     unsentVaults(lastSaves, autoAttempts, Date.now(), runsByItself() && autoBackupOn()),
   );
@@ -3966,7 +3966,7 @@
     /* **And the body then pays what the bar was paying.** `--kb` is the keyboard *beyond* the
        navigation bar, so `--app-h` ends that strip's height **below** the top of the keyboard, and
        it was the bar's bottom padding that filled it. With the bar gone and nothing in its place,
-       the last `--safe-bottom` of the note was under the keyboard — 47px on the owner's phone,
+       the last `--safe-bottom` of the note was under the keyboard — 47px on a user's phone,
        which is the whole of the 44px quick row (reported the first time it reached a device,
        2026-10-11). The same selector as the rule above, so the two can only apply together. */
     :global(html[data-keyboard]:has(.editor:focus-within)) .body {
@@ -4519,7 +4519,7 @@
       display: none;
     }
     /* **The alert chips shed their words at this width, and keep their counts.** Measured on the
-       owner's phone (2026-09-08): five chips of prose wrapped the toolbar and pushed the board
+       user's phone (2026-09-08): five chips of prose wrapped the toolbar and pushed the board
        down, which is the same failure the four-row note above records — and the reason a sixth
        chip was refused rather than added. The icon and the number are the alert; the sentence is
        detail, and detail belongs in the panel each chip opens. Every one of them carries an

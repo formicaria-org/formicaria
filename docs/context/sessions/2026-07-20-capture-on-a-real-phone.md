@@ -30,7 +30,7 @@ now describes what it does instead of promising what the platform will not give.
 
 ## The lesson: this device has no diagnostic channel but the screen
 
-Three channels were tried on the owner's phone and **two are silently dead**:
+Three channels were tried on a user's phone and **two are silently dead**:
 
 | Channel | Result |
 |---|---|

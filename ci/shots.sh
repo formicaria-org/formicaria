@@ -6,7 +6,7 @@
 #
 # **Everything here is disposable, and that is the point.** The vault is built in a temp directory
 # from the notes below, served on a spare port, captured and thrown away. Nothing touches the
-# owner's real vault, the real config, or port 8765 — a screenshot script that could photograph
+# user's real vault, the real config, or port 8765 — a screenshot script that could photograph
 # somebody's actual notes is one nobody should run.
 #
 #   pixi run shots

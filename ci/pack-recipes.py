@@ -68,7 +68,7 @@ SITE = "https://www.nhlbi.nih.gov"
 HOME_PATH = "/health/heart-healthy-living/healthy-foods/healthy-eating-recipes"
 HOME = SITE + HOME_PATH
 
-USER_AGENT = "formicaria-recipe-pack (https://github.com/singhbal-baljinder/formicaria)"
+USER_AGENT = "formicaria-recipe-pack (https://github.com/formicaria-org/formicaria)"
 PAUSE_S = 1.0  # between any two requests
 RETRY_PAUSE_S = 5.0
 MAX_LISTING_PAGES = 30  # a stop for a listing that never runs out

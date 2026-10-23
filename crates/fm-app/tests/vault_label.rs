@@ -1,6 +1,6 @@
 //! **What a vault is *called* versus what it *is*.**
 //!
-//! The same repository cloned on two devices can carry two different local names — the owner's laptop
+//! The same repository cloned on two devices can carry two different local names — a user's laptop
 //! and phone did, so one audience looked like two different vaults depending on which screen you were
 //! on. The label now follows the remote, which is the thing both devices agree about.
 //!
@@ -59,7 +59,7 @@ fn a_vault_with_a_remote_is_labelled_with_the_repository_name() {
         return;
     }
     let home = tempdir().unwrap();
-    // The owner's real case: local name `vault`, remote `formicarium-vault`.
+    // A user's real case: local name `vault`, remote `formicarium-vault`.
     let a = vault(home.path(), "vault", Some("https://github.com/someone/formicarium-vault.git"));
     let app = app_over(&home, &[("vault".into(), a)]);
 

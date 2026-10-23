@@ -1,7 +1,7 @@
 //! **Reproducing "146 notes not in history" on a laptop, with no phone involved.**
 //!
 //! The phone showed 146 and nobody could say what they were — app-private storage is unreadable on a
-//! release build, MIUI eats our logcat tag, and the owner works only through the UI. But the
+//! release build, the vendor's Android build eats our logcat tag, and the user works only through the UI. But the
 //! *mechanism* needs no device at all, and this is it:
 //!
 //! `commit_all` stages exactly the paths `FileStore::put`/`delete` recorded — deliberately, so a vault
@@ -236,7 +236,7 @@ fn the_kinds_tell_the_two_stories_apart() {
     assert_eq!(un[0]["modified"], 1, "{un}");
     // **An untitled note must never be labelled with its frontmatter.** The first version of
     // `title_of` scanned the raw file, so every untitled note came back titled `schema: 1` — seen on
-    // the owner's phone within the hour, where it read as "142 malformed notes" and nearly sent the
+    // a user's phone within the hour, where it read as "142 malformed notes" and nearly sent the
     // diagnosis down a wrong path.
     let all: Vec<String> = un[0]["notes"]
         .as_array()
@@ -429,7 +429,7 @@ fn recording_gets_past_a_merge_and_still_names_what_it_left_behind() {
         format!("notes/{}", found.pop().expect("the recorded note"))
     };
 
-    // A delete/modify merge in flight — the kind with no markers, which is how the owner's froze.
+    // A delete/modify merge in flight — the kind with no markers, which is how a user's froze.
     git(&vault, &["checkout", "-q", "-b", "theirs"]);
     std::fs::write(vault.join(&rel), "---\nschema: 1\ntype: note\n---\ntheir edit\n").unwrap();
     git(&vault, &["commit", "-qam", "their edit"]);

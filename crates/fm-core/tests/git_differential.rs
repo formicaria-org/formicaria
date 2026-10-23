@@ -351,7 +351,7 @@ fn last_commit_agrees_on_the_moment_and_on_never() {
 ///
 /// The two are deliberately different clocks and this pins the difference: a vault that commits
 /// every five minutes and never sends has a `last_commit` of *seconds ago* and a `last_sent` of
-/// whenever the tracking ref last moved. On the owner's own vault (2026-09-08) that gap was six
+/// whenever the tracking ref last moved. On a user's own vault (2026-09-08) that gap was six
 /// days and 125 commits wide, and every always-visible surface in the app read the first number.
 ///
 /// `None` means **never sent**, not "sent long ago": a vault with no repo, a repo with no commits,
@@ -501,7 +501,7 @@ fn attachments_within_the_limit_are_committed_by_both_backends() {
 
 /// **A backlog goes in steps, and the steps agree on both backends.**
 ///
-/// The owner's phone had 65 attachments totalling 127.2 MB waiting the first time it could send
+/// A user's phone had 65 attachments totalling 127.2 MB waiting the first time it could send
 /// any of them; the push died with a broken pipe, twice. `asset_batches` plans a rising series of
 /// size limits and `commit_all_capped` stages one of them — so what this has to prove is the
 /// property the loop rests on: **each step adds only what its raise newly admits, and the last one
@@ -833,7 +833,7 @@ fn a_hand_written_commit_stops_the_squash_on_both_backends() {
 
 /// **A commit an open proposal stands on is a floor too.** Accepting a proposal is a merge whose
 /// base is the commit it branched from; squash that commit away and a note the proposal found
-/// uncommitted reads as added on both sides, so the accept is refused for good (the owner's vault,
+/// uncommitted reads as added on both sides, so the accept is refused for good (a user's vault,
 /// 2026-10-15). Both backends must keep it.
 #[test]
 fn a_proposals_base_stops_the_squash_on_both_backends() {
@@ -1200,7 +1200,7 @@ fn a_revised_or_rejected_proposal_keeps_its_outgoing_commit_on_both() {
     let (a1, b1) = (tip(a.path()), tip(b.path()));
 
     // REVISE: the ref moves onto a commit re-parented on HEAD. Without retention the first draft
-    // is orphaned here, which is exactly how the owner's vault lost ten commits.
+    // is orphaned here, which is exactly how a user's vault lost ten commits.
     let second = NOTE.replace("bravo", "second draft");
     git::revise_proposal_branch(a.path(), br, "notes/n1.md", &second, "revise: m", None).unwrap();
     git_native::revise_proposal_branch(b.path(), br, "notes/n1.md", &second, "revise: m", None)

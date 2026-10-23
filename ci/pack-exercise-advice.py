@@ -53,7 +53,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-USER_AGENT = "formicaria-exercise-pack (https://github.com/singhbal-baljinder/formicaria)"
+USER_AGENT = "formicaria-exercise-pack (https://github.com/formicaria-org/formicaria)"
 PAUSE_S = 1.0
 RETRY_PAUSE_S = 5.0
 BOOKLET_URL = ("https://www.govinfo.gov/content/pkg/GOVPUB-HE20-PURL-gpo62941/pdf/"

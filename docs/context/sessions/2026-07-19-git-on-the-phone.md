@@ -1,6 +1,6 @@
 # 2026-07-19 — Cloning a private repo on Android (twelve builds, five wrong diagnoses)
 
-**Outcome: it works.** A private GitHub repo clones into a vault on the owner's phone, over
+**Outcome: it works.** A private GitHub repo clones into a vault on a user's phone, over
 HTTPS, with a token. The desktop path — probe, credential, clone — was working hours earlier;
 everything below is what stood between that and the same thing on a phone.
 
@@ -62,9 +62,9 @@ once to a real phone.
 
 ## Process lessons, which cost more than the bugs
 
-- **Rust's stderr goes nowhere on Android, and MIUI suppresses app logcat besides.** Every
+- **Rust's stderr goes nowhere on Android, and some vendors' builds suppress app logcat besides.** Every
   `eprintln!` diagnostic wrote into a void for several builds. `android_logger` fixes the first
-  half; on a Xiaomi device the only reliable channel is **the app's own UI** (hence `config`
+  half; on such a device the only reliable channel is **the app's own UI** (hence `config`
   reporting `ca_bundle`). Verified working on the emulator, silent on the phone.
 - **The emulator existed in `pixi.toml` the whole time and went unused.** It catches launch
   crashes in seconds and has working logcat. Using it would have prevented shipping a SIGSEGV to

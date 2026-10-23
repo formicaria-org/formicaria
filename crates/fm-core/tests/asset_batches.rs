@@ -1,6 +1,6 @@
 //! **Splitting a backlog of attachments into pushes that can survive a phone connection.**
 //!
-//! The owner's phone had 65 attachments totalling 127.2 MB waiting the first time it could send
+//! A user's phone had 65 attachments totalling 127.2 MB waiting the first time it could send
 //! any of them, and the push died with a broken pipe — twice, identically. The rule that selects
 //! attachments is a filter over the blob store, not a diff against the remote, so a device that
 //! has never sent one stages the whole backlog at once.

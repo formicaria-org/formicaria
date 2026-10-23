@@ -202,7 +202,7 @@
   /// **The label, not the name.** This said `v.name`, which is the local identity — the string a
   /// command takes and, on a phone, the folder a vault lives in. Every other surface shows the
   /// repository behind the remote, so a vault appeared here under a name it had nowhere else: the
-  /// owner's laptop says `vault` where the phone says `notes`. The App summary was fixed for
+  /// user's laptop says `vault` where the phone says `notes`. The App summary was fixed for
   /// exactly this on 2026-09-08 and this copy was missed, which is what happens when one fact has
   /// two producers. See `vaults.svelte.ts`.
   const of = (v: PanelVault) => (plural ? ` (${labelFor(v.name)})` : '');

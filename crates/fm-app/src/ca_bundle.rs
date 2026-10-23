@@ -98,7 +98,7 @@ fn certificates_in(text: &str) -> Vec<String> {
 pub fn install(dirs: &[&Path], out: &Path) -> Result<usize, String> {
     let result = install_inner(dirs, out);
     // Recorded so `config` can report it — the only diagnostic channel a phone has, since
-    // Android routes Rust's stderr nowhere and MIUI suppresses app logcat besides.
+    // Android routes Rust's stderr nowhere and some vendors' Android builds suppress app logcat besides.
     let _ = STATUS.set(match &result {
         Ok(n) => format!("{n} certificates"),
         Err(e) => e.clone(),

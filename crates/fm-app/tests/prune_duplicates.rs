@@ -1,6 +1,6 @@
 //! **Removing duplicate copies — and refusing to when it would be unrecoverable.**
 //!
-//! One prompt to the study assistant was written ~142 times on the owner's phone inside a minute
+//! One prompt to the study assistant was written ~142 times on a user's phone inside a minute
 //! (2026-07-31). They are junk copies and want removing, but *how* matters more than *that*: deleting
 //! an **untracked** note is unrecoverable — there is no commit to restore it from — while deleting a
 //! tracked one is one `git checkout` away.

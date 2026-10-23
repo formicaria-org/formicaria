@@ -6,7 +6,7 @@
 //! port work" has a yes/no answer — and the numbers say how far off a no is.
 //!
 //! Shared by two tests in `import_corpus.rs`: the public mini-graph (in `pixi run ci`, ratcheted)
-//! and the owner's private graph (`pixi run import-corpus`, never in the repo).
+//! and a user's private graph (`pixi run import-corpus`, never in the repo).
 
 #![allow(dead_code)]
 

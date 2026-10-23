@@ -1169,7 +1169,7 @@ pub fn revise_proposal_branch(
 ///
 /// Without this, the two paths that carry the human's judgement destroy it. A *revise* force-moves
 /// `refs/heads/proposal/<id>` onto a commit re-parented on `HEAD`, orphaning the previous revision;
-/// a *reject* deletes the branch outright. Measured on the owner's own vault: ten such commits were
+/// a *reject* deletes the branch outright. Measured on a user's own vault: ten such commits were
 /// found unreachable and 37 days old against a 14-day prune window.
 ///
 /// The subtler reason, and the one that makes this not merely a nicety: a human edit becomes a *new*
@@ -1720,7 +1720,7 @@ fn offset_seconds(s: &str) -> Option<i32> {
 /// number fresh, so a vault that saves every five minutes and has not sent anything in a week
 /// looks maximally healthy on every surface the app had: `unrecorded` is emptied by the same
 /// commit, and the "someone sent changes" alert compares the remote against this very ref and so
-/// is silent by construction about our own unsent work. On the owner's vault (2026-09-08) the two
+/// is silent by construction about our own unsent work. On a user's vault (2026-09-08) the two
 /// clocks were **six days and 125 commits apart** and nothing on screen could say so
 /// (`decisions.md`, *an alert that measures saving cannot see sending*).
 ///
@@ -2391,7 +2391,7 @@ fn newest_foreign(vault: &Path, tracked: &str) -> Result<Option<String>, StoreEr
 /// accepting it is a merge whose base is the commit it branched from. Collapse that commit
 /// into a `backup:` and the proposal no longer shares it with `main`: a note the proposal
 /// found uncommitted (the `auto: snapshot` that `create_proposal` writes first) then reads
-/// as *added on both sides*, and the accept is refused for good. Found on the owner's vault:
+/// as *added on both sides*, and the accept is refused for good. Found on a user's vault:
 /// a meeting proposed on a just-arrived email, a backup forty seconds later, and an accept
 /// that could never merge.
 fn held_by_proposals(
@@ -2436,7 +2436,7 @@ pub fn conflicts(vault: &Path) -> Result<Vec<String>, StoreError> {
 /// exactly [`ConflictKind::BothModified`] and misses every kind where one side has **no file** —
 /// there is nothing to interleave, so git writes no markers and the `.md` driver is never called.
 /// A delete/modify conflict is therefore invisible while `commit_all` refuses to commit anything in
-/// that vault: on the owner's laptop that combination froze a vault for 7 days with 95 notes
+/// that vault: on a user's laptop that combination froze a vault for 7 days with 95 notes
 /// unrecorded (2026-07-31). The kind is what lets a UI offer the only resolutions that exist for
 /// those — keep theirs, or keep mine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2643,7 +2643,7 @@ fn finish_merge_if_resolved(vault: &Path) -> Result<(), StoreError> {
 /// **Which way a note is out of history.** The count alone cannot tell the two apart, and they call
 /// for opposite responses: a hundred `New` notes are a hundred notes that exist in one place only,
 /// while a hundred `Modified` ones mean something is rewriting notes it did not need to. On the
-/// owner's phone that ambiguity was the whole problem — the device knew and could not say (2026-07-31).
+/// user's phone that ambiguity was the whole problem — the device knew and could not say (2026-07-31).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnrecordedKind {
     /// Git has never seen this path: untracked, or staged but never committed.

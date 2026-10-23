@@ -902,7 +902,7 @@ mod tests {
     #[test]
     fn quoted_history_is_trimmed_in_chinese_and_when_wrapped() {
         let outlook = "Best regards,\nWang Fang\n________________________________\n\
-                       发件人: Baljinder Singh Bal <s@g.com>\n发送时间: 2026年10月15日 17:38\n\
+                       发件人: Tom Reyes <s@g.com>\n发送时间: 2026年10月15日 17:38\n\
                        收件人: Wang Fang\n\nDear Fang, the earlier email";
         assert_eq!(trim_quoted(outlook), "Best regards,\nWang Fang");
         let wide = "好的。\n发件人：Bal\n发送时间：2026年10月15日\n之前的邮件";
@@ -910,12 +910,12 @@ mod tests {
         let gmail =
             "Best regards,\nZhang Wei\n\n\nBal <s@g.com>于2026年10月15日 周四15:34写道：\n> earlier";
         assert_eq!(trim_quoted(gmail), "Best regards,\nZhang Wei");
-        let wrapped = "Baljinder\n\nOn Fri, 2 Oct 2026 at 17:53, Baljinder Singh Bal <\n\
+        let wrapped = "Tom\n\nOn Fri, 2 Oct 2026 at 17:53, Tom Reyes <\n\
                        s@g.com> wrote:\n\n> earlier";
-        assert_eq!(trim_quoted(wrapped), "Baljinder");
+        assert_eq!(trim_quoted(wrapped), "Tom");
         let wrapped_late =
-            "Baljinder\n\nOn Mon, 28 Sept 2026 at 19:40, Zhang Wei <z@uni.example.edu>\nwrote:\n";
-        assert_eq!(trim_quoted(wrapped_late), "Baljinder");
+            "Tom\n\nOn Mon, 28 Sept 2026 at 19:40, Zhang Wei <z@uni.example.edu>\nwrote:\n";
+        assert_eq!(trim_quoted(wrapped_late), "Tom");
         // A line of underscores alone is someone's own writing, not Outlook's rule.
         assert_eq!(trim_quoted("Fill in: ____________________"), "Fill in: ____________________");
         assert_eq!(trim_quoted("a\n____________________\nb"), "a\n____________________\nb");

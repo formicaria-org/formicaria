@@ -192,9 +192,9 @@ cross-tie: Ruling B lands before Track C Phase 3 shares boards.
    `ics_uid`/`ics_seq`, update times when `SEQUENCE` bumps, and **never touch the body**. No
    TLS in `fm-serve` → **shell out to `curl`** (add to pixi; **zero new Rust deps**);
    hand-rolled ICS parser (~200 lines, RFC 5545 line-unfolding, `VALUE=DATE` → timeless
-   `Stamp`). `TZID`/UTC → naive local wall-clock at import. Risk: NUS may block calendar
+   `Stamp`). `TZID`/UTC → naive local wall-clock at import. Risk: a university tenant may block calendar
    publishing → fallback is a manually exported `.ics` in a watched folder (same parser, no
-   network). Target both NUS M365 and Google, merged into one vault, tagged by source.
+   network). Target both M365 and Google, merged into one vault, tagged by source.
 3. **Calendar export (notes → ICS, the other way).** `GET /calendar.ics` from `fm-serve`
    emitting every note with a `start`/`due`, so Outlook/Google can **subscribe**. A ~100-line
    formatter; ships with #2. **Two-way write-back stays rejected** (Graph/CalDAV + OAuth +

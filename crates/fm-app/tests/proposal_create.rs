@@ -111,7 +111,7 @@ fn a_proposal_against_an_uncommitted_note_commits_it_and_merges_cleanly() {
 
 #[test]
 fn a_backup_between_proposing_and_accepting_keeps_the_proposal_acceptable() {
-    // Regression (the owner's vault, 2026-10-15): a meeting proposed on a just-arrived email, then a
+    // Regression (a user's vault, 2026-10-15): a meeting proposed on a just-arrived email, then a
     // backup forty seconds later. The backup squashed the `auto: snapshot` the proposal was built on
     // into one `backup:`, so the note read as added on both sides and Accept was refused for good.
     if !have_git() {

@@ -37,7 +37,7 @@ export function nthIndexOf(text: string, word: string, n: number): number {
  * inside one. Returns `index` unchanged when it is already somewhere safe.
  *
  * **This exists because the hint above is wrong often enough to corrupt notes, and it did.** Found
- * on the owner's phone (2026-08-20), where one note had been rewritten to:
+ * on a user's phone (2026-08-20), where one note had been rewritten to:
  *
  * ```text
  * asset:sha256-a52bb![JPEG_20260807_111802_….jpg](asset:sha256-cd63457f…)

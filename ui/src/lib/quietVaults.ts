@@ -89,7 +89,7 @@ export function quietVaults(rows: LastCommit[], now: number): QuietVault[] {
 /// number is true of all of them. "in weeks" is safe at any length this function is called with,
 /// since `QUIET_AFTER_DAYS` is two of them.
 /// **`label` resolves what a vault is *called*, which is not its name.** Two devices that cloned
-/// one repository name the same audience differently — the owner's laptop says `vault` where the
+/// one repository name the same audience differently — a user's laptop says `vault` where the
 /// phone says `notes` — so every surface shows the repository behind the remote instead
 /// (`vaults.svelte.ts`). Injected rather than imported so this module stays a pure function of
 /// its arguments, which is what lets its tests need no clock, no store and no render.

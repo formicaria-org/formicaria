@@ -8,7 +8,7 @@
 //!   construct a real graph was found to use. **Ratcheted**: the checks in [`KNOWN_FAILING`]
 //!   are the importer's known gaps, and the test fails if one of them starts passing (so the list
 //!   shrinks with every fix) as surely as it fails if any other check breaks.
-//! - [`a_private_corpus_conforms`] — the owner's real graph, which never enters this repo.
+//! - [`a_private_corpus_conforms`] — a user's real graph, which never enters this repo.
 //!   `FM_IMPORT_CORPUS=<graph> pixi run import-corpus`; the scorecard and the failures it names
 //!   are written to `target/import-corpus/`, which git ignores.
 

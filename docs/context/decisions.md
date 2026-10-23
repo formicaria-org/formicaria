@@ -84,7 +84,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   hook or the render gate) · ***Every Android IPC command is `(async)`*** (read before adding a
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
-  may be installed to; the owner's phone may only be looked at*.
+  may be installed to; a user's phone may only be looked at*.
 - **`#ui`** (workspace/views/render): ***A heading is shown by its type alone*** (2026-10-22, later still; read before adding indentation, folding or an outline to a note's text) · ***Mind, in our own words; NICE paraphrased everywhere; everything stays local*** (2026-10-22, late night; read before quoting NICE, adding a Mind template, or anything that sends a note off the device) · ***The record is notes on a Library shelf; the diary reads what fm already logs; PHQ-9 with Singapore's contacts*** (2026-10-22, night; read before adding a record kind, a value read from another log, or a questionnaire) · ***Health is three tabs, to write, to look back and to follow; a card can be the person's own*** (2026-10-22, evening; read before adding a Health tab or an own-card field) · ***Health's cards as built: their own file, the diary's own counting*** (2026-10-22, later; read before adding a Health card, a check kind, or moving them into `plans.json`) · ***A fifth group, Health: a day diary the person shapes, grounded cards, and a cycle that only counts*** (2026-10-22; read before adding a log kind, an add action, a tracker suffix, a health card, or anything that predicts from a cycle) · ***A Home a newcomer starts on and can always come back to*** (2026-10-18; read before changing the first screen, the order of the views list, or the welcome note) · ***The full manual on every device, and a link beside each feature to its section*** (2026-10-18; read before adding a feature screen, a manual page, or touching `fmmanual:`/`MANUAL_CSP`) · ***A theme wins in light mode too, and four starters are offered*** (2026-10-18; read before adding a starter, defining a token in `app.css`, or changing how a theme meets dark/light) · ***A refresh that read back the same thing draws nothing*** (2026-10-18; read before writing into a feed's reply, or adding a `refresh()` to a pane change) · ***The ↶ menu undoes the typing; a selection does not redraw the note*** (2026-10-17; read before changing what the editor reveals or what the undo menu reaches) · ***The card library as built*** (2026-10-16; read before adding a card, a flag, or a number to `plans.json`) · ***The card library: shelved by kind, WHO to start, a base with add-ons, flags, new cards*** (2026-10-16; read before changing how a plan is followed or adding a card) · ***Trends from the cards' own numbers, and a "worth watching" set for everyone*** (2026-10-16; read before adding a tracked number that no card or body gives) · ***Only notes are windows: views switch in place, search is a passing panel, a note closes with ×*** (2026-10-16; read before adding a way to open a window, a pane kind, or a control to a note's header) · ***A proposal under review is shown in the note's own editor*** (2026-10-15; read before giving the review a separate editor again) · ***Vaults & backup is a category of its own, and nothing in it is an action*** (2026-10-15, later; read before adding an action to Settings or a settings link to Back up) · ***A vault is set up in one place, Settings; Back up is only actions*** (2026-10-15; read before adding a vault setting elsewhere or a non-action to the Back up menu) · ***A form's unsaved work is kept on the device*** (2026-10-14; read before adding a form to Food or Fitness) · ***A recipe is kept from the moment it has a name*** (2026-10-14; read before adding a form in Food that holds its work in memory) · ***The program on a computer stays up while a reminder is waiting, and the assistant does not*** (2026-10-13; read before letting the program outlive its page for any other reason, starting anything at login, or letting the assistant run with nobody there) · ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***Fitness is the week, the exercises and the regime; what is added is picked; every regime has a week to start from*** (2026-10-12; read before adding a view to Fitness, pre-filling a number, or writing an example week) · ***How an exercise is done is its source's own words…*** (2026-10-12, filed under `#data`: the Exercises tab and its credits) · ***A week of training is a timetable*** (2026-10-12; read before adding a view to Fitness, storing a weekly plan, or assuming a pane keeps its state across tabs) · ***A barcode is read from a photograph, not from a live camera*** (2026-10-12; read before declaring the camera permission, adding a viewfinder, or loading the reader from anywhere but the app) · ***Dishes for what a day is short of are arithmetic, shown where the gap is*** (2026-10-12; read before ranking dishes on more than one value, proposing anything for a check that is over, wording a suggestion as advice, or counting planned entries anywhere but the Menu) · ***A packaged food is a note read off its label…*** (2026-10-12, filed under `#data`: the label form in the logging sheet) · ***A menu is the days ahead, filled; it writes nothing of its own kind*** (2026-10-12; read before adding a view to Food, storing a meal plan, or stating how long food keeps) · ***Food made easy to use…*** (2026-10-12, filed under `#data`: what the Day screen says about a followed diet, and the all-nutrients sheet) · ***Weight is one of the trends…*** (2026-10-12, filed under `#data`: where a weight is written down, and routines on the session screen) · ***A diet or a regime is chosen from a library…*** (2026-10-12, filed under `#data`: the *Diet* and *Regime* tabs, and why they are two names) · ***The layout may differ between a phone and a desktop; the names never do*** (2026-10-12; read before naming a view, a group, a tab or a menu entry anywhere, or building a second list of places) · ***A phone's bar is the app's own again; the plus means what the view in front makes*** (2026-10-12; read before changing the phone's bottom bar, what the plus does, or where a group's views are switched) · ***After the owner used it on the phone: Everything and Weight go, a trend is picked from a menu, and a starter template has something to see*** (2026-10-12; read before adding a view to a group, listing logged entries, or putting more than one thing on a screen) · ***The board and the agenda are left as they were; graphs get a place of their own; phone and desktop are designed apart*** (2026-10-12; read before adding anything above or inside an existing view, or shipping a layout nobody has looked at on the screen it is for) · ***A view may ask for logged entries by name, and must then be bounded*** (2026-10-12; read before listing logged entries anywhere, or adding a key to a `.view` file) · ***Four groups over notes: Library, Tasks, Food, Fitness; a template carries structure; tags classify and properties drive*** (2026-10-12; read before adding a group, a view to one, a template rule, a filter that reads a tag, or changing what the phone's bar holds) · ***A meal is the one the person names; the training total is called volume load*** (2026-10-11; read before defaulting a meal, adding a training category, or naming a training number) · ***A sixth renderer and view groups, inside the notebook*** (2026-10-11; read before adding a renderer, a group, or anything a group carries beyond views, a filter and an add action) · ***There is one editor*** (2026-10-11; read before adding a second editor, a setting that chooses one, or a test that reaches for a textarea) · ***In the live editor a press follows a finished link, and a double press edits it*** (2026-10-11; read before giving any drawn element in the editor a meaning for a single press) · ***With a mouse and keyboard the format options are always there, one line under the note*** (2026-10-11; read before making them appear only on a selection again, moving them back to the top, or adding a persistent bar on touch) · ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
@@ -335,7 +335,7 @@ is an adjunct beside the image rather than a replacement for it, and why the blo
 **Why — and it is not about tidying up rejects.** A human edit becomes a *new* proposal commit,
 which then becomes the accept-merge's second parent, so a clean merge is **always** verbatim
 relative to the final proposal. Every accepted proposal therefore looks like the model got it right
-first time. Measured on the owner's vault with a prototype exporter: 13 accepts, **13 "verbatim", 0
+first time. Measured on a user's vault with a prototype exporter: 13 accepts, **13 "verbatim", 0
 "accepted-then-changed"** — while **5 of those 13 notes also had an orphaned earlier proposal**. The
 corpus git already holds does not merely *lack* the human's correction, **it asserts something
 false**, in the direction that flatters the model. Retention is what makes the label truthful.
@@ -1229,7 +1229,7 @@ symptom of exactly one of git's seven conflict codes; a delete/modify (`DU`/`UD`
 one side has no blob and the `.md` driver is never called. So the app warned about a conflict it could
 not display, and told the user in every message to *"open each one, both versions are marked in the
 text"* — impossible advice, with no other action offered, while `commit_all`'s refusal to commit
-mid-merge froze the whole vault. Measured cost on the owner's laptop: **7 days, 95 notes never
+mid-merge froze the whole vault. Measured cost on a user's laptop: **7 days, 95 notes never
 committed**, from one invisible note (`sessions/2026-07-31-the-gray-screen-on-first-open.md` covers
 the same day's Android work; this one is in `known-issues.md`).
 
@@ -1324,14 +1324,14 @@ Pinned by `fm-app/tests/unrecorded_after_restart.rs`, which drives the real `App
 **bounded** 50-row sample (id, title-or-first-line, bytes, mtime), and the toolbar chip opens a panel
 that leads with the split instead of committing on one click.
 
-**Why.** The chip said *"146 not in history"* on the owner's phone and **no one could act on it**. That
+**Why.** The chip said *"146 not in history"* on a user's phone and **no one could act on it**. That
 number could mean 146 notes existing nowhere else — app-private storage is erased by an uninstall and
 `blobs/` never travels with a push — or 146 notes something was needlessly rewriting. Opposite
 urgencies; opposite responses. The device knew which (it had just run `git status`) and the surface
 threw the status code away, mapping porcelain lines to bare paths.
 
 **And it must be the device that says it**, because there is no other channel: on that phone Rust's
-stdout is not routed to logcat, the WebView forwards no `console.*`, and MIUI suppresses our own tag.
+stdout is not routed to logcat, the WebView forwards no `console.*`, and the vendor's Android build suppresses our own tag.
 `run-as` cannot read a release build's private storage. Anything a user must be able to report has to be
 rendered on screen — the same rule that put `ca_bundle` in Settings and the skipped notes in a panel.
 
@@ -1421,7 +1421,7 @@ name — and **both** the contributor chips and the note filter use it. `contrib
 **Why.** They had drifted. The chips already deduplicated by email, with a comment naming the exact
 case (*"a vault signed with a username on one machine and the same person's full name on another is
 still one human"*), while `shown()` hid notes by comparing the author **name**. So one chip represented one
-person and hid only the spelling it happened to be labelled with. Measured in the owner's own vault:
+person and hid only the spelling it happened to be labelled with. Measured in a user's own vault:
 **534 commits under a username, 77 under the same person's full name, 3 under a lowercased variant
 in another vault — one email.** Clicking the chip left 77 notes on screen while reporting "hidden".
 
@@ -1495,9 +1495,9 @@ says explicitly that a green grep is not evidence the backends agree.
    escalation with the backend's verbatim reason and a retry. And a *refusal* is not an empty vault
    list: `.catch(() => (vaults = []))` offered to create a first vault to someone who has ten.
 
-**Why.** The owner's phone opened to a gray screen on the first launch and worked on the second
+**Why.** A user's phone opened to a gray screen on the first launch and worked on the second
 (`sessions/2026-07-31-the-gray-screen-on-first-open.md`). Every ingredient was ordinary; the
-combination was unreportable, because a phone has no console, no stdout in logcat, and (on MIUI) not
+combination was unreportable, because a phone has no console, no stdout in logcat, and (on some vendors' builds) not
 even our own tag. **The identical first-paint contention bug had been fixed on the desktop a week
 earlier** — "the study agent's model warm-up is deferred", below — and nobody asked whether the phone
 had the same shape. It did, and worse: there the *vault open* was in front of the first frame too.
@@ -1510,7 +1510,7 @@ and a rule nothing checks is a rule that lasts one refactor. `mock.ts` grew a fa
 (`reject`/`hang`/`delay`) so the UI's refusal, stall and never-answers paths are testable — the
 general form of a lesson `known-issues.md` had already recorded about one hand-written guard.
 
-## An emulator may be installed to and force-stopped; the owner's phone may only be looked at (2026-07-31, `#track-m`)
+## An emulator may be installed to and force-stopped; a user's phone may only be looked at (2026-07-31, `#track-m`)
 
 **Decision.** Automated device tests target an emulator, and `ci/android-smoke.sh` **refuses to run
 against any serial that is not `emulator-*`** — before it checks anything else, including whether its
@@ -1518,7 +1518,7 @@ own tools are present. The real-phone pass stays observation only (screencap via
 writes nothing on the device; `dumpsys`; `ps`), with the owner doing the installing and the tapping.
 
 **Why.** The test has to install, force-stop, `am kill` and uninstall to be worth anything, and the
-device this project is developed against is the owner's personal phone. A guard that is a sentence in
+device this project is developed against is a personal phone. A guard that is a sentence in
 a header is not a guard; this one is the first executable line and was verified to refuse with the
 phone attached.
 
@@ -3287,7 +3287,7 @@ turning it back on resumes.
 **Why:** with the agent enabled, `fm-serve` auto-spawns the whole stack at launch — and the model
 server reads a **multi-GB GGUF off disk and loads it onto the GPU the instant it starts**. Since
 adopting Qwen3-VL-4B (2.4 GB) that load began *the moment the browser is told to open*, and on the
-owner's laptop (4 GB GPU shared Intel iGPU + NVIDIA via Vulkan, Firefox compositing on the same GPU)
+user's laptop (a small GPU shared with the browser's compositing)
 it starves exactly the disk and GPU the browser needs to paint the app's first frame. Measured:
 `fm-serve` binds in ~57 ms and fires `xdg-open` at ~33 ms, but the *window* crawled in because the
 2.4 GB read + Vulkan load hit at t≈0. That is what "double-click takes forever now" was — not the
@@ -3857,7 +3857,7 @@ never made it the visible one, so a second query did nothing. One helper fixes t
 Android WebView because wry never forwards `WindowInsetsCompat` into the page, so `app.css` floored
 the insets by hand — `1.75rem` at the top, which is *less than this phone's camera cutout*, and
 `0.5rem` at the bottom, which clears a gesture pill but not a three-button navigation bar. Both
-guesses were visible on the owner's device and neither was visible to any test.
+guesses were visible on a user's device and neither was visible to any test.
 
 `MainActivity` now sets `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES` and pushes the real
 `systemBars() | displayCutout()` insets into the page as the `--safe-*` custom properties the
@@ -4048,7 +4048,7 @@ and the resident agent already watches note comment threads. **A reply is a note
 of the fork `MASTERPLAN.md:110` names, where "a message is a bullet inside a note" would specify
 block granularity and *"voids this plan"*. So this ruling adds a **surface**, and touches no atom.
 
-**Measured, on the owner's own vault: 225 notes, of which 176 are messages and 31 are feed-eligible.**
+**Measured, on a user's own vault: 225 notes, of which 176 are messages and 31 are feed-eligible.**
 `recent()` hydrates 207 to return 31, because a message *is* a `Kind::Note` and `notes_base()`'s
 exclusions cannot push down. **Making replies frictionless makes the feed's own query worse, forever,
 and the ratio only grows.** That is the fact this design is built around, and the reason the perf
@@ -4401,7 +4401,7 @@ compiles, ships, and is invisible to every test we have (jsdom renders neither s
 found by reading rather than by anything failing.
 
 **Verified on the device, which is the only place it could be.** Installed as v0.3.1 (versionCode
-3001) on the owner's phone: the Settings row renders the assistant toggle *and* the audio
+3001) on a user's phone: the Settings row renders the assistant toggle *and* the audio
 transcription sub-row, which only appears when `installed` **and** `enabled` are both true — the
 exact pair the short shape made unreadable. jsdom renders neither shell, so no test in this repo
 could have shown this.
@@ -6333,7 +6333,7 @@ body cannot mean one file and has to mean two things a person can read.
    vault never freezes"*. That is now true without it: a conflict blocks its own notes and nothing
    else (above). What remains blocked is *sync*, and a conflict copy would not unblock that either —
    `pull` refuses over an unfinished merge whatever the working tree looks like.
-3. **It is insurance against a case that has never happened here.** The owner's vault has **zero**
+3. **It is insurance against a case that has never happened here.** A user's vault has **zero**
    notes with conflict markers and no note has ever been touched by a merge commit. The case that
    actually bit was delete/modify, settled; the second was a frozen vault, settled.
 
@@ -7017,7 +7017,7 @@ defeated the fallback** rather than falling back to it.
 > bridge does deliver once dispatched. The bug was only ever the window before that.
 
 The inset bridge (2026-08-31) is correct and every surface consumes the tokens. Measured on the
-owner's phone: `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — the camera occupies the
+user's phone: `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — the camera occupies the
 top **40 CSS pixels**, and the app was laying out against 0 until the first inset dispatch.
 
 **Proven, not inferred.** At 390x844 with touch emulation, `--safe-top` at 28px puts the
@@ -7045,7 +7045,7 @@ device, so the page is never laid out against an approximation even on its first
   are invisible on a desktop and on an emulator without a cutout — which is why this survived from
   the day it was written.
 - **The insets are now readable from the UI.** `known-issues.md` records that this phone's logs are
-  unreadable (*"Rust's stderr is not routed to logcat on Android at all, and MIUI suppresses app
+  unreadable (*"Rust's stderr is not routed to logcat on Android at all, and the vendor's build suppresses app
   logcat output besides"*), and a broken bridge and a too-short floor look identical on screen. The
   row is **measured, not read**: `getPropertyValue('--safe-top')` returns the unresolved token,
   because a custom property is substituted rather than computed, so a hidden probe's padding is
@@ -7753,7 +7753,7 @@ newline, so without the `echo` the shell prompt lands on the key's line and is e
 > the view you are in and carries its controls; what changes is that a narrow screen no longer gives
 > every open window a tab.
 
-**The complaint.** On the owner's phone three open windows were three tabs and a close button across
+**The complaint.** On a user's phone three open windows were three tabs and a close button across
 the whole top row — *Timeline · Note · Note ×* — width spent on what you are not looking at. What was
 asked for is what a phone browser does: **one button with the number of open windows on it, and the
 list behind it.**
@@ -7783,7 +7783,7 @@ selected. Touch got a persistent strip instead, because on Android the float hid
 own Cut/Copy menu, which opens above any selection.
 
 **What was wrong with it.** The strip was meant to sit above the editor, but `.editor-wrap` is a flex
-row, so it rendered *beside* the textarea — on the owner's phone a column about a third of the screen
+row, so it rendered *beside* the textarea — on a user's phone a column about a third of the screen
 wide, holding four buttons, next to the text being written. And a bar that is there when nothing is
 selected is not how a phone offers formatting; the owner asked for the options *on a selection, as on
 the other systems*.
@@ -7834,7 +7834,7 @@ now, so nothing is drawn under the cutout, and a banner at the top no longer add
 > **Extended the same day:** the ＋ window's `topLayer.ts` became `popup.ts`, which now places
 > every popup in the app — see *everything that opens is placed by one action, and stays on the screen*.
 
-**The complaint, with a screenshot.** On the owner's phone the note header was three rows: the title; the
+**The complaint, with a screenshot.** On a user's phone the note header was three rows: the title; the
 vault, the last editor and a ＋; and — while editing — ＋ Media, full screen and close. ＋ Media's menu
 opened half off the left edge of the screen. The owner: *"just a single title and a single plus to do
 things"*, done automatically, delete under the plus — on every device — and *"all the options in all the
@@ -8111,7 +8111,7 @@ WKWebView resizes its own viewport — the caret reveal still listens to `visual
 
 **Not verified on a device.** jsdom has no layout: `NotePanel.keyboard.svelte.test.ts` pins the caret
 reveal with a stood-in caret and height, `popup.test.ts` that a reported keyboard is off the screen, and
-the Kotlin compiles. Whether the IME inset arrives as expected on the owner's phone is for the next
+the Kotlin compiles. Whether the IME inset arrives as expected on a user's phone is for the next
 release to show — a debug build cannot be installed over the release one without an uninstall, which is
 the data loss the phone rules forbid.
 
@@ -8211,7 +8211,7 @@ because it is the most sensitive data the app will ever touch.
    URL that can only be read. Phase 2 reads Gmail through the API with exactly one scope,
    `gmail.readonly`, so Google refuses a write even if our code tried one. IMAP was rejected: an app
    password grants full mailbox rights, so "read-only" would be our code's promise and nothing more
-   — and NUS's M365 tenant has very likely switched password IMAP off anyway.
+   — and a university's M365 tenant has very likely switched password IMAP off anyway.
 2. **A private calendar address is a secret, not a note.** This *refines* *the places to check are a
    note* (2026-09-12): a public venue feed stays in an `events-source` note, but a Google "secret
    address" is a credential — anyone holding it reads the whole calendar — and a note is pushed to git
@@ -8361,7 +8361,7 @@ must not depend on opening the diff.
 
 ## 2026-10-09 — the model points at the sentence; Rust reads the date from it `#agent`
 
-> Refines *the assistant proposes meetings* (same day), after its first run on the owner's real mail.
+> Refines *the assistant proposes meetings* (same day), after its first run on a user's real mail.
 
 **What happened.** On four real conversations the model found every meeting and quoted the right
 sentence, but it did not copy the day words: it translated "the 16th of October" into "16 ottobre",
@@ -8452,7 +8452,7 @@ git-level acts with their own way back. The undo menu names only what it can act
 ## 2026-10-09 — a move made from a menu replaces the menu's history entry `#ui` `#track-m`
 
 > Refines *Back walks what you opened, and panels close first* (same day), after v0.6.2 broke
-> switching windows on the owner's phone.
+> switching windows on a user's phone.
 
 **What broke.** Picking a window from the phone's window list closed the list (a *layer*) and set
 the window directly. The move was not recorded, so closing the list stepped history back, which
@@ -8684,7 +8684,7 @@ it a called workflow from the start.
 > Narrows *a build with no version can always return to the latest release* (2026-10-09), whose rule
 > was "a build with no version is behind every release".
 
-**What happened.** The owner's phone ran a test build made after v0.6.4. Settings offered **v0.6.3**,
+**What happened.** A user's phone ran a test build made after v0.6.4. Settings offered **v0.6.3**,
 the release that copy had last seen weeks earlier: with no version of its own, every remembered
 release counted as newer. The phone downloaded it, verified it, and Android refused it — *"App not
 installed as package appears to be invalid"* — because it would not install `versionCode` 6003 over
@@ -8814,7 +8814,7 @@ phone-sized browser on a 150-paragraph note, six taps: the caret was exactly at 
 editor before the keyboard and again after it, for every tap but the one on the first paragraph.
 
 **And then the phone disagreed with the browser.** With the caret centred to the pixel in every
-measurement here, the owner's phone still scrolled *past* it: fine at the top of a note, further
+measurement here, a user's phone still scrolled *past* it: fine at the top of a note, further
 off the further down the tap. An error that grows with distance is a measuring error, and the
 measure was `caretXY`'s hidden copy of the textarea. The explanation that fits, and that no desktop
 browser can show: Android's WebView applies the phone's *Font size* setting as a text zoom that is
@@ -9115,7 +9115,7 @@ possible on every supported system: yes, because the editor is one piece of web 
   embedded boards).
 - **CodeMirror 6**, loaded only when the live editor is used, the way KaTeX and Mermaid are.
 - **Behind a switch, plain by default.** The textarea is the default and the fallback until the
-  live editor has been proven on the owner's phone. Making it the default is a later decision,
+  live editor has been proven on a user's phone. Making it the default is a later decision,
   and so is retiring the separate reading view.
 - **One interface, two editors** (`ui/src/lib/editor/handle.ts`). The note panel keeps the draft,
   the save debounce, the version guard, the slash menu, the format bar and the quick row; an
@@ -9198,7 +9198,7 @@ offered when the choice was put and does not exist; it is in `outstanding.md`.
 ## There is one editor (2026-10-11, `#ui` `#toolchain`)
 
 > Reverses, the day it was written, "behind a switch, plain by default… the textarea is the default
-> and the fallback until the live editor has been proven on the owner's phone" in *the editor
+> and the fallback until the live editor has been proven on a user's phone" in *the editor
 > renders as you write*.
 
 **What prompted it.** With the rendering working on the desktop, the owner: *"keep only render
@@ -10637,9 +10637,9 @@ page simple and one can easily go back to it."*
 > Extends *a packaged food is a note read off its label* (2026-10-12), which assumed the European
 > label: per 100 g, kcal, salt.
 
-The owner lives between Singapore and Europe, and asked whether labels would work across
-countries. Read at source (`sources-2026-10-11.md` §6f): the EU and the UK print per 100 g **or
-per 100 ml**, in kJ and kcal, with **salt** in grams; the United States prints **per serving**,
+Asked whether labels would work across countries. Read at source (`sources-2026-10-11.md` §6f): the
+EU and the UK print per 100 g **or per 100 ml**, in kJ and kcal, with **salt** in grams; the United
+States prints **per serving**,
 in kcal, with **sodium** in milligrams; Singapore allows per serving **or** per 100 g/100 ml,
 *"kcal, kJ or both"*, and fixes no unit for sodium. A form that takes only the first makes the
 person do arithmetic the packet did not ask of them, and get it wrong.
@@ -10672,7 +10672,7 @@ drink as having no amount.
 > Under *the food list is European; USDA fills only what Europe's tables lack* (2026-10-11): a
 > fourth European table, permitted by that entry. It widens what ships, so it is written down.
 
-The owner wants food to work for an Italian and a Singaporean kitchen. Read at source
+Food should work for an Italian and a Singaporean kitchen. Read at source
 (`sources-2026-10-11.md` §6g, §6h): Italy's own table cannot be carried without a letter; the
 **Swiss Food Composition Database** can, is published in Italian, German, French and English,
 and holds Italian dishes by name.
@@ -11075,7 +11075,7 @@ backup).
 
 Extends *Squash-on-push* (its "only *our* commits are the window" constraint), does not reverse it.
 
-**Found on the owner's vault.** A meeting was proposed on an email conversation that had arrived
+**Found on a user's vault.** A meeting was proposed on an email conversation that had arrived
 forty seconds earlier, so `create_proposal` first wrote `auto: snapshot the note before a proposal`
 and branched from it. The next backup's `reset --soft` folded that snapshot into one `backup:`, and
 the proposal no longer shared a base with `main`: the note read as *added on both sides*, and Accept
@@ -11119,11 +11119,11 @@ where the last read stopped (`since`) and the note's place (`Current`):
 
 `PASS_VERSION` is **not** bumped: past conversations need no re-reading, and new mail triggers one.
 **Rejected:** a deterministic meeting-link extractor beside the model's `place` (the model already
-reported the Zoom link as the place on the owner's real mail; add one if it ever does not).
+reported the Zoom link as the place on a user's real mail; add one if it ever does not).
 
 ## 2026-10-15 (later) — the label chooses conversations; the assistant tracks where a meeting stands `#agent` `#data`
 
-**Found on the owner's mail.** Three meetings set for 16 Oct had been moved or called off by email,
+**Found on a user's mail.** Three meetings set for 16 Oct had been moved or called off by email,
 and the Agenda still showed the old times. Two causes, both measured:
 - **Gmail labels sit on messages, not conversations.** Every message the owner received or sent on
   15 Oct in those three exchanges carried no label, so `label:"formicaria"` never returned them. The
@@ -11280,8 +11280,8 @@ formicaria was shut is read at the next opening — within seconds of it. Both n
 ## 2026-10-16 — quoted history is trimmed in Chinese mail too `#agent`
 
 The owner: *"in the body of the email I see not all of them in crono order, why?"* The notes' own
-messages were in order; what read as disorder was **an earlier email quoted inside a later one**. NUS
-students' Outlook writes its quote header in Chinese (`________` / `发件人:` / `发送时间:`), Chinese Gmail
+messages were in order; what read as disorder was **an earlier email quoted inside a later one**. A
+student's Outlook writes its quote header in Chinese (`________` / `发件人:` / `发送时间:`), Chinese Gmail
 ends its intro with `写道：`, and Gmail wraps a long "On …, Name <\naddress> wrote:" onto two lines —
 `trim_quoted` knew none of them, so a student's 21:40 reply carried the whole 17:38 email and the note
 read 17:38, 21:40, 17:38. All three are now cut (either colon; Outlook's underscore rule only when a
@@ -12522,7 +12522,7 @@ maths and highlights)"*. Four causes, all found by rendering that sentence:
 
 1. **Reading view: every `$$…$$` was a centred block**, so the sentence came out in pieces. Now
    `$$…$$` is a block only with its line to itself (a list's or a quote's mark may lead it), and
-   inline in a sentence — as Logseq, where the owner's notes come from, reads it
+   inline in a sentence — as Logseq, where a user's notes come from, reads it
    (`findMath`/`aloneOnLine` in `render.ts`).
 2. **`\*` was a KaTeX error** ("Undefined control sequence"). It is how a `*` is kept from
    starting italics, so it is what people type in formulas too; KaTeX is given the macro

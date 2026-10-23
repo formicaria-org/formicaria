@@ -22,7 +22,7 @@ the live GPU/VRAM readings are from this session's `/proc` + `nvidia-smi`._
 
 | | **Phone** | **Laptop** |
 |---|---|---|
-| Model | a Redmi phone | the development laptop |
+| Model | a mid-range phone | the development laptop |
 | SoC / CPU | MediaTek **MT6878** = Dimensity 7300, **8 cores (4 big + 4 little)** | Intel **i7-11800H**, 8C / 16T @ 2.30 GHz |
 | RAM total | **7.4 GB** | **14.9 GB** |
 | RAM free (typical) | ~2.9–3.4 GB | ~5–10 GB |

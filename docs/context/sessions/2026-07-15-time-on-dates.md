@@ -4,7 +4,7 @@
 `fm_model::Stamp { date, time: Option<Time> }` replaces `Option<Date>` end to
 end; `PropertyValue::Date` → `PropertyValue::Stamp`. `pixi run ci` exit 0 (82
 Rust tests, 97 UI tests), svelte-check 0 errors, verified live against the real
-HTTP API and the owner's real vault. Also planned the wider meeting/calendar work
+HTTP API and a user's real vault. Also planned the wider meeting/calendar work
 in the new [roadmap.md](../roadmap.md).
 
 ## Why one `Stamp` and not two variants
@@ -70,6 +70,6 @@ idempotence invariant holds), a hand-written `2026-08-05 09:00:00` normalizes to
 - The calendar grid is still day-granular; a **time-of-day week view** is now
   unlocked but not built.
 - Everything else in [roadmap.md](../roadmap.md): calendar ICS import/export
-  (decided: NUS M365 + Google, merged, one-way in + one-way out; two-way
+  (decided: M365 + Google, merged, one-way in + one-way out; two-way
   rejected), whiteboard-embed + print-to-PDF, and the owner's `Source` module
   idea with local extraction (**the model proposes, never writes**).

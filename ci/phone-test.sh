@@ -1,5 +1,5 @@
 #!/bin/sh
-# Put a commit on the owner's phone, signed with the real key, in one step.
+# Put a commit on a user's phone, signed with the real key, in one step.
 #
 # **What it replaces.** Testing on the phone before a release (the rule since v0.6.2) was six acts by
 # hand: open GitHub, run the `android` workflow, wait, download the artifact, say where it landed,

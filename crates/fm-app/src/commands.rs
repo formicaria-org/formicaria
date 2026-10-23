@@ -1590,7 +1590,7 @@ pub fn conflicts(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// copies rather than one note. Keyed the same way `dto::UnrecordedNote::copies` counts them, so the
 /// two surfaces cannot disagree about what a duplicate is.
 ///
-/// Found on the owner's phone 2026-07-31: one prompt to the study assistant written ~142 times inside
+/// Found on a user's phone 2026-07-31: one prompt to the study assistant written ~142 times inside
 /// one minute, at machine pace. A scan and not stored state (like `conflicts`/`recent`): a family that
 /// is pruned drops off by itself, and there is no bookkeeping to go stale.
 ///

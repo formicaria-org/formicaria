@@ -1,7 +1,7 @@
 #!/bin/sh
 # **Does the app actually paint, twice in a row?**
 #
-# The test that did not exist when it was needed. The owner's phone opened to a gray screen on the
+# The test that did not exist when it was needed. A user's phone opened to a gray screen on the
 # first launch and worked on the second (2026-07-31); nothing in `pixi run ci` could see it, because
 # no test ever starts the mobile shell and every UI test runs against `ui/src/lib/mock.ts`. The
 # signature of that bug — *fine the second time* — is why every check below runs on TWO launches and
@@ -14,7 +14,7 @@
 #   A. the Activity is resumed       (necessary, and proves nothing about paint — the whole lesson)
 #
 # EMULATOR ONLY. It installs, force-stops and uninstalls, so it refuses to run against anything that
-# is not an `emulator-*` serial: the phone this project is developed against is the owner's personal
+# is not an `emulator-*` serial: the phone this project is developed against is a personal
 # device (docs/context/mobile-design.md § "Device safety — the phone is not a test rig"), and a
 # guard that is a comment is not a guard.
 #
@@ -160,7 +160,7 @@ launch() {
     # WebView is precisely what the owner was looking at.
     #
     # **`mFocusedApp`, not `mCurrentFocus`.** They answer different questions: `mCurrentFocus` is the
-    # focused *window*, which any transient system window takes — on the owner's phone
+    # focused *window*, which any transient system window takes — on a user's phone
     # 2026-07-31 it read `NotificationShade` while our Activity was plainly the front app, and the
     # first version of this check duly reported "never took focus" for a running, painted app. The
     # question here is which *app* is in front, and that is `mFocusedApp`.
@@ -242,7 +242,7 @@ say "relaunch after an OS background-kill painted"
 # ---------------------------------------------------------------------------
 # **Force-stop, not Back.** Back looked like the interesting gesture — `TauriActivity` sets
 # `handleBackNavigation = false`, so a Back that reaches the Activity finishes it, and tao's event
-# loop then calls `process::exit` on the last window closing. But measured on the owner's phone
+# loop then calls `process::exit` on the last window closing. But measured on a user's phone
 # 2026-07-31, Back did **not** end the app: this frontend pushes history (`NotePanel` handles
 # `onpopstate`), so the WebView had somewhere to go back to and absorbed the key. A closure test whose
 # first step may be a no-op tests nothing, so kill it outright — which is also what a swipe-away and an

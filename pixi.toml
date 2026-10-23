@@ -166,7 +166,7 @@ android-stage-onnxruntime = { cmd = "sh ci/android-stage-onnxruntime.sh", depend
 android-inject-service = { cmd = "sh ci/android-inject-service.sh", depends-on = ["android-project"] }
 # **Does the app actually paint — twice in a row, and after being killed?** The unattended startup +
 # closure test, on the emulator only (it installs and force-stops, so it refuses any serial that is
-# not `emulator-*`; the phone this is developed against is the owner's personal device). Deliberately
+# not `emulator-*`; the phone this is developed against is a personal device). Deliberately
 # NOT part of `pixi run ci`, which must stay green with no Android toolchain — run it after touching
 # the shell's startup, the boot gate, or before `android-release`. See the script's header.
 android-smoke = "sh ci/android-smoke.sh"

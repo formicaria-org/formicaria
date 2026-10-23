@@ -1,7 +1,7 @@
 # Logseq import: a test framework first, then the fixes (plan, 2026-10-14)
 
 _Status: **Part 1 (the test framework) and Part 2 (the fixes) are both built (2026-10-15)**; every
-judged check passes on the owner's graph (scorecard below).
+judged check passes on a user's graph (scorecard below).
 Read before touching `fm-core/src/import.rs`, `import/logseq.rs`, or the import surface. The ruling
 this works inside is `decisions.md#data`, *An import converts; adoption renders* (2026-09-02);
 nothing below reverses it unless it says so._

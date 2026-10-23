@@ -1,7 +1,7 @@
 # 2026-07-31 — the gray screen on the first open
 
 **The report.** *"Every time I try to open [the Android app] I get a gray screen. Only after closing
-it and opening it again it starts."* The owner's phone, the 2026-07-24 release APK. Confirmed by them
+it and opening it again it starts."* A user's phone, the 2026-07-24 release APK. Confirmed by them
 as happening on a genuinely cold start too, with the fix being a swipe-away from Recents.
 
 ## What the phone said before anything was changed
@@ -36,7 +36,7 @@ So: an unanswered `list_vaults` was a permanently blank screen, and a refused on
 failure inside the hook was worse than either — `?` fails the hook, which **panics that thread** and
 leaves the Activity holding a live webview with no backend behind it. Nothing crashes. Nothing logs
 anywhere the owner can read (Rust's stdout is not routed to logcat, the WebView forwards no
-`console.*`, and MIUI suppresses our tag). It is an unreportable blank window.
+`console.*`, and the vendor's build suppresses our tag). It is an unreportable blank window.
 
 **Not the cause, though it looked like one:** the WebView renderer being reclaimed. `RustWebViewClient`
 has no `onRenderProcessGone` override and the framework default *kills the app process*, so that
@@ -100,7 +100,7 @@ and nothing ever starts the mobile shell.
   `vaults ready` line must precede every `ca-bundle`/`study agent` line; a resume must **not** re-run
   the hook; Back must leave no model process behind; and a relaunch after an OS background-kill must
   paint. **Emulator only** — it installs and force-stops, so it refuses any serial that is not
-  `emulator-*`. That refusal was verified with the owner's phone attached.
+  `emulator-*`. That refusal was verified with a user's phone attached.
 
 ## Still open (found by the audits, not fixed here)
 

@@ -27,7 +27,7 @@ pub const LIMIT: usize = 512 * 1024;
 /// Who is asking, as Open Food Facts asks to be told: the app, its version, where it lives.
 pub fn user_agent() -> String {
     format!(
-        "formicaria/{} (https://github.com/singhbal-baljinder/formicaria)",
+        "formicaria/{} (https://github.com/formicaria-org/formicaria)",
         option_env!("FM_VERSION").unwrap_or("dev")
     )
 }

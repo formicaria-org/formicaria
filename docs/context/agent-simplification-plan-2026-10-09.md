@@ -202,7 +202,7 @@ No change in behaviour; the gate is green and the phone crate compiles.
   offers the new one with its size, and the catalogue now reaches downloaded desktop apps too.
   Released in v0.6.4 after the owner ran it on the phone.
 - **The owner's ruling for the laptop (2026-10-10):** the reader stays on the processor for now.
-- **Still needed:** the owner's own handwritten and photographed pages; a phone run beside the main
+- **Still needed:** a user's own handwritten and photographed pages; a phone run beside the main
   model; and a size cap for photos.
 
 ### P2 — The router and the skills
@@ -245,7 +245,7 @@ No change in behaviour; the gate is green and the phone crate compiles.
 ### P4 — The specialists (measure, then adopt)
 - **Image → text:** PaddleOCR-VL-1.6 (0.5B, Apache-2.0, llama.cpp-native;
   `transcription-specialists-grounded-2026-08-31.md`). Measure it against the current VLM on the
-  owner's pages, then route images to it by MIME; the VLM stays the fallback. It runs on the
+  user's pages, then route images to it by MIME; the VLM stays the fallback. It runs on the
   laptop's CPU, leaving the GPU to the main model, and is the first path for the phone to read
   images at all.
 - **Audio → text:** multilingual Whisper (Italian), configuration only; Parakeet or Qwen3-ASR only

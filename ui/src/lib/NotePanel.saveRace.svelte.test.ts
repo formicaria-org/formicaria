@@ -1,6 +1,6 @@
 // **An autosave must never conflict with the autosave before it.**
 //
-// The owner's phone, 2026-09-11: typing in a note that existed only on that phone, with nobody else
+// A user's phone, 2026-09-11: typing in a note that existed only on that phone, with nobody else
 // writing to it, repeatedly dropped `<<<<<<< your unsaved edit` markers into the text.
 //
 // The server's lost-update guard is right: it refuses a write whose `base` is not the body on disk.

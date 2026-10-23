@@ -17,7 +17,7 @@ command isn't rendering and the backslash is in red." Recurring; the earlier
   `mapDeps` injects the stylesheet `<link>`, fm-serve serves `.css/.woff2` with
   correct MIME, no CSP.
 
-The red is KaTeX's own error color — it *ran* and failed on the owner's real note,
+The red is KaTeX's own error color — it *ran* and failed on a user's real note,
 whose content differs from the pared-down example (subscripts, a stray `$`, …).
 
 ## Root cause (architectural)

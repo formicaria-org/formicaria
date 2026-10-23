@@ -203,7 +203,7 @@ impl App {
         // `commit_all` stages what this app remembers writing, and that memory dies with the process.
         // Android kills backgrounded apps constantly, so almost every relaunch orphaned the previous
         // run's notes — permanently unstageable, and silent until the count was surfaced (147 of them
-        // on the owner's phone, 2026-07-31). Open is exactly where the memory was lost, so it is where
+        // on a user's phone, 2026-07-31). Open is exactly where the memory was lost, so it is where
         // it is rebuilt: the next ordinary commit then records them, with no user action and no new
         // staging semantics.
         //
@@ -508,7 +508,7 @@ fn title_of(full: &std::path::Path) -> Option<String> {
     //
     // **Fall back to the parsed BODY, never to the raw file.** The first version scanned `text`, so an
     // untitled note reported its first frontmatter key — every one of them came back titled
-    // `schema: 1`. Seen on the owner's phone within an hour of shipping it, where it read as "142
+    // `schema: 1`. Seen on a user's phone within an hour of shipping it, where it read as "142
     // malformed notes" and nearly sent the diagnosis down a wrong path. A diagnostic that lies is
     // worse than no diagnostic, which is the whole argument for this panel existing.
     if let Ok(obj) = fm_core::frontmatter::from_file(&text) {
@@ -826,7 +826,7 @@ fn dispatch_inner(
         // **What the app forgot it wrote, and in which way.** Per vault: notes on disk that git does
         // not have, split by kind, with a bounded sample of detail.
         //
-        // The count alone was not a diagnosis. On the owner's phone it said 146, and that could have
+        // The count alone was not a diagnosis. On a user's phone it said 146, and that could have
         // meant 146 notes existing nowhere else (urgent — app-private storage is erased by an
         // uninstall) or 146 notes something was needlessly rewriting (a different bug entirely). The
         // device knew which and had no way to say it, and the phone has no other channel: no readable
@@ -893,7 +893,7 @@ fn dispatch_inner(
         // costs nothing to ask before offering the choice.
         //
         // Exists because the first backup from a device that has never sent attachments carries
-        // every one it holds — the selection rule is a filter, not a diff — and the owner's phone
+        // every one it holds — the selection rule is a filter, not a diff — and a user's phone
         // died twice trying to push 65 of them totalling 127.2 MB. Batches are a rising size limit,
         // so each step adds only what its raise newly admits.
         "asset_batches" => {
@@ -1721,7 +1721,7 @@ fn dispatch_inner(
             // affordance in the product, so a commit that records only what *this* run happened to
             // write is not sufficient — and on Android, where the app is normally left by being
             // killed, "this run" is usually a few minutes of work while the backlog is everything
-            // before it. That backlog reached 180 notes on the owner's phone, in a vault with a
+            // before it. That backlog reached 180 notes on a user's phone, in a vault with a
             // remote, and pressing Backup did not clear it.
             //
             // `App::load` already adopts them at open, which fixes the *next* commit after a
@@ -3146,7 +3146,7 @@ struct VaultInfo {
     /// follows the remote. Same split as `authorKey`/label for contributors (`decisions.md#ui`).
     ///
     /// Why bother: the same repo cloned on two devices can carry two different local names — the
-    /// owner's laptop and phone did — so one *audience* looked like two different vaults depending on
+    /// user's laptop and phone did — so one *audience* looked like two different vaults depending on
     /// which screen you were on. The remote is the thing both devices agree about.
     label: Option<String>,
     /// The committer this vault signs with, or `None` when git has never been told who you are.
@@ -3311,7 +3311,7 @@ struct LastCommit {
     /// alone — because the two answer one question between them and only together. `last_commit`
     /// is *local* liveness, and the auto-commit loop is what keeps it perfect: a vault saving
     /// every five minutes and sending nothing for a week reads as maximally healthy on every
-    /// always-visible surface the app had. On the owner's vault (2026-09-08) the two clocks were
+    /// always-visible surface the app had. On a user's vault (2026-09-08) the two clocks were
     /// six days and 125 changes apart, and nothing on screen could say so.
     ///
     /// **It costs no network.** `vcs::last_sent` and `vcs::unpushed` both read

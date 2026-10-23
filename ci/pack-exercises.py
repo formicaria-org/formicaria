@@ -95,7 +95,7 @@ import time
 import urllib.error
 import urllib.request
 
-USER_AGENT = "formicaria-exercise-pack (https://github.com/singhbal-baljinder/formicaria)"
+USER_AGENT = "formicaria-exercise-pack (https://github.com/formicaria-org/formicaria)"
 PAUSE_S = 1.0  # between any two requests
 RETRY_PAUSE_S = 5.0
 MIN_NHS, MIN_ARMY = 30, 50

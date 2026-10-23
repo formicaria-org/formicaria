@@ -14,7 +14,7 @@
 # | ana-phone  | Ana | http://127.0.0.1:8802  |  same person, a second device
 # | ben-laptop | Ben | http://127.0.0.1:8803  |  a second person
 #
-# **Why it exists** (2026-10-17). The owner's phone held 46 changes for five days without sending
+# **Why it exists** (2026-10-17). A user's phone held 46 changes for five days without sending
 # them: `isRemote()` took the phone for a paired tablet, so backing up by itself never started.
 # The Rust suites already run two devices against a real remote at the *command* level
 # (`fm-cli/tests/mixed_device_collaboration.rs`), so what had never been exercised was the running

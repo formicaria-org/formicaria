@@ -29,8 +29,6 @@ use std::sync::Arc;
 /// user-editable.
 const EMBEDDED_MANIFEST: &str = fm_agent_run::CATALOGUE;
 
-
-
 /// What Settings needs to know about this phone, **in the same shape fm-serve answers**.
 ///
 /// `(installed, why, transcribe_available)`, mirroring `/api/agent_status`
@@ -80,7 +78,9 @@ fn reader() -> &'static std::sync::Mutex<Option<fm_agent_run::ImageReader>> {
 /// this process by Myrme, with the APK's ONNX Runtime. There whenever its files are on the phone,
 /// whether or not the assistant is running — which is what lets a phone read a label at all: its
 /// vision model was never fit to.
-fn label_ocr(agents_dir: &std::path::Path) -> Option<std::sync::Arc<dyn fm_agent_run::ocr::ReadPage>> {
+fn label_ocr(
+    agents_dir: &std::path::Path,
+) -> Option<std::sync::Arc<dyn fm_agent_run::ocr::ReadPage>> {
     let manifest = catalogue(agents_dir).ok()?;
     let bundle = bundle()?;
     fm_agent_run::ocr::shared(agents_dir, &manifest, Some(bundle.dir())).ok()
@@ -246,7 +246,10 @@ pub fn listening_better(agents_dir: &std::path::Path) -> bool {
 }
 
 pub fn set_listening(agents_dir: &std::path::Path, better: bool) {
-    write_keys(agents_dir, &[("listening", Value::from(if better { "better" } else { "everyday" }))]);
+    write_keys(
+        agents_dir,
+        &[("listening", Value::from(if better { "better" } else { "everyday" }))],
+    );
 }
 
 /// What choosing better listening downloads, when the catalogue offers a choice at all.

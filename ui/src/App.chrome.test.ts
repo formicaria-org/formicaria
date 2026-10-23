@@ -384,7 +384,7 @@ test('a saved view still lists and opens, with no way to author one anywhere', a
 /// **Every alert chip names itself, so it can stop showing its words.**
 ///
 /// At narrow widths the chips shed their labels and keep their icon and count — five chips of
-/// prose wrapped the toolbar on the owner's phone (2026-09-08) and pushed the board down, the same
+/// prose wrapped the toolbar on a user's phone (2026-09-08) and pushed the board down, the same
 /// failure the four-row measurement records. The words moving out is only safe because each chip
 /// carries an explicit `aria-label`: without one, hiding the text leaves a button a screen reader
 /// cannot name and a test cannot find.

@@ -13,7 +13,7 @@ It returned `Ok(false)` the moment `vault/.git` existed — *before* calling
 and the next `commit_all` (`git add -A`) would sweep `blobs/` and `index.sqlite`
 into history: a push would then ship every PDF and video to the remote, voiding
 the "notes tier is light" promise entirely. Pre-existing, but it aimed straight at
-the feature shipped the same day. **The owner's own vault was never affected** — it
+the feature shipped the same day. **A user's own vault was never affected** — it
 has the `.gitignore`, 0 blobs tracked, because formicarium created it. The bug
 bites the *next machine you clone to*, which is the restore path.
 Fix: call `write_gitignore` before the early return; it is already idempotent, so

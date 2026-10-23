@@ -66,7 +66,7 @@ fn a_forgotten_vault_is_offered_back_by_name_without_anyone_remembering_it() {
     // The managed root a phone has. Set before anything asks, and never unset: one test, one binary.
     std::env::set_var("FM_VAULT_ROOT", &root);
 
-    // Two vaults in the root, as the owner's phone had — the big one and the idle one.
+    // Two vaults in the root, as a user's phone had — the big one and the idle one.
     let notes = vault_dir(&root, "notes", 5);
     let spare = vault_dir(&root, "vault", 1);
     // And something in the root that is not a vault, which must never be offered.

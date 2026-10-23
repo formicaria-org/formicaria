@@ -2,7 +2,7 @@
 //
 // A vault's *name* is local to a machine: it is the write-routing key and the argument every
 // vault-taking command carries. Two devices that cloned one repository therefore call the same
-// audience different things — the owner's laptop says `vault` where the phone says `notes`. What
+// audience different things — a user's laptop says `vault` where the phone says `notes`. What
 // both devices agree about is the repository behind the remote, so that is what every surface
 // shows (`vaults.svelte.ts`, and `list_vaults` derives it).
 //

@@ -2,7 +2,7 @@
 ///
 /// `record_unrecorded` answers `{committed, notes, reason}`. `committed: false` has two meanings —
 /// there was nothing to record, and git *refused* to record what was found — and the UI collapsed both
-/// into “Nothing left to record”. So on the owner's phone, with 147 notes outstanding and a note
+/// into “Nothing left to record”. So on a user's phone, with 147 notes outstanding and a note
 /// mid-merge, the one action that rescues unrecorded notes reassured them, indefinitely (2026-07-31).
 ///
 /// A silent refusal on a data-safety action is worse than an error, because it stops the user looking.

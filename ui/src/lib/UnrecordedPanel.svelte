@@ -1,14 +1,14 @@
 <script lang="ts">
   /// **What git does not have, and in which way.**
   ///
-  /// The count alone was not a diagnosis. The owner's phone said *"146 not in history"* and that could
+  /// The count alone was not a diagnosis. A user's phone said *"146 not in history"* and that could
   /// have meant 146 notes existing nowhere else — app-private storage is erased by an uninstall, and
   /// `blobs/` never travels with a push — or 146 notes something was needlessly rewriting. Opposite
   /// urgencies, one number.
   ///
   /// So this panel leads with the split, then names enough notes to recognise a pattern (all created in
   /// one minute? all the same size?). It exists because **a phone has no other channel**: Rust's stdout
-  /// is not routed to logcat, the WebView forwards no `console.*`, and MIUI suppresses our own tag — so
+  /// is not routed to logcat, the WebView forwards no `console.*`, and some vendors' builds suppress our own tag — so
   /// anything the user must be able to report has to be on screen. Same reasoning, and same shape, as
   /// `SkippedPanel`.
 
@@ -194,7 +194,7 @@
   }
   /* **The navigation bar ate the button**, twice — and the second time was self-inflicted.
      0.5rem (the global floor) clears a gesture pill but not a 3-button navigation bar, so this
-     panel carried a local `3.25rem`. Observed on the owner's phone: "Record all 147 in history"
+     panel carried a local `3.25rem`. Observed on a user's phone: "Record all 147 in history"
      half under the system bar, the line below it invisible.
 
      It was deleted on 2026-08-31 on the grounds that the shell now reports the real inset — and

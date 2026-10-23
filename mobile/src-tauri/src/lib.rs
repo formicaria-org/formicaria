@@ -116,7 +116,7 @@ fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     handle.manage(app_state.clone());
     // One line, and it is load-bearing: it is what `ci/android-smoke.sh` greps to prove the vaults
     // opened *before* the optional work — the ordering whose absence made the first open gray.
-    // (On the owner's own phone even this is invisible: MIUI suppresses our tag, which is why the
+    // (On a user's own phone even this is invisible: the vendor's build suppresses our tag, which is why the
     // same fact has to reach the screen — see known-issues.md.)
     log::info!("vaults ready: {} vault(s)", app_state.configs().map(|c| c.len()).unwrap_or(0));
 
@@ -1263,7 +1263,7 @@ pub fn run() {
             // this returns. Whatever goes wrong, the phone must end up with a backend that can
             // say so: a `?` here fails the hook, which panics this thread and leaves the Activity
             // holding a webview with nothing behind it. That is not a crash the user can see or
-            // report — it is a screen that never paints. Diagnosed on the owner's phone
+            // report — it is a screen that never paints. Diagnosed on a user's phone
             // 2026-07-31 ("gray screen on the first open, fine on the second").
             //
             // So the whole of it lives in `boot`, which cannot fail upward, and which the first

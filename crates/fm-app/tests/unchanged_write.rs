@@ -1,8 +1,8 @@
 //! **A write that changes nothing is not made** (2026-10-17, `decisions.md#sync`).
 //!
 //! Opening a note and leaving it re-saved the same text with a new `updated:` stamp. History then
-//! carried a change nobody made, and the owner's other device was "behind" on a note neither of
-//! them had touched — the laptop sent the owner's own note back to the phone with only the stamp
+//! carried a change nobody made, and the user's other device was "behind" on a note neither of
+//! them had touched — the laptop sent a user's own note back to the phone with only the stamp
 //! moved. Each test reads the file's bytes before and after, because "nothing happened" is a claim
 //! about the disk, not about a return value.
 

@@ -132,7 +132,7 @@
 @media (pointer: coarse) {
   :root {
     /* **2.75rem = 44px, and the number is measured rather than chosen.** The previous floor was
-       1.75rem = 28px, picked before anyone had a device to check it against. The owner's phone
+       1.75rem = 28px, picked before anyone had a device to check it against. A user's phone
        reports `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a camera cutout **40 CSS
        pixels** tall — so 28px does not clear it.
        **But 28px was not what bit on Android, and this floor was not what fixed it.** The shell's

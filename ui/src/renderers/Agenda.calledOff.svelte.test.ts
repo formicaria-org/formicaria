@@ -15,13 +15,13 @@ describe('Agenda', () => {
   it('shows a called-off meeting struck through, and leaves the others alone', () => {
     render(Agenda, {
       cards: [
-        card('a', 'Meeting with Marta', ['meeting', CALLED_OFF_TAG]),
+        card('a', 'Meeting with Greta', ['meeting', CALLED_OFF_TAG]),
         card('b', 'Meeting with Paolo', ['meeting']),
       ],
       onopen: () => {},
     } as never);
     const row = (t: string) => screen.getByText(t).closest('button')!;
-    expect(row('Meeting with Marta').classList.contains('called-off')).toBe(true);
+    expect(row('Meeting with Greta').classList.contains('called-off')).toBe(true);
     expect(row('Meeting with Paolo').classList.contains('called-off')).toBe(false);
   });
 });

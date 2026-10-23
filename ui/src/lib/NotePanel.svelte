@@ -321,8 +321,8 @@
     try {
       const status = await assetStatus(ref);
       if (!status.has_blob) {
-        // On screen, not in the console: an Android WebView logs nothing by default and MIUI
-        // suppresses the rest, so a console line is invisible on the one device that matters.
+        // On screen, not in the console: an Android WebView logs nothing by default and some vendors' builds
+        // suppress the rest, so a console line is invisible on the one device that matters.
         return { reason: `no bytes in vault "${note?.vault || 'default'}" for ${ref}` };
       }
       const mime = status.mime ?? '';
@@ -1085,7 +1085,7 @@
   /// background commit holds), so the next autosave carried the version the first was replacing and
   /// was refused — and `onSaveRejected` took that for someone else's edit, dropping
   /// `<<<<<<< your unsaved edit` markers around the user's own text in a note nobody else had
-  /// touched (the owner's phone, 2026-09-11; `NotePanel.saveRace.svelte.test.ts`).
+  /// touched (a user's phone, 2026-09-11; `NotePanel.saveRace.svelte.test.ts`).
   ///
   /// So every body write queues here, and `base` is read when a write actually leaves — after the
   /// one before it has landed and moved it. A reply for a note this pane has since left may not set
@@ -1942,7 +1942,7 @@
     const hit = nthIndexOf(draft, word, countOf(before.toString(), word));
     if (hit < 0) return draft.length;
     // **Never inside a reference.** The ordinal is a hint (see `locate.ts`), and a hint used as a
-    // caret put an insertion five characters into an image's hash on the owner's phone, corrupting
+    // caret put an insertion five characters into an image's hash on a user's phone, corrupting
     // the note permanently. Snapping costs a caret that is occasionally a few words off; not
     // snapping costs the note.
     const within = Math.min(Math.max(at - from, 0), word.length);

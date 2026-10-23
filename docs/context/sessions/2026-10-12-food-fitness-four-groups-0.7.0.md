@@ -1,4 +1,4 @@
-# 2026-10-12 — food, fitness and the four groups, cut back by the owner's phone; v0.7.0
+# 2026-10-12 — food, fitness and the four groups, cut back by a user's phone; v0.7.0
 
 > A snapshot, never updated. Current state is `features.md` and `known-issues.md`; the rulings are
 > in `decisions.md` under the dates named here.
@@ -212,7 +212,7 @@ built.
 
 ### After 0.7.9: food for more than one country (2026-10-13)
 
-The owner, between Singapore and Europe: would labels and barcodes work across countries; are
+Asked: would labels and barcodes work across countries; are
 there open datasets, or governments'; *"are you sure there is nothing else for Italy?"*. Six
 research agents over the day (about 880k tokens) wrote `sources-2026-10-11.md` §6f to §6h. Then,
 on *"go ahead and start with that order"*:

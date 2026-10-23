@@ -3,7 +3,7 @@
 // A vault's *name* is its identity: the write routing key (`MultiStore::route`), the argument every
 // vault-taking command carries, and the key behind the persisted view preferences (`hiddenVaults`,
 // `fm-board-order`, `fm-card-order`). It is local to a machine, and two devices that cloned the same
-// repository can therefore call one audience two different things — the owner's laptop said `vault`
+// repository can therefore call one audience two different things — a user's laptop said `vault`
 // where the phone said `notes`, so the same audience looked like two vaults depending on the screen.
 //
 // The *label* is what to show: the repository behind the vault's remote, which both devices agree

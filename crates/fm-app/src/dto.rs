@@ -164,7 +164,7 @@ pub struct Unrecorded {
     /// **Split by kind, because the kinds mean opposite things.** `new` notes exist nowhere else if
     /// this vault has no remote; a pile of `modified` ones means something is rewriting notes it did
     /// not need to; `deleted` means the *deletion* is what git has not recorded. The count alone
-    /// could not distinguish these, which is exactly why "146 not in history" on the owner's phone
+    /// could not distinguish these, which is exactly why "146 not in history" on a user's phone
     /// was a number nobody could act on (2026-07-31).
     pub new: usize,
     pub modified: usize,
@@ -250,7 +250,7 @@ fn preview(body: &str) -> String {
 }
 
 /// How much of a note the feed carries. ~4–6 clamped lines, and comfortably above the p90 body
-/// length measured in the owner's own vault (590 chars). The cap is the safety property — see
+/// length measured in a user's own vault (590 chars). The cap is the safety property — see
 /// `ObjectMeta::excerpt`.
 pub(crate) const EXCERPT_CHARS: usize = 600;
 

@@ -66,7 +66,7 @@ class AgentService : Service() {
         // is no vault, no dispatch and no model in that process. What the user got was a permanent
         // "formicaria study assistant — Running on your device" notification over an empty JVM,
         // holding the foreground-service priority that makes LMKD reap other apps first (on the
-        // owner's phone it was outliving Chrome and the Play Store). MainActivity starts this
+        // user's phone it was outliving Chrome and the Play Store). MainActivity starts this
         // service on every launch, so stickiness bought nothing a tap does not.
         return START_NOT_STICKY
     }
@@ -624,7 +624,7 @@ KT
 #
 # Attempted 2026-07-31, for a good reason: `RustWebViewClient` overrides no `onRenderProcessGone`,
 # and the framework default for that is to **kill the app process** — so on a memory-tight phone
-# (the owner's swaps ~3 GB while LMKD reaps Chrome and the Play Store, formicaria surviving on this
+# (a phone that swaps ~3 GB while LMKD reaps Chrome and the Play Store, formicaria surviving on this
 # very service while holding ~2 GB of model mappings) the app can simply vanish with nothing
 # anywhere saying why. A logging override would at least name the cause, since `didCrash()`
 # distinguishes "the system took the renderer" from "the renderer crashed".

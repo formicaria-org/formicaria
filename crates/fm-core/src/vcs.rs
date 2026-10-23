@@ -121,7 +121,7 @@ route!(conflicts(vault: &Path) -> Result<Vec<String>, StoreError>);
 // The conflict *kinds*, and resolving one by keeping a side. Added 2026-07-31 because the marker
 // scan the UI listed conflicts from covers only `UU`/`AA`: a delete/modify conflict has no markers,
 // so it appeared in no surface while it froze every commit in its vault — for a week, on the
-// owner's laptop, with 95 notes unrecorded. `unrecorded` is the other half of that failure.
+// user's laptop, with 95 notes unrecorded. `unrecorded` is the other half of that failure.
 route!(conflicted(vault: &Path) -> Result<Vec<crate::git::Conflict>, StoreError>);
 route!(resolve_conflict(vault: &Path, rel: &str, keep: crate::git::Keep) -> Result<(), StoreError>);
 route!(unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<crate::git::UnrecordedNote>, StoreError>);

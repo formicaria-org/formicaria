@@ -97,26 +97,24 @@ describe('ProposalReview — the details a proposal sets', () => {
   it('shows a new title beside the current one, and sends a corrected one', async () => {
     content.value = {
       host: 'N2',
-      title: 'Marta Bianchi — Master student, attention estimation',
+      title: 'Greta Lind — Master student, image segmentation',
       body: 'the conversation',
       wasTitle: 'Rescheduling Our Meeting',
       isNew: false,
     };
     render(ProposalReview, { id: 'P2' });
     await screen.findByTestId('pr-details');
-    expect(field('proposed title').value).toBe(
-      'Marta Bianchi — Master student, attention estimation',
-    );
+    expect(field('proposed title').value).toBe('Greta Lind — Master student, image segmentation');
     expect(screen.getByText('now: Rescheduling Our Meeting')).toBeTruthy();
     expect(screen.queryByLabelText('proposed start')).toBeNull();
 
     await fireEvent.input(field('proposed title'), {
-      target: { value: 'Marta Bianchi — Master student, gaze estimation' },
+      target: { value: 'Greta Lind — Master student, video segmentation' },
     });
     await fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
     // The title alone — never an empty date that would clear the meeting the note already has.
     expect(createProposal.mock.calls[0]?.[4]).toEqual({
-      title: 'Marta Bianchi — Master student, gaze estimation',
+      title: 'Greta Lind — Master student, video segmentation',
     });
   });
 });

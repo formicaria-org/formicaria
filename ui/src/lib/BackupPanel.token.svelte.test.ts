@@ -98,7 +98,7 @@ describe('a token for a private HTTPS remote', () => {
 // The gate above asks only whether one is *present*, so a token that has expired, been revoked, or
 // was minted without the `repo` scope left the field hidden while every push failed on it: the
 // panel said "authentication failed — check the token for this remote" and offered nothing that
-// could change it. Reported from the owner's phone on 2026-09-08, with three commits stuck behind
+// could change it. Reported from a user's phone on 2026-09-08, with three commits stuck behind
 // it and no way forward from the only screen they use — the same dead end this file's header
 // describes for a *missing* credential, fixed then for that case only.
 //

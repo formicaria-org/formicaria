@@ -137,8 +137,8 @@ export interface ResolvedAsset {
 /** Resolved bytes, or **why not**.
  *
  *  The reason is part of the contract rather than a console line, because on a real device the
- *  console is not readable: an Android WebView routes nothing to logcat by default and MIUI
- *  suppresses what is left. A note that renders its own filename as plain text is identical
+ *  console is not readable: an Android WebView routes nothing to logcat by default and some vendors' builds
+ *  suppress what is left. A note that renders its own filename as plain text is identical
  *  whether the bytes are in another vault, absent, or the URL is wrong — three problems with
  *  three different fixes, previously indistinguishable on the one screen anyone can see. */
 export type AssetFailure = { reason: string };
@@ -280,7 +280,7 @@ export interface MathAt extends MathSpan {
 
 /// **`$$…$$` is a centred formula only on a line of its own** (the owner, 2026-10-20: a sentence
 /// with `$$ \times $$` in it was broken into pieces). In a sentence it is drawn inline, which is
-/// how Logseq — where the owner's notes come from — reads it. A list's or a quote's mark before
+/// how Logseq — where a user's notes come from — reads it. A list's or a quote's mark before
 /// it still counts as a line of its own.
 function aloneOnLine(src: string, from: number, to: number): boolean {
   const start = src.lastIndexOf('\n', from - 1) + 1;

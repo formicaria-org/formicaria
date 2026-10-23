@@ -2,7 +2,7 @@
 //!
 //! **Why this exists at all, and why it is not the default.** Verified on a real device
 //! (`docs/context/sessions/2026-07-19-the-core-on-the-phone.md`): Android ships no `git`, and
-//! `command -v git` on the owner's phone answers `inaccessible or not found`. iOS forbids
+//! `command -v git` on a user's phone answers `inaccessible or not found`. iOS forbids
 //! executing one outright. So the subprocess stance in [`crate::git`] — which is what keeps
 //! *"git is a capability, not a dependency"* true, and what keeps the `.md` merge driver
 //! working for a collaborator's terminal `git pull` — simply cannot work there.
@@ -78,7 +78,7 @@ const DELTA_SEARCH_LIMIT: i64 = 512 * 1024;
 
 /// **Stop spending eighty seconds delta-compressing photographs.**
 ///
-/// Measured on the owner's phone, 2026-09-09, on a step carrying ~16 MB of camera images:
+/// Measured on a user's phone, 2026-09-09, on a step carrying ~16 MB of camera images:
 ///
 ///     after 83304 ms: 0 of 0 objects, 0 bytes of pack sent; packing Deltafication 150/150
 ///
@@ -256,7 +256,7 @@ fn commit_all_inner(
     // found it (2026-07-31) — the two backends were wrong in opposite directions on the same path.
     //
     // Refusing *wholesale* was the other half of the same mistake, and it is the one that cost 39
-    // days on the owner's phone: two stuck notes stopped 202 from being committed, 196 of them brand
+    // days on a user's phone: two stuck notes stopped 202 from being committed, 196 of them brand
     // new and no part of any merge (`decisions.md`, 2026-09-07). So the conflicted paths are dropped
     // from what we commit and the rest goes through.
     let blocked: std::collections::HashSet<String> =

@@ -192,7 +192,7 @@ const AHEAD_OF_US =
 /**
  * The headline for a failed send, in words the reader already has.
  *
- * The owner's phone, 2026-09-08, showed this as the entire message: *"io error cannot push because
+ * A user's phone, 2026-09-08, showed this as the entire message: *"io error cannot push because
  * a reference that you are trying to update on the remote contains commits that are not present
  * locally"*. They decoded it themselves and then did by hand the one thing the app could have
  * offered. `decisions.md` (*the app speaks the user's words, not git's*) permits git's vocabulary

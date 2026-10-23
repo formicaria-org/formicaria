@@ -885,7 +885,7 @@ echo "[check] hiding the bottom bar for the keyboard hands its navigation-bar st
 # `--kb` is the keyboard **beyond** the navigation bar, so `--app-h` stops that strip's height below
 # the top of the keyboard, and the bottom bar's padding is what fills it. Hide the bar while typing
 # and nothing fills it: the last `--safe-bottom` of the note goes under the keyboard. That is how
-# the quick row, 44px tall, sat entirely under a 47px strip on the owner's phone (2026-10-11) after
+# the quick row, 44px tall, sat entirely under a 47px strip on a user's phone (2026-10-11) after
 # passing a browser check that had simulated a keyboard and no navigation bar.
 # **The selector names both editors.** It used to say `textarea.editor:focus`; the editor that
 # renders as you write is not a textarea, so that rule would have stopped applying to it and this
@@ -987,7 +987,7 @@ echo "[check] the Android setup hook: no panic path, and the store reachable bef
 # the mobile crate cannot even compile here (it is workspace-excluded and its desktop tauri backend
 # wants webkit2gtk, which this env does not carry). Everything below is a real defect that shipped.
 #
-# The shape of the bug it pins (the owner's phone, 2026-07-31 — "gray screen on the first open, fine
+# The shape of the bug it pins (a user's phone, 2026-07-31 — "gray screen on the first open, fine
 # on the second"): Tauri builds the webview BEFORE this hook runs, so the page is already invoking
 # while the hook works; the event loop that delivers a reply does not start until the hook returns;
 # and a `?` inside it panics that thread, leaving a live webview with no backend behind it. That is
@@ -1144,25 +1144,26 @@ echo "[check] no personal identifiers in tracked files (this repo is public)..."
 # **Irreversible the moment the repo is public**, which is why it is a guard and not a review note.
 # Found on 2026-09-05, all of it in `docs/context/`: a session file linked the maintainer's Claude
 # account to the GitHub account that owns the remotes; `device-resources.md` and a session carried
-# the owner's phone by exact retail model number and its RAM in kB — a per-unit fingerprint, not a
+# a user's phone by exact retail model number and its RAM in kB — a per-unit fingerprint, not a
 # hardware class; and four files carried `/home/<user>` paths.
 #
 # The SoC, core count and RAM in GB stayed: they are the measurement every benchmark rests on, and
 # they describe millions of devices. What goes is anything identifying a *unit* or a *person*.
-# `ci/checks.sh` itself is exempt for the one string it must grep for, and the git author name is
+# A unit's model number is caught by its shape (two year digits, three more, then letters), so no
+# real one is spelled here. The git author name is
 # not covered here because every commit already carries it.
 #
 # `/home/you`, `/home/ada`, `/home/user` and friends are the documentation placeholders this repo
 # writes by convention — they are the *right* thing to publish, so they are allowed by name. What
 # is caught is a `/home/<anything-else>`, i.e. somebody's actual login leaking through a path.
-leaks=$(git grep -nIE '/home/[a-z][a-z0-9_-]*|24095PCADG|[a-zA-Z0-9._%+-]+@(gmail|outlook|hotmail|yahoo|icloud)\.[a-z]+' \
+leaks=$(git grep -nIE '/home/[a-z][a-z0-9_-]*|\b2[0-9]{4}[A-Z]{3,5}[A-Z0-9]?\b|[a-zA-Z0-9._%+-]+@(gmail|outlook|hotmail|yahoo|icloud)\.[a-z]+' \
         -- . ':!ci/checks.sh' ':!ui/pnpm-lock.yaml' ':!Cargo.lock' 2>/dev/null \
         | grep -vE '/home/(you|ada|alice|bob|user|username|me|someone|USER|x)([^a-z0-9_-]|$)')
 if [ -n "$leaks" ]; then
     echo "  FAIL: personal identifier(s) in tracked files:"
     echo "$leaks" | head -20 | sed 's/^/        /'
-    echo "        Replace with a role — \"the owner's Android device\", \"the owner's home"
-    echo "        directory\". Every technical point these make survives redaction."
+    echo "        Replace with a role — \"a user's Android device\", \"a home directory\"."
+    echo "        Every technical point these make survives redaction."
     fail=1
 fi
 
@@ -1831,7 +1832,7 @@ done
 
 echo "[check] the touch floor for the top inset still clears a real camera cutout..."
 # **A number that was picked, then measured.** The coarse-pointer fallback for `--safe-top` was
-# 1.75rem = 28px, chosen before anyone held a device against it. The owner's phone reports
+# 1.75rem = 28px, chosen before anyone held a device against it. A user's phone reports
 # `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a cutout **40 CSS pixels** tall, which
 # 28px does not clear.
 #
@@ -2387,8 +2388,8 @@ elif [ "$claimed" != "$arm_count" ]; then
 fi
 
 echo "[check] README.md points at the app that actually ships..."
-if grep -q 'singhbal-baljinder/formicaria' README.md; then
-    echo "  FAIL: README.md links to github.com/singhbal-baljinder/formicaria."
+if grep -oE 'github\.com/[A-Za-z0-9_-]+/formicaria\b' README.md | grep -qv '^github\.com/formicaria-org/'; then
+    echo "  FAIL: README.md links to formicaria under an account other than formicaria-org."
     echo "        The repository moved to formicaria-org; that link is a 404, and it is the"
     echo "        download button on the front page."
     fail=1

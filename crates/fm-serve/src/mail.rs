@@ -763,7 +763,7 @@ mod tests {
         );
     }
 
-    /// The owner's case (2026-10-15): the exchange was labelled on 2 Oct, and both of today's
+    /// A user's case (2026-10-15): the exchange was labelled on 2 Oct, and both of today's
     /// messages — the student's and the reply — carry no label. They are read all the same.
     #[test]
     fn every_message_of_a_labelled_conversation_is_read_not_only_the_labelled_ones() {

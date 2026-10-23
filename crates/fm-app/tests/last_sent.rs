@@ -94,7 +94,7 @@ fn app_over(home: &TempDir, dirs: &[(String, PathBuf)]) -> App {
 ///
 /// The assertion that matters is `last_sent != last_commit`: a test where a vault is fully sent
 /// would pass with `last_sent` wired to the wrong ref, or to `HEAD`, and prove nothing. So the
-/// fixture is deliberately the owner's situation in miniature — sent once, then committed again —
+/// fixture is deliberately a user's situation in miniature — sent once, then committed again —
 /// and the two instants are pinned weeks apart so no clock luck can make them agree.
 #[test]
 fn last_commits_says_when_notes_last_left_the_device_and_how_much_has_not() {

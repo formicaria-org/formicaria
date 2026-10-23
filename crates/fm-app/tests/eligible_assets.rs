@@ -5,10 +5,10 @@
 //! already holds. So a device that has been accumulating photos and has never sent one stages the
 //! whole backlog the first time it can.
 //!
-//! That is what happened. The owner's phone had been taking photos since July with attachments
+//! That is what happened. A user's phone had been taking photos since July with attachments
 //! never travelling; the first backup after the fix died with `SSL error: error:80000020: system
 //! library::Broken pipe`, and again on a retry — and nothing in the app could say whether five
-//! megabytes were pending or five hundred. The phone's logs are unreadable (MIUI suppresses them),
+//! megabytes were pending or five hundred. The phone's logs are unreadable (the vendor's Android build suppresses them),
 //! so the number had to come from the app itself.
 
 use fm_app::{dispatch, vaults::VaultConfig, App, Host};

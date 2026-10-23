@@ -12,7 +12,7 @@
 /// that cloned one repository call the same audience different things — so every surface shows the
 /// repository behind the remote (`vaults.svelte.ts`). This chip did not, and neither did the
 /// backup summary or the Settings vault list: the same vault read as `notes` on one screen and
-/// `formicarium-vault` on another, on the owner's phone (reported 2026-09-08). The fixture already
+/// `formicarium-vault` on another, on a user's phone (reported 2026-09-08). The fixture already
 /// modelled it — `lab` carries the label `lab-notes` and `personal` carries none — so these tests
 /// had been passing *because* the chip ignored labels.
 import { render, screen, fireEvent } from '@testing-library/svelte';

@@ -113,7 +113,7 @@ test('one click on the note opens the editor, and the ＋ has no Edit', async ()
 
 // The reading view scrolls the pane; the editor scrolls itself. A tap far down a long note opened
 // an editor whose pane was still scrolled to where the reading had been, with the caret off the
-// screen (the owner's phone, 2026-10-11). jsdom has no layout, so where the caret lands is measured
+// screen (a user's phone, 2026-10-11). jsdom has no layout, so where the caret lands is measured
 // in a real browser (`known-issues.md`); what can be pinned here is that the pane is put back.
 test('opening the editor puts the pane back at its top, wherever the reading was scrolled', async () => {
   await openNote();

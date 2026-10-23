@@ -39,7 +39,7 @@ The **identity** half is done (2026-07-31, `decisions.md#ui` — "A contributor 
 everywhere"): the chips and the filter now key on the email, so one human is one contributor
 whatever the commits are signed, and all three vaults sign one identity going forward.
 
-What remains is **display of the history already written**: the owner's vault holds 534 commits
+What remains is **display of the history already written**: a user's vault holds 534 commits
 signed with a username and 77 with the same person's full name — one email — and the Activity pane
 shows each commit's raw `%an`. Deferred by the owner ("keep it in future features"), so it is a queue item and not a gap.
 
@@ -219,7 +219,7 @@ is shaped this way** — several describe a state that no longer holds, and are 
 the argument that produced the fix, not a description of today.
 
 **Done 2026-08-30:** ten model-authored `propose:`/`revise:` commits were found **unreachable and 37
-days old** against a 14-day prune window, and rescued to `refs/fm/rescue/<sha>` in the owner's vault.
+days old** against a 14-day prune window, and rescued to `refs/fm/rescue/<sha>` in a user's vault.
 Verifying the rescue also confirmed the design's central invariant on real data: a ref outside
 `refs/heads/*` is seen by **neither** `git log HEAD` (so not by `activity` or `newest_foreign`) **nor**
 `proposal_load` — every history walk in this repo uses `push_head()` alone.
@@ -469,7 +469,7 @@ felt on a phone that does not exist yet; and it touches the one view whose failu
 NDK is pinned in `pixi.toml` and `ci/android-smoke.sh` builds, installs, launches and screenshots on
 the emulator. The git backend was chosen — libgit2 behind `fm-core/native-git`, scoped by
 `ci/checks.sh` to devices with no `git` binary — reversing the `git2` rejection this entry rested
-on. formicaria has been installed and used on the owner's phone, v0.3.1 onward.
+on. formicaria has been installed and used on a user's phone, v0.3.1 onward.
 
 **What remains is not a track.** The open phone-side work is in **§1.1** (the three reported
 symptoms only a finger can confirm) and **§1.2** (where a phone's media actually survives — still
@@ -679,7 +679,7 @@ What the 2026-08-28 audit found and this did **not** fix (three usability defect
 **Fixed 2026-08-29, found by an adversarial review of the packaging plan** — all three were
 actively misleading a first-time reader, and none was in the audit above:
 
-- **`README.md`'s download link still pointed at the owner's personal account** after the move to
+- **`README.md`'s download link still pointed at a personal account** after the move to
   `formicaria-org` — a 404 on the front page's own download button, and step one of the journey. It
   also still told the reader to run `./fm-serve`, which moved into `program/` in August, and
   mentioned an `xattr` command that exists nowhere else. `ci/checks.sh` now guards all three.
@@ -933,10 +933,10 @@ The approved plan (`decisions.md` 2026-10-09, *mail and your own calendars becom
 own*, and the entries after it): read-only access, deterministic where the source is structured,
 the on-device model only for prose, and the person's only act is answering a proposal.
 
-- **Built and run on the owner's real data on 2026-10-09:**
+- **Built and run on a user's real data on 2026-10-09:**
   - your own calendar (`fm-serve/src/calendar.rs` → `calendar_sync` → `fm_core::calendar`, with
     `fm_core::recur` for repeats);
-  - Gmail read-only (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`; the owner's own Google
+  - Gmail read-only (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`; a user's own Google
     client; the conversation note holds the exchange);
   - the assistant's meeting pass (`fm-agent-run/src/meetings.rs` → `fm_agent::meetings`).
 
@@ -968,12 +968,12 @@ Next, roughly in order:
 3. **A shorter path than the Google Cloud set-up** for non-technical users: a calendar-only mode,
    or a screenshot walkthrough in the manual. The set-up took real help even for the owner (Italian
    console labels; `?hl=en` is the workaround).
-4. **Outlook** (Phase 4): Graph `Mail.Read`. The NUS tenant may refuse consent, so dropping
+4. **Outlook** (Phase 4): Graph `Mail.Read`. A university tenant may refuse consent, so dropping
    `.eml`/`.ics` files is the fallback.
 
 ### 2.17 The assistant after v0.6.4 — what the rework left open (2026-10-11)
 
-Shipped in v0.6.4 and run on the owner's phone: one way to do each thing in the assistant's code,
+Shipped in v0.6.4 and run on a user's phone: one way to do each thing in the assistant's code,
 the rule for who reads an image, a vision model as the phone's default, and a newer model offered
 after an update (`decisions.md#agent`, 2026-10-10; `agent-simplification-plan-2026-10-09.md`).
 
@@ -985,7 +985,7 @@ after an update (`decisions.md#agent`, 2026-10-10; `agent-simplification-plan-20
 > and naming a device's Myrme (Settings → *This device's Myrme*, shipped in `be3b559`).
 
 Next, roughly in order:
-1. **The owner's own handwritten and photographed pages.** Measurements so far used public pages
+1. **A user's own handwritten and photographed pages.** Measurements so far used public pages
    (Myrme's benchmark summary: 30 GNHK handwritten, 30 rendered typed) and five typeset fixtures
    (Myrme's `agents/bench/vision/`) — none of the owner's.
 2. **Accept an offer on a downloaded desktop copy**: the catalogue refresh and the next-launch
@@ -997,7 +997,7 @@ Next, roughly in order:
 
 ### 2.18 After v0.6.5 — the quick row, the Android workflow, the updater (2026-10-11)
 
-Shipped in v0.6.5 and confirmed on the owner's phone: a row of quick actions above the keyboard
+Shipped in v0.6.5 and confirmed on a user's phone: a row of quick actions above the keyboard
 while writing on a touch screen, with the app's bar stepping aside (`decisions.md#ui`, 2026-10-11).
 Also in it: a copy with no version can download the release it asked for, and the Android build is
 its own workflow that the release calls (`decisions.md#toolchain`, both 2026-10-11).
@@ -1017,7 +1017,7 @@ Next, roughly in order:
 
 ### 2.19 After v0.6.6 — tap to edit, and updating on the desktop (2026-10-11)
 
-Shipped in v0.6.6 and confirmed on the owner's phone: a tap on a note opens the editor with the
+Shipped in v0.6.6 and confirmed on a user's phone: a tap on a note opens the editor with the
 caret on the tapped word and in the middle of the view; *Edit* is gone from the ＋ on every system
 and *Add media* from the ＋ on the phone; a test build is never offered an older release, *Check
 now* stays beside an offer, and an older package is named as such (`decisions.md#ui` and
@@ -1094,7 +1094,7 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
    safety limits, Regulation 1169/2011's own text, EFSA's EU Menu guidance, Mifflin–St Jeor and
    Henry, the ACSM 2026 paper. Nothing that would need them is built.
 8. **Never run**: the food list on iOS, macOS or Windows; any of the new screens on an iPhone.
-9. **v0.7.0 was tagged without a phone test of its own commit.** The owner's phone had a build of
+9. **v0.7.0 was tagged without a phone test of its own commit.** A user's phone had a build of
    `a9b3f02`; the tag is on `db9614a`, three commits later, one of which changes what the phone's
    view menu lists. He was told and said to tag. The rule in `CLAUDE.md` stands; this is the
    record that it was set aside once, knowingly.
@@ -1370,7 +1370,7 @@ flaw found in that code has no upstream fix.
 Rulings: `decisions.md#ui`, *the editor renders as you write* and *there is one editor*. State
 and traps: `known-issues.md`, *The editor*.
 
-1. **Shipped in v0.6.9 after the owner's phone test** (*"it works"*, 2026-10-11, build
+1. **Shipped in v0.6.9 after a user's phone test** (*"it works"*, 2026-10-11, build
    `2649ef4`). Not said: which gestures were tried. Worth asking about the two the editor has no
    test for any more: the line being written staying above the keyboard, and a tap in a long
    note landing on its word.

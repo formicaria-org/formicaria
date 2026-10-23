@@ -71,7 +71,7 @@ export interface Standing {
 /// What happened the last time a vault was backed up automatically.
 ///
 /// `phase` and `error` are kept since 2026-10-17 so a failure can be **said**, not only waited out:
-/// *"a failure is quiet here"* was the 2026-10-11 ruling, and five silent days on the owner's phone
+/// *"a failure is quiet here"* was the 2026-10-11 ruling, and five silent days on a user's phone
 /// were what it cost (`decisions.md#sync`, *one person's devices are kept level*).
 export interface Attempt {
   at: number;

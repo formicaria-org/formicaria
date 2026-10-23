@@ -96,7 +96,7 @@ row; nothing read has been run on our hardware.
 ## What to measure next, cheapest first
 1. `ocrs` on the five fixtures on the laptop, then cross-compiled to the phone.
 2. GLM-OCR and Qwen3-VL-2B on the laptop CPU, for the formula and code fixtures only.
-3. The owner's own handwritten and photographed pages through whatever survives 1 and 2.
+3. A user's own handwritten and photographed pages through whatever survives 1 and 2.
 
 ## Sources
 - llama.cpp's OCR guide: <https://huggingface.co/blog/ggml-org/using-ocr-models-with-llama-cpp>

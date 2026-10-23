@@ -2,7 +2,7 @@
 //
 // The auto-commit is debounced: every write does `clearTimeout` and re-arms 5 s out. That is right for
 // typing, and wrong for a *burst*: each write pushes the deadline further away, so a run of writes
-// defers the commit indefinitely. It does not fire late — it never fires. On the owner's phone
+// defers the commit indefinitely. It does not fire late — it never fires. On a user's phone
 // (2026-07-31) something wrote ~142 notes inside one minute, each resetting this timer; when the
 // process ended, the pending commit died with the tab and the in-memory write-record died with the
 // process, leaving those notes unstageable for good.

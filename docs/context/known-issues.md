@@ -379,7 +379,7 @@ The gray-screen fix and its tests are in
   for the moment before that fires. Both of those are *shared*. What still bites is a surface that
   reads raw `env(safe-area-inset-*)` or hard-codes a pixel offset: it gets neither the real value
   nor the fallback. Three did — `.board-exit`, `.theme-escape`, and `UnrecordedPanel`'s local
-  `3.25rem` guess — and each was found on the owner's device, by a screenshot, never by a test.
+  `3.25rem` guess — and each was found on a user's device, by a screenshot, never by a test.
   **Read the tokens.**
 
   **And the bridge published a zero that defeated the fallback** (fixed 2026-09-08). This is the
@@ -387,7 +387,7 @@ The gray-screen fix and its tests are in
   apply script at *document start*, when the inset listener has not fired and `top` is `0f` — so the
   page opened with `--safe-top: 0px` set as an **inline property on `:root`**, which outranks the
   `@media (pointer: coarse)` floor completely. The floor was not too small on Android; it was
-  **never in force there**. The owner's phone has a cutout of `DisplayCutout insets=Rect(0, 130 - 0,
+  **never in force there**. A user's phone has a cutout of `DisplayCutout insets=Rect(0, 130 - 0,
   0)` / density 3.25 = 40 CSS px, and the top control rendered at `y = 0`; reported as *"we cannot
   use top pixels."*
   **The lesson, which is general:** a layered design — real value, else fallback — only holds if the
@@ -631,9 +631,9 @@ The gray-screen fix and its tests are in
 - **"Save token" is a separate action from "Join".** Typing a token and pressing Join silently
   discards it; the token only reaches the backend via its own button. Reported from real use.
 
-- **Diagnostics cannot be read from a Xiaomi/MIUI device.** Rust's stderr is not routed to logcat
-  on Android at all, and MIUI suppresses app logcat output besides — `android_logger` output is
-  visible on the emulator and silent on the owner's phone. Anything that must be diagnosable on a
+- **Diagnostics cannot be read from some vendors' Android devices.** Rust's stderr is not routed to logcat
+  on Android at all, and some vendors' builds suppress app logcat output besides — `android_logger` output is
+  visible on the emulator and silent on a user's phone. Anything that must be diagnosable on a
   real device has to surface in the app's own UI (which is why `config` reports `ca_bundle`).
 
 - **Two transport tiers, one warning, two meanings — decide before the next bulk transport.**
@@ -733,7 +733,7 @@ The gray-screen fix and its tests are in
   the desktop framing says.** Swipe-away and an LMKD reclaim are a `SIGKILL`: no unwinding, no
   destructors, no flush. *Back* can do the same — `TauriActivity` sets `handleBackNavigation = false`,
   so a Back that reaches the Activity finishes it and tao's event loop then calls
-  `std::process::exit` — **but measured on the owner's phone 2026-07-31 it did not**: this frontend
+  `std::process::exit` — **but measured on a user's phone 2026-07-31 it did not**: this frontend
   pushes history (`NotePanel` handles `onpopstate`), so the WebView had somewhere to go back to and
   absorbed the key. **Since 2026-10-09 every view and note opened pushes an entry**
   (`nav.svelte.ts`), so Back exits only from the first screen; the save-lag concern applies there,
@@ -777,7 +777,7 @@ The gray-screen fix and its tests are in
   first whether any test executes that platform's branches at all.
 
 - **Double-click-to-edit could splice an insertion *inside* a reference, corrupting the note.**
-  Found on the owner's phone 2026-08-20, in real data: a note had been rewritten to
+  Found on a user's phone 2026-08-20, in real data: a note had been rewritten to
   `asset:sha256-a52bb![JPEG_….jpg](asset:sha256-cd63457f…)` — a second image reference spliced five
   characters into the first one's hash. The app logged `asset_status: parse error: not an asset
   reference` on every startup and the image was permanently broken, with nothing on screen saying
@@ -918,8 +918,8 @@ The gray-screen fix and its tests are in
 The app can check, download, verify and install, and on the desktop go back (`decisions.md#toolchain`).
 What stands between that and everyone relying on it is not one gap but several, of different kinds.
 
-- **The first real updates have run.** On the owner's Xiaomi phone (Android 16), 0.5.2 to 0.5.3 through
-  Android's installer: HyperOS made the permission screen wait ten seconds, then scanned the app twice,
+- **The first real updates have run.** On a test phone (Android 16), 0.5.2 to 0.5.3 through
+  Android's installer: the vendor's system made the permission screen wait ten seconds, then scanned the app twice,
   and the app ran. On Linux, the real downloaded 0.5.2 folder took 0.5.3 in place and went back, each in
   about a second, with every note file byte-identical both ways and the declined version not offered
   again until *Check now*. Driven through the routes Settings uses, not by clicking.
@@ -992,7 +992,7 @@ durable limits, not a to-do list:
 ## Meetings from your own calendar — Phase 1's limits (2026-10-09)
 
 Settings → Calendars (`fm-serve/src/calendar.rs` → `calendar_sync` → `fm_core::calendar`). Tested
-hermetically, and **run on the owner's real Google calendar on 2026-10-09**: meetings landed in the
+hermetically, and **run on a user's real Google calendar on 2026-10-09**: meetings landed in the
 Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google's feed lags).
 
 - **Repeating meetings: a subset of `RRULE`** (`fm_core::recur`, 2026-10-09): `DAILY`/`WEEKLY`/
@@ -1029,7 +1029,7 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
 ## Gmail, read-only — Phase 2's limits (2026-10-09)
 
 Settings → Mail (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`). Hermetic tests only;
-**run on the owner's real Gmail on 2026-10-09** (a label, four conversations; the exchange in each
+**run on a user's real Gmail on 2026-10-09** (a label, four conversations; the exchange in each
 note, invitations made meetings).
 
 - **A sign-in every 7 days** while the person's Google Cloud project is in testing (Google's rule).
@@ -1054,7 +1054,7 @@ note, invitations made meetings).
 
 Myrme's `fm-agent-run/src/meetings.rs` → `fm_agent::meetings`; proposals via `create_proposal` `props` and
 `propose_note`. Hermetic tests, plus the ignored `live_meetings` harness run against `qwen3-vl-4b` on
-the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept in the repo).
+a user's real conversations (2026-10-15, 2026-10-16; the cases are never kept in the repo).
 
 - **A quote the model shortens with "…" is checked piece by piece** (2026-10-16): every piece must be in
   one email as written, and the piece with a figure stands as the quote. A quote stitched from two
@@ -1125,7 +1125,7 @@ the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept
 
 ## The quick row above the keyboard — limits (2026-10-11)
 
-- **First seen on the owner's phone on 2026-10-11, and it was under the keyboard.** The browser
+- **First seen on a user's phone on 2026-10-11, and it was under the keyboard.** The browser
   check had simulated a keyboard and **no navigation bar**. `--kb` is the keyboard *beyond* the
   navigation bar, so with the bottom bar hidden the note's last `--safe-bottom` (47px there) was
   covered, which is the whole row. Fixed by `.body` paying that strip while the bar is hidden;
@@ -1194,7 +1194,7 @@ and *there is one editor*.
 - **Since 0.10.0 it also draws pictures, recordings, embedded notes and formulas** once the cursor
   leaves their line (`editor/livePreview.ts`, through the reading view's own renderer). **Not drawn
   yet: diagrams, tables, callout badges** — they show as their Markdown while editing.
-- **On the owner's phone since 2026-10-11, and shipped in v0.6.9.** A build of `2649ef4` was
+- **On a user's phone since 2026-10-11, and shipped in v0.6.9.** A build of `2649ef4` was
   installed by cable and the owner reported *"it works"*. Which of the things on the list were
   tried (suggestions and autocorrect, the quick row, a tap landing on its word, the caret above
   the keyboard, a tick box, a link) was not said. **There is still no fallback**: the textarea
@@ -1242,7 +1242,7 @@ Decision: `decisions.md#ui`, *Settings shows one category at a time*.
 Decision: `decisions.md#sync`, *formicaria backs up by itself*.
 
 - **It never ran on Android until 2026-10-17.** `isRemote()` read the phone's `tauri.localhost`
-  as a paired tablet, so `autoBackup` returned on every tick; the owner's phone held 46 changes
+  as a paired tablet, so `autoBackup` returned on every tick; a user's phone held 46 changes
   (11–16 Oct, a new note among them) while still *getting* the laptop's. Fixed in `remote.ts`;
   `asPhone()` now serves from `tauri.localhost`, so every phone test sees the real address.
   **Not yet seen on a device.** The same check had hidden the switch, Settings' backup half,
@@ -1289,7 +1289,7 @@ Decisions: `decisions.md#toolchain`, the two entries of 2026-10-11 on testing th
 and on a copy built from source.
 
 - **Proven on Linux, with the published files:** 0.6.5 found 0.6.6, downloaded it, restarted as it
-  and went back, with a note unchanged (`pixi run update-test`). And the owner's own desktop, a
+  and went back, with a note unchanged (`pixi run update-test`). And a user's own desktop, a
   copy built from source, installed 0.6.6 from Settings, started from its icon.
 - **macOS and Windows updated themselves for the first time on 2026-10-11**: the v0.6.7 release
   ran `update-works` after publishing, and 0.6.6 reached 0.6.7 and went back on all three desktop
@@ -2338,7 +2338,7 @@ All verified **2026-07-19**.
 
 0. **VERIFIED ON DEVICE 2026-07-19: there is no `git` binary on Android.** Previously sourced
    from platform docs and asserted throughout `docs/context/`; now confirmed by running
-   `command -v git` on the owner's phone (`git: inaccessible or not found`). formicaria's core,
+   `command -v git` on a user's phone (`git: inaccessible or not found`). formicaria's core,
    cross-compiled and pushed to `/data/local/tmp`, captured/listed/searched notes there with no
    git present and created no `.git` — so the capability model degrades exactly as designed.
    See `sessions/2026-07-19-the-core-on-the-phone.md`. This is the premise the whole libgit2

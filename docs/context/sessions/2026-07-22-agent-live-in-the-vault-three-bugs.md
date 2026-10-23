@@ -1,6 +1,6 @@
 # 2026-07-22 — the study assistant, run live against the real vault (three bugs fixed)
 
-Ran the study assistant **end-to-end against the owner's real vault** (the `Test agent`
+Ran the study assistant **end-to-end against a user's real vault** (the `Test agent`
 discussion, `01KY2W4AGS…`, in the `vault` vault) at their explicit request — "create a note or
 modify my Test agent one to see directly if it works." Started the freshly-built
 `target/release/fm-serve` from the repo root; with `~/.config/formicaria/agent.json` =

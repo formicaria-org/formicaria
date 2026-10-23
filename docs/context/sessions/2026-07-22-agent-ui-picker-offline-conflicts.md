@@ -32,7 +32,7 @@ commits *just that one message file* under it immediately — leaving the user's
 untouched, idempotent against the later batch. `FmServe::reply_as` sends the agent's model identity;
 `handle` and the timeout-notice use it, while plain `reply` (recording a *user's* message) stays
 unattributed. Verified live in the clean `notes` vault: the agent's reply is authored
-`lfm2.5-230m <lfm2.5-230m@fm-agents.local>`, distinct from the owner's `baljinder` commits, so the
+`lfm2.5-230m <lfm2.5-230m@fm-agents.local>`, distinct from the owner's own commits, so the
 discussion's `EditedBy` now distinguishes them. Caveat: during a conflicted merge `commit_all` refuses
 (correctly), so in the owner's currently-`UD`-conflicted `vault` the attribution defers until the
 conflict is resolved.

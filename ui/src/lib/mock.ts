@@ -610,7 +610,7 @@ let mockProvisioning: {
 ///
 /// The mock answered every command, always, immediately — so every rejection, slow-start and
 /// no-answer-at-all path in the UI was untested by construction, and the one that mattered shipped:
-/// a `list_vaults` that never answered rendered a blank screen on the owner's phone, and a
+/// a `list_vaults` that never answered rendered a blank screen on a user's phone, and a
 /// `list_vaults` that *refused* rendered the first-run "create your first vault" form at someone
 /// with ten vaults. `known-issues.md` already argued the general case for one hand-written guard —
 /// *"a mock that quietly accepts a write the backend would refuse is how the UI's rejection path

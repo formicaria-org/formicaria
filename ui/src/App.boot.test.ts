@@ -1,6 +1,6 @@
 // **The tests that would have caught the gray screen.**
 //
-// The bug: on the owner's phone the app opened to a blank screen on the first launch and worked on
+// The bug: on a user's phone the app opened to a blank screen on the first launch and worked on
 // the second. The Android shell answers commands only once it has opened the vaults, and Tauri
 // builds the webview *before* that — so `list_vaults` can answer late, or (when startup failed and
 // panicked the hook) never. `App.svelte`'s render gate rendered NOTHING while `vaults === null`, so
@@ -118,7 +118,7 @@ describe('the boot gate never leaves the user with a blank screen', () => {
     render(App);
     await vi.advanceTimersByTimeAsync(SETTLED);
     // Verbatim, because on a phone the screen is the only diagnostic channel there is: Rust's
-    // stdout is not routed to logcat, the WebView forwards no console output, and MIUI suppresses
+    // stdout is not routed to logcat, the WebView forwards no console output, and some vendors' builds suppress
     // our own tag (known-issues.md).
     expect(screen.getByText(/no such file/)).toBeTruthy();
     expect(firstRunOffered()).toBe(false);

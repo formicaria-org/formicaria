@@ -197,8 +197,8 @@
   /// **What the screen keeps for itself** — the camera cutout, the status bar, the home bar.
   ///
   /// Here because **it is the only way to see it**. A phone renders its layout against these four
-  /// numbers, and on the owner's device the app's own logs are unreadable — `known-issues.md`:
-  /// *"Rust's stderr is not routed to logcat on Android at all, and MIUI suppresses app logcat
+  /// numbers, and on a user's device the app's own logs are unreadable — `known-issues.md`:
+  /// *"Rust's stderr is not routed to logcat on Android at all, and some vendors' builds suppress app logcat
   /// output besides."* When they reported (2026-09-08) that the top strip was being used, neither
   /// of us could tell whether the shell's inset bridge had delivered or the stylesheet's fallback
   /// was in force — the difference between a bug and a too-small guess, and no surface said which.
@@ -602,7 +602,7 @@
   /** After *Restart* or *Go back*: wait for the other version to answer, then load the page from it.
    *
    *  The row said "this page reconnects by itself" and nothing made it true: the message stayed for
-   *  ever, over an app that had restarted long before (the owner's desktop, 2026-10-11), and the
+   *  ever, over an app that had restarted long before (a user's desktop, 2026-10-11), and the
    *  tab kept the old version's interface. A missed answer is the restart itself, so it keeps
    *  asking; it stops only when the program that answers is no longer the one that was running
    *  (`was`: its version, or null for a build that has none). */
@@ -2162,7 +2162,7 @@
             <!-- **An offered version must never be the end of the road.** *Check now* lived only in
                  the "up to date" state, so once a version was on offer there was no way to ask
                  again — and a copy that had remembered an old release kept offering it for ever
-                 (the owner's phone, 2026-10-11: v0.6.3 offered with v0.6.5 out, and nothing to
+                 (a user's phone, 2026-10-11: v0.6.3 offered with v0.6.5 out, and nothing to
                  press but *Get v0.6.3*). It says when the offer was found, which is what makes a
                  stale one recognisable. Not while a download is in flight or sitting ready: looking
                  again then could put a new version's name on an old version's file. -->

@@ -296,7 +296,7 @@ fn both_devices_list_unrecorded_notes_identically() {
 
 /// **The two backends must agree on *how* a note is out of history, not just that it is.**
 ///
-/// The count alone was the whole problem: 146 unrecorded notes on the owner's phone could have been
+/// The count alone was the whole problem: 146 unrecorded notes on a user's phone could have been
 /// 146 notes that exist nowhere else (urgent) or 146 notes something was needlessly rewriting (a
 /// different bug), and the device knew but could not say. Now it says — so the two devices have to say
 /// the same thing, or the phone's report means something different from the laptop's.

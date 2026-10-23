@@ -607,7 +607,7 @@ Calendar, Card, Search, Timeline. Line anchors otherwise verified.
 
 ## Device safety — the phone is not a test rig
 
-**The Android device used for this work is the owner's personal phone.** Everything below is a
+**The Android device used for this work is a personal phone.** Everything below is a
 hard rule, asked for directly after a `rm -rf "$V"` built from a shell variable — scoped to a
 scratch path, but the wrong shape of command to point at someone's phone.
 

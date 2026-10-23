@@ -287,7 +287,7 @@ impl FileStore {
     /// this app a second author of someone's index) — but the memory dies with the process, and
     /// Android kills backgrounded apps constantly. So on a phone almost every relaunch orphaned
     /// whatever the previous run had written: not *lagging*, permanently unstageable, and silent
-    /// until the count was surfaced. 147 notes had accumulated on the owner's phone (2026-07-31).
+    /// until the count was surfaced. 147 notes had accumulated on a user's phone (2026-07-31).
     ///
     /// Seeding is safe where `add -A` is not, because the caller passes only paths that are ours **by
     /// construction** — a `<ULID>.md` inside the vault's own notes directory is this app's naming

@@ -176,7 +176,7 @@ fn io_err(e: io::Error) -> StoreError {
 /// attachments (2026-09-09) the selection rule came with it unchanged: every blob at or under
 /// `git_assets_max`, **not** a diff against what the remote already holds. So a device that has
 /// been accumulating photos and has never sent one stages its whole backlog the first time it can.
-/// The owner's phone had been taking photos since July; the first backup after that change died
+/// A user's phone had been taking photos since July; the first backup after that change died
 /// with a broken pipe, and again on a retry, and nothing in the app could say whether five
 /// megabytes were pending or five hundred. Its logs are unreadable, so the number had to come from
 /// the app.
@@ -221,7 +221,7 @@ pub struct AssetBatch {
 ///
 /// The failure this exists for: a device that has never sent attachments stages *all* of them the
 /// first time it can, because the rule is a filter over the blob store rather than a diff against
-/// the remote. The owner's phone had 65 attachments totalling 127.2 MB waiting, and the push died
+/// the remote. A user's phone had 65 attachments totalling 127.2 MB waiting, and the push died
 /// with a broken pipe — twice, identically, which is what ruled out a transient drop.
 ///
 /// **Batches are a rising size limit, not an arbitrary partition, and that is the whole trick.**

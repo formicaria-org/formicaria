@@ -3,7 +3,7 @@
 //! This is the regression test for a bug that shipped and froze vaults. `merge.rs`'s
 //! `text_3way` shelled out to `git merge-file` unconditionally — no `cfg`, no backend
 //! routing — while `git_native::pull` called it with `?` for every path libgit2 left
-//! conflicted. The phone has no `git` (verified on the owner's device; `known-issues.md`
+//! conflicted. The phone has no `git` (verified on a user's device; `known-issues.md`
 //! external fact #0), so any pull that had to merge prose died with
 //! `could not run git merge-file`, **mid-merge**, leaving a `MERGE_HEAD` that
 //! `git_native::commit_all` then refuses to commit past. The vault stops accepting writes.
