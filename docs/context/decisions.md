@@ -12871,33 +12871,33 @@ read this entry. The owner has seen them and turned them down.
 > and your own calendars become notes on their own* (2026-10-09: a fixed, stated offset). The
 > `Stamp` ruling (2026-07-15) is **unchanged**: no zone is ever written into a note.
 
-**What went wrong (the owner, 2026-10-23).** An email said *"Tuesday 27th at 10am Paris time"*. The
-assistant proposed `2026-10-27T10:00`, the owner accepted it, and the agenda showed 10:00 — on a
-Singapore laptop with a Singapore calendar. The meeting is at **17:00** there: Paris leaves summer
-time on 25 October, so it is UTC+1 on the 27th. An earlier "16:30 Singapore time" had come out right
-only because Singapore is where the laptop is. The owner: *"we need to adjust for: laptop time zone,
-the time zone in the calendar and the one of the meeting."* The calendar reader had the same hole:
-an event written `DTSTART;TZID=Europe/Paris:20261027T100000` was put at 10:00 too.
+**What went wrong (2026-10-23).** An email fixed a meeting *"at 10am <city> time"*. The assistant
+proposed 10:00, it was accepted, and the agenda showed 10:00 on a computer in another zone, where the
+meeting was hours later. A time given in the computer's own zone had come out right only because it
+was the computer's zone. Asked: *"we need to adjust for: laptop time zone, the time zone in the
+calendar and the one of the meeting."* The calendar reader had the same hole: an event written
+`DTSTART;TZID=Europe/Berlin:20261027T100000` was put at 10:00 on a Tokyo agenda, where it is 18:00
+(Berlin leaves summer time on 25 October).
 
 **Decision.**
 1. **A note's stamp stays naive and means your clock** — `Stamp`'s own words, *"14:30 means 14:30
    where you are"*. What changes is that a time **written on another clock is moved onto yours when
    it is read**, instead of being carried across as though it were yours.
 2. **"Your zone" is one setting**, Settings → Calendars (the field that was *offset*), shared by the
-   calendar reader, the mail reader and the assistant. It takes a zone name (`Asia/Singapore`), which
+   calendar reader, the mail reader and the assistant. It takes a zone name (`Asia/Tokyo`), which
    follows its own daylight-saving rules, or an offset (`+08:00`) as before. **It is pinned, never
    followed**: an empty setting is filled once, at start, with the computer's own zone (read through
    `jiff`, which reads `/etc/localtime`, the Windows registry or Android's tzdata safely in a
-   threaded process — the reason `time`'s `local-offset` was never enabled). Following the laptop
+   threaded process — the reason `time`'s `local-offset` was never enabled). Following the computer
    would silently change the meaning of every stored time the moment its zone changed.
 6. **Three clocks are compared and shown** (Settings → Calendars): the notes' zone, the computer's
    (`system`) and each calendar's own (`X-WR-TIMEZONE`, read from the feed already fetched — no new
    request). When the computer's differs, the panel says so and names the zone to switch to.
 3. **The meeting's zone is read from the email by Rust** (Myrme's `fm_agent::zone`), never by the
-   model: a zone written **right after a time** — a place and "time" (*Paris time*, *ora italiana*),
+   model: a zone written **right after a time** — a place and "time" (*Berlin time*, *ora italiana*),
    an abbreviation (`CET`, `SGT`, `PT`), an offset (`UTC+2`). A time with no zone written stays as
    written: the writer's clock cannot be known, and a guess is how a meeting moves by hours. The
-   assistant's box keeps what the email said: *17:00 (10:00 Paris time)*.
+   assistant's box keeps what the email said: *18:00 (10:00 Berlin time)*.
 4. **A calendar event's `TZID` is converted** from that zone into yours, on the event's own day. A
    `TZID` the zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is carried
    as written, as before; `ics_time_zone` still records it.
@@ -12950,7 +12950,7 @@ implement it"*.
 
 **Decision.**
 1. **A vault states the clock its times are written on**: `vault.json`'s `time_zone`
-   (`Asia/Singapore`, or an offset). A fact about the vault's content that git cannot supply — the
+   (`Asia/Tokyo`, or an offset). A fact about the vault's content that git cannot supply — the
    descriptor's own rule — and every device and collaborator must agree on it, so it lives there and
    not in one machine's settings.
 2. **The store converts, at its one seam.** `FileStore::hydrate` reads a timed `start`/`due` off the
@@ -12986,28 +12986,26 @@ no new crate (`jiff` came this morning); one more file per vault in git history.
 
 > Reverses items 1 and 3 of *every device shows the agenda on its own zone* (this afternoon, 0.15.0).
 
-**What went wrong (the owner, on 0.15.0):** *"I have the newest release and yet I see on my phone
-(that is in Paris time) the appointments in Singapore time."* 0.15.0 stamped each vault at start
-with the clock of **whichever device opened it first**. The phone, in Paris, updated first and
-stamped `Europe/Paris` on a vault written in Singapore: every stored time was then read as Paris
-time and nothing was converted. The laptop would have stamped `Asia/Singapore`, and the two
-`vault.json`s would have collided on the next sync. A device cannot know which clock a vault was
-written on from its own clock.
+**What went wrong (on 0.15.0):** a phone in another zone than the one a vault was written in still
+showed that vault's meetings at the hours they were written. 0.15.0 stamped each vault at start with
+the clock of **whichever device opened it first**: that phone, updated first, stamped its own zone on
+a vault written elsewhere, so every stored time was read as its own and nothing was converted. A
+second device would have stamped another zone, and the two `vault.json`s would have collided on the
+next sync. A device cannot know which clock a vault was written on from its own clock.
 
 **Decision.**
 1. **Nothing is written at start.** An unstated clock is **read from the vault's first commit**: its
-   author offset (`+0800`), the oldest root when histories were merged (`vcs::founding_offset`,
+   author offset (`+0900`), the oldest root when histories were merged (`vcs::founding_offset`,
    both backends, held together by `git_differential`). Every clone has that commit and it never
-   changes, so the laptop and the phone read the same clock and nothing can collide. The owner's
-   vault: first commit `+0800`, 1,180 commits at `+0800` and 117 at `+0200` — which is why the
-   *recent* offset would have been the wrong evidence.
+   changes, so every device reads the same clock and nothing can collide. The *recent* offset
+   would be the wrong evidence: a vault used while travelling has many commits from other zones.
 2. **A stated clock wins**: `vault.json`'s `notes_time_zone` (a zone name follows daylight saving;
-   the first-commit clock is a fixed offset, exact for Singapore, an hour out half the year for a
+   the first-commit clock is a fixed offset, exact for a zone without daylight saving, an hour out half the year for a
    vault begun where clocks change — those set it by hand).
 3. **0.15.0's `time_zone` key is removed at start**, wherever found (only 0.15.0 ever wrote it), and
-   the removal recorded for the next commit — so a phone's `Europe/Paris` stamp never travels.
+   the removal recorded for the next commit — so a wrong stamp never travels.
 4. **The agenda says its zone, minimally** (the owner: *"the time zone should be observable label
-   somewhere, minimal"*): `Paris · GMT+1` beside the M/W/L switch, from the device's own zone; the
+   somewhere, minimal"*): `Berlin · GMT+1` beside the M/W/L switch, from the device's own zone; the
    tooltip names the vaults' clocks (`list_vaults` now carries each vault's `clock`).
 
 **The four questions.** `#data`, `#vault`, `#ui`. Verdict: **reverses** two items of this afternoon's

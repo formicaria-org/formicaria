@@ -133,8 +133,8 @@ then, not by turning the whole proposal down.
   below are untouched. It now shows in the Agenda.
 - **Each further meeting in the same exchange is proposed as its own meeting note**, linked back to
   the conversation. If you reject it, nothing is created.
-- **A time given in another zone is moved onto yours.** "Tuesday 27th at 10am Paris time" is
-  proposed at 17:00 if your time zone is Singapore's, and the box shows *17:00 (10:00 Paris time)*.
+- **A time given in another zone is moved onto yours.** "Tuesday 27th at 10am Berlin time" is
+  proposed at 18:00 if your time zone is Tokyo's, and the box shows *18:00 (10:00 Berlin time)*.
   The zone must be written right after the time — a city or country and "time", an abbreviation
   such as CET or PT, or an offset such as UTC+2. With none written, the time is taken as yours. Your
   time zone is the one in Settings → Calendars ([Your time zone](./calendars.md#your-time-zone)).

@@ -89,7 +89,7 @@
     }
   }
 
-  /** Whether two zones read the same clock today (`+08:00` and `Asia/Singapore` do). */
+  /** Whether two zones read the same clock today (`+09:00` and `Asia/Tokyo` do). */
   function sameClock(a: string | null | undefined, b: string | null | undefined): boolean {
     const [x, y] = [offsetNow(a), offsetNow(b)];
     return x === null || y === null || x === y;
@@ -218,7 +218,7 @@
       <span>Time zone</span>
       <input
         bind:value={offset}
-        placeholder={cal.system ? `${cal.system} (this computer's)` : 'Asia/Singapore'}
+        placeholder={cal.system ? `${cal.system} (this computer's)` : 'Asia/Tokyo'}
         size="24"
       />
       <button
@@ -229,7 +229,7 @@
     <p class="muted small">
       Leave it empty: meetings are shown on this computer's clock, and follow it when it changes.
       Each notebook keeps its own times, so the same meeting shows at the right hour on every
-      device. A meeting your calendar or an email gives in another zone — "10am Paris time" — is
+      device. A meeting your calendar or an email gives in another zone — "10am Berlin time" — is
       moved onto your clock, and the email's own words are kept beside it.
     </p>
     {#if cal.offset.trim() && cal.system && !sameClock(cal.system, cal.zone)}

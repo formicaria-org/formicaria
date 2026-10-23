@@ -463,16 +463,16 @@ mod tests {
 
     #[test]
     fn a_series_on_another_clock_is_moved_onto_yours_week_by_week() {
-        // A weekly 10:00 in Paris, read in Singapore (2026-10-23): Paris leaves summer time on 25
-        // October, so the meeting is at 16:00 until then and 17:00 after. Converting the first
+        // A weekly 10:00 in Berlin, read in Tokyo: Berlin leaves summer time on 25 October, so the
+        // meeting is at 17:00 until then and 18:00 after. Converting the first
         // occurrence once would put every later week an hour early.
-        let sg = crate::zone::Zone::parse("Asia/Singapore").unwrap();
-        let text = "BEGIN:VEVENT\nUID:p\nSUMMARY:Paris weekly\nDTSTART;TZID=Europe/Paris:20261013T100000\n\
-                    DTEND;TZID=Europe/Paris:20261013T110000\nRRULE:FREQ=WEEKLY;COUNT=3\nEND:VEVENT\n";
-        let plan = reconcile(&parse_ics(text, Some(&sg)), &HashMap::new(), "work", TODAY);
-        assert_eq!(days(&plan), ["2026-10-13T16:00", "2026-10-20T16:00", "2026-10-27T17:00"]);
+        let tokyo = crate::zone::Zone::parse("Asia/Tokyo").unwrap();
+        let text = "BEGIN:VEVENT\nUID:p\nSUMMARY:Berlin weekly\nDTSTART;TZID=Europe/Berlin:20261013T100000\n\
+                    DTEND;TZID=Europe/Berlin:20261013T110000\nRRULE:FREQ=WEEKLY;COUNT=3\nEND:VEVENT\n";
+        let plan = reconcile(&parse_ics(text, Some(&tokyo)), &HashMap::new(), "work", TODAY);
+        assert_eq!(days(&plan), ["2026-10-13T17:00", "2026-10-20T17:00", "2026-10-27T18:00"]);
         let late = plan.create.iter().find(|n| n.start.unwrap().date == date!(2026 - 10 - 27));
-        assert_eq!(late.unwrap().due.unwrap().to_string(), "2026-10-27T18:00");
+        assert_eq!(late.unwrap().due.unwrap().to_string(), "2026-10-27T19:00");
     }
 
     #[test]

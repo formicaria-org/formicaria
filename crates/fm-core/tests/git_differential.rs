@@ -1506,7 +1506,7 @@ fn accepting_an_already_merged_proposal_adds_no_commit() {
 }
 
 /// **The vault's clock is read from its first commit, and both backends must read the same one** —
-/// the laptop runs the git CLI and the phone libgit2, and a disagreement would show the same
+/// a computer runs the git CLI and a phone libgit2, and a disagreement would show the same
 /// meeting at two hours (`decisions.md` 2026-10-23, *the vault's clock is read from its first
 /// commit*). The later commit is from another zone and must not move it; two roots (merged
 /// histories) take the oldest.
@@ -1535,10 +1535,10 @@ fn both_backends_read_the_vault_clock_from_the_same_first_commit() {
     g(v, &["init", "-q"]);
     assert_eq!(git::founding_offset(v).unwrap(), None, "no commits: no clock");
     assert_eq!(git_native::founding_offset(v).unwrap(), None);
-    commit("a", "2026-07-15T11:03:32+08:00");
+    commit("a", "2026-07-15T11:03:32+09:00");
     commit("b", "2026-10-20T09:00:00+02:00");
-    assert_eq!(git::founding_offset(v).unwrap(), Some(8 * 3600));
-    assert_eq!(git_native::founding_offset(v).unwrap(), Some(8 * 3600));
+    assert_eq!(git::founding_offset(v).unwrap(), Some(9 * 3600));
+    assert_eq!(git_native::founding_offset(v).unwrap(), Some(9 * 3600));
     // A second, older root merged in: the oldest root decides, on both.
     g(v, &["checkout", "-q", "--orphan", "other"]);
     g(v, &["rm", "-rfq", "."]);

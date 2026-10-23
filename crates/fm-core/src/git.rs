@@ -1665,7 +1665,7 @@ pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
 }
 
 /// **The UTC offset this vault was begun at** — the author offset of its first commit, in seconds
-/// east of UTC (`+0800` → 28800). With several first commits (two histories merged), the oldest.
+/// east of UTC (`+0900` → 32400). With several first commits (two histories merged), the oldest.
 ///
 /// The clock a vault's times are on when its `vault.json` does not say (`decisions.md` 2026-10-23,
 /// *the vault's clock is read from its first commit*): every clone has that commit and it never
@@ -1692,7 +1692,7 @@ pub fn founding_offset(vault: &Path) -> Result<Option<i32>, StoreError> {
         .map(|(_, off)| off))
 }
 
-/// `+0800` / `-0530` → seconds east of UTC.
+/// `+0900` / `-0530` → seconds east of UTC.
 fn offset_seconds(s: &str) -> Option<i32> {
     let (sign, d) = match s.as_bytes().first()? {
         b'+' => (1, &s[1..]),

@@ -1450,7 +1450,7 @@ export type CalendarFeed = {
 };
 
 export type Calendars = {
-  /** Your zone as saved: a name (`Asia/Singapore`) or an offset (`+08:00`). */
+  /** Your zone as saved: a name (`Asia/Tokyo`) or an offset (`+09:00`). */
   offset: string;
   /** The zone in force — the clock every meeting is written on (`decisions.md` 2026-10-23). */
   zone: string;
@@ -1468,7 +1468,7 @@ export const calendars = () => invoke<Calendars>('calendars');
 export const calendarAdd = (label: string, url: string, vault: string) =>
   invoke<Calendars>('calendar_add', { label, url, vault });
 export const calendarRemove = (label: string) => invoke<Calendars>('calendar_remove', { label });
-/** The clock meetings are written on: a zone such as `Asia/Singapore`, or an offset such as `+08:00`. */
+/** The clock meetings are written on: a zone such as `Asia/Tokyo`, or an offset such as `+09:00`. */
 export const calendarOffset = (offset: string) => invoke<Calendars>('calendar_offset', { offset });
 /** Read every calendar now rather than at the next hourly check. */
 export const calendarReadNow = () => invoke<Calendars>('calendar_pull');

@@ -28,6 +28,18 @@ When you finish substantive work, **before ending** (full protocol in `docs/cont
 Prune the always-read layer (a stale synthesis is worse than none); append the decision record.
 Keep the two layers together under ~400 lines — `ci/checks.sh` fails on a dead router pointer.
 
+## Never write personal details into this repo — it is public
+
+**Standing rule.** Nothing about the owner's person goes into any file, comment, test, eval case,
+commit message, tag message or release note: not where they or their devices are (cities,
+countries, a zone tied to them, travel), which devices they use, names or addresses of anyone in
+their mail or calendar, what a meeting or an email said, their institution, and no figures or
+excerpts from their own vault or its history. Describe an incident generically ("a device in zone B
+opened a vault begun in zone A"); give tests and eval cases invented people and neutral example
+zones. A product requirement may be quoted only when the quote carries no personal fact. Debugging
+on real data is fine locally — never copy what it showed into the repo. Re-read every commit, tag
+and release text for this before it leaves the machine.
+
 ## Before you add anything — four questions
 
 This repo has ruled on a lot, and the rulings are easy to contradict by accident: every addition is

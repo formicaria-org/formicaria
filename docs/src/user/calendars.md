@@ -37,21 +37,21 @@ cancelled, and how many were left out and why.
 
 The agenda shows every meeting on **your device's clock**, and follows it: change the time zone
 of your computer or phone, and within a few minutes the agenda shows the same meetings at the local
-hour. The same note shows at the right hour on every device — 17:00 on a laptop in Singapore, 10:00
-on one in Paris.
+hour. The same note shows at the right hour on every device — 18:00 on a laptop in Tokyo, 10:00 on
+one in Berlin.
 
 The small label beside the agenda's M / W / L switch says which zone you are looking at — for
-example *Paris · GMT+1*; hold the pointer on it to see the clock your notes are kept on.
+example *Berlin · GMT+1*; hold the pointer on it to see the clock your notes are kept on.
 
 That works because each notebook has one clock its times are kept on: the zone its first save was
 made in (for most people, home), the same on every device. To set it yourself — useful if you live
 where clocks change in summer — add `"notes_time_zone": "Europe/Rome"` to the notebook's
 `vault.json`.
 
-A meeting given on another clock is moved onto yours. An event your calendar holds in Paris time,
-at 10:00 on 27 October, is shown at 17:00 in Singapore; the note still says which zone it was
-written in. The same goes for an email that says *"10am Paris time"* or *"15:00 CET"*: the
-assistant proposes 17:00 and shows the email's own words beside it. A time with no zone written
+A meeting given on another clock is moved onto yours. An event your calendar holds in Berlin time,
+at 10:00 on 27 October, is shown at 18:00 in Tokyo; the note still says which zone it was
+written in. The same goes for an email that says *"10am Berlin time"* or *"15:00 CET"*: the
+assistant proposes 18:00 and shows the email's own words beside it. A time with no zone written
 after it is taken as yours.
 
 *Time zone* under Settings → Calendars is normally left empty, which means "this device's". Fill it

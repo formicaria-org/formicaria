@@ -42,8 +42,8 @@ static FILE: Mutex<()> = Mutex::new(());
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct Settings {
     /// **This computer's zone, when it should not be the system's** (`decisions.md` 2026-10-23): a
-    /// name (`Asia/Singapore`) or an offset (`+08:00`). Empty — the default — follows the computer,
-    /// which is what the owner asked for: the agenda shows the device's time. A meeting read from a
+    /// name (`Asia/Tokyo`) or an offset (`+09:00`). Empty — the default — follows the computer: the
+    /// agenda shows the device's time. A meeting read from a
     /// calendar or an email is put on this clock, and the vault's store keeps it on the vault's own
     /// (`vault.json`'s `time_zone`). Kept under its old name so a saved setting is still read.
     #[serde(default = "default_offset")]
@@ -56,7 +56,7 @@ struct Settings {
 }
 
 /// Empty: the computer's own zone. (Until 2026-10-23 this was a fixed `+08:00`, which a settings
-/// file written then still holds — right for Singapore, and cleared in the panel by anyone else.)
+/// file written then still holds, and which the panel clears.)
 fn default_offset() -> String {
     String::new()
 }
@@ -77,7 +77,7 @@ fn effective(s: &Settings) -> String {
     }
 }
 
-/// The computer's own zone by name (`Asia/Singapore`), when it can be read.
+/// The computer's own zone by name (`Asia/Tokyo`), when it can be read.
 fn system_zone() -> Option<String> {
     fm_core::zone::Zone::system().and_then(|z| z.name().map(str::to_string))
 }
@@ -96,7 +96,7 @@ struct Feed {
     #[serde(default)]
     seen: String,
     /// The calendar's own zone (`X-WR-TIMEZONE`), from its last read: shown when it is not the
-    /// notes' zone, the third clock the owner named (2026-10-23).
+    /// notes' zone (2026-10-23).
     #[serde(default)]
     zone: Option<String>,
 }
@@ -328,8 +328,8 @@ mod tests {
 
     #[test]
     fn the_calendars_own_zone_is_read_from_its_header() {
-        let ics = b"BEGIN:VCALENDAR\r\nX-WR-CALNAME:Personal\r\nX-WR-TIMEZONE:Asia/Singapore\r\nEND:VCALENDAR\r\n";
-        assert_eq!(feed_zone(ics).as_deref(), Some("Asia/Singapore"));
+        let ics = b"BEGIN:VCALENDAR\r\nX-WR-CALNAME:Personal\r\nX-WR-TIMEZONE:Asia/Tokyo\r\nEND:VCALENDAR\r\n";
+        assert_eq!(feed_zone(ics).as_deref(), Some("Asia/Tokyo"));
         assert_eq!(feed_zone(b"BEGIN:VCALENDAR\nEND:VCALENDAR\n"), None);
     }
 

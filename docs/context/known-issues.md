@@ -1011,7 +1011,7 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
   zone is moved onto yours*). A `TZID` time is converted onto it, a series week by week; a `TZID` the
   zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is still carried as
   written. A note made before 2026-10-23 from a foreign `TZID` keeps its old time until the event's
-  `SEQUENCE` moves (the rule above) — the owner's vault had none.
+  `SEQUENCE` moves (the rule above).
 - **Each device shows the agenda on its own zone** (2026-10-23): the vault's clock is
   `vault.json`'s `notes_time_zone` when stated, else its **first commit's offset** — a fixed offset,
   so a vault begun where clocks change in summer is an hour out half the year until it states a
@@ -1070,7 +1070,7 @@ the owner's real conversations (2026-10-15, 2026-10-16; the cases are never kept
 - **"Today" is the day on your zone** since 2026-10-23 (Myrme reads it from `/api/calendars`, or the
   computer's own); UTC's only where neither can be read.
 - **A meeting time is moved onto your zone only when the email names its zone right after it**
-  ("10am Paris time", "15:00 CET", "3pm UTC+2", "alle 10 ora italiana"). "10am your time", or a time
+  ("10am Berlin time", "15:00 CET", "3pm UTC+2", "alle 10 ora italiana"). "10am your time", or a time
   with nothing after it, stays as written — the writer's clock cannot be known. A range's end that
   lands on another day than its start is dropped.
 - **A call-off or a move counts only from an email that arrived since the last read** (2026-10-15,
@@ -2621,12 +2621,11 @@ that logs on completion) before reaching for a retry.
 
 ## The disk fills, again and again (2026-10-23)
 
-**The trap.** The owner's laptop (a 211 GB partition) runs out of space every few weeks of work. On
-2026-10-23 it had **1.9 GB** left: a clean build died with *"No space left on device"*, and only
-because a release was being checked. Almost all of it was build output nobody needed:
-`target/debug` **38 GB** (every feature set, every test binary, incremental state), Myrme's
-`target/debug` **15 GB**, the phone shell's `mobile/src-tauri/target` **12 GB** (one tree per
-Android ABI) and Gradle's `gen/android/app/build` **3.7 GB**.
+**The trap.** A development machine runs out of space every few weeks of work, and a clean build
+then dies with *"No space left on device"*. Almost all of it is build output nobody needs:
+`target/debug` (every feature set, every test binary, incremental state) is by far the largest,
+then Myrme's `target/debug`, the phone shell's `mobile/src-tauri/target` (one tree per Android ABI)
+and Gradle's `gen/android/app/build`.
 
 **The fix is one command: `pixi run free-space`** (`ci/free-space.sh`). It deletes only regenerable
 output, in this checkout and the sibling Myrme one, and **keeps `target/release`**, which the

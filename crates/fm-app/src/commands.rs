@@ -2675,7 +2675,7 @@ pub fn calendar_sync(
 }
 
 /// The person's clock, as a command's `zone` (or, from a transport older than 2026-10-23, `offset`)
-/// names it: `Asia/Singapore`, `+08:00`, `Z`. **Empty is the computer's own zone**, and UTC only
+/// names it: `Asia/Tokyo`, `+09:00`, `Z`. **Empty is the computer's own zone**, and UTC only
 /// where that cannot be read. Anything else is refused rather than guessed: a wrong zone moves every
 /// meeting by hours, silently.
 pub fn parse_zone(raw: &str) -> Result<fm_core::zone::Zone, String> {

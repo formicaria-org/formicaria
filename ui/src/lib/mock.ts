@@ -568,8 +568,8 @@ let mockCalendarOffset = '+08:00';
 function mockCalendars(): import('./ipc').Calendars {
   return {
     offset: mockCalendarOffset,
-    zone: mockCalendarOffset || 'Asia/Singapore',
-    system: 'Asia/Singapore',
+    zone: mockCalendarOffset || 'Asia/Tokyo',
+    system: 'Asia/Tokyo',
     lastChecked: 0,
     pulling: false,
     feeds: mockCalendarFeeds,

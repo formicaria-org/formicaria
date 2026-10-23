@@ -949,9 +949,9 @@ the on-device model only for prose, and the person's only act is answering a pro
 labelled conversation's every message, reads on opening and every 5 minutes, and proposes a
 "Person — who they are" title (`sessions/2026-10-15-meetings-that-track-the-conversation-0.8.2.md`).
 
-**2026-10-23:** a time written on another clock ("10am Paris time", a calendar's foreign `TZID`) is
+**2026-10-23:** a time written on another clock ("10am Berlin time", a calendar's foreign `TZID`) is
 moved onto your zone, which is now a real zone, pinned (`decisions.md`, *a time written in another
-zone is moved onto yours*). The owner's accepted 10:00 was corrected by hand to 17:00.
+zone is moved onto yours*).
 
 Next, roughly in order:
 0. **The clock check** (the owner, 2026-10-23: *"if internet is available a check that the time

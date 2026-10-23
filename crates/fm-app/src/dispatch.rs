@@ -185,7 +185,7 @@ impl App {
         let vaults::VaultList { vaults, path: config, writable: config_writable } = vaults::load();
         // **0.15.0's start-up stamp comes out** (`decisions.md` 2026-10-23, *the vault's clock is read
         // from its first commit*): it wrote the opening device's zone into `vault.json`, which on a
-        // phone abroad was the wrong clock. Removed before the stores open, and recorded below so
+        // device in another zone was the wrong clock. Removed before the stores open, and recorded below so
         // the next commit carries the removal.
         let stripped: Vec<&vaults::VaultConfig> = vaults
             .iter()
@@ -215,7 +215,7 @@ impl App {
             eprintln!("note: '{}': the time zone 0.15.0 wrote at start is removed", cfg.name);
         }
         // **Each vault's clock, when its `vault.json` states none: its first commit's offset.**
-        // Every clone has that commit and it never changes, so the laptop and the phone read the
+        // Every clone has that commit and it never changes, so every device reads the
         // same clock with nothing written; the store converts each timed note onto this device's.
         for cfg in &vaults {
             if let Some(z) = fm_core::vcs::founding_offset(&cfg.path)
@@ -3113,7 +3113,7 @@ struct EnvVar {
 #[derive(serde::Serialize)]
 struct VaultInfo {
     name: String,
-    /// The clock this vault's times are kept on (`Asia/Singapore`, `+08:00`) — stated in its
+    /// The clock this vault's times are kept on (`Asia/Tokyo`, `+09:00`) — stated in its
     /// `vault.json`, else read from its first commit; `None` when it has neither. Shown in the
     /// agenda's time-zone label (`decisions.md` 2026-10-23).
     clock: Option<String>,
@@ -4921,12 +4921,12 @@ mod tests {
     fn a_zone_that_is_not_one_is_refused_rather_than_guessed() {
         assert!(commands::parse_zone("+08:00").is_ok());
         assert!(commands::parse_zone("-05:30").is_ok());
-        assert!(commands::parse_zone("Asia/Singapore").is_ok(), "a zone name, since 2026-10-23");
+        assert!(commands::parse_zone("Asia/Tokyo").is_ok(), "a zone name, since 2026-10-23");
         assert!(commands::parse_zone("").is_ok(), "empty is the computer's own zone");
-        // Never a bare city: the zone database's own aliases ("Singapore", "Japan", "Egypt") are
+        // Never a bare city: the zone database's own aliases ("Japan", "Egypt", "Iceland") are
         // valid where the system ships its `backward` links and refused where it does not — this
-        // test passed on the laptop and failed on GitHub's runner (2026-10-23).
-        for bad in ["8", "+8:75", "Singapore time", "Europe/Atlantis", "+15:00"] {
+        // test passed on one machine and failed on GitHub's runner (2026-10-23).
+        for bad in ["8", "+8:75", "Tokyo time", "Europe/Atlantis", "+15:00"] {
             assert!(commands::parse_zone(bad).is_err(), "{bad} must be refused");
         }
     }

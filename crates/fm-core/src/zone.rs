@@ -3,12 +3,12 @@
 //!
 //! A note's [`Stamp`] stays naive and means **your** clock: *"14:30 means 14:30 where you are"*
 //! (`decisions.md`, 2026-07-15). What this module adds is the step before writing one: a calendar
-//! event written `TZID=Europe/Paris:20261027T100000` is 17:00 on a Singapore clock, and is stored as
-//! 17:00. The conversion is the zone database's (`jiff`), on the event's own day, so a daylight-saving
+//! event written `TZID=Europe/Berlin:20261027T100000` is 18:00 on a Tokyo clock, and is stored as
+//! 18:00. The conversion is the zone database's (`jiff`), on the event's own day, so a daylight-saving
 //! change between now and then is counted — the reason a fixed offset was never enough.
 //!
-//! **Your zone** is the person's setting (a name such as `Asia/Singapore`, or an offset such as
-//! `+08:00`), and unset it is the computer's own. `jiff` reads that safely in a threaded process
+//! **Your zone** is the person's setting (a name such as `Asia/Tokyo`, or an offset such as
+//! `+09:00`), and unset it is the computer's own. `jiff` reads that safely in a threaded process
 //! (`/etc/localtime`, the Windows registry, Android's tzdata), which `time`'s `local-offset` cannot —
 //! the reason [`crate::events`] once had to be told an offset.
 
@@ -21,12 +21,11 @@ use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 pub struct Zone(TimeZone);
 
 impl Zone {
-    /// `Asia/Singapore`, `+08:00`, `-05:30`, `Z` or `UTC`. Anything else is refused rather than
+    /// `Asia/Tokyo`, `+09:00`, `-05:30`, `Z` or `UTC`. Anything else is refused rather than
     /// guessed: a wrong zone moves every meeting by hours, silently.
     pub fn parse(raw: &str) -> Result<Zone, String> {
         let t = raw.trim();
-        let bad =
-            || format!("'{t}' is not a time zone like Asia/Singapore, or an offset like +08:00");
+        let bad = || format!("'{t}' is not a time zone like Asia/Tokyo, or an offset like +09:00");
         if t.is_empty() {
             return Err(bad());
         }
@@ -57,7 +56,7 @@ impl Zone {
         Offset::from_seconds(seconds).ok().map(|o| Zone(TimeZone::fixed(o)))
     }
 
-    /// How it is named to a person: `Asia/Singapore`, or `+08:00` for a fixed offset.
+    /// How it is named to a person: `Asia/Tokyo`, or `+09:00` for a fixed offset.
     pub fn label(&self) -> String {
         if let Some(n) = self.name() {
             return n.to_string();
@@ -72,7 +71,7 @@ impl Zone {
         TimeZone::try_system().ok().map(Zone)
     }
 
-    /// The database name, when this is one: `Asia/Singapore`.
+    /// The database name, when this is one: `Asia/Tokyo`.
     pub fn name(&self) -> Option<&str> {
         self.0.iana_name()
     }
@@ -137,31 +136,31 @@ mod tests {
     use time::macros::{date, datetime, time};
 
     #[test]
-    fn a_paris_time_is_read_on_a_singapore_clock_on_its_own_day() {
-        let (sg, paris) =
-            (Zone::parse("Asia/Singapore").unwrap(), Zone::named("Europe/Paris").unwrap());
-        // Paris leaves summer time on 25 October 2026.
+    fn a_berlin_time_is_read_on_a_tokyo_clock_on_its_own_day() {
+        let (tokyo, berlin) =
+            (Zone::parse("Asia/Tokyo").unwrap(), Zone::named("Europe/Berlin").unwrap());
+        // Berlin leaves summer time on 25 October 2026.
         let before = Stamp::at(date!(2026 - 10 - 23), time!(10:00));
         let after = Stamp::at(date!(2026 - 10 - 27), time!(10:00));
-        assert_eq!(sg.onto(before, &paris), Stamp::at(date!(2026 - 10 - 23), time!(16:00)));
-        assert_eq!(sg.onto(after, &paris), Stamp::at(date!(2026 - 10 - 27), time!(17:00)));
+        assert_eq!(tokyo.onto(before, &berlin), Stamp::at(date!(2026 - 10 - 23), time!(17:00)));
+        assert_eq!(tokyo.onto(after, &berlin), Stamp::at(date!(2026 - 10 - 27), time!(18:00)));
         // A day alone is a day on any clock; the same clock is no conversion.
         assert_eq!(
-            sg.onto(Stamp::day(date!(2026 - 10 - 27)), &paris),
+            tokyo.onto(Stamp::day(date!(2026 - 10 - 27)), &berlin),
             Stamp::day(date!(2026 - 10 - 27))
         );
-        assert_eq!(sg.onto(after, &sg), after);
+        assert_eq!(tokyo.onto(after, &tokyo), after);
     }
 
     #[test]
     fn a_name_or_an_offset_and_nothing_else() {
         assert!(Zone::parse("Europe/Rome").is_ok());
-        assert!(Zone::parse("+08:00").is_ok());
+        assert!(Zone::parse("+09:00").is_ok());
         assert!(Zone::parse("-05:30").is_ok());
         assert!(Zone::parse("Z").is_ok());
-        // Nothing that could be one of the database's aliases (`Singapore`, `Japan`): those exist on
+        // Nothing that could be one of the database's aliases (`Japan`, `Egypt`): those exist on
         // some systems and not others (`fm-app`'s dispatch test, 2026-10-23).
-        for bad in ["", "8", "+25:00", "Paris time", "Europe/Atlantis", "+08:61"] {
+        for bad in ["", "8", "+25:00", "Berlin time", "Europe/Atlantis", "+08:61"] {
             assert!(Zone::parse(bad).is_err(), "{bad} must be refused");
         }
         assert!(Zone::named("W. Europe Standard Time").is_none(), "a Windows name is not guessed");
@@ -172,7 +171,7 @@ mod tests {
         let rome = Zone::parse("Europe/Rome").unwrap();
         assert_eq!(rome.from_utc(datetime!(2026-10-23 08:00)), datetime!(2026-10-23 10:00));
         assert_eq!(rome.from_utc(datetime!(2026-10-27 08:00)), datetime!(2026-10-27 09:00));
-        let fixed = Zone::parse("+08:00").unwrap();
-        assert_eq!(fixed.from_utc(datetime!(2026-10-27 20:00)), datetime!(2026-10-28 04:00));
+        let fixed = Zone::parse("+09:00").unwrap();
+        assert_eq!(fixed.from_utc(datetime!(2026-10-27 20:00)), datetime!(2026-10-28 05:00));
     }
 }

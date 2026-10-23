@@ -20,7 +20,7 @@
 //!
 //! [`Stamp`] is deliberately naive: *"A 14:30 meeting is at 14:30 where you are, and the file is the
 //! truth."* Until 2026-10-23 that was read as *carry the publisher's wall clock across unchanged*, so
-//! `DTSTART;TZID=Europe/Paris:20261027T100000` became 10:00 on a Singapore agenda — seven hours early
+//! `DTSTART;TZID=Europe/Berlin:20261027T100000` became 10:00 on a Tokyo agenda — eight hours early
 //! (`decisions.md` 2026-10-23, *a time written in another zone is moved onto yours*). Now the caller
 //! passes **your zone** ([`crate::zone::Zone`]) and a time written on another clock is read on yours,
 //! on its own day, by the zone database — so the DST traps the old note feared (a rule expanded
@@ -29,13 +29,13 @@
 //!
 //! - a one-off event's `TZID` time is converted here;
 //! - a **series** keeps its written wall clock here, and each occurrence is converted on its own day
-//!   by [`crate::calendar`] ([`EventRecord::onto`]): a weekly 10:00 in Paris is 16:00 in Singapore in
-//!   summer and 17:00 in winter;
+//!   by [`crate::calendar`] ([`EventRecord::onto`]): a weekly 10:00 in Berlin is 17:00 in Tokyo in
+//!   summer and 18:00 in winter;
 //! - a `TZID` the database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is carried as
 //!   written, as before, and so is a floating time;
 //! - a UTC time (`Z`) is read with the offset your zone has on that day. **With no zone passed, its
-//!   time is dropped and its day kept**: reading `Z` as wall-clock time would show a Singapore event
-//!   eight hours early, and "sometime that day" is true.
+//!   time is dropped and its day kept**: reading `Z` as wall-clock time would show an event hours
+//!   early or late, and "sometime that day" is true.
 //!
 //! # The shape of the work
 //!
@@ -195,7 +195,7 @@ fn unescape_text(v: &str) -> String {
 ///
 /// Four shapes, and the fourth is the interesting one:
 /// - `VALUE=DATE:20260923` → an all-day stamp.
-/// - `TZID=Asia/Singapore:20260923T183000` → 18:30, as written. [`parse_ics`] moves it onto your
+/// - `TZID=Asia/Tokyo:20260923T183000` → 18:30, as written. [`parse_ics`] moves it onto your
 ///   zone once it knows whether the event repeats.
 /// - `20260923T183000` (floating, no zone) → the same, which is what "floating" means.
 /// - `20260923T103000Z` → UTC: with `here` given it is read on that clock, on its own day; with none,
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn a_tzid_time_is_carried_across_as_written_when_no_zone_is_given() {
-        // With no zone of yours to read it on, 18:30 in Singapore stays 18:30 — as it was before
+        // With no zone of yours to read it on, 18:30 stays 18:30 — as it was before
         // 2026-10-23. The next test is what happens when one is given.
         let ics = "BEGIN:VEVENT\nSUMMARY:GDG Monthly Meetup\nDTSTART;TZID=Asia/Singapore:20260923T183000\nDTEND;TZID=Asia/Singapore:20260923T203000\nEND:VEVENT";
         let got = parse_ics(ics, None);
@@ -423,32 +423,31 @@ mod tests {
 
     #[test]
     fn a_time_written_on_another_clock_is_read_on_yours_on_its_own_day() {
-        // The owner's meeting, 2026-10-23: 10:00 in Paris on the 27th is 17:00 in Singapore (Paris
-        // leaves summer time on the 25th), not 10:00.
-        let sg = Zone::parse("Asia/Singapore").unwrap();
-        let ics = "BEGIN:VEVENT\nSUMMARY:Call\nDTSTART;TZID=Europe/Paris:20261027T100000\nDTEND;TZID=Europe/Paris:20261027T110000\nEND:VEVENT";
-        let got = parse_ics(ics, Some(&sg));
-        assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 10 - 27), time!(17:00))));
-        assert_eq!(got[0].end, Some(Stamp::at(date!(2026 - 10 - 27), time!(18:00))));
-        assert_eq!(got[0].tzid.as_deref(), Some("Europe/Paris"), "still recorded");
+        // 10:00 in Berlin on the 27th is 18:00 in Tokyo (Berlin leaves summer time on the 25th), not
+        // 10:00.
+        let tokyo = Zone::parse("Asia/Tokyo").unwrap();
+        let ics = "BEGIN:VEVENT\nSUMMARY:Call\nDTSTART;TZID=Europe/Berlin:20261027T100000\nDTEND;TZID=Europe/Berlin:20261027T110000\nEND:VEVENT";
+        let got = parse_ics(ics, Some(&tokyo));
+        assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 10 - 27), time!(18:00))));
+        assert_eq!(got[0].end, Some(Stamp::at(date!(2026 - 10 - 27), time!(19:00))));
+        assert_eq!(got[0].tzid.as_deref(), Some("Europe/Berlin"), "still recorded");
         assert_eq!(got[0].onto, None);
         // Your own zone, or one the database does not know: as written.
-        let own =
-            "BEGIN:VEVENT\nSUMMARY:Lab\nDTSTART;TZID=Asia/Singapore:20261027T100000\nEND:VEVENT";
+        let own = "BEGIN:VEVENT\nSUMMARY:Lab\nDTSTART;TZID=Asia/Tokyo:20261027T100000\nEND:VEVENT";
         assert_eq!(
-            parse_ics(own, Some(&sg))[0].start,
+            parse_ics(own, Some(&tokyo))[0].start,
             Some(Stamp::at(date!(2026 - 10 - 27), time!(10:00)))
         );
         let windows = "BEGIN:VEVENT\nSUMMARY:Sync\nDTSTART;TZID=W. Europe Standard Time:20261027T100000\nEND:VEVENT";
         assert_eq!(
-            parse_ics(windows, Some(&sg))[0].start,
+            parse_ics(windows, Some(&tokyo))[0].start,
             Some(Stamp::at(date!(2026 - 10 - 27), time!(10:00)))
         );
         // A series keeps its written times; the calendar moves each occurrence on its own day.
-        let weekly = "BEGIN:VEVENT\nSUMMARY:Weekly\nDTSTART;TZID=Europe/Paris:20261020T100000\nRRULE:FREQ=WEEKLY\nEND:VEVENT";
-        let got = parse_ics(weekly, Some(&sg));
+        let weekly = "BEGIN:VEVENT\nSUMMARY:Weekly\nDTSTART;TZID=Europe/Berlin:20261020T100000\nRRULE:FREQ=WEEKLY\nEND:VEVENT";
+        let got = parse_ics(weekly, Some(&tokyo));
         assert_eq!(got[0].start, Some(Stamp::at(date!(2026 - 10 - 20), time!(10:00))));
-        assert_eq!(got[0].onto, Some((Zone::named("Europe/Paris").unwrap(), sg)));
+        assert_eq!(got[0].onto, Some((Zone::named("Europe/Berlin").unwrap(), tokyo)));
     }
 
     #[test]

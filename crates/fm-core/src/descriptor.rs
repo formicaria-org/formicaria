@@ -86,7 +86,7 @@ pub struct Descriptor {
     pub supervision: Supervision,
 
     /// **The clock this vault's times are written on, when the vault says so** (`notes_time_zone`:
-    /// `Asia/Singapore`, or an offset such as `+08:00`) — `decisions.md` 2026-10-23, *the vault's
+    /// `Asia/Tokyo`, or an offset such as `+09:00`) — `decisions.md` 2026-10-23, *the vault's
     /// clock is read from its first commit*. A note's `start: 2026-10-27T17:00` is a wall clock
     /// with no zone in it (`Stamp`'s ruling), so something must say which wall. Stated here it
     /// wins; absent — the usual case — every device reads the same answer from the vault's first
@@ -401,9 +401,9 @@ impl Descriptor {
     }
 
     /// **Take out the `time_zone` key formicaria 0.15.0 wrote at start.** 0.15.0 stamped each
-    /// vault with the clock of whichever device opened it first — a phone in Paris stamped Paris on
-    /// a vault written in Singapore, and two devices stamped two zones that would have collided on
-    /// sync (the owner, 2026-10-23). Nothing else ever wrote that key, so it is removed wherever it
+    /// vault with the clock of whichever device opened it first — a device in another zone stamped its
+    /// own zone on a vault written elsewhere, and two devices stamped two zones that would have
+    /// collided on sync (2026-10-23). Nothing else ever wrote that key, so it is removed wherever it
     /// is found; an object left empty takes the file with it. Returns whether it changed anything,
     /// so the caller can record the change for the next commit.
     pub fn strip_legacy_time_zone(root: &Path) -> Result<bool, StoreError> {

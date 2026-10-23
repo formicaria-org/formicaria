@@ -65,7 +65,7 @@ pub struct FileStore {
     /// the caller reads from the vault's first commit ([`Self::default_clock`]). A timed
     /// `start`/`due` is read off it onto **this device's** clock in [`Self::hydrate`] and written
     /// back onto it in `put`, so every view, reminder and command above this seam works on the
-    /// device's time, and the same note shows 17:00 in Singapore and 10:00 in Paris
+    /// device's time, and the same note shows 18:00 in Tokyo and 10:00 in Berlin
     /// (`decisions.md` 2026-10-23, *every device shows the agenda on its own zone*). `None`:
     /// nothing is converted, as before.
     zone: Option<crate::zone::Zone>,
@@ -672,7 +672,7 @@ impl FileStore {
         }
     }
 
-    /// The vault's clock, as a person reads it (`Asia/Singapore`, `+08:00`), when it has one.
+    /// The vault's clock, as a person reads it (`Asia/Tokyo`, `+09:00`), when it has one.
     pub fn clock_label(&self) -> Option<String> {
         self.zone.as_ref().map(crate::zone::Zone::label)
     }

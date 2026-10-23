@@ -1,14 +1,14 @@
 #!/bin/sh
-# Give the disk back — `pixi run free-space`. The owner's laptop fills up again and again
-# (2026-10-23: 1.9 GB left, a clean build failed with "No space left on device"; the owner: *"this is
-# a recurring theme"*). Every path below is **regenerable build output** and nothing else:
+# Give the disk back — `pixi run free-space`. A development machine fills up again and again with
+# build output, until a build fails with "No space left on device" (2026-10-23). Every path below
+# is **regenerable build output** and nothing else, largest first:
 #
-#   target/debug                         ~38 GB  the next `pixi run test`/`ci` rebuilds it (minutes)
-#   ../myrme/target/debug                ~15 GB  the same, in the sibling Myrme checkout
-#   mobile/src-tauri/target              ~12 GB  the phone shell's builds (every Android ABI)
-#   mobile/src-tauri/gen/android/app/build ~4 GB Gradle's output; the project around it is kept
-#   ../myrme/.fm/<tag>                   ~0.4 GB each formicaria checkout `integration` made for a
-#                                                tag Myrme no longer pins
+#   target/debug                            the next `pixi run test`/`ci` rebuilds it (minutes)
+#   ../myrme/target/debug                   the same, in the sibling Myrme checkout
+#   mobile/src-tauri/target                 the phone shell's builds (every Android ABI)
+#   mobile/src-tauri/gen/android/app/build  Gradle's output; the project around it is kept
+#   ../myrme/.fm/<tag>                      each formicaria checkout `integration` made for a tag
+#                                           Myrme no longer pins
 #
 # **Kept on purpose:** `target/release` — the desktop icon runs `target/release/fm-serve` and the
 # assistant runs `target/release/agent-serve`, so deleting it breaks the running app and the next

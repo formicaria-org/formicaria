@@ -2,8 +2,7 @@
 //! 2026-10-23, *every device shows the agenda on its own zone* and *the vault's clock is read from
 //! its first commit*.
 //!
-//! The device's clock is whatever this machine is set to (the owner's laptop: Singapore; GitHub's
-//! runner: UTC), so these tests give the vault a clock no machine running them is on — UTC+14,
+//! The device's clock is whatever this machine is set to (GitHub's runner: UTC), so these tests give the vault a clock no machine running them is on — UTC+14,
 //! `Pacific/Kiritimati`, which has no daylight saving — and work the expectation out through the
 //! same zone database rather than hard-coding the machine's.
 
@@ -32,7 +31,7 @@ fn round_trip(vault: &Path, clock: &Zone, open: impl Fn() -> FileStore) {
         return; // a machine already on that clock has nothing to convert
     }
     let shown = Stamp::at(date!(2026 - 10 - 27), time!(17:00));
-    let mut o = Object::new(Kind::Note, "call with Nathan");
+    let mut o = Object::new(Kind::Note, "call with Lena");
     o.start = Some(shown);
     o.due = Some(Stamp::day(date!(2026 - 10 - 30)));
     let id = o.id;
@@ -104,14 +103,14 @@ fn without_one_the_clock_is_the_first_commits_and_a_stated_one_wins() {
 fn the_time_zone_0_15_0_stamped_at_start_is_taken_out() {
     let dir = tempdir().unwrap();
     let vault = dir.path();
-    // Alone in the file (a phone's stamp): the file goes.
-    std::fs::write(vault.join("vault.json"), "{\"time_zone\": \"Europe/Paris\"}\n").unwrap();
+    // Alone in the file (one device's stamp): the file goes.
+    std::fs::write(vault.join("vault.json"), "{\"time_zone\": \"Europe/Berlin\"}\n").unwrap();
     assert!(Descriptor::strip_legacy_time_zone(vault).unwrap());
     assert!(!vault.join("vault.json").exists());
     // Beside the person's own settings: only the stamp goes.
     std::fs::write(
         vault.join("vault.json"),
-        "{\"git_assets_max\": \"50MB\", \"time_zone\": \"Asia/Singapore\"}\n",
+        "{\"git_assets_max\": \"50MB\", \"time_zone\": \"Asia/Tokyo\"}\n",
     )
     .unwrap();
     assert!(Descriptor::strip_legacy_time_zone(vault).unwrap());

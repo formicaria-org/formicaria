@@ -1,8 +1,8 @@
 // The time zone the agenda shows its times in — `decisions.md` 2026-10-23, *every device shows the
-// agenda on its own zone*. The owner asked for it to be **observable, and minimal**: one short label
+// agenda on its own zone*. It is meant to be **observable, and minimal**: one short label
 // beside the agenda's M/W/L switch, with the whole story in its tooltip.
 
-/** This device's zone, as the browser (or the phone's webview) reports it. */
+/** This device's zone, as the browser (or a phone's webview) reports it. */
 export function deviceZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -23,12 +23,12 @@ export function shortOffset(zone: string, when: Date = new Date()): string {
   }
 }
 
-/** `Europe/Paris` → `Paris`; `America/Argentina/Buenos_Aires` → `Buenos Aires`. */
+/** `Europe/Berlin` → `Berlin`; `America/Argentina/Buenos_Aires` → `Buenos Aires`. */
 export function city(zone: string): string {
   return (zone.split('/').pop() ?? zone).replace(/_/g, ' ');
 }
 
-/** The label (`Paris · GMT+2`) and its tooltip, given the clocks the vaults keep their times on. */
+/** The label (`Berlin · GMT+2`) and its tooltip, given the clocks the vaults keep their times on. */
 export function zoneLabel(
   zone: string,
   vaultClocks: (string | null | undefined)[],
