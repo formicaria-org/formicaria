@@ -810,8 +810,8 @@ dependencies = [
 
 [[package]]
 name = "fm-agent"
-version = "0.8.0"
-source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.8.0#1b50849c9e7fec5e1e3d0c3dd97d4e50e72945af"
+version = "0.8.1"
+source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.8.1#2270b28f4348728894c670815a1ef56c5b975a11"
 dependencies = [
  "jiff",
  "libc",
@@ -822,8 +822,8 @@ dependencies = [
 
 [[package]]
 name = "fm-agent-run"
-version = "0.8.0"
-source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.8.0#1b50849c9e7fec5e1e3d0c3dd97d4e50e72945af"
+version = "0.8.1"
+source = "git+https://github.com/formicaria-org/myrme.git?tag=v0.8.1#2270b28f4348728894c670815a1ef56c5b975a11"
 dependencies = [
  "clap",
  "flate2",
