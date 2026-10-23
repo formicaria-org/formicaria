@@ -70,6 +70,27 @@ class AgentService : Service() {
         // service on every launch, so stickiness bought nothing a tap does not.
         return START_NOT_STICKY
     }
+
+    // **Swiping formicaria away from Recents ends it — this is what makes that true.** With this
+    // service running, Android does not kill the process when the task is removed: it destroys the
+    // Activity and keeps the process. Tauri builds its webview once per process, for the Activity it
+    // started with, so the next tap created a new Activity in the old process and nothing ever drew
+    // in it — a white screen until a force-stop (`decisions.md#track-m`, 2026-10-24). On other runs
+    // Android killed the process and at once restarted it for this service alone, and the next tap
+    // opened into that and never answered. Stopping the service first is what keeps it from being
+    // restarted; ending the process is what keeps the next tap a cold start. The model children
+    // follow by `PR_SET_PDEATHSIG`. The page has already been told it is hidden (`visibilitychange`),
+    // which is when it flushes a pending save.
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        stopSelf()
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
 }
 KT
 

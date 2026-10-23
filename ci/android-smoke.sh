@@ -149,6 +149,22 @@ done
 # 4) The launch check, run twice. `open1` is the one that used to be gray.
 # ---------------------------------------------------------------------------
 : > "$OUT/stats.txt"
+# Painted: poll rather than sleep-and-hope, so the number in stats.txt is the time the app actually
+# took, which is the number worth watching over releases.
+painted() {
+    n=$1
+    k=0
+    while :; do
+        adbs exec-out screencap -p > "$OUT/open$n.png" 2>/dev/null || fail "launch $n: screencap failed"
+        dev=$(vips deviate "$OUT/open$n.png" 2>/dev/null || echo 0)
+        printf 'launch %s: t+%ss deviation=%s\n' "$n" "$k" "$dev" >> "$OUT/stats.txt"
+        awk -v d="$dev" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}' && break
+        k=$((k + 1))
+        [ "$k" -lt 40 ] || fail "launch $n: the screen never painted (deviation $dev <= $MIN_DEVIATION after 40s) — $OUT/open$n.png"
+        sleep 1
+    done
+    say "launch $n painted at t+${k}s (deviation $dev)"
+}
 launch() {
     n=$1
     adbs shell am force-stop "$PKG" >/dev/null
@@ -170,19 +186,8 @@ launch() {
         sleep 1
     done
 
-    # B — painted. Poll rather than sleep-and-hope, so the number in stats.txt is the time the app
-    # actually took, which is the number worth watching over releases.
-    k=0
-    while :; do
-        adbs exec-out screencap -p > "$OUT/open$n.png" 2>/dev/null || fail "launch $n: screencap failed"
-        dev=$(vips deviate "$OUT/open$n.png" 2>/dev/null || echo 0)
-        printf 'launch %s: t+%ss deviation=%s\n' "$n" "$k" "$dev" >> "$OUT/stats.txt"
-        awk -v d="$dev" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}' && break
-        k=$((k + 1))
-        [ "$k" -lt 40 ] || fail "launch $n: the screen never painted (deviation $dev <= $MIN_DEVIATION after 40s) — $OUT/open$n.png"
-        sleep 1
-    done
-    say "launch $n painted at t+${k}s (deviation $dev)"
+    # B — painted.
+    painted "$n"
 
     # C — the vaults opened, and before the optional work. This is the emulator's version of the
     # host-side ordering test in crates/fm-app, run on a real Android runtime.
@@ -237,6 +242,46 @@ sleep 2
 launch 4
 say "relaunch after an OS background-kill painted"
 
+# **Swiped away from Recents, then opened again** — the ordinary way of closing a phone app, and the
+# one this script never did: every other closure here is a force-stop, and the comment in section 5
+# assumed a swipe is the same thing. It is not while `AgentService` runs. Android then destroys the
+# Activity and keeps the process (or kills it and restarts it for the service alone), and Tauri
+# builds its webview once per process — so the next tap opened a pure white screen that never
+# changed (2026-10-24; every release back to at least v0.9.9, and a user's phone). What must be
+# true: the swipe ends the process, and the next tap is a cold start that paints. The real gesture,
+# not `am`: Recents, then a fling up on the card.
+#
+# **After the app has been open a while, as a person's would be.** Swiped within a couple of seconds
+# of painting, the unfixed build died and stayed dead, and this step passed without the fix (its
+# negative control, 2026-10-24). After 15 s Android restarted the process for the service alone —
+# the bug. Measured on the emulator, not chosen.
+sleep 15
+adbs shell input keyevent KEYCODE_APP_SWITCH >/dev/null
+sleep 3
+size=$(adbs shell wm size | awk -F'[ x]' '/size/{print $(NF-1), $NF}' | tr -d '\r')
+w=${size% *}; h=${size#* }
+adbs shell input swipe $((w / 2)) $((h * 55 / 100)) $((w / 2)) $((h / 12)) 300 >/dev/null
+sleep 5
+# A missed gesture would make everything below pass while testing nothing.
+adbs shell dumpsys activity activities 2>/dev/null | grep -q "$PKG/.MainActivity" \
+    && fail "swipe-away: the task is still there — the gesture missed, so this check tested nothing"
+left=$(adbs shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)
+[ -z "$left" ] || fail "swipe-away: the task is gone but process $left is still alive (or was restarted for the service) — the next tap opens into it and draws nothing"
+adbs logcat -c >/dev/null 2>&1 || true
+state=$(adbs shell am start -W -n "$ACT" 2>/dev/null | awk '/LaunchState/{print $2}' | tr -d '\r')
+[ "$state" = "COLD" ] || fail "swipe-away: reopening was a $state start, into a process that outlived its window"
+# **Booted, before "painted" is asked.** `am start -W` returns on Android's splash screen, and the
+# splash (the icon on white) clears MIN_DEVIATION on its own — the first run of this step passed on
+# exactly that, before the app had drawn anything.
+j=0
+until adbs logcat -d -s formicaria 2>/dev/null | grep -q 'vaults ready'; do
+    j=$((j + 1)); [ "$j" -lt 40 ] || fail "swipe-away: the reopened app never opened its vaults"
+    sleep 1
+done
+sleep 3
+painted 5
+say "swiped away from Recents: the process ended, and the reopen painted"
+
 # ---------------------------------------------------------------------------
 # 5) Closure. What the ordinary ways of leaving the app do to the process.
 # ---------------------------------------------------------------------------
@@ -245,8 +290,9 @@ say "relaunch after an OS background-kill painted"
 # loop then calls `process::exit` on the last window closing. But measured on a user's phone
 # 2026-07-31, Back did **not** end the app: this frontend pushes history (`NotePanel` handles
 # `onpopstate`), so the WebView had somewhere to go back to and absorbed the key. A closure test whose
-# first step may be a no-op tests nothing, so kill it outright — which is also what a swipe-away and an
-# LMKD reclaim do.
+# first step may be a no-op tests nothing, so kill it outright — which is what an LMKD reclaim does.
+# (A swipe-away was listed here too, and was not the same thing while the foreground service ran;
+# it has its own step above since 2026-10-24.)
 #
 # What must be true afterwards: nothing of ours is left holding memory. `PR_SET_PDEATHSIG` is the
 # backstop that makes it pass; if this ever fails, that is what broke.

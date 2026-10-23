@@ -731,7 +731,8 @@ The gray-screen fix and its tests are in
   by a perf budget.
 - **On Android the app is normally left by being killed — so "commits can lag" is worse there than
   the desktop framing says.** Swipe-away and an LMKD reclaim are a `SIGKILL`: no unwinding, no
-  destructors, no flush. *Back* can do the same — `TauriActivity` sets `handleBackNavigation = false`,
+  destructors, no flush. (For a swipe-away that is true only since 2026-10-24 — before, the foreground
+  service kept the process alive past it, and the next open was a white screen; `decisions.md#track-m`.) *Back* can do the same — `TauriActivity` sets `handleBackNavigation = false`,
   so a Back that reaches the Activity finishes it and tao's event loop then calls
   `std::process::exit` — **but measured on a user's phone 2026-07-31 it did not**: this frontend
   pushes history (`NotePanel` handles `onpopstate`), so the WebView had somewhere to go back to and
@@ -1139,6 +1140,30 @@ a user's real conversations (2026-10-15, 2026-10-16; the cases are never kept in
 - **"Discussion" sits between the text and the row**, because the row is the pane's bottom edge and
   the discussion is part of the pane.
 - **The record button needs the microphone permission**, the same as *Record audio* under the ＋.
+
+## The APK is not registered with Google's developer verification (2026-10-24)
+
+A phone warned that the v0.17.0 update was not safe. The APK is not at fault: v0.14.0 → v0.17.0
+carry the same certificate (`android/signing-certificate.sha256`), an identical manifest apart from
+the version, and the same native libraries. Two Google systems can say this, and they need different
+answers:
+
+- **Developer verification** (enforced from 2026-09-30 in a first set of countries, worldwide in
+  2027): an unregistered package cannot be installed **or updated** on a certified device without the
+  "advanced flow" or `adb`. The warning names an *unverified developer*. **`dev.formicaria.notes` is
+  not registered.** Registering is the owner's step, not a code change: an Android Developer Console
+  account (full distribution — a fee and a government ID; limited distribution is capped at 20
+  devices, no use for a public download), then *Packages* → the package name → the SHA-256 in
+  `android/signing-certificate.sha256`. An already-installed package may also have to prove the key:
+  the console hands out a snippet for `assets/adi-registration.properties`, and an APK signed with
+  the release key and carrying it is uploaded. **That file has to be added by the build** — `gen/` is
+  regenerated, so it belongs in `ci/android-inject-service.sh` like everything else the build adds.
+- **Play Protect's scan** (*Unsafe app blocked*): a verdict on each new APK from a developer Google
+  does not know. The app installs other apps (`REQUEST_INSTALL_PACKAGES`, the updater), records
+  audio, starts at boot and runs native programs — the shape a scanner treats as suspect.
+  Registration gives Google a known developer; this repo has no evidence that it clears this alone.
+
+Which of the two the phone showed was not recorded. Read its exact wording before acting.
 
 ## Signing a phone build locally (2026-10-09)
 

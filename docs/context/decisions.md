@@ -73,7 +73,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***The phone's blob route answers a `Range`, and stops lying about
+- **`#track-m`** (mobile/phone): ***Swiping the app away from Recents ends its process*** (2026-10-24; read before changing `AgentService`'s lifecycle, `MainActivity`'s launch mode, or anything that keeps the process alive without a window) · ***The phone's blob route answers a `Range`, and stops lying about
   it*** (read before touching `blob_response` — and note what is *not* verified there) ·
   ***A shell that cannot configure its paths refuses*** · ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** **⟶ + *iOS ships as an unsigned IPA that each user signs with their own Apple ID*** (read the pair before any iOS distribution work — the first carries the App Store / TestFlight / sideloading facts, the second picks free-account sideloading and says what it forbids) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
@@ -13054,3 +13054,40 @@ vault was ever synced in a test. `two_devices_start_change_settings_and_sync_wit
 different setting, and both pull; it fails without this fix. **A test that calls `App::load` must point
 `FM_VAULTS` at a list inside its own temp directory** — unset, it opens the machine's real vault list and
 runs start-up on the real vaults (its first draft did, on a developer's notebook).
+
+## 2026-10-24 — swiping the app away from Recents ends its process `#track-m`
+
+**What went wrong.** On a phone, opening formicaria sometimes showed a pure white screen that never
+changed. Reproduced on the emulator with the release APKs (v0.9.9, v0.14.0 and v0.17.0 all behave the
+same), by the most ordinary gesture there is: open the app, swipe it away from Recents, open it again.
+
+**The mechanism, read out of the code.** `AgentService` is a foreground service started on every
+launch (2026-07-22). While it runs, removing the task does not kill the process: Android destroys the
+Activity and keeps the process. Tauri builds its webview **once per process**, for the Activity it
+started with — wry creates one only for an Activity id it already holds attributes for
+(`wry/src/android/mod.rs`, `android_setup`), and a new `MainActivity` gets a new id (`hashCode()` in
+`WryActivity`). So the next tap created an Activity that nothing ever drew in. On another run Android
+did kill the process on the swipe, and at once restarted it **for the service alone**; the reopen
+landed in that process and stayed on "Still opening your vaults" for good. Back was never affected: a
+Back that reaches the Activity makes tao end the process, and the next open is cold.
+
+**Decision.** `AgentService.onTaskRemoved` stops the foreground state, stops the service, and ends the
+process. Stopping the service first is what keeps Android from restarting it; ending the process is
+what makes the next tap a cold start. The model children go with it by `PR_SET_PDEATHSIG`, the same
+backstop the force-stop check relies on.
+
+**What it costs.** A model download in progress stops when the app is swiped away, and resumes on the
+next enable (the fetcher resumes). That is what a person who swipes an app away means, and it is what
+`known-issues.md` and `android-smoke.sh` already said a swipe did.
+
+**The four questions.** `#track-m`; the entries on the foreground service (2026-07-22) and
+`START_NOT_STICKY` (2026-07-31, the gray screen). **Permitted** — it finishes the 2026-07-31 ruling
+that the service must never outlive the app's purpose. It does not widen what ships: no permission, no
+manifest entry, no file.
+
+**Why no test saw it.** `ci/android-smoke.sh` closed the app only with `am force-stop`, and its comment
+said a swipe-away was the same thing. It is not while a foreground service runs. The script now does
+the real gesture (Recents, then a fling up on the card), refuses to pass if the task is still there
+(a missed gesture would test nothing), and requires the process gone, a `COLD` reopen and a painted
+screen.
+
