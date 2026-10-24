@@ -81,10 +81,13 @@ afterwards is how a project stops being what it said it was, one reasonable step
   Publishing is the owner's local step. *(This constraint holds for every repo on
   the owner's machine; the durable home is the global `~/.claude/CLAUDE.md`, which a
   remote session cannot edit — so it is restated here per-repo.)*
-- **A release does not wait for a phone test** (owner, 2026-10-15: *"it takes a lot … the ci will
-  do its work"*; `decisions.md#toolchain`, reversing the rule kept since v0.6.2). The order is docs →
-  `pixi run myrme-bump` (the newest compatible assistant, `decisions.md#agent`) → local gate →
-  version commit → GitHub's gate green → annotated tag. A phone test is still there
+- **A release waits for no phone test and no GitHub run on `main`** (owner, 2026-10-15 and
+  2026-10-24: *"push release tag as well and do not wait for main ci … this should be done whenever
+  I want you to release"*; `decisions.md#toolchain`). **Whenever the owner asks for a release**, the
+  order is docs → `pixi run myrme-bump` (the newest compatible assistant, `decisions.md#agent`) →
+  local gate (`pixi run ci`, through pixi) → version commit → push `main` **and** the annotated tag
+  together. Do not wait for, poll or report on `ci.yml` on `main`; `release.yml` on the tag builds
+  every platform and a failed build still stops it. A phone test is still there
   when wanted — the **`android`** workflow by hand on `main`, or `pixi run -e android phone-test`
   with its token (`sh ci/phone-test-setup.sh`); details in `docs/context/known-issues.md`,
   *Signing a phone build locally* — but nothing requires it.

@@ -11231,6 +11231,9 @@ night: "calendar stuff should not be touched".
 
 ## 2026-10-15 — a release no longer waits for a phone test; the gate's builds are the check `#toolchain`
 
+> SUPERSEDED IN PART (2026-10-24, *a release tag is pushed with main*): the step "GitHub's gate green
+> on that commit" is gone; the tag is pushed right after the local gate.
+
 > **Reversal (`#toolchain`).** Reverses `CLAUDE.md`'s *"Test on the phone before tagging a release"*
 > (the owner's requirement since v0.6.2 broke window switching on the phone), and with it "the phone
 > test now gates the next release for real" in *There is one editor* (2026-10-11).
@@ -13208,3 +13211,20 @@ left every existing copy alone.
 too. Outside the app (another editor, GitHub) its pictures do not draw. A page that is not yet
 committed has no earlier text recorded, so a release must carry the commit that changed it — which
 it always does.
+
+## 2026-10-24 — a release tag is pushed with main; GitHub's run on main is not waited for `#toolchain`
+
+> Reverses, in part, *a release no longer waits for a phone test* (2026-10-15): its order's
+> "GitHub's gate green on that commit → annotated tag".
+
+**The owner**, preparing v0.18.0 while the run on `main` was still going: *"push release tag as well
+and do not wait for main ci (this should be in your doc as I ask it continuously)"* — *"I mean, this
+should be done whenever I want you to release"*.
+
+**Decision.** Whenever the owner asks for a release: docs → `pixi run myrme-bump` → local gate
+(`pixi run ci`) → version commit → push `main` and the annotated tag together. The run of `ci.yml`
+on `main` is neither waited for nor polled. `release.yml`, started by the tag, builds and signs
+every platform, and a failed build there still publishes nothing.
+
+**Cost, stated:** a fault only GitHub's runners show (another OS, a clean cache) is found after the
+tag, where a red run means a fixed patch release rather than a release held back.
