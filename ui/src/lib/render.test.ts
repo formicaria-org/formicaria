@@ -608,3 +608,40 @@ describe('inline images use a downscaled copy when there is one', () => {
     expect(el.querySelector('img')?.getAttribute('src')).toBe('/api/blob/abc');
   });
 });
+
+// **The manual, from a note** (2026-10-24, *the tutorials are pages of the manual*): a tutorial's
+// pictures and links point into the copy of the manual the app carries.
+describe('renderInto — manual: pictures and links', () => {
+  it('draws a manual: picture from the manual the app carries, and asks no resolver', async () => {
+    const el = pane();
+    const resolve = resolveAs('image/png');
+    await renderInto(el, '![The shelves](manual:images/shelves.png)', resolve);
+    expect(resolve).not.toHaveBeenCalled();
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('/manual/images/shelves.png');
+    expect(img?.classList.contains('manual-image')).toBe(true);
+    expect(img?.getAttribute('alt')).toBe('The shelves');
+  });
+
+  it('makes a manual: link a button for the reader, with its page and section', async () => {
+    const el = pane();
+    await renderInto(el, 'More in [Views](manual:user/views.html#the-groups).', noAsset);
+    expect(el.querySelector('a')).toBeNull();
+    const link = el.querySelector<HTMLButtonElement>('button.manual-link');
+    expect(link?.textContent).toBe('Views');
+    expect(link?.dataset.manualPage).toBe('user/views.html');
+    expect(link?.dataset.manualSection).toBe('the-groups');
+  });
+
+  it('refuses a path that climbs out of the manual or names a scheme', async () => {
+    const el = pane();
+    await renderInto(
+      el,
+      '![x](manual:../api/blob/x) [y](manual:javascript:alert(1)) [z](manual:a/../../b.html)',
+      noAsset,
+    );
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.querySelector('button.manual-link')).toBeNull();
+    expect(el.textContent).toContain('y');
+  });
+});

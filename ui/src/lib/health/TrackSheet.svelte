@@ -61,8 +61,8 @@
         MIND_TEMPLATES.map((t) => ({
           title: t.title,
           body: t.body,
-          tags: ['template'],
-          props: { shelf: 'mind', record: t.record },
+          tags: ['template', 'shelf:mind'],
+          props: { record: t.record },
         })),
         'started Mind notes',
       );
@@ -84,9 +84,8 @@
         RECORD_TEMPLATES.map((t) => ({
           title: t.title,
           body: t.body,
-          tags: ['template'],
+          tags: ['template', 'shelf:health'],
           props: {
-            shelf: 'health',
             record: t.record,
             ...(t.status ? { record_status: t.status } : {}),
             ...(t.about ? { about: t.about } : {}),

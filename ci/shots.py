@@ -145,7 +145,7 @@ def workspace(kind, agenda="month", timeline="feed"):
             (PANE % (kind, agenda, timeline)) + "]}")
 
 
-def show(ws, kind, agenda="month", timeline="feed", note=None, query=""):
+def show(ws, kind, agenda="month", timeline="feed", note=None, query="", view=None):
     """Put one pane on screen and reload into it.
 
     Reload rather than click: the workspace is read once at mount, so setting it and reloading is
@@ -154,6 +154,7 @@ def show(ws, kind, agenda="month", timeline="feed", note=None, query=""):
     pane = json.loads(PANE % (kind, agenda, timeline))
     pane["noteId"] = note
     pane["query"] = query
+    pane["viewName"] = view
     ws_json = json.dumps({"v": 2, "cols": 1, "layout": "single", "active": 0, "panes": [pane]})
     js(ws, "localStorage.setItem('fm-workspace', " + json.dumps(ws_json) + ")")
     ws.call("Page.reload")
@@ -217,6 +218,9 @@ def main():
         show(ws, "timeline");                  shot(ws, "timeline", W, H)
         show(ws, "timeline", timeline="compact"); shot(ws, "timeline-list", W, H)
         show(ws, "search", query="paper");     shot(ws, "search", W, H)
+        # The Library's shelves, which a first launch opens on: the demo notes' `shelf:` tags, and
+        # the Tutorials shelf the app gives every first notebook (`tutorials::give`).
+        show(ws, "view", view="Shelves");      shot(ws, "shelves", W, H)
 
         note = first_note_id(ws)
         if note:
@@ -236,6 +240,12 @@ def main():
         show(ws, "board")
         click(ws, 'button[aria-label="settings"]', 2.0)
         shot(ws, "settings", W, H)
+
+        # Where the assistant is turned on — the tutorial *Ask Myrme* shows it (2026-10-24).
+        show(ws, "board")
+        click(ws, 'button[aria-label="settings"]', 2.0)
+        click_text(ws, "Assistant", 3.0)
+        shot(ws, "assistant-settings", W, H)
 
         show(ws, "board")
         click(ws, 'button[aria-label="make something new"]', 1.5)

@@ -2293,7 +2293,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       views.push({
         name: 'Shelves',
         renderer: 'shelf',
-        group_by: 'shelf',
+        group_by: null,
         group: 'Library',
         shipped: true,
       });
@@ -2603,11 +2603,22 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'pack_status':
       return tracker.packStatus() as T;
     case 'run_view': {
-      // The Library's shelves: grouped by `shelf`, named shelves by name, the rest last as Other —
-      // what `views::run_file` answers for `view: shelf`.
+      // The Library's shelves: one per `shelf:` tag (a note with two is on both), named shelves by
+      // name, the rest last as Other — what `views::shelve` answers for `view: shelf`.
       if (String(args.name ?? '') === 'Shelves') {
-        const b = buildBoard('shelf');
-        const columns = b.columns
+        const cols = new Map<string, Column>();
+        const sorted = notes
+          .filter((n) => isNote(n) && !n.tags.includes('template'))
+          .sort((a, b) => b.created.localeCompare(a.created));
+        for (const n of sorted) {
+          const on = n.tags.filter((t) => t.startsWith('shelf:') && t.slice(6).trim());
+          for (const value of on.length ? on : ['']) {
+            if (!cols.has(value))
+              cols.set(value, { value, label: value.slice(6).trim(), cards: [] });
+            cols.get(value)!.cards.push(n);
+          }
+        }
+        const columns = [...cols.values()]
           .map((c) => (c.value === '' ? { ...c, label: 'Other' } : c))
           .sort((x, y) =>
             x.value === '' ? 1 : y.value === '' ? -1 : x.label.localeCompare(y.label),
@@ -2615,9 +2626,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         const result: ViewResult = {
           name: 'Shelves',
           renderer: 'shelf',
-          group_by: 'shelf',
+          group_by: 'tags',
           filters: [],
-          board: { group_by: 'shelf', columns },
+          board: { group_by: 'tags', columns },
           group: { name: 'Library', views: ['Shelves'] },
         };
         return result as T;

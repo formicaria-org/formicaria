@@ -58,13 +58,13 @@ fn the_shipped_welcome_note_is_a_note_the_app_can_read() {
             path.display()
         );
         assert!(obj.body.len() > 150, "{}: too short to orient anyone", path.display());
-        // On the shelf the Library opens on.
-        assert_eq!(
-            obj.extra.get(fm_app::views::SHELF).map(|v| v.display()).as_deref(),
-            Some("Tutorials"),
+        // On the shelf the Library opens on — a `shelf:` tag (2026-10-24), never the old property.
+        assert!(
+            obj.tags.iter().any(|t| fm_app::views::shelf_of(t) == Some("Tutorials")),
             "{}: must be on the Tutorials shelf",
             path.display()
         );
+        assert!(!obj.extra.contains_key("shelf"), "{}: the shelf is a tag now", path.display());
 
         // Round-trips byte-for-byte, so the first edit does not rewrite the whole file and make the
         // user's first change look like a hundred-line diff.

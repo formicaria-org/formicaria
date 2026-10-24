@@ -35,6 +35,7 @@
     type ResolvedEmbed,
   } from './render';
   import { CALLOUT_TYPES, TEXT_TOKENS } from './render-vocab';
+  import { openManual } from './manual.svelte';
   import { clickOutside } from './clickOutside';
   import { popup, type Box } from './popup';
   import { noteName } from './noteName';
@@ -580,6 +581,13 @@
     const target = chip?.dataset.noteId;
     if (target) {
       onnavigate?.(target);
+      return;
+    }
+    // A link into the manual (`resolveManual`, 2026-10-24): its reader, at that page and section.
+    const manual = el?.closest<HTMLElement>('.manual-link');
+    if (manual?.dataset.manualPage) {
+      e.preventDefault();
+      openManual(manual.dataset.manualPage, manual.dataset.manualSection);
       return;
     }
     const cell = el?.closest<HTMLTableCellElement>('td, th');
@@ -2733,7 +2741,8 @@
 
                      **Opened in place, inside this window** — never a menu hanging off a menu, which is
                      how ＋ Media ended up half off the left edge of a phone. -->
-                <button class="opt" onclick={() => addMedia(startDictation)}>Dictate</button>
+                <!-- No Dictate here (2026-10-24, *a note's ＋ has no Dictate*): Add media → Record
+                     audio, then `/transcribe`, says the same and keeps the recording. -->
                 <button
                   class="opt"
                   aria-expanded={captureOpen}

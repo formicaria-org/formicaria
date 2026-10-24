@@ -7,6 +7,7 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { TEXT_TOKENS, CALLOUT_TYPES } from './render-vocab';
+import { manualBase } from './manual.svelte';
 
 // Decorative Markdown extensions, registered once at module load. **They run inside
 // `marked.parse` (below), upstream of the single `sanitize()` call — never as a post-`innerHTML`
@@ -116,8 +117,12 @@ marked.use({
 // placeholder — `geo:<lat>,<lon>` (RFC 5870) hands a place's coordinates to the OS map app on
 // click. It runs no script and, crucially, formicaria fetches nothing for it (the no-phone-home
 // line holds — the handoff is the OS's, not ours), so it is as inert as `tel:`/`mailto:`.
+//
+// `manual:` is a fourth pipeline placeholder (2026-10-24, *the tutorials are pages of the
+// manual*): `manual:images/x.png` is a picture from the manual this app carries, and
+// `manual:user/views.html#board` a page of it. `resolveManual` replaces both before display.
 const URI_ALLOWED =
-  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo|note|asset|sha256):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo|note|asset|sha256|manual):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: URI_ALLOWED });
@@ -185,6 +190,7 @@ export async function renderInto(
   // Sanitize BEFORE the resolve passes so they operate on already-clean DOM, and so a
   // hostile `onerror` never reaches the parser's output at all.
   el.innerHTML = sanitize(marked.parse(text, { async: false, gfm: true }) as string); // sink-ok: DOMPurify-sanitized
+  resolveManual(el);
   await resolveAssets(el, resolveAsset);
   if (resolveNote) await resolveNotes(el, resolveNote);
   if (resolveEmbed) await resolveEmbeds(el, resolveAsset, resolveNote, resolveEmbed, depth, seen);
@@ -540,6 +546,48 @@ function replaceWithFigure(img: HTMLImageElement, media: HTMLElement, alt: strin
   cap.textContent = alt;
   fig.appendChild(cap);
   img.replaceWith(fig);
+}
+
+/** A path inside the manual, or null: relative, no `..`, no scheme, nothing but a file path. */
+function manualPath(ref: string): string | null {
+  const path = ref.slice('manual:'.length).replace(/^\/+/, '');
+  if (!path || path.split(/[/#]/).includes('..') || /^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
+  return path;
+}
+
+/** **The manual, from a note** (2026-10-24, *the tutorials are pages of the manual*). A
+ *  `![…](manual:images/x.png)` is drawn from the copy of the manual this app carries — `/manual/`
+ *  on a computer, `fmmanual:` on a phone (`manualBase`) — so nothing is fetched from anywhere. A
+ *  `[…](manual:user/views.html#board)` becomes a button that opens the manual's reader there
+ *  (`.manual-link`, handled where the note's clicks are); a real href would navigate the app away. */
+export function resolveManual(el: HTMLElement): void {
+  for (const img of Array.from(el.querySelectorAll('img'))) {
+    const src = img.getAttribute('src') ?? '';
+    if (!src.startsWith('manual:')) continue;
+    const path = manualPath(src);
+    if (path) {
+      img.setAttribute('src', `${manualBase()}${path}`);
+      img.classList.add('manual-image');
+    } else img.remove();
+  }
+  for (const a of Array.from(el.querySelectorAll('a'))) {
+    const href = a.getAttribute('href') ?? '';
+    if (!href.startsWith('manual:')) continue;
+    const path = manualPath(href);
+    const text = a.textContent ?? '';
+    if (!path) {
+      a.replaceWith(document.createTextNode(text));
+      continue;
+    }
+    const [page, section] = path.split('#');
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'manual-link';
+    link.dataset.manualPage = page;
+    if (section) link.dataset.manualSection = section;
+    link.textContent = text;
+    a.replaceWith(link);
+  }
 }
 
 /** Resolve `note:<id>` links into live chips. Mirrors resolveAssets: marked has

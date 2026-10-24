@@ -883,7 +883,7 @@ const RECORD_KINDS = [
   'writing',
 ];
 export function healthRecord(notes: ObjectMeta[]): HealthRecord {
-  const own = new Set(['record', 'record_status', 'about', 'shelf']);
+  const own = new Set(['record', 'record_status', 'about']);
   const templates = [
     ...new Set(
       notes

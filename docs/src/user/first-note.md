@@ -17,7 +17,8 @@ be asked again the first time it actually matters.
 Then you land on the **Library's shelves**: your notes as books, one above another. Your first
 notebook has five short **tutorials** on the **Tutorials** shelf — what to do first, how to find
 things again, how to keep them safe, how to ask the assistant — even if it had notes before you
-updated. Tap one to read it. They are ordinary notes: change them, or delete them when you are done.
+updated. They are the same pages as this manual's [Tutorials](../tutorials/1-start-here.md), with its
+pictures, and an update brings them up to date unless you have changed them. Tap one to read it. They are ordinary notes: change them, or delete them when you are done.
 A deleted one stays deleted, on every device; Help → **Put the tutorials back** brings them back. Whenever you are lost, open the list of views (on a phone, the stacked-squares
 button in the bottom bar) and choose **Library** — it always opens on the shelves.
 

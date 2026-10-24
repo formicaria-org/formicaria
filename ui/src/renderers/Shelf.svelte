@@ -2,10 +2,11 @@
   // **The Library's shelves** (`decisions.md#ui`, 2026-10-18, *Home is the Library's shelves*). The
   // Board's grouping, drawn as a bookcase: each group is a shelf, each note a book lying on its
   // side, spines one above another so every title reads left to right. Dropping a book on another
-  // shelf sets the grouped property — exactly what moving a board card does.
+  // shelf hands the shelf's value up; the pane decides what that writes (its `shelf:` tags,
+  // 2026-10-24).
   //
   // **No shelf is named here.** Every label comes with the view (`library-shelves.view`): which
-  // shelves exist is the notes' own `shelf` property, and what the notes on none are called is the
+  // shelves exist is the notes' own `shelf:` tags, and what the notes on none are called is the
   // view's `rest`. The renderer only knows a group with an empty value is that rest.
   import {
     draggable,
@@ -21,7 +22,7 @@
     onopen,
   }: {
     board: Board;
-    /** Put a book on a shelf: set the grouped property to `value`. */
+    /** Put a book on the shelf whose value is `value` (`''` for the rest). */
     onmove: (id: string, value: string) => void;
     onopen: (id: string) => void;
   } = $props();

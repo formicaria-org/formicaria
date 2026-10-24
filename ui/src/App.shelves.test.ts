@@ -1,6 +1,6 @@
 /// **Home is the Library's shelves** (2026-10-18): a first launch opens on Library → Shelves, notes
-/// stand there as books grouped by their `shelf`, and Library is always the way back to them. The
-/// tutorials are ordinary notes on the Tutorials shelf (`fm_app::tutorials`).
+/// stand there as books grouped by their `shelf:` tags (2026-10-24), and Library is always the way
+/// back to them. The tutorials are ordinary notes on the Tutorials shelf (`fm_app::tutorials`).
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
@@ -24,9 +24,9 @@ beforeEach(async () => {
   setFirstView('home'); // what a real first launch opens on; the suite starts on Board
   await mock.handle('create_notes', {
     notes: [
-      { title: 'Start here', tags: ['tutorial'], props: { shelf: 'Tutorials' } },
-      { title: 'Ask Myrme', tags: ['tutorial'], props: { shelf: 'Tutorials' } },
-      { title: 'A loose thought', tags: [], props: {} },
+      { title: 'Start here', tags: ['tutorial', 'shelf:Tutorials'], props: {} },
+      { title: 'Ask Myrme', tags: ['tutorial', 'shelf:Tutorials'], props: {} },
+      { title: 'A loose thought', tags: ['idea'], props: {} },
     ],
   });
 });
@@ -45,6 +45,9 @@ test('a first launch opens on the shelves: tutorials as books, the rest on Other
   expect(within(tutorials).getByRole('button', { name: 'Ask Myrme' })).toBeTruthy();
   const other = screen.getByRole('region', { name: 'Other' });
   expect(within(other).getByRole('button', { name: 'A loose thought' })).toBeTruthy();
+  // Only a `shelf:` tag makes a shelf: `tutorial` and `idea` are tags, not shelves.
+  expect(screen.queryByRole('region', { name: 'tutorial' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'idea' })).toBeNull();
 });
 
 test('a book opens as a note, and Library brings the shelves back', async () => {

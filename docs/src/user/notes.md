@@ -231,10 +231,14 @@ to put it above.
 
 ### Dictating
 
-Say it instead of typing it. **Dictate** — the microphone above the keyboard on a phone, or in the
-note's **＋** on a computer — listens until you press **Stop & write**, then writes what you said
-into the note where the cursor is, as ordinary text you can change. It understands any language
-and writes it down in that language; up to five minutes at a time.
+Say it instead of typing it. On a phone, **Dictate** — the microphone above the keyboard — listens
+until you press **Stop & write**, then writes what you said into the note where the cursor is, as
+ordinary text you can change. It understands any language and writes it down in that language; up
+to five minutes at a time.
+
+On a computer, record it instead: the note's **＋ → Add media → Record audio**, then write
+`@Myrme /transcribe` in its discussion. The recording stays in the note, and the words come back as
+a proposal you accept or change.
 
 It uses the speech-to-text of the [study assistant](./assistant.md#the-two-extras), on this device —
 nothing you say leaves it — so *Audio transcription* has to be on; until it is, Dictate says so.

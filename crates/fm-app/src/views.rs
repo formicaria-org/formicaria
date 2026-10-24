@@ -50,9 +50,9 @@ pub enum Renderer {
     /// days; `run_view` answers only what the view *is* ([`TotalsDef`]).
     Totals,
     /// **Notes as books on shelves** (`decisions.md#ui`, 2026-10-18, *Home is the Library's
-    /// shelves*): the Board's grouping, by the `shelf` property unless `group_by` says otherwise,
-    /// drawn as stacked rows of spines. Putting a book on a shelf sets the property, as moving a
-    /// card sets `status`; a note on no shelf is under the view's `rest` label.
+    /// shelves*): notes grouped by their `shelf:` tags ([`SHELF_TAG`], 2026-10-24, *a shelf is a
+    /// `shelf:` tag*) — or by a property when `group_by` names one — drawn as stacked rows of spines.
+    /// Putting a book on a shelf rewrites that tag; a note on no shelf is under the view's `rest`.
     Shelf,
 }
 
@@ -380,7 +380,8 @@ fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query 
         },
         Renderer::Shelf => Query {
             filter: notes(),
-            group_by: Some(group_by.unwrap_or(SHELF).to_string()),
+            // By tag unless told otherwise: then `run_file` shelves the rows itself (`shelve`).
+            group_by: group_by.map(str::to_string),
             sort: vec![SortKey::desc("created")],
             ..Default::default()
         },
@@ -874,17 +875,22 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
 
     Ok(match file.view {
         Renderer::Board | Renderer::Shelf => {
-            let group_by = q.group_by.clone().unwrap_or_default();
-            let mut columns: Vec<Column> = res
-                .groups
-                .unwrap_or_default()
-                .into_iter()
-                .map(|g| Column {
-                    value: value_string(&g.key),
-                    label: g.label,
-                    cards: g.rows.iter().map(ObjectMeta::from).collect(),
-                })
-                .collect();
+            let by_tag = file.view == Renderer::Shelf && q.group_by.is_none();
+            let group_by =
+                if by_tag { "tags".to_string() } else { q.group_by.clone().unwrap_or_default() };
+            let mut columns: Vec<Column> = if by_tag {
+                shelve(&res.rows)
+            } else {
+                res.groups
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|g| Column {
+                        value: value_string(&g.key),
+                        label: g.label,
+                        cards: g.rows.iter().map(ObjectMeta::from).collect(),
+                    })
+                    .collect()
+            };
             // Shelves read in order, named ones by name, and the notes on none last, under the
             // view's own word for them.
             if file.view == Renderer::Shelf {
@@ -940,8 +946,47 @@ fn parse_view(text: &str, origin: &str) -> Result<ViewFile, String> {
 /// build that predates a renderer never meets a file naming it, and turning a feature on writes
 /// nothing into anybody's notes. A vault file of the same name wins — that is how a person changes
 /// what a shipped view calls things.
-/// The property a note's shelf is kept in (`view: shelf`).
-pub const SHELF: &str = "shelf";
+/// **A shelf is a tag with this prefix** (`decisions.md#ui`, 2026-10-24, *a shelf is a `shelf:`
+/// tag*): `shelf:Reading` puts a note on the Reading shelf. No other tag makes a shelf.
+pub const SHELF_TAG: &str = "shelf:";
+
+/// The shelf a tag names, if it names one: `shelf:Reading` → `Reading`. A bare `shelf:` names none.
+pub fn shelf_of(tag: &str) -> Option<&str> {
+    tag.strip_prefix(SHELF_TAG).map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// **The notes on their shelves**: one column per `shelf:` tag, valued by the whole tag (what a
+/// drop writes back) and labelled by the name after the prefix; a note with two is on both, a note
+/// with none is in the column valued `""` — the view's `rest`. Rows keep the query's order. Done
+/// here rather than by `fm-query`'s `group_by`, which groups by a whole value: `[lab, shelf:Reading]`
+/// would be a shelf of its own.
+pub fn shelve(rows: &[fm_model::Object]) -> Vec<Column> {
+    let mut shelves: Vec<Column> = Vec::new();
+    let mut put = |value: &str, label: &str, o: &fm_model::Object| match shelves
+        .iter_mut()
+        .find(|c| c.value == value)
+    {
+        Some(c) => c.cards.push(ObjectMeta::from(o)),
+        None => shelves.push(Column {
+            value: value.to_string(),
+            label: label.to_string(),
+            cards: vec![ObjectMeta::from(o)],
+        }),
+    };
+    for o in rows {
+        let mut on_one = false;
+        for tag in &o.tags {
+            if let Some(name) = shelf_of(tag) {
+                put(tag, name, o);
+                on_one = true;
+            }
+        }
+        if !on_one {
+            put("", "", o);
+        }
+    }
+    shelves
+}
 
 const SHIPPED: &[(&str, &str)] = &[
     ("library-shelves", include_str!("shipped/library-shelves.view")),
@@ -1147,19 +1192,20 @@ mod tests {
         assert_eq!(total, 2, "only the two lab notes");
     }
 
-    /// **The Library's shelves** (2026-10-18): notes grouped by `shelf`, named shelves in order and
-    /// the notes on none last under the view's own word — the shipped view, run as it ships.
+    /// **The Library's shelves** (2026-10-24, *a shelf is a `shelf:` tag*): notes grouped by their
+    /// `shelf:` tags, named shelves in order and the notes on none last under the view's own word —
+    /// the shipped view, run as it ships. Another tag makes no shelf; two `shelf:` tags, two shelves.
     #[test]
-    fn shelves_are_the_shelf_property_with_the_rest_last() {
+    fn shelves_are_the_shelf_tags_with_the_rest_last() {
         let d = tempdir().unwrap();
         let mut s = FileStore::named(d.path(), "v").unwrap();
-        for (title, shelf) in
-            [("Start here", Some("Tutorials")), ("Cooking", Some("Kitchen")), ("A thought", None)]
-        {
+        for (title, tags) in [
+            ("Start here", &["tutorial", "shelf:Tutorials"][..]),
+            ("Cooking", &["shelf:Kitchen", "shelf:Tutorials"][..]),
+            ("A thought", &["idea"][..]),
+        ] {
             let mut o = Object::new(Kind::Note, title);
-            if let Some(sh) = shelf {
-                o.extra.insert(SHELF.into(), PropertyValue::Text(sh.into()));
-            }
+            o.tags = tags.iter().map(|t| t.to_string()).collect();
             s.put(&o).unwrap();
         }
         let r = run_shipped(&s, "Shelves").expect("it ships").unwrap();
@@ -1168,10 +1214,13 @@ mod tests {
         let info = listed.iter().find(|v| v.name == "Shelves").unwrap();
         assert_eq!(info.group.as_deref(), Some("Library"), "it is one of the Library's views");
         let shelves = r.board.unwrap();
-        assert_eq!(shelves.group_by, SHELF);
+        assert_eq!(shelves.group_by, "tags");
         let labels: Vec<_> = shelves.columns.iter().map(|c| c.label.as_str()).collect();
         assert_eq!(labels, ["Kitchen", "Tutorials", "Other"]);
+        assert_eq!(shelves.columns[1].value, "shelf:Tutorials", "a drop writes the whole tag back");
+        assert_eq!(shelves.columns[1].cards.len(), 2, "a note with two shelf tags is on both");
         assert!(shelves.columns[2].value.is_empty(), "the rest is the notes with no shelf");
+        assert_eq!(shelves.columns[2].cards.len(), 1, "a tag that is not a shelf makes none");
     }
 
     /// The UI opens a first launch on this view by name (`HOME_VIEW`, ui/src/lib/panes.ts); a

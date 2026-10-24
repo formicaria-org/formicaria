@@ -258,6 +258,18 @@
   // Bumped on write so the `$derived` below re-runs — localStorage is not reactive.
   let orderVersion = $state(0);
 
+  /// **Put a book on a shelf** (`decisions.md#ui`, 2026-10-24, *a shelf is a `shelf:` tag*): its
+  /// shelf tags — every column it stands in, since each is one — give way to the one it was dropped
+  /// on (none for the rest), and the rest of its tags stay. One undoable tag write, no new command.
+  function shelve(b: BoardT, id: string, value: string) {
+    const card = b.columns.flatMap((c) => c.cards).find((c) => c.id === id);
+    if (!card) return;
+    const shelves = new Set(b.columns.map((c) => c.value).filter(Boolean));
+    const tags = card.tags.filter((t) => !shelves.has(t));
+    if (value) tags.push(value);
+    onmove('tags', id, tags.join(', '), null);
+  }
+
   function ordered(b: BoardT): BoardT {
     void orderVersion;
     const saved = allOrders()[pane.groupBy];
@@ -369,9 +381,9 @@
         <p class="pane-empty">No note.</p>
       {/if}
     {:else if pane.kind === 'view' && shownView?.renderer === 'shelf'}
-      <!-- The Library's shelves: the board's grouping, as a bookcase (2026-10-18). -->
+      <!-- The Library's shelves: the notes by their `shelf:` tags, as a bookcase (2026-10-24). -->
       {#if board}
-        <Shelf {board} onmove={(id, value) => onmove(board.group_by, id, value, null)} {onopen} />
+        <Shelf {board} onmove={(id, value) => shelve(board, id, value)} {onopen} />
       {:else}
         <p class="pane-empty">Loading…</p>
       {/if}

@@ -64,6 +64,7 @@ pub mod reminders;
 pub mod scope;
 // A git token, only on platforms with no credential helper to delegate to (i.e. Android).
 pub mod secrets;
+pub mod shelf;
 pub mod themes;
 pub mod thread;
 pub mod tutorials;

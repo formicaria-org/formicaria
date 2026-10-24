@@ -280,6 +280,13 @@ impl App {
                 eprintln!("note: swept {swept} abandoned upload(s) in '{}'", cfg.name);
             }
         }
+        // **A shelf is a `shelf:` tag** (`shelf::migrate`, 2026-10-24): a note still carrying the
+        // old property is rewritten first, so the tutorials' check below sees today's form.
+        match crate::shelf::migrate(&mut store) {
+            Ok(0) => {}
+            Ok(n) => eprintln!("note: moved {n} note(s) from the shelf property to a shelf: tag"),
+            Err(e) => eprintln!("note: the shelf property was not rewritten: {e}"),
+        }
         // **Everyone has the tutorials** (`tutorials::give`, 2026-10-20): the missing ones, never
         // one deleted, into the first notebook. Best effort: a start never fails over them.
         match crate::tutorials::give(&mut store, &vaults) {
@@ -288,6 +295,14 @@ impl App {
             }
             Ok(_) => {}
             Err(e) => eprintln!("note: the tutorials were not added: {e}"),
+        }
+        // **A copy nobody changed is brought up to date** (`tutorials::update`, 2026-10-24).
+        match crate::tutorials::update(&mut store) {
+            Ok(up) if !up.is_empty() => {
+                eprintln!("note: brought {} tutorial(s) up to date", up.len())
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("note: the tutorials were not brought up to date: {e}"),
         }
         // Flattened to strings here on purpose: this is the startup log line, which wants
         // one readable sentence per note. The structured form is what rides the heartbeat.

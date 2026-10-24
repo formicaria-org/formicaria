@@ -7,6 +7,14 @@
 - [Set up formicaria](./user/setup.md)
 - [Your first ten minutes](./user/first-note.md)
 
+# Tutorials
+
+- [Start here](./tutorials/1-start-here.md)
+- [Write, and find it again](./tutorials/2-write-and-find.md)
+- [See your notes your way](./tutorials/3-your-way.md)
+- [Keep them safe](./tutorials/4-keep-them-safe.md)
+- [Ask Myrme](./tutorials/5-ask-myrme.md)
+
 # Going further
 
 - [Creating & organizing notes](./user/notes.md)

@@ -105,7 +105,7 @@ Some things change rarely and are asked about at every visit. In **Health → �
 record**, formicaria writes templates for them into your notebook, once: **Medicine**, **Allergy or
 intolerance**, **Condition**, **Result**, **Visit**, **Immunization**, **Procedure**, **Device**,
 **Contact** and **No known allergies**. Make one from **＋** like any note. Each is kept on the
-Library's **health** shelf, and is an ordinary note you can link to and from.
+Library's **health** shelf (the tag `shelf:health`), and is an ordinary note you can link to and from.
 
 - **A medicine** has a status, current, stopped or on hold, and its first and last day. Keep a
   stopped one: it is history worth having.
@@ -241,7 +241,7 @@ A private notebook, not a test: nothing you write in it is scored, judged or rea
   with low mood, also when people did it on their own (Cuijpers 2026; the COBRA trial, 2016).
 - **Sleep** (a starter): how long you slept, how long it took, times awake, how well.
 - **Mind notes**: **＋ → Start Mind notes** writes templates for a **thought record**, **worry
-  time** and a piece of **writing**, kept on the Library's **mind** shelf. They are our own wording:
+  time** and a piece of **writing**, kept on the Library's **mind** shelf (`shelf:mind`). They are our own wording:
   the well-known worksheets are not free to carry.
 - **Writing it down**: people often feel worse straight after writing about something hard; any good
   tends to come later, and with a few days between sessions (Frattaroli 2006; Guo 2023).

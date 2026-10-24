@@ -2,8 +2,8 @@
 //! allergies, conditions, results, visits, immunizations, procedures, devices, contacts
 //! (`health-plan-2026-10-22.md` §9; the International Patient Summary's sections, read at source).
 //!
-//! **Every item is an ordinary note**, made from a template the person asked for, shelved
-//! `shelf: health` in the Library, and known by its `record` property. Nothing here is a log entry
+//! **Every item is an ordinary note**, made from a template the person asked for, tagged
+//! `shelf:health` for the Library (2026-10-24), and known by its `record` property. Nothing here is a log entry
 //! and nothing is stored but the notes. A result carries **the lab's own range and flag as
 //! printed**; the app never supplies, judges or compares one (MedlinePlus: *"You can't compare your
 //! results to reference ranges that you might find elsewhere."*).
@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 /// The property a record note is known by, and its kinds.
 pub const RECORD: &str = "record";
 /// The last three are the person's own Mind notes (a thought record, worry time, a piece of
-/// writing), kept on the `mind` shelf; the doctor's page never shows them.
+/// writing), kept on the `shelf:mind` shelf; the doctor's page never shows them.
 pub const KINDS: [&str; 13] = [
     "medicine",
     "allergy",
@@ -41,7 +41,7 @@ pub const RECORD_STATUS: &str = "record_status";
 pub const ABOUT: &str = "about";
 
 /// Keys every item has that are not its own fields.
-const OWN: [&str; 4] = [RECORD, RECORD_STATUS, ABOUT, "shelf"];
+const OWN: [&str; 3] = [RECORD, RECORD_STATUS, ABOUT];
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct RecordItem {
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn the_record_is_every_note_with_a_record_kind_in_order_and_templates_are_not_in_it() {
         let mut s = MemoryStore::new();
-        put(&mut s, "Medicine", &[("record", "medicine"), ("shelf", "health")], &["template"]);
+        put(&mut s, "Medicine", &[("record", "medicine")], &["template", "shelf:health"]);
         put(
             &mut s,
             "House dust mite",

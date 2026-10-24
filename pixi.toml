@@ -431,6 +431,9 @@ pack-exercise-advice = "python3 ci/pack-exercise-advice.py docs/context/exercise
 # platform and nobody else'"'"'s. Broken links still fail the build. `FM_DOCS_OS=windows pixi run docs`
 # to preview another platform.
 docs = "sh ci/docs.sh"
+# Write the tutorial notes the app ships from their pages in the manual (`docs/src/tutorials/`;
+# `decisions.md#ui`, 2026-10-24). `pixi run test` fails until this has been run after a page changed.
+tutorials = { cmd = "cargo test -p fm-app --test tutorials_from_manual the_shipped_tutorials_are_what_the_manual_pages_make", env = { FM_BLESS_TUTORIALS = "1" } }
 # Unpack the Android toolchain into a gitignored `.android/`, each artifact verified against
 # its SHA-256 in `android/toolchain.lock`. The NDK/SDK/platform-tools have no conda packaging,
 # so they cannot ride in `pixi.lock` — but "outside pixi" must not become "outside the
