@@ -160,6 +160,8 @@ route!(branch_open(vault: &Path, branch: &str) -> bool);
 route!(file_on_branch(vault: &Path, branch: &str, rel: &str) -> Option<String>);
 route!(branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError>);
 route!(merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::Accepted, StoreError>);
+// What a closed proposal did, read from git (2026-10-24): the accept commit, or the kept outgoing one.
+route!(closed_change(vault: &Path, branch: &str) -> Result<Option<crate::git::Closed>, StoreError>);
 
 /// Load CA certificates into the in-process TLS store, from memory.
 ///

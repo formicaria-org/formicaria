@@ -12,6 +12,8 @@
   } from './ipc';
   import type { ProposalDiff, ProposalContent } from './types';
   import { formatStamp, toStamp } from './stamp';
+  import { STATE_LABEL } from './proposalState';
+  import { formatDay } from './appTime';
   import LiveEditor from './editor/LiveEditor.svelte';
 
   // `onaccepted`/`onrejected` let the parent (the Collaboration list) refresh once a proposal is
@@ -292,13 +294,39 @@
     <p class="muted">Loading the proposed change…</p>
   {:else if error}
     <p class="error">Couldn't load the diff: {error}</p>
-  {:else if diff && diff.declined}
-    <p class="muted">
-      This proposal was declined; the change was dropped, main untouched, and it is kept as a
-      record.
-    </p>
-  {:else if diff && !diff.exists}
-    <p class="muted">This proposal was merged into the note; the discussion lives on.</p>
+  {:else if diff && (diff.declined || !diff.exists)}
+    <!-- **Closed: how it ended, and what it did** (2026-10-24), read-only, like a closed pull
+         request. The change comes from git's record (the accept commit, or the text turned down). -->
+    <div class="pr-closed">
+      <p class="pr-closed-line">
+        <span class="pr-closed-state" data-state={diff.state}>{STATE_LABEL[diff.state]}</span>
+        {#if diff.closed_at}<span class="muted"> · {formatDay(diff.closed_at)}</span>{/if}
+        <span class="muted">
+          — {diff.state === 'merged'
+            ? 'accepted into the note.'
+            : diff.state === 'declined'
+              ? 'turned down; the note was not changed.'
+              : 'closed without being accepted or turned down here.'}</span
+        >
+      </p>
+      {#if diff.why}
+        <p class="pr-closed-why">Why: “{diff.why}”</p>
+      {/if}
+      {#if diff.shown_from_history && diff.patch}
+        <p class="muted">
+          {diff.state === 'merged' ? 'What it changed' : 'What it proposed'}{#if diff.files.length}
+            · {diff.files.join(', ')}{/if}
+        </p>
+        <pre class="diff">{#each lines as line}<code class="line {role(line)}">{line}</code
+            >{/each}</pre>
+      {:else}
+        <p class="muted">
+          {diff.state === 'declined'
+            ? 'The text that was turned down is not kept on this device; the reason above is its record.'
+            : 'There is no record of its change on this device.'}
+        </p>
+      {/if}
+    </div>
   {:else if diff}
     {#if proposed}
       {#if hasDetails}
@@ -702,5 +730,17 @@
     .line.del {
       color: #f85149;
     }
+  }
+  .pr-closed-line {
+    margin: 0 0 var(--space-1);
+  }
+  .pr-closed-state {
+    font-weight: 600;
+  }
+  .pr-closed-state[data-state='merged'] {
+    color: var(--accent);
+  }
+  .pr-closed-why {
+    margin: 0 0 var(--space-1);
   }
 </style>

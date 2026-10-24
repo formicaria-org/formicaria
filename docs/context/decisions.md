@@ -13228,3 +13228,50 @@ every platform, and a failed build there still publishes nothing.
 
 **Cost, stated:** a fault only GitHub's runners show (another OS, a clean cache) is found after the
 tag, where a red run means a fixed patch release rather than a release held back.
+
+## 2026-10-24 — a proposal is open, merged, declined or closed, and a closed one shows what it did `#git` `#ui`
+
+> Extends *a proposal's outgoing commit is kept* (2026-08-30) and *a proposal its author turned down
+> is never merged* (2026-09-04): the proposal note, already immortal, now says how it ended, and the
+> change it made stays readable.
+>
+> **Reverses, in part, a rule written only in the manual** (`reference/frontmatter.md`, *Proposal
+> semantics*; `user/collaboration.md`, *How a proposal ages*): *"whether a proposal is open, merged, or
+> abandoned is read from git, never from the note … a stored lifecycle would be a lie the moment the
+> branch moved."* That fear holds for a state that can change, and **open** stays derived: a proposal
+> is open while nothing has ended it, and whether its branch still resolves is read from git as before.
+> It does not hold for an **ending**: a merged proposal stays merged whatever its branch does next,
+> and the branch is precisely what an ending deletes, so git alone no longer answers once it is gone.
+> `declined: true` (2026-09-04) was already this shape; `accepted` and `closed` join it.
+
+**The owner:** *"a lot of merged past collaboration stay open which makes no sense, also, what's the
+point of keeping them there if the user cannot see what was done in them, it should be visible, just
+like one can see closed PRs"*.
+
+**What was wrong** (checked on a user's vault, locally): every proposal was listed under one
+*Proposals* heading with nothing to tell them apart. Most had been accepted (their `accept: merge
+proposal/<id>` commit is on `main`), some declined, one had closed with no record of how, and none
+was open. Accepting merged and deleted the branch but wrote nothing on the note, and the review drew
+its diff from the branch, so an accepted proposal showed only "merged into the note".
+
+**Decision.**
+1. **A proposal note carries how it ended**, as `declined` already did: `accepted: <RFC3339, UTC>`,
+   stamped by `accept_proposal` on a merge (or on a branch already gone, which it reports as
+   accepted), and `closed: true` for one whose branch is gone with no accept and no decline. The note
+   syncs, so a collaborator's copy and a phone without git say the same. Its state is read from the
+   note alone (`thread::proposal_state`): declined, else merged, else closed, else open.
+2. **Past proposals are stamped from the evidence at start** (`proposals::settle`, from
+   `App::load_with`): the accept commit's own time for a merged one; `closed` only when the branch is
+   gone both here and on `origin` and no accept commit exists. A note and its branch arrive in the
+   same fetch, so an open proposal is never closed by this.
+3. **What a closed proposal did is read from git** (`vcs::closed_change`, both backends): for a merged
+   one, what its accept commit brought into `main` (its first parent to it); for a declined one, its
+   kept outgoing commit (`refs/fm/review/<id>/…`, 2026-08-30) against where it left `main`, when this
+   device kept it. The review shows it read-only, with the date and, for a declined one, its reason.
+4. **Collaboration lists the open proposals first and the closed ones below**, newest first, folded
+   under *Closed*, each labelled Merged, Declined or Closed with its day — like a forge's closed pull
+   requests. Times are shown in the app's zone (`appTime.ts`).
+
+**What it costs, said.** A rejection made before 2026-08-30, or on another device, kept no outgoing
+commit here, so it shows its reason but not its text. A merged proposal whose accept commit was lost
+(a history squashed by hand) shows as Closed.

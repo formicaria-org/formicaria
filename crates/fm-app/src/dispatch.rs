@@ -296,6 +296,12 @@ impl App {
             Ok(_) => {}
             Err(e) => eprintln!("note: the tutorials were not added: {e}"),
         }
+        // **Past proposals say how they ended** (`commands::settle_proposals`, 2026-10-24).
+        match crate::commands::settle_proposals(&mut store, &vaults) {
+            Ok(0) => {}
+            Ok(n) => eprintln!("note: recorded how {n} past proposal(s) ended"),
+            Err(e) => eprintln!("note: past proposals were not settled: {e}"),
+        }
         // **A copy nobody changed is brought up to date** (`tutorials::update`, 2026-10-24).
         match crate::tutorials::update(&mut store) {
             Ok(up) if !up.is_empty() => {
@@ -1500,8 +1506,18 @@ fn dispatch_inner(
                 .ok_or_else(|| format!("no such proposal: {id}"))?
                 .vault;
             let path = g.config(scope, &vault_name)?.path.clone();
-            let outcome = commands::accept_proposal(&g.store(scope), &path, &id).map_err(err)?;
+            let outcome =
+                commands::accept_proposal(&mut g.store(scope), &path, &id).map_err(err)?;
             g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
+            // Commit the `accepted` stamp with it, as reject commits its record: the tab may close.
+            if vcs::available() {
+                let paths = g.all.written(&vault_name);
+                if !paths.is_empty()
+                    && vcs::commit_all(&path, "backup: proposal", &paths).unwrap_or(false)
+                {
+                    g.all.clear_written(&vault_name);
+                }
+            }
             json(serde_json::json!({
                 "outcome": match outcome {
                     fm_core::git::Accepted::Merged => "merged",

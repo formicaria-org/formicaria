@@ -62,6 +62,39 @@ pub const DECLINED: &str = "declined";
 /// what someone said, never evidence that anyone approved anything.
 pub const DECLINED_WHY: &str = "declined_why";
 
+/// **When a proposal was accepted**: `accepted: <RFC3339, UTC>` (2026-10-24, *a proposal is open,
+/// merged, declined or closed*). Stamped by `accept_proposal`, or at start from the accept commit's
+/// own time for one accepted before this existed (`commands::settle_proposals`). Like [`DECLINED`], it
+/// lives on the immortal proposal note, so every device and every collaborator reads the same state.
+pub const ACCEPTED: &str = "accepted";
+
+/// **When a proposal was rejected**: `declined_at: <RFC3339, UTC>`, beside [`DECLINED`] (2026-10-24).
+/// Absent on one rejected before it existed.
+pub const DECLINED_AT: &str = "declined_at";
+
+/// **A proposal that ended with no record of how**: `closed: true` — its branch gone here and on
+/// `origin`, no accept commit, never declined (2026-10-24). Stamped only by `settle_proposals`.
+pub const CLOSED: &str = "closed";
+
+/// How a proposal stands, from its note alone: `declined`, `merged`, `closed` or `open`.
+pub fn proposal_state(o: &fm_model::Object) -> &'static str {
+    let set = |k: &str| match o.get(k) {
+        fm_model::PropertyValue::Bool(b) => b,
+        fm_model::PropertyValue::Text(s) => !s.trim().is_empty() && s != "false",
+        fm_model::PropertyValue::Null => false,
+        _ => true,
+    };
+    if set(DECLINED) {
+        "declined"
+    } else if set(ACCEPTED) {
+        "merged"
+    } else if set(CLOSED) {
+        "closed"
+    } else {
+        "open"
+    }
+}
+
 /// **When a proposal was first actually shown to a person**: `shown: <RFC3339>`.
 ///
 /// The cheapest high-value discriminator in the whole record, and the only handle on the bias that

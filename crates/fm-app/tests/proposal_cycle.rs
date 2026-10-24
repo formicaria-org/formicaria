@@ -154,7 +154,7 @@ fn accept_proposal_the_gui_button_merges_the_branch_into_main() {
     git::commit_all(p, "backup: proposal", &store.written()).unwrap();
 
     // Accept — the merge the GUI button triggers.
-    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    assert_eq!(commands::accept_proposal(&mut store, p, &prop.id).unwrap(), git::Accepted::Merged);
 
     // The change is live on main...
     let after = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
@@ -168,7 +168,10 @@ fn accept_proposal_the_gui_button_merges_the_branch_into_main() {
         "the branch is deleted after accept"
     );
     // ...and pressing Accept again is a harmless no-op, not an error.
-    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::AlreadyGone);
+    assert_eq!(
+        commands::accept_proposal(&mut store, p, &prop.id).unwrap(),
+        git::Accepted::AlreadyGone
+    );
 }
 
 /// The realistic cycle: the first draft is **not** accepted. The user reads it, is unhappy with
@@ -330,4 +333,72 @@ fn a_user_iterates_with_the_agent_over_several_rounds_before_accepting() {
         7,
         "the full back-and-forth is preserved in the note"
     );
+}
+
+/// **A closed proposal says how it ended, and shows what it did** (2026-10-24): accepted, it reads as
+/// merged with its day and the change it brought into `main`; rejected, as declined with its reason
+/// and the text that was turned down; and a past proposal with no stamp is settled from git at start.
+#[test]
+fn a_closed_proposal_is_merged_or_declined_and_shows_its_change() {
+    if !have_git() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    let mut store = FileStore::open(p).unwrap();
+    let host = commands::capture(&mut store, "# Note\n\noriginal", "").unwrap().id;
+    git::commit_all(p, "note", &store.written()).unwrap();
+    let propose = |store: &mut FileStore, body: &str| {
+        let prop = commands::create_proposal(
+            store,
+            p,
+            &host,
+            body,
+            &ProposalLimits::default(),
+            None,
+            commands::Record::default(),
+        )
+        .unwrap();
+        git::commit_all(p, "backup: proposal", &store.written()).unwrap();
+        prop
+    };
+
+    // Open, then merged.
+    let a = propose(&mut store, "# Note\n\naccepted wording");
+    assert_eq!(commands::proposal_diff(&store, p, &a.id).unwrap().state, "open");
+    commands::accept_proposal(&mut store, p, &a.id).unwrap();
+    let d = commands::proposal_diff(&store, p, &a.id).unwrap();
+    assert_eq!(d.state, "merged");
+    assert!(d.closed_at.is_some(), "the day it was accepted");
+    assert!(!d.exists && d.shown_from_history);
+    assert!(d.patch.contains("accepted wording"), "what the accept brought into main: {}", d.patch);
+    git::commit_all(p, "backup: proposal", &store.written()).unwrap();
+
+    // Declined, with its reason and the text that was turned down.
+    let b = propose(&mut store, "# Note\n\nwording nobody wanted");
+    commands::reject_proposal(&mut store, p, &b.id, Some("too long")).unwrap();
+    let d = commands::proposal_diff(&store, p, &b.id).unwrap();
+    assert_eq!(d.state, "declined");
+    assert_eq!(d.why.as_deref(), Some("too long"));
+    assert!(d.closed_at.is_some());
+    assert!(d.shown_from_history && d.patch.contains("wording nobody wanted"), "{}", d.patch);
+    git::commit_all(p, "backup: proposal", &store.written()).unwrap();
+
+    // A proposal accepted before the stamp existed: settled from its accept commit at start.
+    let c = propose(&mut store, "# Note\n\nolder accept");
+    git::merge_proposal_branch(p, &format!("proposal/{}", c.id)).unwrap();
+    // And one whose branch went with no record of how.
+    let e = propose(&mut store, "# Note\n\ngone without a word");
+    let _ = git_run(p, &["branch", "-D", &format!("proposal/{}", e.id)]);
+    // And one still open, which must stay open.
+    let f = propose(&mut store, "# Note\n\nstill under review");
+    use fm_core::Store;
+    let name = store.get(c.id.parse().unwrap()).unwrap().unwrap().vault;
+    let vaults = [fm_app::vaults::VaultConfig { name, path: p.to_path_buf(), restic: None }];
+    assert_eq!(commands::settle_proposals(&mut store, &vaults).unwrap(), 2);
+    let state = |id: &str| commands::proposal_diff(&store, p, id).unwrap().state;
+    assert_eq!(state(&c.id), "merged");
+    assert_eq!(state(&e.id), "closed");
+    assert_eq!(state(&f.id), "open");
+    assert_eq!(commands::settle_proposals(&mut store, &vaults).unwrap(), 0, "once");
 }

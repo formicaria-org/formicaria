@@ -138,7 +138,9 @@ fn a_whole_review_event_survives_the_round_trip_through_git() {
     assert!(recovered.is_some(), "the model's pre-correction text must be recoverable");
 
     // The reason, the labels and the provenance all parse as real trailers.
-    let head = g(p, &["rev-parse", "HEAD"]);
+    // The accept merge, found by its subject: the stamp that says it was accepted is committed
+    // after it (2026-10-24), and in real use any later save moves HEAD too.
+    let head = g(p, &["log", "-1", "--format=%H", "--grep=^accept: merge ", "HEAD"]);
     let accepted = g(p, &["rev-parse", &format!("{head}^2")]); // the accept merge's second parent
     assert_eq!(trailer(p, &accepted, "SchemaRev"), "1");
     assert_eq!(trailer(p, &accepted, "Kind"), "factual");
@@ -411,7 +413,9 @@ fn a_complete_dataset_row_is_derivable_from_git_alone() {
     call(&app, "accept_proposal", json!({ "id": prop_id }));
 
     // ---- extraction, using only git ------------------------------------------------------
-    let head = g(p, &["rev-parse", "HEAD"]);
+    // The accept merge, found by its subject: the stamp that says it was accepted is committed
+    // after it (2026-10-24), and in real use any later save moves HEAD too.
+    let head = g(p, &["log", "-1", "--format=%H", "--grep=^accept: merge ", "HEAD"]);
     let final_commit = g(p, &["rev-parse", &format!("{head}^2")]); // accept merge's 2nd parent
     let base = g(p, &["merge-base", &format!("{head}^1"), &final_commit]);
     let path = format!("notes/{note_id}.md");

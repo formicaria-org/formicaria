@@ -31,9 +31,15 @@ offers the proposal path; it never forces it.
 ### The Collaboration view
 
 The **Collaboration** view (open it from the sidebar) gathers the things that need a **person**: at the top, a **Needs resolution** panel of any
-notes still in conflict (both versions marked in their bodies after a merge), and below it the open
-**proposals** across your vaults, newest first. Open a conflict to merge the two versions by hand;
-open a proposal to read it and its discussion, and to take part.
+notes still in conflict (both versions marked in their bodies after a merge), and below it the
+**open proposals** across your vaults, newest first. Open a conflict to merge the two versions by
+hand; open a proposal to read it and its discussion, and to take part.
+
+Below them, folded, are the **closed** proposals, newest first, each marked **Merged**,
+**Declined** or **Closed** with the day it ended — like a forge's closed pull requests. Open one to
+see what it did: for a merged one, the change it brought into the note; for a declined one, the
+reason given and, when this device kept it, the text that was turned down. A closed proposal is a
+record, so it can only be read.
 
 The conflict list is *derived* — a note is in it exactly while its body carries the merge markers, so
 resolving a note makes it drop off by itself (nothing to dismiss). It matters that it lives here and
@@ -55,6 +61,7 @@ is not something you *plan* — but they remain fully searchable.
 
 A branch can be merged, renamed, or deleted, but the proposal note — and its discussion — lives on
 in git history. So a proposal that names a branch which no longer exists is shown with a *warning*,
-never hidden: the reasoning about a change outlives the change. Whether a proposal is still open,
-merged, or abandoned is read from git, not stored in the note. See the
+never hidden: the reasoning about a change outlives the change. How a proposal **ended** — merged,
+declined, or closed — is written on its note when it ends, and is the same on every device; while
+nothing has ended it, it is open. See the
 [frontmatter reference](../reference/frontmatter.md#proposal-semantics) for the exact rules.

@@ -7,6 +7,7 @@
 import { parseStamp } from './stamp';
 import { GIT_ASSETS_CEILING, humanSize } from './size';
 import { isPhone } from './platform';
+import { proposalState, closedAt } from './proposalState';
 import type {
   AssetStatus,
   BackupStatus,
@@ -1443,13 +1444,35 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // A GONE proposal note (rejected elsewhere, or a stale list) → nothing to show, not an error —
       // the same tolerance the real backend now has (what a client sees before its list refreshes). A
       // note that exists but is not a proposal is still an error, exactly as on the backend.
-      if (!prop) return { exists: false, declined: false, files: [], patch: '' } as T;
+      if (!prop)
+        return {
+          exists: false,
+          declined: false,
+          files: [],
+          patch: '',
+          state: 'closed',
+          closed_at: null,
+          why: null,
+          shown_from_history: false,
+        } as T;
       if (!isProposal(prop)) throw new Error('not a proposal');
       const declined = prop.props?.declined === 'true';
-      // Declined (branch dropped, note kept) or accepted (merged) → the branch is gone; the note
-      // outlives it, so the diff reports "nothing to show", distinguishing declined from merged.
-      if (declined || acceptedProposals.has(prop.id)) {
-        return { exists: false, declined, files: [], patch: '' } as T;
+      const state = proposalState(prop);
+      // Closed (merged, declined, or gone) → the branch is gone, but what it did is read from
+      // history, as the real backend reads it from git (`vcs::closed_change`, 2026-10-24). The mock
+      // has no git: it keeps the text each proposal carried and shows that.
+      if (state !== 'open') {
+        const did = (prop.props?.proposedBody as string | undefined) || '';
+        return {
+          exists: false,
+          declined,
+          files: did ? ['notes/(preview).md'] : [],
+          patch: did ? `@@ what it did @@\n+${did}\n` : '',
+          state,
+          closed_at: closedAt(prop),
+          why: (prop.props?.declined_why as string | undefined) ?? null,
+          shown_from_history: !!did,
+        } as T;
       }
       // The mock has no git, so it returns a stand-in patch (there is no real branch to diff). The
       // real backend diffs `proposal/<id>` against `main`. Shape matches the server's `ProposalDiff`.
@@ -1458,6 +1481,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         declined: false,
         files: ['notes/(preview).md'],
         patch: '@@ preview @@\n+ (the real diff appears against a live backend)\n',
+        state: 'open',
+        closed_at: null,
+        why: null,
+        shown_from_history: false,
       } as T;
     }
     case 'accept_proposal': {
@@ -1473,6 +1500,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // go green for the wrong reason, which is the drift `mock.ts`'s own header warns about.
       if (prop.props?.declined === 'true') return { outcome: 'already_gone' } as T;
       acceptedProposals.add(prop.id);
+      if (!prop.props?.accepted) prop.props = { ...prop.props, accepted: new Date().toISOString() };
       return { outcome: 'merged' } as T;
     }
     case 'proposal_shown': {
@@ -1490,7 +1518,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // `proposal/<id>` branch. main is untouched either way.
       const p = notes.find((n) => n.id === String(args.id) && isProposal(n));
       if (!p) throw new Error('not a currently-open proposal');
-      p.props = { ...p.props, declined: 'true' };
+      p.props = { ...p.props, declined: 'true', declined_at: new Date().toISOString() };
       const rw = String(args.why ?? '').trim();
       if (rw) p.props = { ...p.props, declined_why: rw };
       return undefined as T;

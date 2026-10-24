@@ -26,6 +26,8 @@
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, paneLabel, clampSpan, rendererKind } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
+  import { proposalState, closedAt, STATE_LABEL } from './proposalState';
+  import { formatDay } from './appTime';
   import { orderColumns, moveValue } from './boardOrder';
 
   interface Props {
@@ -194,6 +196,13 @@
   // Which proposals have their diff expanded — so a proposal's diff is fetched only when opened,
   // not once per proposal on render.
   let openProposal = $state<Record<string, boolean>>({});
+  /// Open proposals first; the closed ones apart, newest first by when they closed (2026-10-24).
+  const openCards = $derived(cards.filter((c) => proposalState(c) === 'open'));
+  const closedCards = $derived(
+    cards
+      .filter((c) => proposalState(c) !== 'open')
+      .sort((a, b) => (closedAt(b) ?? b.created).localeCompare(closedAt(a) ?? a.created)),
+  );
   /// The Library's one tag, chosen from its chips: the notes that carry it. Kept by the window,
   /// not written anywhere (`decisions.md#ui`, 2026-10-12).
   let tag = $state<string | null>(null);
@@ -478,36 +487,59 @@
       <MailHeard {onopen} />
       <!-- Proposals: each expands to its diff (fetched lazily on open); "open" jumps to the
            proposal note itself, where its discussion lives. -->
-      {#if cards.length}
+      <!-- Open proposals first; the closed ones below, folded, newest first — like a forge's closed
+           pull requests: each says how it ended and, opened, what it did (2026-10-24). -->
+      {#snippet proposalRow(p: ObjectMeta, closed: boolean)}
+        <li>
+          <details bind:open={openProposal[p.id]}>
+            <summary class="proposal-row">
+              <VaultBadge vault={p.vault} />
+              {#if closed}
+                <span class="proposal-state" data-state={proposalState(p)}
+                  >{STATE_LABEL[proposalState(p)]}</span
+                >
+              {/if}
+              <span class="proposal-title">{p.title ?? p.preview}</span>
+              {#if closed && closedAt(p)}
+                <span class="proposal-when">{formatDay(closedAt(p))}</span>
+              {/if}
+              <button
+                class="proposal-open"
+                onclick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onopen(p.id);
+                }}
+                title="Open the proposal note and its discussion">open</button
+              >
+            </summary>
+            {#if openProposal[p.id]}
+              <ProposalReview id={p.id} />
+            {/if}
+          </details>
+        </li>
+      {/snippet}
+      {#if openCards.length}
         <section class="proposals-feed">
-          <h3 class="proposals-head">Proposals</h3>
+          <h3 class="proposals-head">Open proposals</h3>
           <ul>
-            {#each cards as p (p.id)}
-              <li>
-                <details bind:open={openProposal[p.id]}>
-                  <summary class="proposal-row">
-                    <VaultBadge vault={p.vault} />
-                    <span class="proposal-title">{p.title ?? p.preview}</span>
-                    <button
-                      class="proposal-open"
-                      onclick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onopen(p.id);
-                      }}
-                      title="Open the proposal note and its discussion">open</button
-                    >
-                  </summary>
-                  {#if openProposal[p.id]}
-                    <ProposalReview id={p.id} />
-                  {/if}
-                </details>
-              </li>
+            {#each openCards as p (p.id)}
+              {@render proposalRow(p, false)}
             {/each}
           </ul>
         </section>
       {:else}
         <p class="no-proposals">No open proposals.</p>
+      {/if}
+      {#if closedCards.length}
+        <details class="proposals-closed">
+          <summary class="proposals-head">Closed · {closedCards.length}</summary>
+          <ul>
+            {#each closedCards as p (p.id)}
+              {@render proposalRow(p, true)}
+            {/each}
+          </ul>
+        </details>
       {/if}
     {:else if pane.kind === 'agenda'}
       {#if pane.agendaMode === 'list'}
@@ -770,8 +802,37 @@
     padding: 0;
     list-style: none;
   }
-  .proposals-feed li {
+  .proposals-feed li,
+  .proposals-closed li {
     border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.18));
+  }
+  .proposals-closed {
+    margin: var(--space-2);
+  }
+  .proposals-closed > summary {
+    cursor: pointer;
+  }
+  .proposals-closed ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .proposal-state {
+    flex: none;
+    font-size: var(--text-xs);
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
+    color: var(--muted);
+  }
+  .proposal-state[data-state='merged'] {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .proposal-when {
+    flex: none;
+    font-size: var(--text-xs);
+    color: var(--muted);
   }
   .proposal-row {
     display: flex;

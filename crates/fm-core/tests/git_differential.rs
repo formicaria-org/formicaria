@@ -1564,3 +1564,62 @@ fn both_backends_read_the_vault_clock_from_the_same_first_commit() {
     assert_eq!(git::founding_offset(v).unwrap(), Some(-(5 * 3600 + 30 * 60)));
     assert_eq!(git_native::founding_offset(v).unwrap(), Some(-(5 * 3600 + 30 * 60)));
 }
+
+/// **What a closed proposal did** (2026-10-24): both backends read the same change back once the
+/// branch is gone — a merged one from its accept commit, a rejected one from its kept outgoing
+/// commit — and neither invents one where git holds none.
+#[test]
+fn a_closed_proposal_reads_back_what_it_did_on_both() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    seed(a.path(), "notes/n1.md", NOTE);
+    seed(b.path(), "notes/n1.md", NOTE);
+
+    // Merged.
+    let br = "proposal/p1";
+    let merged = NOTE.replace("bravo", "accepted text");
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &merged, "propose: m", None).unwrap();
+    git_native::create_proposal_branch(b.path(), br, "notes/n1.md", &merged, "propose: m", None)
+        .unwrap();
+    assert_eq!(git::merge_proposal_branch(a.path(), br).unwrap(), git::Accepted::Merged);
+    assert_eq!(git_native::merge_proposal_branch(b.path(), br).unwrap(), git::Accepted::Merged);
+    let ca = git::closed_change(a.path(), br).unwrap().expect("the accept commit is on HEAD");
+    let cb =
+        git_native::closed_change(b.path(), br).unwrap().expect("the accept commit is on HEAD");
+    assert_eq!(ca.files, ["notes/n1.md"]);
+    assert_eq!(ca.files, cb.files);
+    assert!(ca.merged_at.is_some() && cb.merged_at.is_some());
+    for c in [&ca, &cb] {
+        assert!(c.patch.contains("+") && c.patch.contains("accepted text"), "{}", c.patch);
+    }
+
+    // Rejected: the kept outgoing commit is what it proposed.
+    let br = "proposal/p2";
+    let turned_down = NOTE.replace("bravo", "turned down text");
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &turned_down, "propose: m", None)
+        .unwrap();
+    git_native::create_proposal_branch(
+        b.path(),
+        br,
+        "notes/n1.md",
+        &turned_down,
+        "propose: m",
+        None,
+    )
+    .unwrap();
+    git::delete_branch(a.path(), br).unwrap();
+    git_native::delete_branch(b.path(), br).unwrap();
+    let ra = git::closed_change(a.path(), br).unwrap().expect("kept");
+    let rb = git_native::closed_change(b.path(), br).unwrap().expect("kept");
+    assert_eq!(ra.merged_at, None);
+    assert_eq!(rb.merged_at, None);
+    assert_eq!(ra.files, rb.files);
+    assert!(ra.patch.contains("turned down text") && rb.patch.contains("turned down text"));
+
+    // Nothing here for a proposal git never saw.
+    assert_eq!(git::closed_change(a.path(), "proposal/p9").unwrap(), None);
+    assert_eq!(git_native::closed_change(b.path(), "proposal/p9").unwrap(), None);
+}

@@ -268,12 +268,12 @@ fn a_proposal_made_on_the_phone_is_accepted_on_the_laptop() {
     // The laptop pulls, reviews the phone's proposal, and accepts it.
     on_laptop(|| {
         vcs::pull(laptop.path()).unwrap();
-        let store = open(laptop.path());
+        let mut store = open(laptop.path());
         let diff = commands::proposal_diff(&store, laptop.path(), &prop.id).unwrap();
         assert!(diff.exists, "the laptop can review a proposal the phone pushed");
         assert!(diff.patch.contains("added from the phone"), "patch: {}", diff.patch);
         assert_eq!(
-            commands::accept_proposal(&store, laptop.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut store, laptop.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
         );
         g(laptop.path(), &["push", "origin", "main"]);
@@ -321,12 +321,12 @@ fn a_proposal_made_on_the_laptop_is_accepted_on_the_phone() {
 
     on_phone(|| {
         vcs::pull(phone.path()).unwrap();
-        let store = open(phone.path());
+        let mut store = open(phone.path());
         let diff = commands::proposal_diff(&store, phone.path(), &prop.id).unwrap();
         assert!(diff.exists, "the phone can review a proposal it only holds as origin/proposal/*");
         assert!(diff.patch.contains("added from the laptop"), "patch: {}", diff.patch);
         assert_eq!(
-            commands::accept_proposal(&store, phone.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut store, phone.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
             "the phone accepts a branch it has no local ref for"
         );
@@ -399,9 +399,9 @@ fn the_phone_accepts_cleanly_even_though_main_moved_under_it() {
     // The phone pulls that edit, then accepts its own proposal on top of it.
     on_phone(|| {
         vcs::pull(phone.path()).unwrap();
-        let store = open(phone.path());
+        let mut store = open(phone.path());
         assert_eq!(
-            commands::accept_proposal(&store, phone.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut store, phone.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
             "the manufactured `updated:` collision must not surface as a conflict on the phone"
         );
@@ -526,7 +526,7 @@ fn a_revised_proposal_replaces_what_the_reviewer_sees() {
 
     on_laptop(|| {
         vcs::pull(laptop.path()).unwrap();
-        let store = open(laptop.path());
+        let mut store = open(laptop.path());
         let diff = commands::proposal_diff(&store, laptop.path(), &prop.id).unwrap();
         assert!(diff.exists);
         assert!(
@@ -540,7 +540,7 @@ fn a_revised_proposal_replaces_what_the_reviewer_sees() {
             diff.patch
         );
         assert_eq!(
-            commands::accept_proposal(&store, laptop.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut store, laptop.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
         );
     });
@@ -576,11 +576,11 @@ fn the_phone_can_propose_and_accept_with_no_remote_at_all() {
         .unwrap();
         vcs::commit_all(solo.path(), "backup: proposal", &store.written()).unwrap();
 
-        let store = open(solo.path());
+        let mut store = open(solo.path());
         let diff = commands::proposal_diff(&store, solo.path(), &prop.id).unwrap();
         assert!(diff.exists, "an offline proposal is still reviewable");
         assert_eq!(
-            commands::accept_proposal(&store, solo.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut store, solo.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
         );
         assert!(body_of(solo.path(), &host).contains("kingfisher"));
@@ -634,9 +634,9 @@ fn accepting_on_the_phone_does_not_eat_an_unsaved_edit_to_another_note() {
         )
         .unwrap();
 
-        let store = open(phone.path());
+        let mut store = open(phone.path());
         assert_eq!(
-            commands::accept_proposal(&store, phone.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut store, phone.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
         );
     });
@@ -694,14 +694,14 @@ fn two_open_proposals_accept_one_after_the_other_on_the_phone() {
 
         assert_eq!(vcs::proposal_load(phone.path()).unwrap().0, 2, "two proposals are open");
 
-        let store = open(phone.path());
+        let mut store = open(phone.path());
         assert_eq!(
-            commands::accept_proposal(&store, phone.path(), &p1.id).unwrap(),
+            commands::accept_proposal(&mut store, phone.path(), &p1.id).unwrap(),
             git::Accepted::Merged,
         );
-        let store = open(phone.path());
+        let mut store = open(phone.path());
         assert_eq!(
-            commands::accept_proposal(&store, phone.path(), &p2.id).unwrap(),
+            commands::accept_proposal(&mut store, phone.path(), &p2.id).unwrap(),
             git::Accepted::Merged,
             "the second still applies after the first moved main"
         );

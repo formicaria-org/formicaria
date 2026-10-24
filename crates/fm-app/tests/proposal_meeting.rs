@@ -78,7 +78,7 @@ fn a_proposal_can_set_when_and_where_and_a_reviewers_edit_keeps_it() {
     assert_eq!(content.location.as_deref(), Some("COM1"));
     assert!(!content.is_new);
 
-    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    assert_eq!(commands::accept_proposal(&mut store, p, &prop.id).unwrap(), git::Accepted::Merged);
     let file = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
     assert!(file.contains("start: 2026-10-16T15:00"), "{file}");
     assert!(file.contains("location: COM1"), "{file}");
@@ -134,7 +134,7 @@ fn a_reviewer_can_correct_when_and_where_and_keeps_the_tag() {
     assert_eq!(after.due.as_deref(), Some("2026-10-16T18:00"));
     assert_eq!(after.location.as_deref(), Some("https://zoom.us/j/1"));
 
-    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    assert_eq!(commands::accept_proposal(&mut store, p, &prop.id).unwrap(), git::Accepted::Merged);
     let file = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
     assert!(file.contains("start: 2026-10-16T17:00"), "{file}");
     assert!(file.contains("- meeting"), "the tag survived the correction: {file}");
@@ -201,7 +201,7 @@ fn a_title_proposed_over_a_waiting_meeting_keeps_the_meeting() {
         "what it renames from is the note's own"
     );
 
-    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    assert_eq!(commands::accept_proposal(&mut store, p, &prop.id).unwrap(), git::Accepted::Merged);
     let file = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
     assert!(file.contains("title: Maria Rossi — Master student, robotics"), "{file}");
     assert!(file.contains("start: 2026-10-16T15:00"), "{file}");
@@ -278,7 +278,7 @@ fn a_proposed_new_note_exists_only_on_its_branch_until_accepted() {
     )
     .unwrap();
 
-    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+    assert_eq!(commands::accept_proposal(&mut store, p, &prop.id).unwrap(), git::Accepted::Merged);
     let file = std::fs::read_to_string(&path).unwrap();
     assert!(file.contains("start: 2026-10-28T10:00"), "{file}");
     assert!(file.contains("porto io le slide"), "{file}");

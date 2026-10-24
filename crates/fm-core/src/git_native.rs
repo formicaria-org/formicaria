@@ -2034,8 +2034,18 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
     let head = repo.head().map_err(map)?.target().unwrap_or(theirs);
     let base_tree = proposal_base_tree(&repo, head, theirs)?;
     let their_tree = repo.find_commit(theirs).map_err(map)?.tree().map_err(map)?;
+    let (files, patch) = tree_diff(&repo, &base_tree, &their_tree)?;
+    Ok((true, files, patch))
+}
 
-    let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&their_tree), None).map_err(map)?;
+/// The files and the unified diff between two trees — what [`branch_diff`] and [`closed_change`]
+/// show.
+fn tree_diff(
+    repo: &Repository,
+    from: &git2::Tree<'_>,
+    to: &git2::Tree<'_>,
+) -> Result<(Vec<String>, String), StoreError> {
+    let diff = repo.diff_tree_to_tree(Some(from), Some(to), None).map_err(map)?;
 
     let mut files: Vec<String> = Vec::new();
     for d in diff.deltas() {
@@ -2057,8 +2067,40 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
         true
     })
     .map_err(map)?;
+    Ok((files, patch))
+}
 
-    Ok((true, files, patch))
+/// Mirrors [`crate::git::closed_change`]: the newest `accept: merge <branch>` commit on `HEAD`
+/// against its first parent, else the newest kept outgoing commit against where it left `HEAD`.
+pub fn closed_change(vault: &Path, branch: &str) -> Result<Option<crate::git::Closed>, StoreError> {
+    let repo = Repository::open(vault).map_err(map)?;
+    let Some(head) = repo.head().ok().and_then(|h| h.target()) else { return Ok(None) };
+    let subject = format!("accept: merge {branch}");
+    let mut walk = repo.revwalk().map_err(map)?;
+    walk.push(head).map_err(map)?;
+    for oid in walk {
+        let Ok(oid) = oid else { continue };
+        let Ok(c) = repo.find_commit(oid) else { continue };
+        if c.summary().ok().flatten() != Some(subject.as_str()) {
+            continue;
+        }
+        let Ok(parent) = c.parent(0) else { continue };
+        let (files, patch) =
+            tree_diff(&repo, &parent.tree().map_err(map)?, &c.tree().map_err(map)?)?;
+        return Ok(Some(crate::git::Closed { merged_at: Some(c.time().seconds()), files, patch }));
+    }
+    let Some(id) = branch.strip_prefix("proposal/") else { return Ok(None) };
+    let mut tips: Vec<(i64, git2::Oid)> = Vec::new();
+    for r in repo.references_glob(&format!("refs/fm/review/{id}/*")).map_err(map)?.flatten() {
+        if let Some(c) = r.target().and_then(|o| repo.find_commit(o).ok()) {
+            tips.push((c.time().seconds(), c.id()));
+        }
+    }
+    let Some(&(_, tip)) = tips.iter().max_by_key(|(t, _)| *t) else { return Ok(None) };
+    let base_tree = proposal_base_tree(&repo, head, tip)?;
+    let tip_tree = repo.find_commit(tip).map_err(map)?.tree().map_err(map)?;
+    let (files, patch) = tree_diff(&repo, &base_tree, &tip_tree)?;
+    Ok(Some(crate::git::Closed { merged_at: None, files, patch }))
 }
 
 /// Mirrors [`crate::git::proposal_load`]: how many `proposal/*` branches are open, and the total

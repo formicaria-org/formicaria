@@ -90,6 +90,14 @@ export interface ProposalDiff {
   declined: boolean;
   files: string[];
   patch: string;
+  /** How it stands (2026-10-24): open, merged, declined or closed. */
+  state: 'open' | 'merged' | 'declined' | 'closed';
+  /** When it closed (RFC3339), when recorded. */
+  closed_at: string | null;
+  /** A rejection's reason, in the reviewer's words. */
+  why: string | null;
+  /** For a closed one: `files`/`patch` are what it did, read from history. */
+  shown_from_history: boolean;
 }
 
 /** The proposed note behind a proposal — for the review to show and edit before accepting. */

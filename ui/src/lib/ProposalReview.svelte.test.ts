@@ -43,7 +43,10 @@ describe('ProposalReview', () => {
     // Merged: the confirmation shows, the parent is notified, and the diff re-fetches to "gone".
     expect(await screen.findByText(/Merged into main/)).toBeTruthy();
     expect(onaccepted).toHaveBeenCalled();
-    expect(await screen.findByText(/merged into the note/)).toBeTruthy();
+    // Closed now: it says how it ended and shows what it did (2026-10-24).
+    expect(await screen.findByText(/accepted into the note/)).toBeTruthy();
+    expect(screen.getByText('Merged')).toBeTruthy();
+    expect(screen.getByText(/What it changed/)).toBeTruthy();
   });
 
   it('shows the proposed note and lets the reviewer edit and save it', async () => {
@@ -82,7 +85,8 @@ describe('ProposalReview', () => {
     expect(await screen.findByText(/kept as a declined record/)).toBeTruthy();
     expect(onrejected).toHaveBeenCalled();
     // The proposal is not deleted — it re-fetches to a declined state, not an error.
-    expect(await screen.findByText(/This proposal was declined/)).toBeTruthy();
+    expect(await screen.findByText(/turned down; the note was not changed/)).toBeTruthy();
+    expect(screen.getByText('Declined')).toBeTruthy();
   });
   it('saves the reviewer edits before merging, instead of silently dropping them', async () => {
     // The regression this pins: `acceptProposal` sends only the proposal id, never the draft, so

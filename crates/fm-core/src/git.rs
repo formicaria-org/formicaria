@@ -1495,6 +1495,84 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
     Ok((true, files, String::from_utf8_lossy(&patch.stdout).to_string()))
 }
 
+/// What a **closed** proposal did — `decisions.md#git`, 2026-10-24, *a closed one shows what it did*.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Closed {
+    /// When its accept commit was made (Unix seconds), for a merged one. `None` for a declined one.
+    pub merged_at: Option<i64>,
+    /// The files it changed, sorted.
+    pub files: Vec<String>,
+    /// Its change as a unified diff. Not byte-identical across backends (see `vcs.rs`).
+    pub patch: String,
+}
+
+/// **What a proposal whose branch is gone did**, from git's own record:
+/// - merged: the newest commit on `HEAD` whose subject is `accept: merge <branch>` (what
+///   [`merge_proposal_branch`] writes, on both backends), diffed from its first parent — what the
+///   accept brought into `main`;
+/// - declined (or revised): its newest kept outgoing commit, `refs/fm/review/<id>/<sha>`
+///   ([`retain_proposal_tip`]), diffed from where it left `HEAD`.
+///
+/// `None` when neither is here: a rejection from before retention, or made on another device.
+pub fn closed_change(vault: &Path, branch: &str) -> Result<Option<Closed>, StoreError> {
+    let subject = format!("accept: merge {branch}");
+    let log = git(vault)
+        .args(["log", "--format=%H %ct %s", "--fixed-strings", "--grep", &subject, "HEAD"])
+        .output()
+        .map_err(spawn)?;
+    let found = log.status.success().then(|| String::from_utf8_lossy(&log.stdout).into_owned());
+    let merge = found.as_deref().unwrap_or("").lines().find_map(|l| {
+        let (sha, rest) = l.split_once(' ')?;
+        let (at, subj) = rest.split_once(' ')?;
+        (subj == subject).then(|| (sha.to_string(), at.parse::<i64>().ok()))
+    });
+    let (from, to, merged_at) = if let Some((sha, at)) = merge {
+        (format!("{sha}^1"), sha, at)
+    } else {
+        let Some(id) = branch.strip_prefix("proposal/") else { return Ok(None) };
+        let refs = git(vault)
+            .args([
+                "for-each-ref",
+                "--sort=-committerdate",
+                "--format=%(objectname)",
+                &format!("refs/fm/review/{id}/"),
+            ])
+            .output()
+            .map_err(spawn)?;
+        let refs = String::from_utf8_lossy(&refs.stdout).into_owned();
+        let Some(tip) = refs.lines().map(str::trim).find(|l| !l.is_empty()) else {
+            return Ok(None);
+        };
+        let base = git(vault).args(["merge-base", "HEAD", tip]).output().map_err(spawn)?;
+        let base = if base.status.success() {
+            String::from_utf8_lossy(&base.stdout).trim().to_string()
+        } else {
+            format!("{tip}^")
+        };
+        (base, tip.to_string(), None)
+    };
+    let names = git(vault).args(["diff", "--name-only", &from, &to]).output().map_err(spawn)?;
+    if !names.status.success() {
+        return Err(failed("git diff --name-only", &names));
+    }
+    let mut files: Vec<String> = String::from_utf8_lossy(&names.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+    files.sort();
+    let patch = git(vault).args(["diff", &from, &to]).output().map_err(spawn)?;
+    if !patch.status.success() {
+        return Err(failed("git diff", &patch));
+    }
+    Ok(Some(Closed {
+        merged_at,
+        files,
+        patch: String::from_utf8_lossy(&patch.stdout).into_owned(),
+    }))
+}
+
 /// The outcome of accepting a proposal — what the UI tells the user.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Accepted {

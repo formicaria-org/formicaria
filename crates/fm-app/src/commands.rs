@@ -727,6 +727,52 @@ pub fn proposals(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
+/// **Past proposals are stamped with how they ended** (2026-10-24, *a proposal is open, merged,
+/// declined or closed*), from git's evidence, at start: a merged one gets `accepted` at its accept
+/// commit's own time; one whose branch is gone here and on `origin`, with no accept commit and never
+/// declined, gets `closed`. One still open is left alone, and so is any vault git cannot read. Every
+/// start, so a proposal accepted by an older build on another device is stamped once its accept
+/// commit arrives. Answers how many notes were stamped.
+pub fn settle_proposals(
+    store: &mut dyn Store,
+    vaults: &[crate::vaults::VaultConfig],
+) -> Result<usize, StoreError> {
+    let mut n = 0;
+    for p in proposals(store)? {
+        let Ok(pid) = p.id.parse::<Id>() else { continue };
+        let Some(mut obj) = store.get(pid)? else { continue };
+        if crate::thread::proposal_state(&obj) != "open" {
+            continue;
+        }
+        let Some(path) = vaults.iter().find(|v| v.name == obj.vault).map(|v| v.path.clone()) else {
+            continue;
+        };
+        if !path.join(".git").exists() {
+            continue;
+        }
+        let branch = match obj.get(crate::thread::PROPOSES) {
+            PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
+            _ => None,
+        };
+        let Some(branch) = branch else { continue };
+        let Ok(change) = fm_core::vcs::closed_change(&path, &branch) else { continue };
+        if let Some(at) = change
+            .as_ref()
+            .and_then(|c| c.merged_at)
+            .and_then(|s| OffsetDateTime::from_unix_timestamp(s).ok())
+        {
+            obj.extra.insert(crate::thread::ACCEPTED.into(), PropertyValue::DateTime(at));
+        } else if !fm_core::vcs::branch_open(&path, &branch) {
+            obj.extra.insert(crate::thread::CLOSED.into(), PropertyValue::Bool(true));
+        } else {
+            continue;
+        }
+        store.put(&obj)?;
+        n += 1;
+    }
+    Ok(n)
+}
+
 /// Create a **proposal** to change an existing note: the change lands on a fresh `proposal/<id>`
 /// branch (never `main`), and a proposal note carrying `proposes: branch:<name>` records it for the
 /// Collaboration view. The by-hand caller and (later) the study agent both come through here, so the
@@ -1316,6 +1362,15 @@ pub struct ProposalDiff {
     pub declined: bool,
     pub files: Vec<String>,
     pub patch: String,
+    /// How it stands (`thread::proposal_state`): `open`, `merged`, `declined` or `closed`.
+    pub state: String,
+    /// When it closed (RFC3339): accepted, or declined. `None` while open or when unrecorded.
+    pub closed_at: Option<String>,
+    /// A rejection's reason, in the reviewer's words.
+    pub why: Option<String>,
+    /// For a closed one: `files`/`patch` are what it did, read from git (`vcs::closed_change`) —
+    /// `false` when git holds no record of it here.
+    pub shown_from_history: bool,
 }
 
 /// Read the diff of the proposal note `id` — resolve its `proposes: branch:<name>` and diff that
@@ -1336,6 +1391,10 @@ pub fn proposal_diff(
             declined: false,
             files: Vec::new(),
             patch: String::new(),
+            state: "closed".into(),
+            closed_at: None,
+            why: None,
+            shown_from_history: false,
         });
     };
     let declined = is_declined(&obj);
@@ -1345,8 +1404,28 @@ pub fn proposal_diff(
     }
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
-    let (exists, files, patch) = fm_core::vcs::branch_diff(vault_path, &branch)?;
-    Ok(ProposalDiff { exists, declined, files, patch })
+    let (exists, mut files, mut patch) = fm_core::vcs::branch_diff(vault_path, &branch)?;
+    let state = crate::thread::proposal_state(&obj).to_string();
+    let when = |k: &str| match obj.get(k) {
+        PropertyValue::DateTime(t) => Some(crate::dto::stamp(t)),
+        PropertyValue::Text(t) if !t.trim().is_empty() => Some(t),
+        _ => None,
+    };
+    let closed_at = match state.as_str() {
+        "merged" => when(crate::thread::ACCEPTED),
+        "declined" => when(crate::thread::DECLINED_AT),
+        _ => None,
+    };
+    let why = when(crate::thread::DECLINED_WHY);
+    // **A closed proposal shows what it did** (2026-10-24): its branch is gone, but git keeps the
+    // accept commit (or the rejected text), and that is what a closed pull request shows.
+    let mut shown_from_history = false;
+    if !exists {
+        if let Some(c) = fm_core::vcs::closed_change(vault_path, &branch)? {
+            (files, patch, shown_from_history) = (c.files, c.patch, true);
+        }
+    }
+    Ok(ProposalDiff { exists, declined, files, patch, state, closed_at, why, shown_from_history })
 }
 
 /// The PROPOSED note behind a proposal, for review: the host note it edits, its title, and the
@@ -1450,12 +1529,12 @@ pub fn proposal_content(
 /// button. Fail-closed: an unclean merge is aborted and `main` is left untouched
 /// ([`fm_core::git::Accepted::Conflicted`]). Refuses a note that is not a proposal.
 pub fn accept_proposal(
-    store: &dyn Store,
+    store: &mut dyn Store,
     vault_path: &Path,
     id: &str,
 ) -> Result<fm_core::git::Accepted, StoreError> {
     let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
-    let obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+    let mut obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
 
     // **A withdrawn proposal is never merged.** `reject_proposal` deletes the branch *and* stamps
     // `declined`, so on the machine that rejected it there is nothing left to accept. When a
@@ -1485,7 +1564,19 @@ pub fn accept_proposal(
     }
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
-    fm_core::vcs::merge_proposal_branch(vault_path, &branch)
+    let outcome = fm_core::vcs::merge_proposal_branch(vault_path, &branch)?;
+    // **The note says it was accepted** (2026-10-24), as a rejected one says `declined`: the branch
+    // is gone after a merge, and without this the proposal read as open for ever. A branch already
+    // gone is reported as accepted, and stamped so.
+    if outcome != fm_core::git::Accepted::Conflicted
+        && obj.get(crate::thread::ACCEPTED) == PropertyValue::Null
+    {
+        let now =
+            OffsetDateTime::now_utc().replace_nanosecond(0).unwrap_or(OffsetDateTime::now_utc());
+        obj.extra.insert(crate::thread::ACCEPTED.into(), PropertyValue::DateTime(now));
+        store.put(&obj)?;
+    }
+    Ok(outcome)
 }
 
 /// Reject the proposal note `id`: delete its branch (local + remote if it was pushed) and the proposal
@@ -1513,6 +1604,8 @@ pub fn reject_proposal(
     // PR rather than mistaking this closed one for the live proposal (its branch is gone anyway).
     fm_core::vcs::delete_branch(vault_path, &branch)?;
     obj.extra.insert(crate::thread::DECLINED.into(), PropertyValue::Bool(true));
+    let now = OffsetDateTime::now_utc().replace_nanosecond(0).unwrap_or(OffsetDateTime::now_utc());
+    obj.extra.insert(crate::thread::DECLINED_AT.into(), PropertyValue::DateTime(now));
     // Reject writes no commit of its own — `main` is untouched by design — so the one place a
     // rejection's reason can survive is the proposal note this already rewrites. No new file, and
     // it is the *only* record of why: the rejected text never reaches `main` at all.

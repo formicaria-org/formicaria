@@ -432,7 +432,7 @@ fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
         // Ravi pulls — gets the proposal note on `main` and fetches `origin/proposal/<id>` — and can
         // REVIEW it: the branch resolves through the remote-tracking ref, not a local branch he lacks.
         pull(ravi.path()).unwrap();
-        let ravi_store = open(ravi.path());
+        let mut ravi_store = open(ravi.path());
         let diff = commands::proposal_diff(&ravi_store, ravi.path(), &prop.id).unwrap();
         assert!(diff.exists, "[{backend}] Ravi can review Ada's proposal across the sync");
         assert!(
@@ -443,7 +443,7 @@ fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
 
         // Ravi ACCEPTS it — merges `origin/proposal/<id>` into main and deletes the shared branch.
         assert_eq!(
-            commands::accept_proposal(&ravi_store, ravi.path(), &prop.id).unwrap(),
+            commands::accept_proposal(&mut ravi_store, ravi.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
             "[{backend}] Ravi accepts the cross-user proposal cleanly"
         );

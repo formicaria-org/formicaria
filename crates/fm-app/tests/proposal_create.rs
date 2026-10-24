@@ -100,7 +100,7 @@ fn a_proposal_against_an_uncommitted_note_commits_it_and_merges_cleanly() {
         "create_proposal must commit the target note so the branch shares a base with main"
     );
     // …and accepting the proposal MERGES cleanly rather than conflicting.
-    let outcome = commands::accept_proposal(&store, dir.path(), &prop.id).unwrap();
+    let outcome = commands::accept_proposal(&mut store, dir.path(), &prop.id).unwrap();
     assert!(matches!(outcome, git::Accepted::Merged), "expected a clean merge, got {outcome:?}");
     let merged = show(dir.path(), &format!("HEAD:notes/{target}.md"));
     assert!(
@@ -144,7 +144,7 @@ fn a_backup_between_proposing_and_accepting_keeps_the_proposal_acceptable() {
     git::commit_all(dir.path(), "auto: the proposal note", &store.written()).unwrap();
     git::push_squashed(dir.path(), "backup: proposal").unwrap();
 
-    let outcome = commands::accept_proposal(&store, dir.path(), &prop.id).unwrap();
+    let outcome = commands::accept_proposal(&mut store, dir.path(), &prop.id).unwrap();
     assert!(matches!(outcome, git::Accepted::Merged), "expected a clean merge, got {outcome:?}");
     let merged = show(dir.path(), &format!("HEAD:notes/{target}.md"));
     assert!(
@@ -1038,7 +1038,7 @@ fn accepting_a_proposal_that_was_turned_down_is_refused_and_main_is_untouched() 
     obj.extra.insert(fm_app::thread::DECLINED.into(), fm_model::PropertyValue::Bool(true));
     fm_core::Store::put(&mut store, &obj).unwrap();
 
-    let err = commands::accept_proposal(&store, p, &prop.id)
+    let err = commands::accept_proposal(&mut store, p, &prop.id)
         .expect_err("a declined proposal must not be accepted");
     let msg = format!("{err}");
     assert!(msg.contains("turned down"), "the refusal must say why: {msg}");

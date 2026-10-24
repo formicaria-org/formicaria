@@ -43,12 +43,16 @@ a branch does not:
 
 - **`proposes` is a tolerant, historical pointer — not live state.** A branch may be merged,
   renamed, or deleted while the note remains. A proposal whose branch no longer resolves is shown
-  with a *warning*, never treated as an error or hidden. Whether a proposal is open, merged, or
-  abandoned is read **from git**, never from the note.
+  with a *warning*, never treated as an error or hidden.
+- **How a proposal ended is written on it, once** (since 0.18): `accepted: <time>` when it was
+  merged, `declined: true` with `declined_at: <time>` (and `declined_why`) when it was turned down,
+  `closed: true` when its branch went with no record of either. An ending cannot become untrue when
+  a branch moves, and the branch is exactly what an ending deletes. A proposal with none of these is
+  **open**, and that is still read from git. Proposals accepted before 0.18 are given their
+  `accepted` time from git's own accept commit the first time the app starts.
 - **`status` on a proposal means author *readiness* only** — `draft` (don't review yet) or `ready`
-  (please review). It is the same `status` field, reused. It never carries lifecycle
-  (`merged`/`closed`/`rejected`): that is derived from git, because a stored lifecycle would be a
-  lie the moment the branch moved.
+  (please review). It is the same `status` field, reused. It never carries how a proposal ended:
+  that is the keys above.
 - **`base` is an immutable commit SHA**, so the diff still resolves years later. A branch name
   would dangle.
 - **Who proposed it is git's answer, not a field.** There is no `author`/`agent`/`proposed_by`
