@@ -188,6 +188,12 @@ leaves the file's `start` byte-identical; a restored note's times do not move.
 
 ### 6.2 Myrme follows formicaria (Myrme 0.10.0, contract 1.8)
 
+> **Done** (Myrme 0.10.0, linked by formicaria 0.19.0). As built, two points differ from the plan
+> below: `Here::today()` stays (it reads an instant, `Timestamp::now`, on a named zone; only the
+> system-zone and local-time calls are refused, by Myrme's `pixi run clock`), and a day an email
+> names is counted from the **sender's** day, which the offset headings of 0.20 make known. Myrme's
+> `decisions.md`, 2026-10-24 (later), is the record.
+
 - `VaultAccess::clock()` (defaulted: a minor). Zone and `today` come **only** from it;
   `Here::system()`/`Here::today()` are deleted and a CI grep keeps `try_system`/`Timestamp::now` out of
   `src`. No clock → no meeting pass (one log line), no date in chat.

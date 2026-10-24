@@ -1020,8 +1020,9 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
   nothing. Limits: an Automatic clock follows a laptop's change of zone within five minutes
   (`jiff`'s cache) plus one `ping`; a process started with `TZ` never follows the system; a paired
   tablet sees the host's clock. **Not yet:** email headings and `mail_last` are still text on the
-  clock in force when they were read in (0.20, `time-zones-audit-2026-10-24.md` §6.3), the assistant
-  still keeps naive stamps (Myrme 0.10, §6.2). The internet check (Settings → Clock) only warns, and
+  clock in force when they were read in (0.20, `time-zones-audit-2026-10-24.md` §6.3). The assistant
+  (Myrme 0.10, contract 1.8) reads this clock — `/api/clock`, `VaultAccess::clock` on the phone —
+  and never its process's own; it proposes starts as moments and remembers them so. The internet check (Settings → Clock) only warns, and
   only once a request the app makes anyway (Gmail, a calendar, the update check) has answered.
 - **On opening, then every 5 minutes, while the app is open** (an unchanged feed is skipped by its hash). There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.

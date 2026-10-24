@@ -562,6 +562,11 @@ impl VaultAccess for DispatchVault {
     fn zone(&self) -> Option<String> {
         self.call("clock", json!({})).ok()?["zone"].as_str().map(str::to_string)
     }
+    /// The whole `clock` answer (Myrme contract 1.8): with it the assistant also takes the app's
+    /// `today`, and proposes a start as a moment (`instants`).
+    fn clock(&self) -> Option<Value> {
+        self.call("clock", json!({})).ok()
+    }
     fn reply(&self, note: &str, body: &str) -> Result<Value, String> {
         self.call("reply", json!({ "id": note, "body": body }))
     }

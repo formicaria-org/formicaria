@@ -26,7 +26,8 @@
 /// 1.5: the phone's model choice (`Manifest::phone_choices`, "Faster" / "More accurate, slower").
 /// 1.6: the OCR's ONNX Runtime, staged into the APK from Myrme's catalogue
 /// (`ci/android-stage-onnxruntime.sh`, `host::BUNDLED_ONNXRUNTIME`).
-pub const MYRME_CONTRACT: (u32, u32) = (1, 7);
+/// 1.8: the app's clock, handed to the assistant (`VaultAccess::clock`; `/api/clock` on the desktop).
+pub const MYRME_CONTRACT: (u32, u32) = (1, 8);
 
 /// The compile-time check of [`MYRME_CONTRACT`] against the Myrme a crate links: another major, or
 /// an older minor, does not build, and says why rather than failing on a missing function. A macro
