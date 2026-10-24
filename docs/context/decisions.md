@@ -12948,6 +12948,10 @@ rulings in part — reversed here, with banners on both.
 
 ## 2026-10-23 (later) — every device shows the agenda on its own zone; the vault keeps the clock its times are on `#data` `#vault` `#seams`
 
+> CORRECTED IN PART (2026-10-24, *a note that leaves the store keeps its clock*): its known limit "a
+> proposal accepted on a device in another zone applies its times on the accepting device's clock" had
+> another cause — a proposal was serialised past the store's conversion — and is fixed there.
+
 > SUPERSEDED IN PART (2026-10-23, evening, *the vault's clock is read from its first commit*): items
 > 1 and 3 — the key is now `notes_time_zone`, and nothing is stamped at start; an unstated clock is
 > read from the vault's first commit.
@@ -13275,3 +13279,35 @@ its diff from the branch, so an accepted proposal showed only "merged into the n
 **What it costs, said.** A rejection made before 2026-08-30, or on another device, kept no outgoing
 commit here, so it shows its reason but not its text. A merged proposal whose accept commit was lost
 (a history squashed by hand) shows as Closed.
+
+## 2026-10-24 — a note that leaves the store keeps its clock `#vault` `#seams` `#git`
+
+> Corrects the known limit of *every device shows the agenda on its own zone* (2026-10-23, later).
+
+**What was wrong** (found by the time-zone audit, `time-zones-audit-2026-10-24.md`, F17/F18, and
+reproduced): a vault's timed `start`/`due` are written on the vault's clock and read onto the
+device's at the store's one seam (`hydrate`/`put`). Three paths carried a note's text through git
+instead of through `put`, and missed the seam:
+- **a proposal** (`create_proposal_with`, `propose_new_note`) was built from `store.get` — already on
+  the device's clock — and written with `frontmatter::to_file`; accepting merged those bytes, so **any**
+  proposal on a timed note moved its meeting by the gap between the clocks, a rename included
+  (reproduced: vault `+01:00`, device `+09:00`, a title-only proposal moved 10:00 to 18:00);
+- **a restore** from *Recently deleted* (`restore_note`) parsed git's text (vault clock) raw, then
+  `put` converted it a second time;
+- the **review** (`proposal_content`) showed a branch's times on the vault's clock as if the device's.
+The gap is zero when the device is on the vault's clock, which is why it went unseen; it is hours
+for a laptop that has changed zone since the vault was begun.
+
+**Decision.** Two `Store` methods are the only way a note's text crosses that seam outside `put`/
+`get`: `encode(&Object)` (exactly what `put` would write) and `decode(vault, &str)` (exactly what a
+read gives). `MemoryStore`'s are identity; `MultiStore` and `Scoped` route them as `put`. The proposal
+builders, the branch reads, `delete_keeping`'s kept text and `restore_note` go through them, so the
+undo copy and git's copy are the same text and read back the same way.
+
+**Pinned by** `crates/fm-app/tests/proposal_clocks.rs`, its own test binary with the process on
+`Asia/Tokyo` and the vault on `+01:00`, so the clocks differ on any machine: a title-only proposal
+accepted leaves the file's `start` byte-identical; a proposed new meeting lands where it was
+proposed; an undo and a restore from history move nothing. **Checked to fail** without the fix (3 of 4).
+
+**Not in this fix** (the audit's plan, 6.1–6.3): the readers and the assistant still write times on
+the Settings zone while the store reads the system's (F2/F3); one app clock is planned for 0.19.

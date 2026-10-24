@@ -165,6 +165,25 @@ pub trait Store {
         let (objects, residual) = self.candidates(&q.filter)?;
         Ok(fm_query::run(&Query { filter: residual, ..q.clone() }, &objects))
     }
+
+    /// **The text this store would write for `obj`** — exactly what [`Store::put`] writes, without
+    /// writing it (`decisions.md#vault`, 2026-10-24, *a note that leaves the store keeps its clock*).
+    /// For a note that reaches git through another door — a proposal's branch, the undo of a delete —
+    /// so its times are on the vault's clock like every file `put` writes. Serialising an object from
+    /// [`Store::get`] with `frontmatter::to_file` instead writes its times on this device's clock,
+    /// and a merge then moves every timed note by the difference.
+    fn encode(&self, obj: &Object) -> Result<String, StoreError> {
+        frontmatter::to_file(obj).map_err(|e| StoreError::Parse(e.to_string()))
+    }
+
+    /// **A note read from text that came from elsewhere** — a branch, git's history, an undo — as
+    /// [`Store::get`] would give it: its times on this device's clock and its `vault` set. The inverse
+    /// of [`Store::encode`]; a store with no clocks of its own reads the text as it is.
+    fn decode(&self, vault: &str, text: &str) -> Result<Object, StoreError> {
+        let mut obj = frontmatter::from_file(text).map_err(|e| StoreError::Parse(e.to_string()))?;
+        obj.vault = vault.to_string();
+        Ok(obj)
+    }
 }
 
 /// In-memory store — no filesystem, no database. The store *is* the index, so

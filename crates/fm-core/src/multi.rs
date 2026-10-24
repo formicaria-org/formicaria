@@ -218,6 +218,20 @@ impl MultiStore {
         self.vaults.iter().map(|v| (v.name().to_string(), v.clock_label())).collect()
     }
 
+    /// [`MultiStore::route`], to read: the vault named `vault`, or the first for an empty name.
+    fn find(&self, vault: &str) -> Result<&FileStore, StoreError> {
+        if self.vaults.is_empty() {
+            return Err(StoreError::NoVaults);
+        }
+        if vault.is_empty() {
+            return Ok(&self.vaults[0]);
+        }
+        self.vaults
+            .iter()
+            .find(|v| v.name() == vault)
+            .ok_or_else(|| StoreError::Io(format!("no vault named '{vault}'")))
+    }
+
     fn route(&mut self, vault: &str) -> Result<&mut FileStore, StoreError> {
         if self.vaults.is_empty() {
             return Err(StoreError::NoVaults);
@@ -326,6 +340,23 @@ impl Store for Scoped<'_> {
 
     /// Routed exactly as before, but the route has to be one this caller was given — and an
     /// unstated audience resolves to *their* default, not the machine's.
+    /// Encoded on the vault's clock, and only for a vault this caller was given.
+    fn encode(&self, obj: &Object) -> Result<String, StoreError> {
+        let vault = if obj.vault.is_empty() { self.default_vault()? } else { obj.vault.clone() };
+        if !self.permits(&vault) {
+            return Err(StoreError::Io(format!("no vault named '{vault}'")));
+        }
+        self.inner.find(&vault)?.encode(obj)
+    }
+
+    fn decode(&self, vault: &str, text: &str) -> Result<Object, StoreError> {
+        let vault = if vault.is_empty() { self.default_vault()? } else { vault.to_string() };
+        if !self.permits(&vault) {
+            return Err(StoreError::Io(format!("no vault named '{vault}'")));
+        }
+        self.inner.find(&vault)?.decode(&vault, text)
+    }
+
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
         let vault = if obj.vault.is_empty() { self.default_vault()? } else { obj.vault.clone() };
         if !self.permits(&vault) {
@@ -405,6 +436,15 @@ impl Store for MultiStore {
     /// Routed, never fanned out — the one place a note crosses an audience boundary.
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
         self.route(&obj.vault.clone())?.put(obj)
+    }
+
+    /// On the clock of the vault the note is in, as `put` would write it.
+    fn encode(&self, obj: &Object) -> Result<String, StoreError> {
+        self.find(&obj.vault)?.encode(obj)
+    }
+
+    fn decode(&self, vault: &str, text: &str) -> Result<Object, StoreError> {
+        self.find(vault)?.decode(vault, text)
     }
 
     /// Delete from whichever vault holds it. `NotFound` only when nobody does.

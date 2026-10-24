@@ -762,6 +762,19 @@ impl Store for FileStore {
         }
     }
 
+    fn encode(&self, obj: &Object) -> Result<String, StoreError> {
+        // What `put` writes: the times moved from this device's clock onto the vault's.
+        let mut o = obj.clone();
+        if let Some((vault, device)) = self.clocks() {
+            shift(&mut o, &device, &vault);
+        }
+        frontmatter::to_file(&o).map_err(parse)
+    }
+
+    fn decode(&self, _vault: &str, text: &str) -> Result<Object, StoreError> {
+        self.hydrate(text)
+    }
+
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
         // A time arrives on this device's clock and is written on the vault's (see `zone`).
         let shifted;

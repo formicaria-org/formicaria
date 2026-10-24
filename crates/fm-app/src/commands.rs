@@ -1030,15 +1030,16 @@ pub fn create_proposal_with(
     let mut obj = match &on_main {
         Some(o) => o.clone(),
         // A proposed new note: on its branch only, until accepted.
-        None => existing_branch
-            .as_ref()
-            .and_then(|b| fm_core::vcs::file_on_branch(vault_path, b, &rel))
-            .and_then(|f| fm_core::frontmatter::from_file(&f).ok())
-            .map(|mut o| {
-                o.vault = existing.as_ref().map(|p| p.vault.clone()).unwrap_or_default();
-                o
-            })
-            .ok_or(StoreError::NotFound(id))?,
+        // Read as the store reads a note (onto this device's clock), since it is written back below
+        // as the store writes one (2026-10-24, F17).
+        None => {
+            let vault = existing.as_ref().map(|p| p.vault.clone()).unwrap_or_default();
+            existing_branch
+                .as_ref()
+                .and_then(|b| fm_core::vcs::file_on_branch(vault_path, b, &rel))
+                .and_then(|f| store.decode(&vault, &f).ok())
+                .ok_or(StoreError::NotFound(id))?
+        }
     };
     if obj.kind != Kind::Note {
         return Err(StoreError::Io("you can only propose a change to a note".into()));
@@ -1046,7 +1047,9 @@ pub fn create_proposal_with(
 
     // The proposed file: the target note with its new body (and any allowlisted property changes),
     // serialized **exactly** as it would be written to disk — the branch holds real note bytes
-    // (files-as-truth), not a diff.
+    // (files-as-truth), not a diff. **Through the store's `encode`** (2026-10-24, F17): the note came
+    // from `store.get`, on this device's clock, and `to_file` would write it so; the merge on accept
+    // then moved every timed note by the gap between that clock and the vault's.
     obj.body = new_body.to_string();
     let stored_props = existing.as_ref().and_then(|p| match p.get(PROPOSAL_PROPS) {
         PropertyValue::Text(t) => serde_json::from_str::<serde_json::Value>(&t).ok(),
@@ -1064,8 +1067,7 @@ pub fn create_proposal_with(
     if let Some(p) = &props_now {
         apply_props(&mut obj, p)?;
     }
-    let content =
-        fm_core::frontmatter::to_file(&obj).map_err(|e| StoreError::Parse(e.to_string()))?;
+    let content = store.encode(&obj)?;
 
     // Commit the target note first (before any branch), so the proposal branch shares a base with
     // `main`. Without this an *uncommitted* note (a freshly captured one whose debounced auto-commit
@@ -1179,8 +1181,8 @@ pub fn propose_new_note(
     if let Some(a) = about {
         draft.extra.insert(MEETING_OF.into(), PropertyValue::Text(fm_model::note_ref(a)));
     }
-    let content =
-        fm_core::frontmatter::to_file(&draft).map_err(|e| StoreError::Parse(e.to_string()))?;
+    // On the vault's clock, as the store writes a note (2026-10-24, F17).
+    let content = store.encode(&draft)?;
     let desc = fm_core::descriptor::Descriptor::read(vault_path)?;
     let notes_abs = desc.notes_dir(vault_path);
     let rel = notes_abs
@@ -1488,8 +1490,8 @@ pub fn proposal_content(
     let Some(file) = fm_core::vcs::file_on_branch(vault_path, &branch, rel) else {
         return Ok(None);
     };
-    let proposed =
-        fm_core::frontmatter::from_file(&file).map_err(|e| StoreError::Parse(e.to_string()))?;
+    // Onto this device's clock, as the store reads a note, so the review shows the times it asks to set.
+    let proposed = store.decode(&obj.vault, &file)?;
     // The host note id is the proposed file's stem (works whatever the vault's notes dir), and the
     // title comes from the proposed note, falling back to the live host note's.
     let host = std::path::Path::new(rel)
@@ -2932,7 +2934,9 @@ pub struct DeletedNote {
 pub fn delete_keeping(store: &mut dyn Store, id: &str) -> Result<DeletedNote, StoreError> {
     let parsed: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let obj = store.get(parsed)?.ok_or(StoreError::NotFound(parsed))?;
-    let file = fm_core::frontmatter::to_file(&obj).map_err(|e| StoreError::Parse(e.to_string()))?;
+    // The file as the store wrote it (on the vault's clock), like the copy git keeps — so undoing
+    // and *Recently deleted* read it back the same way, whatever the clock did in between.
+    let file = store.encode(&obj)?;
     store.delete(parsed)?;
     Ok(DeletedNote { id: parsed.to_string(), vault: obj.vault, file })
 }
@@ -2959,12 +2963,13 @@ pub fn restore_note(
     vault: &str,
     file: &str,
 ) -> Result<ObjectMeta, StoreError> {
-    let mut obj =
-        fm_core::frontmatter::from_file(file).map_err(|e| StoreError::Parse(e.to_string()))?;
+    // **Read as the store reads a file** (2026-10-24, F18): the text is on the vault's clock — git's
+    // copy, or `delete_keeping`'s — and `put` converts from this device's. Parsed raw, a restored
+    // meeting moved by the gap between the two.
+    let obj = store.decode(vault, file)?;
     if store.get(obj.id)?.is_some() {
         return Err(StoreError::Io("that note is already back — it exists in your notes".into()));
     }
-    obj.vault = vault.to_string();
     store.put(&obj)?;
     Ok(ObjectMeta::from(&obj))
 }
