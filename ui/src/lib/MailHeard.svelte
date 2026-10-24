@@ -8,6 +8,8 @@
   // Asks on its own every 15 s while the page is visible: a verdict changes no note, so the vault's
   // own change beat never fires for it. Shows nothing where there is no mail (the phone, the mock).
   import { mailStatus, mailConnect, type MailStatus } from './ipc';
+  import { appToday, clockText, dayOfInstant, formatMoment } from './appTime';
+  import { formatCivil } from './civil';
   import { MAIL_LINKS } from './mailLinks';
 
   let { onopen }: { onopen: (id: string) => void } = $props();
@@ -61,14 +63,19 @@
 
   /** An email's own date, `2026-10-16T21:31` → "Fri 16 Oct, 21:31", as the mail gave it. */
   function sent(stamp: string): string {
+    // A moment with its offset (from 0.20) is shown on the app's clock; a plain one as written.
+    if (/[+-]\d{2}:\d{2}$|Z$/.test(stamp)) {
+      return formatMoment(stamp, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
     const [d, t = ''] = stamp.split('T');
-    const [y, m, day] = d.split('-').map(Number);
-    if (!y || !m || !day) return stamp.replace('T', ' ');
-    const date = new Date(y, m - 1, day).toLocaleDateString(undefined, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return stamp.replace('T', ' ');
+    const date = formatCivil(d, { weekday: 'short', day: 'numeric', month: 'short' });
     return t ? `${date}, ${t.slice(0, 5)}` : date;
   }
 
@@ -81,9 +88,7 @@
       .sort()
       .at(-1) ?? null,
   );
-  const quiet = $derived(
-    !!newest && newest.slice(0, 10) < new Date().toLocaleDateString('sv').slice(0, 10),
-  );
+  const quiet = $derived(!!newest && newest.slice(0, 10) < appToday());
 
   /** "2 min ago", "15:04", or a date — short enough for one line on a phone. */
   function ago(at: number): string {
@@ -91,10 +96,10 @@
     const secs = Math.max(0, Date.now() / 1000 - at);
     if (secs < 60) return 'just now';
     if (secs < 3600) return `${Math.round(secs / 60)} min ago`;
-    const d = new Date(at * 1000);
-    return d.toDateString() === new Date().toDateString()
-      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : d.toLocaleDateString();
+    // On the app's clock (2026-10-24).
+    return dayOfInstant(at * 1000) === appToday()
+      ? clockText(at * 1000)
+      : formatMoment(at * 1000, { dateStyle: 'medium' });
   }
 </script>
 

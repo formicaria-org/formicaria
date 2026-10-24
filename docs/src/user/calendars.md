@@ -35,10 +35,13 @@ cancelled, and how many were left out and why.
 
 ## Your time zone
 
-The agenda shows every meeting on **your device's clock**, and follows it: change the time zone
-of your computer or phone, and within a few minutes the agenda shows the same meetings at the local
-hour. The same note shows at the right hour on every device — 18:00 on a laptop in Tokyo, 10:00 on
-one in Berlin.
+The whole app — the agenda, reminders, food and health days, the meetings found in mail — runs on
+**one clock**, set in **Settings → Clock**. It is *Automatic* unless you choose: this device's own
+zone, and it follows it — change the time zone of your computer or phone, and within a few minutes
+every view shows the same meetings at the local hour. Choose a zone there instead when the
+computer's own setting is wrong, or when you want to see your agenda on another clock while
+travelling. Each device has its own setting. The same note shows at the right hour on every
+device — 18:00 on a laptop in Tokyo, 10:00 on one in Berlin.
 
 The small label beside the agenda's M / W / L switch says which zone you are looking at — for
 example *Berlin · GMT+1*; hold the pointer on it to see the clock your notes are kept on.
@@ -54,8 +57,8 @@ written in. The same goes for an email that says *"10am Berlin time"* or *"15:00
 assistant proposes 18:00 and shows the email's own words beside it. A time with no zone written
 after it is taken as yours.
 
-*Time zone* under Settings → Calendars is normally left empty, which means "this device's". Fill it
-in only if your computer's own setting is wrong.
+Until version 0.19 the zone was set under Settings → Calendars; a zone set there is carried over
+to Settings → Clock the first time 0.19 starts.
 
 ## Privacy
 

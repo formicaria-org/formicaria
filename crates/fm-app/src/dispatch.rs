@@ -97,6 +97,9 @@ pub struct App {
     /// that is not on [`READ_ONLY`]. Not a lock, because it is only ever read and incremented
     /// — a client that misses one increment sees the next.
     generation: AtomicU64,
+    /// **The app's clock** (2026-10-24, *one app clock*) — the same handle the stores read and write
+    /// on, so a choice made in Settings applies to every vault at once.
+    clock: fm_core::zone::Clock,
     /// **The history lock** (2026-10-18, `decisions.md#seams`). Held for the whole of every command
     /// that may write a vault's `.git`, so those still run one at a time exactly as before. What it
     /// buys is that `push`, and `pull` while it fetches, can let go of `vaults` during the network:
@@ -216,6 +219,9 @@ impl App {
             cold,
         )
         .map_err(|e| format!("open vaults: {e}"))?;
+        // **The app's clock, before anything is written** (2026-10-24): every migration below reads
+        // and writes times on it.
+        store.set_clock(crate::clock::load());
         // **Rebuild the write-record from the filesystem, once, here.**
         //
         // `commit_all` stages what this app remembers writing, and that memory dies with the process.
@@ -328,13 +334,20 @@ impl App {
         config: Option<PathBuf>,
         config_writable: bool,
     ) -> Self {
+        let clock = store.clock();
         App {
             vaults: Mutex::new(Vaults { all: store, list }),
             history: Mutex::new(()),
             config,
             config_writable,
             generation: AtomicU64::new(0),
+            clock,
         }
+    }
+
+    /// The app's clock — what the store, the readers, the UI and the assistant all read.
+    pub fn clock(&self) -> &fm_core::zone::Clock {
+        &self.clock
     }
 
     /// Record that the vaults moved, and return the new generation.
@@ -607,6 +620,14 @@ fn notes_rel_of(root: &std::path::Path) -> String {
 /// backup that could meet a save are covered: `push` stages nothing and asks only what is staged
 /// (`git diff --cached`, not `git status`), and `pull` merges under `vaults` after recording what
 /// was saved. A command added here must not reach `vcs::` at all.
+/// The zone the readers write on: the app's clock, or a plain refusal when it cannot be read —
+/// never UTC as a stand-in (2026-10-24).
+fn app_zone(app: &App) -> Result<fm_core::zone::Zone, String> {
+    app.clock.zone().ok_or_else(|| {
+        "this device's time zone cannot be read — choose one in Settings → Clock".to_string()
+    })
+}
+
 fn takes_history(cmd: &str) -> bool {
     const SAVES: &[&str] = &[
         "update_body",
@@ -619,11 +640,15 @@ fn takes_history(cmd: &str) -> bool {
         "put_back_tutorials",
         "ingest",
         "ingest_chunk",
+        // A per-device file, no vault and no git: it must not wait on the history lock.
+        "set_clock",
     ];
     cmd == "proposal_shown" || !(READ_ONLY.contains(&cmd) || SAVES.contains(&cmd))
 }
 
 const READ_ONLY: &[&str] = &[
+    // The app's clock (2026-10-24): a read, and the one the UI and the assistant poll.
+    "clock",
     "deleted_notes",
     "mail_conversations",
     "board",
@@ -1404,6 +1429,12 @@ fn dispatch_inner(
             for key in ["start", "due", "location"] {
                 let v = s(key);
                 if !v.is_empty() {
+                    // A time may come as a moment (RFC 3339), read onto the app's clock (2026-10-24).
+                    let v = if key == "location" {
+                        v
+                    } else {
+                        crate::clock::stamp_value(&v, app.clock().zone().as_ref())?
+                    };
                     fm_core::apply_property(&mut draft, key, &v).map_err(err)?;
                 }
             }
@@ -1987,6 +2018,18 @@ fn dispatch_inner(
         // A client with no `since` (0, a fresh tab) is told `changed: false` — it has just
         // loaded everything anyway — and takes the current generation to compare against next
         // time.
+        // **The app's clock** (2026-10-24, *one app clock*): what the UI and the assistant read.
+        "clock" => json(crate::clock::answer(&app.clock)),
+        // Choose it — empty for Automatic. A per-device file; a paired device may not change it.
+        "set_clock" => {
+            if !scope.is_all() {
+                return Err("the time zone is this computer's setting".into());
+            }
+            let zone = crate::clock::save(&s("zone"))?;
+            app.clock.set(zone);
+            app.bump();
+            json(crate::clock::answer(&app.clock))
+        }
         "ping" => {
             let since = args.get("since").and_then(Value::as_u64).unwrap_or(0);
             let mut g = lock()?;
@@ -2001,6 +2044,7 @@ fn dispatch_inner(
             json(Ping {
                 changed: generation > since,
                 generation,
+                clock: crate::clock::answer(&app.clock),
                 git: cap.git,
                 restic: cap.restic,
                 // Taken from the store rather than from `changed`, because this is the
@@ -2148,10 +2192,9 @@ fn dispatch_inner(
         "calendar_sync" => {
             let ics =
                 std::str::from_utf8(body).map_err(|_| "the calendar was not text".to_string())?;
-            // `offset` is the name a transport older than 2026-10-23 sends.
-            let zone = commands::parse_zone(
-                &Some(s("zone")).filter(|z| !z.is_empty()).unwrap_or(s("offset")),
-            )?;
+            // **On the app's clock, whatever the caller sends** (2026-10-24): the store reads what
+            // this writes on that clock, so any other zone moved every imported meeting (F2).
+            let zone = app_zone(app)?;
             let mut g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
             json(
@@ -2164,10 +2207,8 @@ fn dispatch_inner(
         "mail_sync" => {
             let messages: Vec<Value> = serde_json::from_slice(body)
                 .map_err(|e| format!("the mail could not be read: {e}"))?;
-            // `offset` is the name a transport older than 2026-10-23 sends.
-            let zone = commands::parse_zone(
-                &Some(s("zone")).filter(|z| !z.is_empty()).unwrap_or(s("offset")),
-            )?;
+            // On the app's clock, as the calendar's (2026-10-24, F2).
+            let zone = app_zone(app)?;
             let mut g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
             json(
@@ -2498,7 +2539,11 @@ fn dispatch_inner(
             let mut g = lock()?;
             let weeks = args.get("weeks").and_then(Value::as_bool).unwrap_or(false);
             let store = g.store(scope);
-            json(crate::health::health_days(&store, &s("from"), &s("to"), weeks).map_err(err)?)
+            let zone = app.clock().zone();
+            json(
+                crate::health::health_days(&store, &s("from"), &s("to"), weeks, zone.as_ref())
+                    .map_err(err)?,
+            )
         }
         // ── Logged entries (`log.rs`; `decisions.md#data`, 2026-10-11) ───────────────────────────
         // A span of days of one log, asked for by the **name** of a totals view: what each day's
@@ -2537,7 +2582,11 @@ fn dispatch_inner(
             let mut g = lock()?;
             let store = g.store(scope);
             let days = args.get("days").and_then(Value::as_i64).unwrap_or(14);
-            json(crate::reminders::reminders(&store, &s("from"), days).map_err(err)?)
+            let zone = app.clock().zone();
+            json(
+                crate::reminders::reminders(&store, &s("from"), days, zone.as_ref())
+                    .map_err(err)?,
+            )
         }
         "log_kitchen" => {
             let mut g = lock()?;
@@ -3001,6 +3050,9 @@ struct Ping {
     /// eviction, and a definition of "gone". The client holding its own cursor makes N clients
     /// cost exactly nothing, and a client that misses a beat catches up on the next one.
     generation: u64,
+    /// **The app's clock** (2026-10-24), so a change of zone — chosen, or the computer's — reaches
+    /// every page within one beat.
+    clock: Value,
     /// Whether this machine has git at all. **Not a dependency — a capability.** The tab
     /// uses it to stop firing an auto-commit every 5s at a binary that isn't there, and
     /// to say so once instead of failing silently forever. Rides the heartbeat because
@@ -4894,6 +4946,9 @@ mod tests {
     fn calendar_sync_creates_once_and_moves_on_a_sequence_bump() {
         let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
         let (_home, _vault, app) = app_with_vault(None);
+        // **The app's clock decides, not the caller** (2026-10-24, *one app clock*): the offset the
+        // request sends is ignored, so a caller can no longer write on another clock than the store's.
+        app.clock().set(Some(fm_core::zone::Zone::parse("+08:00").unwrap()));
         let ics = |seq: u32, day: &str| {
             format!(
                 "BEGIN:VEVENT\nUID:m1\nSEQUENCE:{seq}\nSUMMARY:Supervision\n\
@@ -4902,7 +4957,7 @@ mod tests {
         };
         let sync = |body: String| {
             let args =
-                serde_json::json!({ "vault": "notes", "source": "work", "offset": "+08:00" });
+                serde_json::json!({ "vault": "notes", "source": "work", "offset": "-05:00" });
             dispatch("calendar_sync", &args, body.as_bytes(), &app, &NoHost)
                 .map(|o| String::from_utf8(o.into_bytes()).unwrap())
         };
@@ -4915,7 +4970,7 @@ mod tests {
 
         let agenda = call(&app, "search", serde_json::json!({ "query": "Supervision" })).unwrap();
         assert_eq!(agenda.matches("Supervision").count(), 1, "exactly one note: {agenda}");
-        // `Z` 02:00 at +08:00 is 10:00 wall clock — the offset is applied, not ignored.
+        // `Z` 02:00 on a +08:00 app clock is 10:00 — the clock's offset, never the request's.
         assert!(agenda.contains("2999-10-13T10:00"), "{agenda}");
     }
 

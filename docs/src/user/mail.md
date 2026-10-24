@@ -143,7 +143,7 @@ then, not by turning the whole proposal down.
   proposed at 18:00 if your time zone is Tokyo's, and the box shows *18:00 (10:00 Berlin time)*.
   The zone must be written right after the time — a city or country and "time", an abbreviation
   such as CET or PT, or an offset such as UTC+2. With none written, the time is taken as yours. Your
-  time zone is the one in Settings → Calendars ([Your time zone](./calendars.md#your-time-zone)).
+  time zone is the one in Settings → Clock ([Your time zone](./calendars.md#your-time-zone)).
 - **If a later email moves the meeting**, the assistant proposes moving the conversation note to the
   new time — even though the old time is still written in the earlier emails above it. A meeting
   that has already taken place is never moved.

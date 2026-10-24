@@ -12875,6 +12875,9 @@ read this entry. The owner has seen them and turned them down.
 
 ## 2026-10-23 — a time written in another zone is moved onto yours; "your zone" is a real zone, pinned once to the computer's `#data` `#agent` `#toolchain`
 
+> SUPERSEDED IN PART (2026-10-24, *one app clock*): item 6 — the clocks are compared in Settings →
+> Clock, and "your zone" is the app clock everywhere.
+
 > SUPERSEDED IN PART (2026-10-23, later, *every device shows the agenda on its own zone*): item 2's
 > pinned setting is reversed — the notes' clock is the vault's (`vault.json`), and the setting is
 > again this computer's, empty by default and following the computer.
@@ -12947,6 +12950,10 @@ feed parser (2026-09-12), mail and calendars (2026-10-09). Verdict: **contradict
 rulings in part — reversed here, with banners on both.
 
 ## 2026-10-23 (later) — every device shows the agenda on its own zone; the vault keeps the clock its times are on `#data` `#vault` `#seams`
+
+> SUPERSEDED IN PART (2026-10-24, *one app clock*): items 2 and 5 — the store, the readers and the UI
+> all read the **app clock** (Settings → Clock, Automatic = this computer's zone), not the system's
+> each on its own, and the calendar panel's zone setting moves there.
 
 > CORRECTED IN PART (2026-10-24, *a note that leaves the store keeps its clock*): its known limit "a
 > proposal accepted on a device in another zone applies its times on the accepting device's clock" had
@@ -13311,3 +13318,56 @@ proposed; an undo and a restore from history move nothing. **Checked to fail** w
 
 **Not in this fix** (the audit's plan, 6.1–6.3): the readers and the assistant still write times on
 the Settings zone while the store reads the system's (F2/F3); one app clock is planned for 0.19.
+
+## 2026-10-24 — one app clock: a per-device setting, Automatic by default, that every part of the app reads `#data` `#seams` `#ui` `#agent`
+
+> Reverses, in part, *every device shows the agenda on its own zone* (2026-10-23, later: items 2, 5)
+> and *a time written in another zone is moved onto yours* (2026-10-23: item 6). The plan is
+> `time-zones-audit-2026-10-24.md` §6.1; this is its first release (0.19).
+
+**The owner:** *"be very careful in using a single time for the app and make sure that agenda and
+other tasks have also the time zone info … I have just changed my laptop timezone … this should not
+break any app features … the time zone can also be set in the settings (and we have internet helping
+us or the host pc doing so if we want it to be precise)"*; then *"go on"* with the plan's defaults.
+
+**What was wrong** (the audit, §2): four parts of the app each answered "which zone is the person in"
+on their own — the store the system's, the readers and the assistant the Settings → Calendars zone,
+the UI the browser's — and they disagreed whenever the setting was not the computer's, right after a
+zone change, or on a paired tablet.
+
+**Decision.**
+1. **One app clock per device**, never synced: `config_dir()/formicaria/clock.json`, `{"zone": ""}`.
+   Empty is **Automatic** — the zone the system reports to this process (`jiff`; a `TZ` variable wins);
+   otherwise a zone name or an offset. Adopted once from the calendar panel's old setting when that was
+   set. Shown and chosen in **Settings → Clock**, on the desktop and the phone.
+2. **One handle**, `fm_core::zone::Clock`, owned by `App` and cloned into every store. The store's seam,
+   the calendar and mail readers (their own `zone` argument is no longer used), reminders, the
+   `clock` command and the UI all read it. **When neither a choice nor the system can be read, it says
+   so — it never answers UTC as a stand-in**; the readers then do not run.
+3. **The `clock` command** (`dispatch`, so both shells have it; `POST /api/clock` on the desktop) is
+   what the UI and Myrme read: `v`, `zone` (or `null`), `iana`, `offset`, `offset_seconds`, `now`
+   (UTC), `today`, `source`, `chosen`, `system`. Fields are only ever added. `set_clock` changes the
+   choice and is refused to a paired device. `ping` carries the clock, so a change reaches the UI
+   within one poll.
+4. **A stamp nobody changed is written back as it was** (`put`, F25): converting device→vault→device
+   does not round-trip across a daylight-saving fold, and a stale page would otherwise rewrite times
+   it never touched.
+5. **The UI never asks the browser for a zone or a day**: every date goes through `appTime.ts`, and a
+   CI grep keeps `getDate()`/`getHours()`/`toLocale*`/`new Date(y, m, d…)` out of everything else.
+6. **Days and moments on the server use the app clock**: the health diary's *late* (F10), reminders as
+   instants (F8), the mail query in epoch seconds (F12), the calendar's daily key (F19).
+7. **The internet check is a warning only**: `fm-fetch` keeps the `Date` of the last answer of a
+   request the app makes anyway; when it is Google's or GitHub's, `clock` reports the skew and
+   Settings → Clock says so past two minutes. No request of its own, nothing ever adjusted, and it
+   says nothing about the zone — no answer the app receives can.
+
+**Defaults taken for the owner's open questions** (§6.5): a paired tablet shows the **host's** clock,
+labelled; food and health entries follow the app clock like everything else; offering a named zone
+for a vault's first-commit clock is left for later.
+
+**What it costs, said.** A computer whose zone changes shows it within jiff's five minutes plus one
+poll. A process started with `TZ` set never follows the system. Settings → Calendars loses its zone
+field.
+
+**The four questions.** `#data`, `#seams`, `#ui`, `#agent`. Verdict: **contradicts** two standing
+rulings in part (bannered). Widens what ships: one per-device file and two commands; no new crate.

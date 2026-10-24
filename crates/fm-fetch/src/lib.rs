@@ -233,6 +233,59 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
     Ok(())
 }
 
+// ── the internet's clock (2026-10-24) ──────────────────────────────────────────────────────────────
+
+/// The last `Date` a server answered with, its host, and this machine's clock when it arrived. Kept
+/// from requests the app makes anyway — never a request of its own (`decisions.md#data`, 2026-10-24,
+/// *one app clock*, the internet check).
+static LAST_DATE: std::sync::Mutex<Option<(String, String, std::time::SystemTime)>> =
+    std::sync::Mutex::new(None);
+
+fn note_date(url: &str, resp: &ureq::Response) {
+    let Some(d) = resp.header("date") else { return };
+    let host = url.split("://").nth(1).unwrap_or(url).split(['/', ':']).next().unwrap_or("");
+    *LAST_DATE.lock().unwrap_or_else(|e| e.into_inner()) =
+        Some((host.to_string(), d.to_string(), std::time::SystemTime::now()));
+}
+
+/// `Sun, 06 Nov 1994 08:49:37 GMT` (RFC 9110's IMF-fixdate) → Unix seconds; `None` for anything else.
+pub fn parse_http_date(d: &str) -> Option<i64> {
+    let mut it = d.split_whitespace();
+    let (_wd, day, mon, year, hms, gmt) =
+        (it.next()?, it.next()?, it.next()?, it.next()?, it.next()?, it.next()?);
+    if gmt != "GMT" {
+        return None;
+    }
+    const MONTHS: [&str; 12] =
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    let m = MONTHS.iter().position(|x| *x == mon)? as i64 + 1;
+    let (d, y): (i64, i64) = (day.parse().ok()?, year.parse().ok()?);
+    let mut t = hms.split(':').map(|p| p.parse::<i64>().ok());
+    let (h, mi, s) = (t.next()??, t.next()??, t.next()??);
+    // Days from civil (Howard Hinnant's algorithm), as `fm-serve`'s mail reader counts them.
+    let yy = if m <= 2 { y - 1 } else { y };
+    let era = yy.div_euclid(400);
+    let yoe = yy - era * 400;
+    let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some(days * 86_400 + h * 3600 + mi * 60 + s)
+}
+
+/// **How far this machine's clock is from the internet's**, in seconds (positive: this machine is
+/// ahead), from the last answer of a server whose clock can be trusted to be right — Google's or
+/// GitHub's, which the app already talks to. `None` until one has answered.
+pub fn clock_skew() -> Option<(String, i64)> {
+    let (host, date, at) = LAST_DATE.lock().unwrap_or_else(|e| e.into_inner()).clone()?;
+    let trusted = ["google.com", "googleapis.com", "github.com", "githubusercontent.com"];
+    if !trusted.iter().any(|t| host == *t || host.ends_with(&format!(".{t}"))) {
+        return None;
+    }
+    let theirs = parse_http_date(&date)?;
+    let ours = at.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+    Some((host, ours - theirs))
+}
+
 /// GET a **small** document into memory — a manifest, a signature, a release listing.
 ///
 /// Separate from [`fetch`] because it answers a different question. `fetch` is for artifacts: it
@@ -260,6 +313,7 @@ pub fn get(url: &str, limit: usize) -> Result<Vec<u8>, FetchError> {
         .set("Accept-Encoding", "identity")
         .call()
         .map_err(|e| FetchError::Transient(format!("could not reach {url}: {e}")))?;
+    note_date(url, &resp);
     let mut buf = Vec::new();
     // `take(limit + 1)` so an over-long body is *detected* rather than silently truncated into
     // something that might still parse.
@@ -293,6 +347,7 @@ pub fn redirect_target(url: &str) -> Result<Option<String>, FetchError> {
         Err(ureq::Error::Status(_, r)) => r,
         Err(e) => return Err(FetchError::Transient(format!("could not reach {url}: {e}"))),
     };
+    note_date(url, &resp);
     if !(300..400).contains(&resp.status()) {
         return Ok(None);
     }
@@ -332,6 +387,7 @@ pub fn request(
         // The URL is left out on purpose: a caller's URL may carry a query it would not want logged.
         Err(e) => return Err(FetchError::Transient(format!("could not reach the server: {e}"))),
     };
+    note_date(url, &resp);
     let status = resp.status();
     let mut buf = Vec::new();
     resp.into_reader()
@@ -525,6 +581,14 @@ pub fn verify(path: &Path, want: &str) -> Result<bool, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_http_date_is_read_exactly_and_anything_else_is_refused() {
+        assert_eq!(super::parse_http_date("Sun, 06 Nov 1994 08:49:37 GMT"), Some(784_111_777));
+        assert_eq!(super::parse_http_date("Sat, 24 Oct 2026 10:00:00 GMT"), Some(1_792_836_000));
+        assert_eq!(super::parse_http_date("Sunday, 06-Nov-94 08:49:37 GMT"), None);
+        assert_eq!(super::parse_http_date("Sun, 06 Nov 1994 08:49:37 CET"), None);
+    }
+
     use super::*;
     use std::net::TcpListener;
     use std::thread;

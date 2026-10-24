@@ -68,13 +68,11 @@ fn feed_zone(ics: &[u8]) -> Option<String> {
     Some(line["X-WR-TIMEZONE:".len()..].trim().to_string()).filter(|z| !z.is_empty())
 }
 
-/// The zone in force: the setting, or the computer's when it is empty — its name, as the assistant
-/// and the panel read it.
-fn effective(s: &Settings) -> String {
-    match s.offset.trim() {
-        "" => system_zone().unwrap_or_else(|| "UTC".into()),
-        z => z.to_string(),
-    }
+/// The zone in force: **the app's clock** (2026-10-24, *one app clock*), as the assistant (Myrme 0.9,
+/// `VaultAccess::zone`) and the panel read it. Empty when it cannot be read — never `UTC` as a
+/// stand-in, which told the assistant one clock while the store used another.
+fn effective(state: &crate::AppState) -> String {
+    state.app.clock().zone().map(|z| z.label()).unwrap_or_default()
 }
 
 /// The computer's own zone by name (`Asia/Tokyo`), when it can be read.
@@ -126,11 +124,6 @@ fn edit<T>(f: impl FnOnce(&mut Settings) -> Result<T, String>) -> Result<T, Stri
     Ok(out)
 }
 
-/// The person's zone, shared with the mail reader: one setting, one answer.
-pub fn offset() -> String {
-    effective(&load())
-}
-
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
@@ -142,12 +135,20 @@ fn host_of(url: &str) -> String {
 }
 
 /// What a client may see: everything except the address.
-fn public(s: &Settings) -> Value {
+fn public(s: &Settings, state: &crate::AppState) -> Value {
+    let chosen = state.app.clock().choice().map(|z| z.label()).unwrap_or_default();
+    answer(s, &chosen, &effective(state))
+}
+
+/// [`public`], from its parts: `chosen` is the app clock's choice (`""` for Automatic), `zone` the
+/// zone in force.
+fn answer(s: &Settings, chosen: &str, zone: &str) -> Value {
     json!({
-        "offset": s.offset,
+        // The app clock's choice (`clock`), under the name this answer has always used for it.
+        "offset": chosen,
         // What is in force, and the computer's own: the panel shows the second when they differ,
         // and the assistant reads the first (Myrme, `VaultAccess::zone`).
-        "zone": effective(s),
+        "zone": zone,
         "system": system_zone(),
         "lastChecked": s.last_checked,
         "pulling": PULLING.load(Ordering::SeqCst),
@@ -173,16 +174,15 @@ fn pull_all(state: &crate::AppState) {
         let mut zone = f.zone.clone();
         let outcome = fm_fetch::get(&f.url, LIMIT).map_err(|e| e.to_string()).and_then(|bytes| {
             zone = feed_zone(&bytes).or(zone.take());
-            let stamp = format!(
-                "{}|{}|{}",
-                fm_core::blob::sha256_hex(&bytes),
-                now() / 86_400,
-                effective(&s)
-            );
+            // The day on the app's clock, not the UTC day (F19): a new day's pass lays out repeats
+            // from *today*, and must not wait for UTC midnight.
+            let today = state.app.clock().zone().map(|z| z.today().to_string()).unwrap_or_default();
+            let stamp =
+                format!("{}|{}|{}", fm_core::blob::sha256_hex(&bytes), today, effective(state));
             if stamp == f.seen {
                 return Ok(None);
             }
-            let args = json!({ "vault": f.vault, "source": f.label, "zone": effective(&s) });
+            let args = json!({ "vault": f.vault, "source": f.label });
             let out =
                 fm_app::dispatch("calendar_sync", &args, &bytes, &state.app, &crate::Desktop)?;
             let v =
@@ -262,9 +262,18 @@ pub fn route(
             s.feeds.retain(|f| f.label != req.label);
             Ok(())
         }),
-        "/api/calendar_offset" => fm_app::commands::parse_zone(&req.offset).and_then(|_| {
+        // **The app's clock now** (2026-10-24): an alias for `set_clock`, kept one release for a page
+        // that still sends it. The old setting is cleared, so it is never adopted again.
+        "/api/calendar_offset" => fm_app::dispatch(
+            "set_clock",
+            &json!({ "zone": req.offset }),
+            &[],
+            &state.app,
+            &crate::Desktop,
+        )
+        .and_then(|_| {
             edit(|s| {
-                s.offset = req.offset.trim().to_string();
+                s.offset.clear();
                 Ok(())
             })
         }),
@@ -276,7 +285,7 @@ pub fn route(
         _ => return None,
     };
     let (status, out) = match result {
-        Ok(()) => ("200 OK", public(&load())),
+        Ok(()) => ("200 OK", public(&load(), state)),
         Err(e) => ("400 Bad Request", json!({ "error": e })),
     };
     Some(crate::write_response(stream, status, "application/json", out.to_string().as_bytes()))
@@ -351,7 +360,7 @@ mod tests {
             }],
             last_checked: 0,
         };
-        let out = public(&s).to_string();
+        let out = answer(&s, "", "+08:00").to_string();
         assert!(!out.contains("private-0123abcd"), "{out}");
         assert!(out.contains("calendar.google.com"), "the host is what identifies it: {out}");
     }

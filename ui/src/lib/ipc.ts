@@ -1,3 +1,4 @@
+import type { ClockAnswer } from './appTime';
 import type {
   DemotedField,
   Recoverable,
@@ -1106,7 +1107,14 @@ export const ping = (since = 0) =>
     /** Configured vaults that would not open, as `name: why`. A vault that is silently absent is
      *  indistinguishable from data loss, so the heartbeat names it. Almost always empty. */
     unopened_vaults: string[];
+    /** The app's clock (2026-10-24), so a change of zone reaches every page within one beat. */
+    clock?: ClockAnswer;
   }>('ping', { since });
+
+/** **The app's clock** (2026-10-24, *one app clock*): the zone every view shows and counts days in. */
+export const clock = () => invoke<ClockAnswer>('clock');
+/** Choose the app's zone — a name (`Asia/Tokyo`), an offset (`+09:00`), or '' for Automatic. */
+export const setClock = (zone: string) => invoke<ClockAnswer>('set_clock', { zone });
 
 /** A note the vault could not read, and enough to show it in a list. No path: the backend
  *  resolves that from the same set, so the only files openable this way are ones it just
@@ -1468,8 +1476,6 @@ export const calendars = () => invoke<Calendars>('calendars');
 export const calendarAdd = (label: string, url: string, vault: string) =>
   invoke<Calendars>('calendar_add', { label, url, vault });
 export const calendarRemove = (label: string) => invoke<Calendars>('calendar_remove', { label });
-/** The clock meetings are written on: a zone such as `Asia/Tokyo`, or an offset such as `+09:00`. */
-export const calendarOffset = (offset: string) => invoke<Calendars>('calendar_offset', { offset });
 /** Read every calendar now rather than at the next hourly check. */
 export const calendarReadNow = () => invoke<Calendars>('calendar_pull');
 

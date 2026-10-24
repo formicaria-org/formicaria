@@ -38,6 +38,7 @@
   import { plainError, syncFor } from './sync.svelte';
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
+  import { formatMoment } from './appTime';
   import type { VaultInfo, Recoverable } from './types';
 
   /// A vault as this panel needs it: the network facts from `backup_status`, and the cheap ones
@@ -306,8 +307,8 @@
   /// Restic's stamp, rendered for a person. Deliberately tolerant: an unparseable value is shown
   /// as it came rather than as `Invalid Date`, because the raw string is at least a fact.
   function when(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+    // On the app's clock (2026-10-24); an unreadable value is shown as it came.
+    return formatMoment(iso) || iso;
   }
 
   /// Git's stamp, rendered for a person: the moment, and how long ago it was.
@@ -322,7 +323,7 @@
   function saved(at: number): string {
     const days = Math.floor((Date.now() - at * 1000) / 86_400_000);
     const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
-    return `${new Date(at * 1000).toLocaleString()} — ${ago}`;
+    return `${formatMoment(at * 1000)} — ${ago}`;
   }
 
   /// Where credentials would come from for each HTTPS remote. Failures are left as `null`,

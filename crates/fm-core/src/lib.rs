@@ -176,6 +176,12 @@ pub trait Store {
         frontmatter::to_file(obj).map_err(|e| StoreError::Parse(e.to_string()))
     }
 
+    /// **The clock this store reads and writes times on** (2026-10-24, *one app clock*): the app's,
+    /// for a store that was given one; the system's otherwise. `None` when it cannot be read.
+    fn zone(&self) -> Option<zone::Zone> {
+        zone::Zone::system()
+    }
+
     /// **A note read from text that came from elsewhere** — a branch, git's history, an undo — as
     /// [`Store::get`] would give it: its times on this device's clock and its `vault` set. The inverse
     /// of [`Store::encode`]; a store with no clocks of its own reads the text as it is.

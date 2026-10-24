@@ -28,7 +28,7 @@ fn a_reminder_is_the_notes_own_date_said_at_its_time() {
         ],
     )
     .unwrap();
-    let got = reminders(&s, "2026-10-13", 14).unwrap();
+    let got = reminders(&s, "2026-10-13", 14, None).unwrap();
     let seen: Vec<(&str, &str, &str, &str)> = got
         .iter()
         .map(|r| (r.title.as_str(), r.at.as_str(), r.what.as_str(), r.when.as_str()))
@@ -43,6 +43,23 @@ fn a_reminder_is_the_notes_own_date_said_at_its_time() {
         ]
     );
     // From a later day the earlier ones are past, and a day that is no day is refused.
-    assert_eq!(reminders(&s, "2026-10-15", 14).unwrap().len(), 1);
-    assert!(reminders(&s, "soon", 14).is_err());
+    assert_eq!(reminders(&s, "2026-10-15", 14, None).unwrap().len(), 1);
+    assert!(reminders(&s, "soon", 14, None).is_err());
+}
+
+/// **The moment is worked out on the app's clock** (2026-10-24, F8): the page hands `at_ms` to the
+/// system as it is, so 15:30 on a `+05:45` clock is 09:45 UTC whatever zone the browser is in.
+#[test]
+fn a_reminder_carries_its_moment_on_the_app_clock() {
+    let mut s = MemoryStore::new();
+    create_notes(&mut s, "", &[note("Dentist", json!({ "start": "2026-10-14T15:30" }))]).unwrap();
+    let ktm = fm_core::zone::Zone::parse("Asia/Kathmandu").unwrap();
+    let got = reminders(&s, "2026-10-13", 14, Some(&ktm)).unwrap();
+    let utc = time::macros::datetime!(2026-10-14 09:45 UTC).unix_timestamp() * 1000;
+    assert_eq!(got[0].at_ms, Some(utc));
+    assert_eq!(
+        reminders(&s, "2026-10-13", 14, None).unwrap()[0].at_ms,
+        None,
+        "no clock, no moment"
+    );
 }

@@ -4,10 +4,11 @@
 import { render } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import Calendar from './Calendar.svelte';
-import { addDays, weekOf, ymd } from '../lib/calendar';
+import { addDays, weekOf } from '../lib/calendar';
+import { appToday } from '../lib/appTime';
 import type { ObjectMeta } from '../lib/types';
 
-const week = weekOf(ymd(new Date()));
+const week = weekOf(appToday());
 const tue = week[1].date;
 const wed = week[2].date;
 const card = (id: string, start: string | null, due: string): ObjectMeta =>

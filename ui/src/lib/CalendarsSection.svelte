@@ -12,7 +12,6 @@
   import { onMount } from 'svelte';
   import {
     calendarAdd,
-    calendarOffset,
     calendarReadNow,
     calendarRemove,
     calendars,
@@ -20,6 +19,7 @@
     type Calendars,
   } from './ipc';
   import { labelFor, vaultList } from './vaults.svelte';
+  import { formatMoment } from './appTime';
 
   let cal = $state<Calendars | null>(null);
   let error = $state('');
@@ -27,7 +27,6 @@
   let label = $state('');
   let url = $state('');
   let vault = $state('');
-  let offset = $state('');
 
   const vaults = $derived(vaultList() ?? []);
 
@@ -48,7 +47,6 @@
     error = '';
     try {
       cal = await f();
-      offset = cal.offset;
       return true;
     } catch (e) {
       error = sentence(e);
@@ -96,7 +94,7 @@
   }
 
   function when(at: number): string {
-    return at ? new Date(at * 1000).toLocaleString() : 'not yet';
+    return at ? formatMoment(at * 1000) : 'not yet';
   }
 
   /** One line per calendar, in counts — and the ones left out are said, not hidden. */
@@ -214,30 +212,11 @@
       </button>
     </form>
 
-    <label class="line offset">
-      <span>Time zone</span>
-      <input
-        bind:value={offset}
-        placeholder={cal.system ? `${cal.system} (this computer's)` : 'Asia/Tokyo'}
-        size="24"
-      />
-      <button
-        disabled={busy || offset === cal.offset}
-        onclick={() => run(() => calendarOffset(offset))}>Save</button
-      >
-    </label>
     <p class="muted small">
-      Leave it empty: meetings are shown on this computer's clock, and follow it when it changes.
-      Each notebook keeps its own times, so the same meeting shows at the right hour on every
-      device. A meeting your calendar or an email gives in another zone — "10am Berlin time" — is
-      moved onto your clock, and the email's own words are kept beside it.
+      Meetings are put on the app's clock, {cal.zone || "this computer's"} — set it in
+      <strong>Settings → Clock</strong>. A meeting your calendar or an email gives in another zone —
+      "10am Berlin time" — is moved onto that clock, and the email's own words are kept beside it.
     </p>
-    {#if cal.offset.trim() && cal.system && !sameClock(cal.system, cal.zone)}
-      <p class="muted small warn" role="status">
-        This computer is on {cal.system}, but meetings are put on {cal.zone} because it is set here. Clear
-        it to follow the computer.
-      </p>
-    {/if}
   {/if}
 
   {#if error}
@@ -297,8 +276,7 @@
     max-width: 100%;
     box-sizing: border-box;
   }
-  .add span,
-  .offset span {
+  .add span {
     font-size: var(--text-sm);
     color: var(--text-muted);
   }

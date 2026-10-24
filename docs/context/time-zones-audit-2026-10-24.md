@@ -225,8 +225,8 @@ leaves the file's `start` byte-identical; a restored note's times do not move.
 
 Three clocks, all different and awkward: process `TZ=America/St_Johns` (−03:30), app clock
 `Asia/Kathmandu` (+05:45), vault clock `Pacific/Chatham` (+12:45/+13:45); folds and gaps on
-`Australia/Lord_Howe` (a 30-minute change). `pixi run test-two-clocks` and `test-ui-two-clocks` join
-`pixi run ci`, with a guard that fails when the three are not actually different. Myrme's suites and
+`Australia/Lord_Howe` (a 30-minute change). `pixi run test-two-clocks` (the Rust suites) joins
+`pixi run ci`, and `pixi run test-ui` itself runs on `America/St_Johns`. Myrme's suites and
 its integration test (four clocks) the same way.
 
 ### 6.5 Open — the owner decides

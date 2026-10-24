@@ -369,7 +369,15 @@ app = "target/release/fm-serve"
 #   pixi run update-test [from-version]
 #   pixi run update-test --from-source   # the build made here → the newest release, and back
 update-test = "sh ci/update-test.sh"
-test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
+# Vitest: the markdown->HTML render seam (jsdom, no window). **On a zone no developer is in**
+# (2026-10-24, *one app clock*): a UI test must never depend on the machine's zone, and running
+# them elsewhere is what proves it.
+test-ui = { cmd = "pnpm -C ui install && pnpm -C ui test", env = { TZ = "America/St_Johns" } }
+# **The two-clock harness** (`decisions.md#data`, 2026-10-24, *one app clock*): the same suites with the
+# process on a zone no developer is in (`America/St_Johns`, −03:30, with daylight saving), so a test
+# that quietly assumed "my zone" — the app's clock, a vault's, the browser's — fails here instead of
+# on a person's agenda.
+test-two-clocks = { cmd = "cargo test -p fm-core -p fm-app -p fm-serve -p fm-cli", env = { TZ = "America/St_Johns" } }
 # svelte-check over every component. `vite build` does NOT typecheck — it strips types and
 # emits — so a `.svelte` file that calls a function it never imported *builds clean* and
 # throws ReferenceError in the browser at the moment that code path runs. That is a whole
@@ -490,4 +498,4 @@ ios-package = "sh ci/ios-package.sh"
 # nothing warm. That is well inside what a gate may ask for. `ci/checks.sh` now fails on any
 # `test-*` task that is neither here nor marked `# not-in-ci: <reason>`, so leaving one out is a
 # decision somebody makes rather than one that happens.
-depends-on = ["test", "test-native-git", "test-ui", "check-ui", "fmt", "fmt-ui", "clippy", "deny", "checks", "third-party-check", "docs"]
+depends-on = ["test", "test-native-git", "test-two-clocks", "test-ui", "check-ui", "fmt", "fmt-ui", "clippy", "deny", "checks", "third-party-check", "docs"]

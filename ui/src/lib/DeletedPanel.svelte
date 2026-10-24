@@ -10,6 +10,7 @@
   import { onMount } from 'svelte';
   import { deletedNotes, restoreDeleted, type DeletedRow } from './ipc';
   import { labelFor } from './vaults.svelte';
+  import { formatMoment } from './appTime';
 
   let { onclose, onrestored }: { onclose: () => void; onrestored: () => void } = $props();
 
@@ -41,8 +42,8 @@
   }
 
   function when(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+    // On the app's clock (2026-10-24); an unreadable value is shown as it came.
+    return formatMoment(iso) || iso;
   }
 
   function onkeydown(e: KeyboardEvent) {

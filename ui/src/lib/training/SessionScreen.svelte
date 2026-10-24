@@ -8,6 +8,7 @@
   // exercises are data and are never written in this file.
   import Icon from '../Icon.svelte';
   import { show, showWith, whole } from '../units';
+  import { weekday as weekdayOf } from '../civil';
   import { sameName } from './exercises';
   import type { DayTotals, ObjectMeta, RecentItem, Routine, TotalsDef } from '../types';
 
@@ -65,7 +66,7 @@
   const known = (name: string) => cards.some((c) => sameName(c, name));
 
   const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-  const weekday = $derived(today ? WEEK[new Date(`${today}T12:00:00`).getDay()] : '');
+  const weekday = $derived(today ? WEEK[weekdayOf(today)] : '');
   const meant = $derived(routines.filter((r) => r.weekdays.includes(weekday)));
   const rest = $derived(routines.filter((r) => !r.weekdays.includes(weekday)));
   const daysOf = (r: Routine) =>

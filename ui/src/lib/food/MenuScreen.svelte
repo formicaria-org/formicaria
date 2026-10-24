@@ -12,6 +12,7 @@
   import { dayAgainst, gap } from '../plan/measure';
   import { createNotesUndoable, deleteNotesUndoable } from '../undo.svelte';
   import { addDays, dayLabel, show, showWith, whole } from '../units';
+  import { daysFrom, weekday } from '../civil';
   import type {
     CarriedRecipe,
     RecipeLibrary,
@@ -36,9 +37,8 @@
   let { view, def, today, signal, onadd, onedit, onsaved }: Props = $props();
 
   /// The Monday of the week holding a day, and how many days one day is after another.
-  const daysApart = (from: string, to: string) =>
-    Math.round((Date.parse(`${to}T12:00:00`) - Date.parse(`${from}T12:00:00`)) / 86_400_000);
-  const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T12:00:00`).getDay() + 6) % 7));
+  const daysApart = (from: string, to: string) => daysFrom(from, to);
+  const mondayOf = (day: string) => addDays(day, -((weekday(day) + 6) % 7));
 
   const KEY = 'fm-menu-days';
   function stored(): number {

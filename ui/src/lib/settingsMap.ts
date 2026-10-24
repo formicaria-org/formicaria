@@ -8,6 +8,8 @@
 export const CATEGORIES = [
   { id: 'look', label: 'Look' },
   { id: 'keyboard', label: 'Keyboard' },
+  // **The app's clock** (`decisions.md#data`, 2026-10-24): on every device, the phone included.
+  { id: 'clock', label: 'Clock' },
   // **A vault's settings have a category of their own** (`decisions.md#ui`, 2026-10-15): where it
   // lives, where it is sent, its snapshot, which attachments travel, making and removing vaults.
   { id: 'vaults', label: 'Vaults & backup' },

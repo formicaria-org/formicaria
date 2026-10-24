@@ -6,7 +6,7 @@
     monthLabel,
     weekLabel,
     WEEKDAYS,
-    ymd,
+    monthStart,
     dayOfMonth,
     addDays,
     clampRangeToWeek,
@@ -15,6 +15,7 @@
     timedBlocks,
     type Day,
   } from '../lib/calendar';
+  import { appNowMinutes, appToday } from '../lib/appTime';
   import { urgency } from '../lib/urgency';
   import { dayOf, timeRange } from '../lib/stamp';
   import VaultBadge from '../lib/VaultBadge.svelte';
@@ -38,9 +39,9 @@
     range = 'month',
   }: { cards: ObjectMeta[]; onopen: (id: string) => void; range?: 'month' | 'week' } = $props();
 
-  const now = new Date();
-  const todayIso = ymd(now);
-  let cursor = $state(todayIso); // month view ignores the day-of-month
+  // Today and now on the app's clock (2026-10-24), refreshed each minute below.
+  let todayIso = $state(appToday());
+  let cursor = $state(appToday()); // month view ignores the day-of-month
 
   let year = $derived(Number(cursor.slice(0, 4)));
   let month = $derived(Number(cursor.slice(5, 7)) - 1);
@@ -79,10 +80,10 @@
   }
 
   function prev() {
-    cursor = range === 'week' ? addDays(cursor, -7) : ymd(new Date(year, month - 1, 1));
+    cursor = range === 'week' ? addDays(cursor, -7) : monthStart(year, month - 1);
   }
   function next() {
-    cursor = range === 'week' ? addDays(cursor, 7) : ymd(new Date(year, month + 1, 1));
+    cursor = range === 'week' ? addDays(cursor, 7) : monthStart(year, month + 1);
   }
   function today() {
     cursor = todayIso;
@@ -97,12 +98,11 @@
     const starts = weeks[0].flatMap((d) => timedBlocks(cards, d.date).map((b) => b.from));
     return Math.max(0, Math.min(7, Math.floor(Math.min(...starts, 24 * 60) / 60) - 1));
   });
-  let nowMinutes = $state(now.getHours() * 60 + now.getMinutes());
+  let nowMinutes = $state(appNowMinutes());
   $effect(() => {
-    if (range !== 'week') return;
     const id = setInterval(() => {
-      const t = new Date();
-      nowMinutes = t.getHours() * 60 + t.getMinutes();
+      nowMinutes = appNowMinutes();
+      todayIso = appToday();
     }, 60_000);
     return () => clearInterval(id);
   });

@@ -38,7 +38,7 @@ export function zoneLabel(
   const text = off && off !== city(zone) ? `${city(zone)} · ${off}` : city(zone);
   const kept = [...new Set(vaultClocks.filter((c): c is string => !!c))];
   const title =
-    `Times are shown on this device's clock: ${zone}.` +
+    `Times are shown on the app's clock: ${zone} (Settings → Clock).` +
     (kept.length ? ` Your notes keep theirs on ${kept.join(', ')}, and each device converts.` : '');
   return { text, title };
 }

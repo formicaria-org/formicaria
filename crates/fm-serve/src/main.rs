@@ -146,6 +146,9 @@ fn main() {
     // dies with `Killed: 9` and no message anybody sees. Cheaper than every failure it prevents.
     //
     // Handled before anything else: it must not need vaults, a config directory or a free port.
+    // **The internet's clock, for the clock check** (2026-10-24): from answers the app gets anyway.
+    #[cfg(any(feature = "update", feature = "calendar", feature = "products"))]
+    fm_app::clock::set_skew_source(fm_fetch::clock_skew);
     if std::env::args().nth(1).as_deref() == Some("--version") {
         println!("{}", option_env!("FM_VERSION").unwrap_or("dev"));
         return;
@@ -476,6 +479,8 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/calendar_remove",
     "/api/calendar_offset",
     "/api/calendar_pull",
+    // **The time zone is this computer's** (2026-10-24): a guest reads the host's clock, never sets it.
+    "/api/set_clock",
     // **A guest does not make the host fetch an address of its choosing** (2026-10-18). The link is
     // checked to be a public `https` page, but a name can still be made to point inside this
     // network; a recipe is saved from a link on the computer itself, or on a phone.

@@ -13,6 +13,7 @@
   // Safety Tips box — one screen, the box whole, not its lines spread over cards — and any card
   // may list pages elsewhere on how it is done. Those are links: only their titles are shown.
   import * as nav from '../nav.svelte';
+  import { civilDay, formatCivil } from '../civil';
   import Icon from '../Icon.svelte';
   import { exercises, sameName } from './exercises';
   import type { ExerciseCard, ExerciseLibrary, ExerciseVideo } from '../types';
@@ -104,12 +105,13 @@
   /// `121026` → `12 October 2026`: the day the NHS text was copied, which its terms ask to be shown.
   function asAt(ddmmyy: string | undefined): string {
     if (!ddmmyy || !/^\d{6}$/.test(ddmmyy)) return '';
-    const d = new Date(
+    // A calendar date, worded; no zone moves it.
+    const day = civilDay(
       2000 + Number(ddmmyy.slice(4)),
       Number(ddmmyy.slice(2, 4)) - 1,
       Number(ddmmyy.slice(0, 2)),
     );
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    return formatCivil(day, { day: 'numeric', month: 'long', year: 'numeric' });
   }
   /// The films found for an exercise: of the exercise itself, then of the drill it is part of.
   /// **Their order is the file's** (`exercise-videos.json`): a known body's that is not a drill

@@ -4,10 +4,11 @@ import { CATEGORIES, isCat, labelOf, matches, shown } from './settingsMap';
 const base = { actions: false, cat: 'look' as const, query: '', text: '' };
 
 describe('how Settings is divided', () => {
-  it('has six categories, each with a name', () => {
+  it('has its categories, each with a name', () => {
     expect(CATEGORIES.map((c) => c.id)).toEqual([
       'look',
       'keyboard',
+      'clock',
       'vaults',
       'notes',
       'assistant',

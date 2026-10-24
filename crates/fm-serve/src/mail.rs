@@ -347,13 +347,18 @@ fn finish_sign_in(code: &str, state: &str) -> Result<(), String> {
 // ── reading ───────────────────────────────────────────────────────────────────────────────────────
 
 /// The Gmail search the person's choices amount to: their label, since their date.
-fn query(s: &Settings) -> String {
+///
+/// **The date as epoch seconds** (2026-10-24, F12): Gmail reads `after:YYYY/MM/DD` as midnight
+/// Pacific time, so a date put the start hours off; seconds are exact. The day begins on the app's
+/// clock.
+fn query(s: &Settings, zone: Option<&fm_core::zone::Zone>) -> String {
     let mut q = Vec::new();
     if !s.label.trim().is_empty() {
         q.push(format!("label:\"{}\"", s.label.trim().replace('"', "")));
     }
-    if let Some(d) = s.since.get(..10).filter(|d| d.len() == 10) {
-        q.push(format!("after:{}", d.replace('-', "/")));
+    let since = since_ms(&s.since, zone);
+    if since > 0 {
+        q.push(format!("after:{}", since / 1000));
     }
     q.join(" ")
 }
@@ -367,6 +372,7 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
             Ok(())
         })?;
     }
+    let zone = state.app.clock().zone();
     let s = load();
     if s.refresh_token.is_empty() {
         return Err("not signed in".into());
@@ -376,7 +382,8 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
     let mut listed: Vec<(String, String)> = Vec::new();
     let mut page = String::new();
     loop {
-        let mut url = format!("{GMAIL}/threads?maxResults=100&q={}", enc(&query(&s)));
+        let mut url =
+            format!("{GMAIL}/threads?maxResults=100&q={}", enc(&query(&s, zone.as_ref())));
         if !page.is_empty() {
             url.push_str(&format!("&pageToken={}", enc(&page)));
         }
@@ -392,7 +399,7 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
         }
     }
     // Open only the conversations that moved, and take every message in them not yet read.
-    let since = since_ms(&s.since);
+    let since = since_ms(&s.since, zone.as_ref());
     let mut ids = Vec::new();
     let mut done: Vec<(String, String)> = Vec::new();
     for (t, h) in &listed {
@@ -426,7 +433,8 @@ fn read_once(state: &crate::AppState) -> Result<Value, String> {
         }
         batch.push(v);
     }
-    let args = json!({ "vault": s.vault, "zone": crate::calendar::offset() });
+    // No zone: the mail reader writes on the app's clock, which `mail_sync` reads itself (2026-10-24).
+    let args = json!({ "vault": s.vault });
     let body = serde_json::to_vec(&batch).map_err(|e| e.to_string())?;
     let out =
         fm_app::dispatch("mail_sync", &args, &body, &state.app, &crate::Desktop)?.into_bytes();
@@ -464,13 +472,17 @@ fn unread_in_thread(thread: &Value, seen: &[String], since: u64) -> Vec<String> 
         .collect()
 }
 
-/// `YYYY-MM-DD` → milliseconds since 1970 at that day's start (UTC); 0 when unset or unreadable, which
-/// reads everything — the same as Gmail's search with no `after:`.
-fn since_ms(day: &str) -> u64 {
+/// `YYYY-MM-DD` → milliseconds since 1970 at that day's start **on the app's clock** (2026-10-24;
+/// UTC only when the clock cannot be read); 0 when unset or unreadable, which reads everything —
+/// the same as Gmail's search with no `after:`.
+fn since_ms(day: &str, zone: Option<&fm_core::zone::Zone>) -> u64 {
     let mut it = day.get(..10).unwrap_or("").split('-').map(|p| p.parse::<i64>().ok());
     let (Some(Some(y)), Some(Some(m)), Some(Some(d))) = (it.next(), it.next(), it.next()) else {
         return 0;
     };
+    if let Some(secs) = zone.and_then(|z| z.start_of(day)) {
+        return u64::try_from(secs * 1000).unwrap_or(0);
+    }
     // Days from civil (Howard Hinnant's algorithm).
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
@@ -776,7 +788,7 @@ mod tests {
             { "id": "f", "internalDate": "1700000000000", "labelIds": ["formicaria"] },
         ]});
         let seen = vec!["a".to_string(), "b".to_string()];
-        let since = since_ms("2026-09-25");
+        let since = since_ms("2026-09-25", None);
         assert_eq!(
             unread_in_thread(&thread, &seen, since),
             ["c", "d"],
@@ -786,10 +798,13 @@ mod tests {
 
     #[test]
     fn the_start_date_is_read_as_that_days_start() {
-        assert_eq!(since_ms("1970-01-02"), 86_400_000);
-        assert_eq!(since_ms("2026-09-25"), 1_790_294_400_000);
-        assert_eq!(since_ms(""), 0, "unset reads everything");
-        assert_eq!(since_ms("soon"), 0);
+        assert_eq!(since_ms("1970-01-02", None), 86_400_000);
+        assert_eq!(since_ms("2026-09-25", None), 1_790_294_400_000);
+        assert_eq!(since_ms("", None), 0, "unset reads everything");
+        assert_eq!(since_ms("soon", None), 0);
+        // On the app's clock the day begins earlier east of Greenwich: +05:45 → 18:15 UTC the day before.
+        let ktm = fm_core::zone::Zone::parse("+05:45").unwrap();
+        assert_eq!(since_ms("2026-09-25", Some(&ktm)), 1_790_294_400_000 - 20_700_000);
     }
 
     #[test]
@@ -799,7 +814,8 @@ mod tests {
             since: "2026-09-25".into(),
             ..Default::default()
         };
-        assert_eq!(query(&s), "label:\"formicaria\" after:2026/09/25");
+        // Epoch seconds, exact — Gmail reads a bare date as midnight Pacific time (F12).
+        assert_eq!(query(&s, None), "label:\"formicaria\" after:1790294400");
     }
 
     #[test]

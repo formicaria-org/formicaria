@@ -10,6 +10,7 @@
   import { logDays, logRoutines, planLibrary, planProgress } from '../ipc';
   import { shownAsk, shownValue, verdict } from '../plan/measure';
   import { addDays, dayLabel, showWith, whole } from '../units';
+  import { weekday } from '../civil';
   import type {
     DayTotals,
     ExampleWeeks,
@@ -35,7 +36,7 @@
   }
   let { view, def, today, signal, onday, onplan, onsaved }: Props = $props();
 
-  const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T12:00:00`).getDay() + 6) % 7));
+  const mondayOf = (day: string) => addDays(day, -((weekday(day) + 6) % 7));
   // svelte-ignore state_referenced_locally
   let monday = $state(mondayOf(today));
   const sunday = $derived(addDays(monday, 6));
@@ -95,7 +96,7 @@
 
   const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const meantFor = (day: string) => {
-    const key = WEEK[new Date(`${day}T12:00:00`).getDay()];
+    const key = WEEK[weekday(day)];
     return routines.filter((r) => r.weekdays.includes(key));
   };
   /// A day in a few words: its sets, its activities, and which exercises.

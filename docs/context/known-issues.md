@@ -1013,13 +1013,16 @@ Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google
   zone database does not know (Outlook's Windows names, a custom `VTIMEZONE`) is still carried as
   written. A note made before 2026-10-23 from a foreign `TZID` keeps its old time until the event's
   `SEQUENCE` moves (the rule above).
-- **Each device shows the agenda on its own zone** (2026-10-23): the vault's clock is
-  `vault.json`'s `notes_time_zone` when stated, else its **first commit's offset** — a fixed offset,
-  so a vault begun where clocks change in summer is an hour out half the year until it states a
-  zone. A vault with no commits converts nothing. Limits: a laptop's change of zone shows within
-  five minutes (`jiff`'s cache); a proposal accepted on a device in another zone than the one that
-  made it takes the accepting device's clock; a paired tablet sees the host's clock. A clock check
-  is still open (`outstanding.md` §2.16).
+- **Each device shows everything on the app's clock** (2026-10-24, Settings → Clock: Automatic =
+  the system's zone, or a chosen one): the vault's clock is `vault.json`'s `notes_time_zone` when
+  stated, else its **first commit's offset** — a fixed offset, so a vault begun where clocks change in
+  summer is an hour out half the year until it states a zone. A vault with no commits converts
+  nothing. Limits: an Automatic clock follows a laptop's change of zone within five minutes
+  (`jiff`'s cache) plus one `ping`; a process started with `TZ` never follows the system; a paired
+  tablet sees the host's clock. **Not yet:** email headings and `mail_last` are still text on the
+  clock in force when they were read in (0.20, `time-zones-audit-2026-10-24.md` §6.3), the assistant
+  still keeps naive stamps (Myrme 0.10, §6.2). The internet check (Settings → Clock) only warns, and
+  only once a request the app makes anyway (Gmail, a calendar, the update check) has answered.
 - **On opening, then every 5 minutes, while the app is open** (an unchanged feed is skipped by its hash). There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.
 - **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.
@@ -1460,8 +1463,8 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   A refused value writes nothing. A disk failing half-way leaves the first few behind; the error
   says how many. `Store` has no batch write.
 - **`log_recent` reads every entry of the log, of any age,** and counts frequency over all of them.
-- **"Today" is the device's.** Two devices in different time zones will file a late-night entry
-  under different days.
+- **"Today" is the app clock's** (2026-10-24). Two devices on different app clocks will file a
+  late-night entry under different days.
 - **A vault view named like a shipped one replaces it — also by accident.** A view someone had
   already called `Day` or `Trends` takes the place of the shipped view of that name.
 - **Entries are made in the default vault.** The sheet has no "create in"; with several vaults the
@@ -1622,8 +1625,9 @@ Built in 0.7.7 (`reminders.rs`, `ui/src/lib/reminders.svelte.ts`, `Reminders.kt`
 - **Browser notifications need the page to be allowed**, and Chrome on Android refuses
   `new Notification` outside a service worker — there the line in the app is all there is
   (the phone app does not go this way; it uses the alarm).
-- **Time is the device's own.** `2026-10-14T15:30` is 15:30 wherever the device is; a note
-  written in one time zone reminds at the same wall-clock time in another.
+- **A reminder's moment is worked out by the server on the app's clock** (2026-10-24, `at_ms`): the
+  note's time read onto that clock from the vault's, so the same note reminds at the same moment on
+  every device.
 - **`remind` is a property typed by hand.** There is no field for it in the note's own panel.
 - **A repeated note** (`weekdays`) is not reminded of: only `start` and `due`.
 - **iOS**: the line in the app only, untested like everything else there.

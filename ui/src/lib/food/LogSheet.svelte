@@ -10,6 +10,7 @@
   // keys. An amount is never rescaled from numbers that were already rounded: it is recomputed from
   // where the food came from, or from the values as they were when this sheet opened.
   import { onDestroy, onMount, untrack } from 'svelte';
+  import { appToday, formatMoment } from '../appTime';
   import * as nav from '../nav.svelte';
   import { startRecording, type Recording } from '../record';
   import { DICTATION_SECS, hear } from '../dictation';
@@ -53,7 +54,7 @@
     deleteUndoable,
     deleteNotesUndoable,
   } from '../undo.svelte';
-  import { show, showWith, today, typed, whole, nowClock, clockOf, dayOf } from '../units';
+  import { addDays, show, showWith, today, typed, whole, nowClock, clockOf, dayOf } from '../units';
   import { guessFood, ingredientLines, recipeBody, type RecipeSource } from './recipeText';
   import { searchRecipes, type Shelf } from './recipeSearch';
   import { RECIPE, RECIPE_BODY, recipeWord } from '../templates';
@@ -597,14 +598,9 @@
   /// ahead 60, which is as far as one asking of `log_days` reaches.
   let settled = $state('');
   async function fillIn(id: string, unit: AmountUnit, per100: Record<string, number>) {
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    const today = Date.now();
-    const days = await logDays(
-      view,
-      iso(new Date(today - 330 * 864e5)),
-      iso(new Date(today + 60 * 864e5)),
-      true,
-    );
+    // On the app's clock, never the UTC day (2026-10-24, F11).
+    const today = appToday();
+    const days = await logDays(view, addDays(today, -330), addDays(today, 60), true);
     let filled = 0;
     let other = 0;
     for (const d of days.days)
@@ -1304,7 +1300,7 @@
       return;
     }
     const { words, why } = await hear(file);
-    const title = `Dictated recipe, ${new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+    const title = `Dictated recipe, ${formatMoment(Date.now(), { day: 'numeric', month: 'short' })}`;
     try {
       let said = words;
       if (!words) {

@@ -17,6 +17,7 @@
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
   import ManualLink from './ManualLink.svelte';
+  import { appToday, appZone, clockText, dayOfInstant, formatMoment } from './appTime';
   import { onDestroy, onMount, tick } from 'svelte';
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
@@ -32,6 +33,7 @@
   } from './settingsMap';
   import Appearance from './Appearance.svelte';
   import CalendarsSection from './CalendarsSection.svelte';
+  import ClockSection from './ClockSection.svelte';
   import TrackersSection from './TrackersSection.svelte';
   import RemindersSection from './RemindersSection.svelte';
   import MailSection from './MailSection.svelte';
@@ -807,6 +809,7 @@
       autoBackup ? 'on' : 'off'
     }`,
     assistant: agentOn === null ? undefined : agentOn ? 'On' : 'Off',
+    clock: appZone(),
     about: cfg ? (upd?.available ? `${cfg.version} · a newer one is out` : cfg.version) : undefined,
   }));
 
@@ -830,11 +833,12 @@
   /** When the last look was, to the minute. A date alone read the same before and after a second
    *  look that day, so a press that worked could not be told from one that did nothing. */
   function lookedWhen(secs: number): string {
-    const then = new Date(secs * 1000);
-    const time = then.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return then.toDateString() === new Date().toDateString()
+    // On the app's clock (2026-10-24).
+    const ms = secs * 1000;
+    const time = clockText(ms);
+    return dayOfInstant(ms) === appToday()
       ? `today at ${time}`
-      : `${then.toLocaleDateString()} at ${time}`;
+      : `${formatMoment(ms, { dateStyle: 'medium' })} at ${time}`;
   }
 
   async function toggleUpdateCheck(on: boolean) {
@@ -1784,6 +1788,11 @@
           </ul>
         </section>
       {/if}
+
+      <!-- The app's clock (2026-10-24): on every device, a paired one reading its host's. -->
+      <div class="cat" data-cat="clock">
+        <ClockSection />
+      </div>
 
       <!-- Your own calendars. The computer holds the addresses and does the reading, so a paired
            tablet (refused every route) and the phone (no reader yet) are not offered it. -->

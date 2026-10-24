@@ -119,3 +119,38 @@ fn the_time_zone_0_15_0_stamped_at_start_is_taken_out() {
     assert_eq!(d.notes_time_zone, None);
     assert!(!Descriptor::strip_legacy_time_zone(vault).unwrap(), "nothing left to take out");
 }
+
+/// **A time nobody changed keeps its bytes** (2026-10-24, F25). 02:30 on 29 March 2026 does not exist
+/// in Berlin (the clocks jump from 02:00 to 03:00), so read onto a `+01:00` app clock and written
+/// back it would come out 03:30; a write that changed only the title must leave it as the file has
+/// it. And a time that *was* changed is still converted.
+#[test]
+fn a_time_nobody_changed_keeps_its_bytes_through_a_gap() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+    std::fs::write(vault.join("vault.json"), r#"{"notes_time_zone": "Europe/Berlin"}"#).unwrap();
+    let mut store = FileStore::open(vault).unwrap();
+    store.set_clock(fm_core::zone::Clock::chosen(Zone::parse("+01:00").unwrap()));
+    let mut o = Object::new(Kind::Note, "In the gap");
+    store.put(&o).unwrap();
+    let id = o.id.to_string();
+    // As a hand edit would leave it: a time the vault's clock skips.
+    let path = vault.join(format!("notes/{id}.md"));
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replacen("---\n", "---\nstart: 2026-03-29T02:30\n", 1)).unwrap();
+    store.reindex(fm_core::Reindex::Incremental).unwrap();
+    assert_eq!(frontmatter_line(vault, &id, "start"), "start: 2026-03-29T02:30");
+
+    o = store.get(o.id).unwrap().unwrap();
+    o.title = Some("Renamed".into());
+    store.put(&o).unwrap();
+    assert_eq!(frontmatter_line(vault, &id, "start"), "start: 2026-03-29T02:30", "not touched");
+
+    o.start = Some(Stamp::at(date!(2026 - 04 - 01), time!(10:00)));
+    store.put(&o).unwrap();
+    assert_eq!(
+        frontmatter_line(vault, &id, "start"),
+        "start: 2026-04-01T11:00",
+        "changed: converted"
+    );
+}

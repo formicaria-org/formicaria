@@ -56,14 +56,18 @@ impl Zone {
         Offset::from_seconds(seconds).ok().map(|o| Zone(TimeZone::fixed(o)))
     }
 
-    /// How it is named to a person: `Asia/Tokyo`, or `+09:00` for a fixed offset.
+    /// How it is named to a person: `Asia/Tokyo`, or `+09:00` for a fixed offset — or, for a zone
+    /// with no name (a hard-linked `/etc/localtime`), its offset **now**, not in 1970 (F22).
     pub fn label(&self) -> String {
         if let Some(n) = self.name() {
             return n.to_string();
         }
-        let s = self.0.to_offset(jiff::Timestamp::UNIX_EPOCH).seconds();
-        let (sign, a) = if s < 0 { ('-', -s) } else { ('+', s) };
-        format!("{sign}{:02}:{:02}", a / 3600, a % 3600 / 60)
+        offset_label(self.0.to_offset(jiff::Timestamp::now()).seconds())
+    }
+
+    /// The offset in force now, in seconds east of UTC.
+    pub fn offset_now(&self) -> i32 {
+        self.0.to_offset(jiff::Timestamp::now()).seconds()
     }
 
     /// The computer's own zone, when it can be read.
@@ -95,6 +99,34 @@ impl Zone {
         now.to_offset(self.offset_at(now.unix_timestamp())).date()
     }
 
+    /// **The moment a wall time on this clock is**, in Unix seconds — a time in a daylight-saving
+    /// gap moves later, one in the repeated hour takes the earlier (`jiff`'s compatible rule).
+    pub fn instant(&self, day: Date, at: Time) -> Option<i64> {
+        let dt = jiff::civil::DateTime::new(
+            i16::try_from(day.year()).ok()?,
+            u8::from(day.month()) as i8,
+            day.day() as i8,
+            at.hour() as i8,
+            at.minute() as i8,
+            at.second() as i8,
+            0,
+        )
+        .ok()?;
+        Some(dt.to_zoned(self.0.clone()).ok()?.timestamp().as_second())
+    }
+
+    /// The moment `day` begins on this clock, in Unix seconds.
+    pub fn start_of_day(&self, day: Date) -> Option<i64> {
+        self.instant(day, Time::MIDNIGHT)
+    }
+
+    /// [`Zone::start_of_day`] for a day written `YYYY-MM-DD`; `None` for anything else.
+    pub fn start_of(&self, ymd: &str) -> Option<i64> {
+        let d = Date::parse(ymd.get(..10)?, &time::format_description::well_known::Iso8601::DATE)
+            .ok()?;
+        self.start_of_day(d)
+    }
+
     /// `stamp`, written on `from`'s clock, read on this one. A day with no time is a day on any
     /// clock and is returned as it is; so is a stamp the database cannot place.
     pub fn onto(&self, stamp: Stamp, from: &Zone) -> Stamp {
@@ -103,6 +135,60 @@ impl Zone {
             return stamp;
         }
         convert(stamp.date, t, &from.0, &self.0).map(|(d, t)| Stamp::at(d, t)).unwrap_or(stamp)
+    }
+}
+
+/// `+09:00`, `-03:30`, `+00:00`.
+pub fn offset_label(seconds: i32) -> String {
+    let (sign, a) = if seconds < 0 { ('-', -seconds) } else { ('+', seconds) };
+    format!("{sign}{:02}:{:02}", a / 3600, a % 3600 / 60)
+}
+
+/// **The app's clock** (`decisions.md#data`, 2026-10-24, *one app clock*): the zone every part of the
+/// app reads — the store's seam, the calendar and mail readers, reminders, the UI and the assistant.
+/// Either the person's **choice** (Settings → Clock) or **Automatic**, the zone the system reports to
+/// this process. Cheap to clone; every clone sees a change of choice at once.
+///
+/// **It never answers UTC as a stand-in.** When nothing is chosen and the system's zone cannot be
+/// read, [`Clock::zone`] is `None`, and what needs a zone says so instead of moving every time by hours.
+#[derive(Clone, Debug, Default)]
+pub struct Clock(std::sync::Arc<std::sync::RwLock<Option<Zone>>>);
+
+impl Clock {
+    /// Automatic: the system's zone.
+    pub fn automatic() -> Clock {
+        Clock::default()
+    }
+
+    /// A chosen zone — the person's, or a test's.
+    pub fn chosen(zone: Zone) -> Clock {
+        let c = Clock::default();
+        c.set(Some(zone));
+        c
+    }
+
+    /// Choose a zone, or `None` for Automatic. Every clone follows.
+    pub fn set(&self, choice: Option<Zone>) {
+        *self.0.write().unwrap_or_else(|e| e.into_inner()) = choice;
+    }
+
+    /// The zone chosen, if one is.
+    pub fn choice(&self) -> Option<Zone> {
+        self.0.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// The zone in force: the choice, else the system's; `None` when neither can be had.
+    pub fn zone(&self) -> Option<Zone> {
+        self.choice().or_else(Zone::system)
+    }
+
+    /// `"chosen"` or `"automatic"`.
+    pub fn source(&self) -> &'static str {
+        if self.choice().is_some() {
+            "chosen"
+        } else {
+            "automatic"
+        }
     }
 }
 

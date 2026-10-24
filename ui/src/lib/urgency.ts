@@ -6,11 +6,11 @@
 // Bands are DAY-granular even though `due` may now carry a time: "due soon"
 // answers which days need attention, and a 14:00 meeting shouldn't jump bands at
 // 14:01. The time is presentation (see `formatStamp`), not urgency.
+import { appToday } from './appTime';
+import { daysFrom } from './civil';
 import { dayOf } from './stamp';
 
 export type Urgency = 'overdue' | 'soon' | 'week' | 'later' | 'none';
-
-const DAY = 86_400_000;
 
 function daysUntil(due: string): number | null {
   // Take the day off the stamp before building a Date. The old code appended
@@ -19,11 +19,9 @@ function daysUntil(due: string): number | null {
   // from every agenda band with no error anywhere.
   const day = dayOf(due);
   if (!day) return null;
-  const d = new Date(`${day}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((d.getTime() - today.getTime()) / DAY);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  // Both are days, counted on the calendar: today is the app clock's (2026-10-24).
+  return daysFrom(appToday(), day);
 }
 
 export function urgency(due: string | null): Urgency {

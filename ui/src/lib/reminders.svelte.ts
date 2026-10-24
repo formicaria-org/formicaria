@@ -42,12 +42,12 @@ export function textOf(r: Pick<Reminder, 'what' | 'when' | 'all_day'>): string {
   if (r.when) return r.when === 'that day' ? `${verb} that day` : `${verb} at ${r.when}`;
   return r.all_day ? `${verb} today` : `${verb} now`;
 }
-/** A wall-clock moment as this device's time. */
-export const msOf = (at: string): number => {
-  const [d, t] = at.split('T');
-  const [y, m, day] = d.split('-').map(Number);
-  const [h, min] = (t ?? '09:00').split(':').map(Number);
-  return new Date(y, m - 1, day, h, min).getTime();
+/** **A reminder's moment** (2026-10-24, F8): the server's `at_ms`, worked out on the app's clock —
+ *  never `at` read in this browser's zone, which can lag a laptop's change of zone, or be another
+ *  device's. Only a server older than 0.19 sends none; its `at` is then read as before. */
+export const msOf = (r: Pick<Reminder, 'at' | 'at_ms'>): number => {
+  if (typeof r.at_ms === 'number') return r.at_ms;
+  return Date.parse(`${r.at.length > 10 ? r.at : `${r.at}T09:00`}:00`);
 };
 
 /** Can the system show a notification here at all, and has the person said yes? */
@@ -125,12 +125,12 @@ export function sync(): Promise<void> {
         const items = list.map((r) => ({
           title: r.title || 'A note',
           text: textOf(r),
-          at: msOf(r.at),
+          at: msOf(r),
         }));
         b?.set(JSON.stringify(items));
         program(items.filter((i) => i.at > now));
         for (const r of list) {
-          const wait = msOf(r.at) - now;
+          const wait = msOf(r) - now;
           if (wait > 0 && wait < AHEAD_MS) timers.push(setTimeout(() => fire(r), wait));
         }
         // A page left open asks again before the timers it holds run out.

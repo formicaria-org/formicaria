@@ -1,3 +1,4 @@
+import { appToday, setAppZone } from './appTime';
 import { describe, expect, it } from 'vitest';
 import {
   assignLanes,
@@ -5,7 +6,6 @@ import {
   dayHeading,
   isoDate,
   weekOf,
-  ymd,
   type Day,
   timedBlocks,
   timedDay,
@@ -102,21 +102,17 @@ describe('day grouping across the UTC boundary', () => {
    *  those disagree from midnight until the offset elapses — at UTC+8 a note written at 00:30
    *  was filed under "Yesterday" every night until 08:00. Found because a test happened to run
    *  past midnight, not because anyone was looking. */
-  it('files an instant under its local day, not its UTC day', () => {
-    // 00:30 local, whatever this machine's offset is.
-    const justAfterMidnight = new Date();
-    justAfterMidnight.setHours(0, 30, 0, 0);
-
-    // What the timeline now does…
-    const localKey = ymd(justAfterMidnight);
-    // …versus what it used to do: slice the ISO string.
-    const utcKey = justAfterMidnight.toISOString().slice(0, 10);
-
-    expect(dayHeading(localKey)).toBe('Today');
-    // The old key only matched when the machine is at or west of UTC. Asserting the *heading*
-    // rather than the offset keeps this true in every timezone CI might run in.
-    if (utcKey !== localKey) {
-      expect(dayHeading(utcKey)).not.toBe('Today');
+  it("files an instant under its day on the app's clock, not its UTC day", () => {
+    // Since 2026-10-24 the day is the app clock's, whatever zone this machine is in: at +08:00,
+    // 16:30 UTC on the 23rd is 00:30 on the 24th.
+    setAppZone('+08:00');
+    try {
+      const at = '2026-10-23T16:30:00Z';
+      expect(isoDate(at)).toBe('2026-10-24');
+      expect(at.slice(0, 10)).toBe('2026-10-23'); // what slicing the instant used to give
+      expect(dayHeading(appToday())).toBe('Today');
+    } finally {
+      setAppZone(null);
     }
   });
 });

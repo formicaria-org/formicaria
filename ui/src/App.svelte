@@ -1,6 +1,8 @@
 <script lang="ts">
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
+  import { setAppClock } from './lib/appTime';
+  import { clock as readClock } from './lib/ipc';
   import { tick, untrack } from 'svelte';
   import { popup } from './lib/popup';
   import Icon from './lib/Icon.svelte';
@@ -1318,7 +1320,7 @@
       if (rows.length) lastSaves = rows;
       const due = dueVaults(rows, movedVaults, autoAttempts, Date.now(), occasion);
       if (!due.length) return;
-      const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      const stamp = `${new Date().toISOString().slice(0, 16)}Z`;
       for (const v of due) {
         const phase = await syncVault(v, `backup: ${stamp}`, () => refresh());
         autoAttempts[v] = {
@@ -1442,6 +1444,12 @@
     let generation = 0;
     const beat = async () => {
       const r = await ping(generation).catch(() => null);
+      // **The app's clock** (2026-10-24): a change of zone — chosen in Settings, or the computer's
+      // — redraws every view and re-plans the reminders on the new clock.
+      if (r?.clock && setAppClock(r.clock)) {
+        void refresh();
+        void syncReminders();
+      }
       if (r) {
         generation = r.generation;
         gitAvailable = r.git;
@@ -1500,6 +1508,10 @@
     // One beat unconditionally, in every backend: it is what answers `gitAvailable`, which
     // the first-run screen shows. Only the repeating timer is production-only — the mock
     // has no server, and a repeating interval under Vitest is its own bug.
+    // The app's clock before the first beat, so the first views are already on it (2026-10-24).
+    void readClock()
+      .then((c) => setAppClock(c) && void refresh())
+      .catch(() => {});
     void beat();
     if (!import.meta.env.PROD) return;
 
@@ -2365,7 +2377,7 @@
     if (savingLabel) return;
     savingLabel = 'Backing up…';
     error = null;
-    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const stamp = `${new Date().toISOString().slice(0, 16)}Z`;
     try {
       const results = await Promise.all(
         allVaults.map((v) => syncVault(v, `backup: ${stamp}`, () => refresh())),

@@ -1221,6 +1221,9 @@ const WEB_LOG_SCRIPT: &str = r#"
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The internet's clock, for the clock check (2026-10-24): from answers the app gets anyway.
+    #[cfg(feature = "update")]
+    fm_app::clock::set_skew_source(fm_fetch::clock_skew);
     tauri::Builder::default()
         // **Before `.setup`, and that ordering is the point.** Tauri builds the webview before the
         // setup hook runs — the comment in that hook says so — so a script registered later would

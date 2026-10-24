@@ -965,12 +965,22 @@ pub const PROPOSAL_PROPS: &str = "proposal_props";
 /// proposes *when and where* a meeting is; it does not get to rewrite a note's title, its vault, its
 /// status or anything else by riding a proposal (`decisions.md` 2026-10-09, *the assistant proposes
 /// meetings*). Tags may only be added.
-fn apply_props(obj: &mut Object, props: &serde_json::Value) -> Result<(), StoreError> {
+fn apply_props(
+    obj: &mut Object,
+    props: &serde_json::Value,
+    zone: Option<&fm_core::zone::Zone>,
+) -> Result<(), StoreError> {
     let Some(map) = props.as_object() else { return Ok(()) };
     for (k, v) in map {
         match k.as_str() {
+            // A time may come as a moment (RFC 3339), read onto the app's clock (2026-10-24).
+            "start" | "due" => {
+                let v = crate::clock::stamp_value(v.as_str().unwrap_or_default(), zone)
+                    .map_err(StoreError::Io)?;
+                apply_property(obj, k, &v)?;
+            }
             // `title`: a conversation's "Person — who they are" (`fm_agent::titles`, 2026-10-15).
-            "start" | "due" | "location" | "meeting_of" | "title" => {
+            "location" | "meeting_of" | "title" => {
                 apply_property(obj, k, v.as_str().unwrap_or_default())?;
             }
             "addTags" => {
@@ -1065,7 +1075,7 @@ pub fn create_proposal_with(
         (stored, new) => new.cloned().or(stored),
     };
     if let Some(p) = &props_now {
-        apply_props(&mut obj, p)?;
+        apply_props(&mut obj, p, store.zone().as_ref())?;
     }
     let content = store.encode(&obj)?;
 

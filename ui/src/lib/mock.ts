@@ -8,6 +8,7 @@ import { parseStamp } from './stamp';
 import { GIT_ASSETS_CEILING, humanSize } from './size';
 import { isPhone } from './platform';
 import { proposalState, closedAt } from './proposalState';
+import { deviceZone } from './zoneLabel';
 import type {
   AssetStatus,
   BackupStatus,
@@ -76,6 +77,20 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
 // Proposals accepted this session — with no git, "the branch was merged and deleted" is modelled as
 // membership here, which flips `proposal_diff` to the merged/gone answer.
 const acceptedProposals = new Set<string>();
+/** The mock's app clock: '' is Automatic, this browser's zone (2026-10-24). */
+let mockClockZone = '';
+function mockClock() {
+  const zone = mockClockZone || deviceZone();
+  return {
+    v: 1,
+    zone,
+    source: mockClockZone ? 'chosen' : 'automatic',
+    chosen: mockClockZone,
+    system: deviceZone(),
+    now: new Date().toISOString(),
+    instants: true,
+  };
+}
 
 /// A day in the **current** month, `offset` days from today, clamped to the month's bounds.
 ///
@@ -809,6 +824,7 @@ const FIXTURE_VAULTS = JSON.parse(JSON.stringify(mockVaults)) as typeof mockVaul
 /// `clearFaults` warns about, reintroduced by the function written to fix it.
 export function reset(): void {
   mockDeleted.length = 0;
+  mockClockZone = '';
   clearFaults();
   notes.length = 0;
   notes.push(...FIXTURES.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta));
@@ -2702,12 +2718,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       };
       return result as T;
     }
+    case 'clock':
+    case 'set_clock': {
+      // The app's clock (2026-10-24): the mock's is this browser's zone, or what a test chose.
+      if (cmd === 'set_clock') mockClockZone = String(args.zone ?? '').trim();
+      return mockClock() as T;
+    }
     case 'ping':
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
       // because the mock models a working machine; the no-git path is exercised for real.
       // `generation: 0` pairs with `changed: false`: the mock vault never moves, so a client
       // beating against it keeps sending `since: 0` and keeps being told it is current.
       return {
+        clock: mockClock(),
         changed: false,
         generation: 0,
         git: true,

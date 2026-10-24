@@ -71,6 +71,9 @@ pub struct FileStore {
     zone: Option<crate::zone::Zone>,
     /// Whether `zone` was stated in `vault.json` — then nothing replaces it.
     stated: bool,
+    /// **The app's clock** (2026-10-24, *one app clock*): the clock a time is read onto and written
+    /// back from. Automatic — the system's zone — unless the app hands this store its own.
+    clock: crate::zone::Clock,
     /// Every note file **this app** has written or deleted since the last commit.
     ///
     /// The auto-commit stages exactly these. Staging a directory instead meant that in a
@@ -191,6 +194,7 @@ impl FileStore {
             description: desc.description,
             zone: desc.notes_time_zone.as_deref().and_then(|z| crate::zone::Zone::parse(z).ok()),
             stated: desc.notes_time_zone.is_some(),
+            clock: crate::zone::Clock::automatic(),
             written: Default::default(),
         })
     }
@@ -677,13 +681,48 @@ impl FileStore {
         self.zone.as_ref().map(crate::zone::Zone::label)
     }
 
-    /// `(the vault's clock, this device's)` when they differ — the only case with anything to do.
-    /// The device's is asked each time; `jiff` caches it for five minutes, so a laptop whose zone
-    /// changes shows the change within five minutes, with no restart, at the cost of a lookup.
+    /// Read and write times on `clock` — the app's — rather than the system's (2026-10-24).
+    pub fn set_clock(&mut self, clock: crate::zone::Clock) {
+        self.clock = clock;
+    }
+
+    /// `(the vault's clock, the app's)` when they differ — the only case with anything to do. The
+    /// app's is asked each time: a choice in Settings applies at once, and an Automatic one follows
+    /// the system within `jiff`'s five-minute cache, with no restart.
     fn clocks(&self) -> Option<(crate::zone::Zone, crate::zone::Zone)> {
         let vault = self.zone.clone()?;
-        let device = crate::zone::Zone::system()?;
+        let device = self.clock.zone()?;
         (vault != device).then_some((vault, device))
+    }
+
+    /// `obj` as it is written: its times moved from the app's clock onto the vault's — **except a
+    /// time nobody changed, which keeps the file's own bytes** (2026-10-24, F25). Converting app →
+    /// vault → app does not round-trip across a daylight-saving fold or gap, and without this every
+    /// unrelated write (a tag, a title) could nudge a meeting it never touched.
+    fn to_vault(&self, obj: &Object) -> Result<Object, StoreError> {
+        let mut o = obj.clone();
+        let Some((vault, device)) = self.clocks() else { return Ok(o) };
+        shift(&mut o, &device, &vault);
+        if let Some(raw) = self.raw(obj.id)? {
+            let read = |s: Option<fm_model::Stamp>| s.map(|s| device.onto(s, &vault));
+            if read(raw.start) == obj.start {
+                o.start = raw.start;
+            }
+            if read(raw.due) == obj.due {
+                o.due = raw.due;
+            }
+        }
+        Ok(o)
+    }
+
+    /// The note as its file stands in the index, unconverted.
+    fn raw(&self, id: Id) -> Result<Option<Object>, StoreError> {
+        let content: Option<String> = self
+            .db
+            .query_row("SELECT content FROM objects WHERE id = ?1", [id.to_string()], |r| r.get(0))
+            .optional()
+            .map_err(sql)?;
+        Ok(content.and_then(|c| frontmatter::from_file(&c).ok()))
     }
 
     /// Every row, or only those whose `kind` is in `kinds`. (Was `load_all`, which several doc
@@ -763,30 +802,22 @@ impl Store for FileStore {
     }
 
     fn encode(&self, obj: &Object) -> Result<String, StoreError> {
-        // What `put` writes: the times moved from this device's clock onto the vault's.
-        let mut o = obj.clone();
-        if let Some((vault, device)) = self.clocks() {
-            shift(&mut o, &device, &vault);
-        }
-        frontmatter::to_file(&o).map_err(parse)
+        // What `put` writes: the times moved from the app's clock onto the vault's.
+        frontmatter::to_file(&self.to_vault(obj)?).map_err(parse)
     }
 
     fn decode(&self, _vault: &str, text: &str) -> Result<Object, StoreError> {
         self.hydrate(text)
     }
 
+    fn zone(&self) -> Option<crate::zone::Zone> {
+        self.clock.zone()
+    }
+
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
-        // A time arrives on this device's clock and is written on the vault's (see `zone`).
-        let shifted;
-        let obj = match self.clocks() {
-            Some((vault, device)) => {
-                let mut o = obj.clone();
-                shift(&mut o, &device, &vault);
-                shifted = o;
-                &shifted
-            }
-            None => obj,
-        };
+        // A time arrives on the app's clock and is written on the vault's (see `zone`, `to_vault`).
+        let shifted = self.to_vault(obj)?;
+        let obj = &shifted;
         let content = frontmatter::to_file(obj).map_err(parse)?;
         let path = self.path_for(obj.id);
         self.refuse_if_stale(obj.id, &path)?;

@@ -2480,6 +2480,19 @@ if [ -n "$off" ]; then
     fail=1
 fi
 
+echo "[check] the UI reads the app's clock, never the browser's (one app clock)..."
+# `decisions.md#data`, 2026-10-24, *one app clock*: what day or time it is, and which day a moment
+# falls on, are asked of `ui/src/lib/appTime.ts`, which holds the zone the server reports; day
+# arithmetic is `civil.ts` (UTC, so no zone moves it). The browser's local-time calls answer on the
+# browser's zone, which can lag a laptop's change and is another device's on a paired tablet — so
+# they are refused everywhere else. A bare `toLocaleString()` is not matched: it also formats numbers.
+if grep -rnE '\.(getDate|getHours|getMinutes|getDay|getFullYear|getMonth|setDate|setHours)\(|toLocale(Date|Time)String\(|new Date\([A-Za-z_][A-Za-z0-9_.]*, |toISOString\(\)\.slice\(0, ?10\)|new Date\([^)]*\)\.toLocaleString\(' \
+    ui/src --include=*.ts --include=*.svelte \
+    | grep -vE '\.test\.ts:|/mock[A-Za-z]*\.ts:|lib/appTime\.ts:|lib/civil\.ts:|lib/zoneLabel\.ts:'; then
+    echo "  FAIL: the UI reads the browser's clock above — use appTime.ts (a moment, today, now) or civil.ts (days)."
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

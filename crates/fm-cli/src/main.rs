@@ -200,6 +200,8 @@ fn main() -> Result<()> {
     {
         store.default_clock(z);
     }
+    // And this device's app clock (2026-10-24), so `fm show` prints the times the app shows.
+    store.set_clock(fm_app::clock::load());
 
     match cli.cmd {
         Cmd::Capture { text } => {

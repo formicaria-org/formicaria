@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
+  import { clockText, dayOfInstant } from './appTime';
   import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
   import {
     getNote,
@@ -2464,9 +2465,10 @@
   }
 
   function pastedName(f: File): File {
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, '0');
-    const when = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}`;
+    // Named on the app's clock (2026-10-24); seconds are the same on every clock.
+    const now = Date.now();
+    const secs = String(new Date(now).getUTCSeconds()).padStart(2, '0');
+    const when = `${dayOfInstant(now)} ${clockText(now).replace(':', '.')}.${secs}`;
     const ext = f.name.slice(f.name.lastIndexOf('.'));
     return new File([f], `Pasted image ${when}${ext}`, { type: f.type });
   }

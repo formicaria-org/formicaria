@@ -10,6 +10,7 @@
   import { healthDays } from '../ipc';
   import { createNotesUndoable, setPropertiesUndoable } from '../undo.svelte';
   import { addDays, dayLabel } from '../units';
+  import { formatCivil, weekday } from '../civil';
   import type { HealthDays, HealthWeek, TotalsDef, Tracker } from '../types';
   import Bars from '../charts/Bars.svelte';
   import ManualLink from '../ManualLink.svelte';
@@ -72,7 +73,7 @@
   let mark = $state('');
 
   const endOf = (first: string) => addDays(addDays(first, 32).slice(0, 8) + '01', -1);
-  const mondayOf = (d: string) => addDays(d, -((new Date(`${d}T12:00:00`).getDay() + 6) % 7));
+  const mondayOf = (d: string) => addDays(d, -((weekday(d) + 6) % 7));
   const monthly = $derived(def.span === 'range' && shape === 'month');
   const span = $derived(
     monthly
@@ -211,14 +212,12 @@
   const known = $derived(ELSEWHERE.filter((e) => day?.elsewhere?.[e.key] !== undefined));
 
   // ── the month ──────────────────────────────────────────────────────────────────────────────
-  const monthName = $derived(
-    new Date(`${month}T12:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-  );
+  const monthName = $derived(formatCivil(month, { month: 'long', year: 'numeric' }));
   /** The month's days in weeks from Monday; `null` pads the first and last week. */
   const weeks = $derived.by(() => {
     const days = data?.days ?? [];
     if (!monthly || days.length === 0) return [];
-    const lead = (new Date(`${days[0].day}T12:00:00`).getDay() + 6) % 7;
+    const lead = (weekday(days[0].day) + 6) % 7;
     const cells: ((typeof days)[number] | null)[] = [...Array(lead).fill(null), ...days];
     while (cells.length % 7) cells.push(null);
     const out = [];
@@ -275,8 +274,7 @@
   const trackWeeks = $derived(data?.weeks?.[picked] ?? []);
   const markable = $derived(trackers.filter((t) => t.kind === 'yesno' && t.key !== picked));
   const markWeeks = $derived(mark ? (data?.weeks?.[mark] ?? []) : []);
-  const tick = (w: string) =>
-    new Date(`${w}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' });
+  const tick = (w: string) => formatCivil(w, { day: 'numeric', month: 'numeric' });
   const bars = $derived(
     pickedTracker
       ? trackWeeks.map((w, i) => {

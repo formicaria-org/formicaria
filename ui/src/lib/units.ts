@@ -1,6 +1,8 @@
 // A tracked number is a whole number whose unit is the end of its key (`protein_mg`, `iron_ug`,
 // `load_g`, `duration_s`; `kcal` is its own unit). This is the one place that reads that suffix,
 // so no view definition carries a unit or a scale (`decisions.md#ui`, 2026-10-11).
+import { appToday, clockText } from './appTime';
+import { addDays as civilAddDays, formatCivil } from './civil';
 
 export type Shown = { text: string; unit: string };
 
@@ -96,31 +98,21 @@ export function whole(v: unknown): number | null {
 }
 
 // ── days ─────────────────────────────────────────────────────────────────────────────────────────
-// An entry is dated by day, never by time, and the day is the person's own: local, not UTC.
+// An entry is dated by day, never by time, and the day is the person's own: the app clock's
+// (`appTime.ts`, 2026-10-24), never the browser's or UTC's.
 
-export function dayString(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-export const today = () => dayString(new Date());
-/** The time it is, as an entry's moment carries it: `HH:MM`. */
-export function nowClock(at = new Date()): string {
-  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+/** Today, on the app's clock. */
+export const today = () => appToday();
+/** The time it is, as an entry's moment carries it: `HH:MM`, on the app's clock. */
+export function nowClock(): string {
+  return clockText();
 }
 /** The time an entry's moment carries (`2026-10-12T13:05` → `13:05`), or nothing. */
 export const clockOf = (start: string | null | undefined): string =>
   start && start.length > 10 ? start.slice(11, 16) : '';
 /** The day of an entry's moment. */
 export const dayOf = (start: string | null | undefined): string => (start ?? '').slice(0, 10);
-function parse(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d, 12); // noon, so a clock change never moves the date
-}
-export function addDays(day: string, n: number): string {
-  const d = parse(day);
-  d.setDate(d.getDate() + n);
-  return dayString(d);
-}
+export const addDays = civilAddDays;
 /** Every day from `from` to `to`, both included. */
 export function daysBetween(from: string, to: string): string[] {
   const out: string[] = [];
@@ -129,14 +121,10 @@ export function daysBetween(from: string, to: string): string[] {
 }
 /** `Sun 11 Oct`. */
 export function dayLabel(day: string): string {
-  return parse(day).toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
+  return formatCivil(day, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 /** One letter for a strip of days. */
 export function dayLetter(day: string): string {
-  return parse(day).toLocaleDateString(undefined, { weekday: 'narrow' });
+  return formatCivil(day, { weekday: 'narrow' });
 }
-export const dayNumber = (day: string) => parse(day).getDate();
+export const dayNumber = (day: string) => Number(day.slice(8, 10));

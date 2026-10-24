@@ -7,6 +7,7 @@
   // show nothing" discipline as the vault badge.
   import { hashHue } from './vaultColor';
   import { relativeTime } from './stamp';
+  import { formatMoment } from './appTime';
   import type { EditEvent } from './types';
 
   let { edit }: { edit?: EditEvent } = $props();
@@ -20,7 +21,7 @@
   <span
     class="edited-by"
     style="--eh:{hue}"
-    title={`Last edited by ${edit.author} · ${new Date(edit.time).toLocaleString()}`}
+    title={`Last edited by ${edit.author} · ${formatMoment(edit.time)}`}
   >
     <span class="dot" aria-hidden="true"></span>
     <span class="who">{name}</span>

@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 126 of them are below**, grouped by what they are for. If you add an arm to
+**All 128 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -36,7 +36,9 @@ dispatch no longer has fails too.)
 | `activity`       | `since`                      | `EditEvent[]`          | who last edited what, straight from git log. `since` defaults to `1 year ago` |
 | `duplicates` (also documented with `prune_duplicates` under **Vaults**) | — | `DuplicateFamily[]` | notes grouped by identical body, and what pruning them would remove. A read: it changes nothing |
 | `config`         | —                            | `Config`               | version, the vault list's path and whether it is writable, what is installed, and which `FM_*` variables are set — **facts about the machine, not about any vault**. It carried a copy of the vault list and a second list of restic repos until 2026-09-08; both came from `list_vaults`' producer, so this answered nothing it was the source of. Now takes no lock and spawns no git. The one call a support question can start from |
-| `ping`           | `since`                      | `{changed, git}`       | the 15 s visible-tab reindex poll |
+| `ping`           | `since`                      | `{changed, git, clock}` | the 15 s visible-tab reindex poll; carries the app's clock, so a change of zone reaches every page within one beat |
+| `clock`          | —                            | `Clock`                | **the app's clock** (2026-10-24): the zone every view shows and counts days in — `v`, `zone` (or `null` when it cannot be read), `iana`, `offset`, `offset_seconds`, `now` (UTC), `today`, `source` (`automatic`/`chosen`), `chosen`, `system`, `instants`. What the UI and the assistant read; fields are only ever added |
+| `set_clock`      | `zone` (a name, an offset, or `""` for Automatic) | `Clock` | choose this device's zone (`config_dir()/formicaria/clock.json`); refused to a paired device |
 
 ### Writing notes
 
@@ -139,8 +141,8 @@ change itself lives on that git branch. Nothing here writes to `main`.
 |------------------|------------------------------|------------------------|-------|
 | `check_import`   | `source`, `path`, `vault`, `name` | `ImportCheck`     | what is there and what would happen — attachments by kind, whether they will be linked or copied, and which vaults already hold this folder. Asked on every keystroke while someone types a folder, so it is a pure read |
 | `run_import`     | `source`, `path`, `vault`, `name`, `stubs`, `replace`, `maxMb`, `skipKinds` | `ImportResult` | convert a Logseq or Obsidian folder into notes. `replace` rewrites an earlier import's notes except those edited or deleted since; `maxMb`/`skipKinds` leave attachments out (each still named in its note) |
-| `calendar_sync`  | `vault`, `source`, `offset`; **body** = iCalendar text | `CalendarReport` | your own calendar into a vault: new meetings become notes, a newer `SEQUENCE` moves one, a cancellation tags it. No model, no network — `fm-serve` reads the private address and hands the bytes in |
-| `mail_sync`      | `vault`, `offset`; **body** = JSON array of Gmail messages (`format=full`) | `MailReport` | Gmail into a vault: one note per conversation (subject, last sender, when — never the text), and every invite read exactly as `calendar_sync` reads a calendar. No model, no network — `fm-serve` reads Gmail with a `gmail.readonly` token and hands the messages in |
+| `calendar_sync`  | `vault`, `source`; **body** = iCalendar text (times are put on the app's clock; a sent `offset` is ignored since 2026-10-24) | `CalendarReport` | your own calendar into a vault: new meetings become notes, a newer `SEQUENCE` moves one, a cancellation tags it. No model, no network — `fm-serve` reads the private address and hands the bytes in |
+| `mail_sync`      | `vault`; **body** = JSON array of Gmail messages (`format=full`) (times are put on the app's clock since 2026-10-24) | `MailReport` | Gmail into a vault: one note per conversation (subject, last sender, when — never the text), and every invite read exactly as `calendar_sync` reads a calendar. No model, no network — `fm-serve` reads Gmail with a `gmail.readonly` token and hands the messages in |
 | `mail_conversations` | — | `MailConversations` | read-only: every email conversation (id, title, when its latest message arrived, its current `start`), the starts already on the agenda, and the meeting notes linked to each conversation — what the assistant's meeting pass reads |
 | `propose_note` | `about`, `title`, `body`, `start`, `due`, `location`, `tags`, author + supervision fields | `ObjectMeta` | propose a **new** note linked to `about` (`meeting_of`): it exists only on its `proposal/<id>` branch until accepted. The assistant uses it for a further meeting fixed in an email exchange |
 

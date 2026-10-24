@@ -1,9 +1,10 @@
 <script lang="ts">
-  // The agenda's time zone, minimal (`zoneLabel.ts`): this device's city and offset, with the
-  // notes' own clock in the tooltip. Recomputed every minute, so a device that changes zone shows it.
+  // The agenda's time zone, minimal (`zoneLabel.ts`): the app clock's city and offset (2026-10-24 —
+  // no longer the browser's), with the notes' own clock in the tooltip. Recomputed every minute.
   import { onMount } from 'svelte';
   import { vaultList } from './vaults.svelte';
-  import { deviceZone, zoneLabel } from './zoneLabel';
+  import { zoneLabel } from './zoneLabel';
+  import { appZone } from './appTime';
 
   let now = $state(new Date());
   onMount(() => {
@@ -12,7 +13,7 @@
   });
   const label = $derived(
     zoneLabel(
-      deviceZone(),
+      appZone(),
       (vaultList() ?? []).map((v) => v.clock),
       now,
     ),

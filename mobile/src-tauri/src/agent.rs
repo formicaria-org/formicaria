@@ -557,6 +557,11 @@ impl VaultAccess for DispatchVault {
     fn alive(&self) -> bool {
         true
     }
+    /// The app's clock (2026-10-24, *one app clock*): what the store reads and writes on, so the
+    /// assistant never falls back to a zone of its own here.
+    fn zone(&self) -> Option<String> {
+        self.call("clock", json!({})).ok()?["zone"].as_str().map(str::to_string)
+    }
     fn reply(&self, note: &str, body: &str) -> Result<Value, String> {
         self.call("reply", json!({ "id": note, "body": body }))
     }

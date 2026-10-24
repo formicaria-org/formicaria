@@ -32,8 +32,13 @@ const MOST: usize = 100;
 pub struct Reminder {
     pub id: String,
     pub title: String,
-    /// `YYYY-MM-DDTHH:MM`, in the notes' own wall-clock time.
+    /// `YYYY-MM-DDTHH:MM`, on the app's clock.
     pub at: String,
+    /// **The moment, in milliseconds since 1970** (2026-10-24, *one app clock*), worked out here on
+    /// the app's clock — the page hands it to the system as it is, and never reads `at` in the
+    /// browser's zone again (F8). Absent when the app's clock cannot be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub at_ms: Option<i64>,
     /// `start` for something that begins then, `due` for something to be finished by then.
     pub what: String,
     /// The note's own moment, when the reminder is earlier than it: `HH:MM`, or its day.
@@ -44,10 +49,19 @@ pub struct Reminder {
 }
 
 /// The reminders that fall on `from` or in the `days` after it, soonest first.
-pub fn reminders(store: &dyn Store, from: &str, days: i64) -> Result<Vec<Reminder>, StoreError> {
-    let first = Date::parse(from, &Iso8601::DATE).map_err(|_| {
-        StoreError::Parse(format!("from must be a day like 2026-07-20, not '{from}'"))
-    })?;
+pub fn reminders(
+    store: &dyn Store,
+    from: &str,
+    days: i64,
+    zone: Option<&fm_core::zone::Zone>,
+) -> Result<Vec<Reminder>, StoreError> {
+    // Empty: today, on the app's clock.
+    let first = match (from.trim(), zone) {
+        ("", Some(z)) => z.today(),
+        _ => Date::parse(from, &Iso8601::DATE).map_err(|_| {
+            StoreError::Parse(format!("from must be a day like 2026-07-20, not '{from}'"))
+        })?,
+    };
     let last = first + Duration::days(days.clamp(0, 60));
     let q = Query { filter: unfinished(), ..Default::default() };
     let mut out: Vec<(PrimitiveDateTime, Reminder)> = Vec::new();
@@ -84,6 +98,7 @@ pub fn reminders(store: &dyn Store, from: &str, days: i64) -> Result<Vec<Reminde
                         at.day(),
                         clock(at)
                     ),
+                    at_ms: zone.and_then(|z| z.instant(at.date(), at.time())).map(|s| s * 1000),
                     what: what.to_string(),
                     when: if early == 0 {
                         String::new()

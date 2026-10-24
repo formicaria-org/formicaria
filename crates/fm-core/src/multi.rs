@@ -30,6 +30,8 @@ pub struct MultiStore {
     /// Configured vaults that would not open, as `(name, why)` — kept so the app can say which and
     /// why, instead of a vault silently not being there. See [`Self::open`].
     unopened: Vec<(String, String)>,
+    /// The app's clock, handed to every vault — those opened later too (2026-10-24).
+    clock: crate::zone::Clock,
 }
 
 /// How much of the persisted index to trust when opening a vault.
@@ -112,7 +114,7 @@ impl MultiStore {
                 Err(e) => unopened.push((name.clone(), e.to_string())),
             }
         }
-        Ok(MultiStore { vaults: open, unopened })
+        Ok(MultiStore { vaults: open, unopened, clock: crate::zone::Clock::automatic() })
     }
 
     /// Vaults that are configured but could not be opened, as `(name, why)`. Empty is the normal
@@ -128,14 +130,29 @@ impl MultiStore {
     /// **Appends, never inserts.** `vaults[0]` is the default and receives every fresh
     /// capture, so inserting would silently move where new notes land. At zero the new
     /// vault becomes the default, which is right — it is the only one.
-    pub fn add(&mut self, store: FileStore) {
+    /// The clock every vault reads and writes on.
+    pub fn clock(&self) -> crate::zone::Clock {
+        self.clock.clone()
+    }
+
+    /// Read and write every vault's times on `clock`, the app's (2026-10-24, *one app clock*).
+    pub fn set_clock(&mut self, clock: crate::zone::Clock) {
+        for v in &mut self.vaults {
+            v.set_clock(clock.clone());
+        }
+        self.clock = clock;
+    }
+
+    pub fn add(&mut self, mut store: FileStore) {
+        store.set_clock(self.clock.clone());
         self.vaults.push(store);
     }
 
     /// Put a vault back into the live set **at `index`** — where it was before it was taken out
     /// to be moved (`move_vault`). Not [`Self::add`], which appends: the first vault is the
     /// default for every new note, so a vault returning from a move must return to its place.
-    pub fn insert(&mut self, index: usize, store: FileStore) {
+    pub fn insert(&mut self, index: usize, mut store: FileStore) {
+        store.set_clock(self.clock.clone());
         let at = index.min(self.vaults.len());
         self.vaults.insert(at, store);
     }
@@ -357,6 +374,10 @@ impl Store for Scoped<'_> {
         self.inner.find(&vault)?.decode(&vault, text)
     }
 
+    fn zone(&self) -> Option<crate::zone::Zone> {
+        self.inner.clock.zone()
+    }
+
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
         let vault = if obj.vault.is_empty() { self.default_vault()? } else { obj.vault.clone() };
         if !self.permits(&vault) {
@@ -445,6 +466,10 @@ impl Store for MultiStore {
 
     fn decode(&self, vault: &str, text: &str) -> Result<Object, StoreError> {
         self.find(vault)?.decode(vault, text)
+    }
+
+    fn zone(&self) -> Option<crate::zone::Zone> {
+        self.clock.zone()
     }
 
     /// Delete from whichever vault holds it. `NotFound` only when nobody does.

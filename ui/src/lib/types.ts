@@ -981,6 +981,8 @@ export interface RecipeLibrary {
 }
 /** A moment a reminder is due (`reminders`), in the notes' own wall-clock time. */
 export interface Reminder {
+  /** The moment in milliseconds, worked out by the server on the app's clock (2026-10-24). */
+  at_ms?: number;
   id: string;
   title: string;
   /** `YYYY-MM-DDTHH:MM`. */

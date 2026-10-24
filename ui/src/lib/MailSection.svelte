@@ -25,6 +25,8 @@
     type MailStatus,
   } from './ipc';
   import { labelFor, vaultList } from './vaults.svelte';
+  import { appToday, formatMoment } from './appTime';
+  import { addDays } from './civil';
 
   let st = $state<MailStatus | null>(null);
   let error = $state('');
@@ -41,8 +43,8 @@
 
   /** Two weeks ago, as YYYY-MM-DD — the suggested start. */
   function twoWeeksAgo(): string {
-    const d = new Date(Date.now() - 14 * 86400_000);
-    return d.toISOString().slice(0, 10);
+    // On the app's clock, not the UTC day (2026-10-24, F11).
+    return addDays(appToday(), -14);
   }
 
   function sentence(e: unknown): string {
@@ -123,7 +125,7 @@
   }
 
   function when(at: number): string {
-    return at ? new Date(at * 1000).toLocaleString() : 'not yet';
+    return at ? formatMoment(at * 1000) : 'not yet';
   }
 
   function summary(s: MailStatus): string {

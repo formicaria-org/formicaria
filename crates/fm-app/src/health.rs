@@ -380,6 +380,7 @@ pub fn health_days(
     from: &str,
     to: &str,
     by_week: bool,
+    zone: Option<&fm_core::zone::Zone>,
 ) -> Result<HealthDays, StoreError> {
     let (from, to) = (parse_day("from", from)?, parse_day("to", to)?);
     if to < from || (to - from).whole_days() >= MAX_DAYS {
@@ -402,7 +403,11 @@ pub fn health_days(
             .iter()
             .filter_map(|t| series[&t.key].0.get(&d).map(|v| (t.key.clone(), *v)))
             .collect();
-        let late = here.first().is_some_and(|o| o.created.date() > d + time::Duration::days(1));
+        // Written the day after next, on the app's clock — never the UTC date of `created` (F10).
+        let late = here.first().is_some_and(|o| {
+            let made = zone.map_or(o.created.date(), |z| crate::clock::date_of(o.created, z));
+            made > d + time::Duration::days(1)
+        });
         let context = here.iter().find_map(|o| match o.get(crate::cycle::CONTEXT) {
             PropertyValue::Text(t) if !t.trim().is_empty() => Some(t.trim().to_string()),
             _ => None,
@@ -631,7 +636,7 @@ mod tests {
             entry("e2", 2, &[("headache_0to3", PropertyValue::Int(0))]),
             late,
         ]);
-        let got = health_days(&s, "2026-10-01", "2026-10-05", true).unwrap();
+        let got = health_days(&s, "2026-10-01", "2026-10-05", true, None).unwrap();
         assert_eq!(got.trackers.len(), 2);
         assert!(got.template.is_some());
         assert_eq!(got.days.len(), 5);
@@ -651,8 +656,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("2026-09-28", 4, 3, 2, 3), ("2026-10-05", 1, 0, 0, 0)]
         );
-        assert!(health_days(&s, "2026-10-01", "2026-10-05", false).unwrap().weeks.is_none());
-        assert!(health_days(&s, "2026-10-05", "2026-10-01", false).is_err());
+        assert!(health_days(&s, "2026-10-01", "2026-10-05", false, None).unwrap().weeks.is_none());
+        assert!(health_days(&s, "2026-10-05", "2026-10-01", false, None).is_err());
     }
 
     #[test]
@@ -672,7 +677,7 @@ mod tests {
             logged("body", 2, &[("weight_g", 71_000)]),
             logged("body", 2, &[("weight_g", 71_400)]),
         ]);
-        let got = health_days(&s, "2026-10-01", "2026-10-03", false).unwrap();
+        let got = health_days(&s, "2026-10-01", "2026-10-03", false, None).unwrap();
         assert!(got.days[0].elsewhere.is_empty());
         let e = &got.days[1].elsewhere;
         assert_eq!(e["water_mg"], 1_750_000, "added up, foods and drinks alike");
