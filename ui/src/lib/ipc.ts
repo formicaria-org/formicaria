@@ -615,6 +615,8 @@ export type AgentActivity = {
   stage?: string;
   question?: string;
   elapsed_secs?: number;
+  /** The reply so far, while it is written (Myrme's contract 1.9). */
+  draft?: string;
 };
 export const agentActivity = (discussion: string) =>
   invoke<AgentActivity>('agent_activity_poll', { discussion }).catch(

@@ -92,12 +92,12 @@
       Turn it on in <strong>Settings → Study assistant</strong>; the first time, it asks which model
       and how much to download. Then, in any note's discussion, write <code>@Myrme</code> — its name
       on every device — and what you want: <code>@Myrme summarise this</code>. Add
-      <code>/search</code>
-      to let it look something up first, or <code>/propose</code> to have it draft an edit you
-      approve before anything changes. <code>/transcribe</code> turns the note's recordings and
-      photos of pages into text, and <code>/recipe</code> makes a recipe of what the note says or what
-      its recording says. The buttons under the discussion insert them for you. It never edits a note
-      on its own.
+      <code>/research</code>
+      to have it look something up and check what it quotes, or <code>/propose</code> to have it
+      draft an edit you approve before anything changes. <code>/transcribe</code> turns the note's
+      recordings and photos of pages into text, and <code>/recipe</code> makes a recipe of what the note
+      says or what its recording says. The buttons under the discussion insert them for you. It never
+      edits a note on its own.
     </p>
 
     <h3>Changing how it looks</h3>

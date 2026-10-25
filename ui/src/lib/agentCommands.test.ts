@@ -14,8 +14,8 @@ describe('withCommand — tapping a command chip', () => {
   });
 
   it('does not add a second @mention when one is already present', () => {
-    expect(withCommand('@math-helper what is 2+2', '/search', 'qwen')).toBe(
-      '@math-helper what is 2+2 /search ',
+    expect(withCommand('@math-helper what is 2+2', '/propose', 'qwen')).toBe(
+      '@math-helper what is 2+2 /propose ',
     );
   });
 
@@ -34,9 +34,9 @@ describe('withCommand — tapping a command chip', () => {
     // `/transcribe` covers BOTH modality specialists — a recording and a page of handwriting are
     // the same request, and making someone pick the command is making them do the dispatch. It gets
     // no dedicated button either, which is what keeps the agent from acting on a note unasked.
+    // Four, the same on every device (2026-10-25): `/search` is read as `/research` by Myrme.
     expect(AGENT_COMMANDS.map((c) => c.cmd)).toEqual([
       '/research',
-      '/search',
       '/propose',
       '/transcribe',
       '/recipe',

@@ -17,6 +17,8 @@ const PRESENCE_TTL: Duration = Duration::from_secs(20);
 struct Activity {
     stage: String,
     question: String,
+    /// The reply so far, while it is written (Myrme's contract 1.9, 2026-10-25); empty before.
+    draft: String,
     /// When this turn began — kept across stage updates so elapsed reflects the whole turn.
     since: Instant,
 }
@@ -25,6 +27,7 @@ struct Activity {
 pub struct ActivityView {
     pub stage: String,
     pub question: String,
+    pub draft: String,
     pub elapsed_secs: u64,
 }
 
@@ -58,11 +61,27 @@ impl AgentRegistry {
     /// The agent reports the stage it is on for a discussion (`reading your notes`, `thinking`, …).
     pub fn set_activity(&self, disc: &str, stage: &str, question: &str) {
         let mut act = self.activity.lock().unwrap();
-        let since = act.get(disc).map(|a| a.since).unwrap_or_else(Instant::now);
+        let (since, draft) = act
+            .get(disc)
+            .map(|a| (a.since, a.draft.clone()))
+            .unwrap_or_else(|| (Instant::now(), String::new()));
         act.insert(
             disc.to_string(),
-            Activity { stage: stage.to_string(), question: question.to_string(), since },
+            Activity { stage: stage.to_string(), question: question.to_string(), draft, since },
         );
+    }
+
+    /// The reply so far, while the agent writes it. It changes nothing else about the turn: the
+    /// stage, the question and when it began stay as they were. Display only — never the vault.
+    pub fn set_draft(&self, disc: &str, draft: &str) {
+        let mut act = self.activity.lock().unwrap();
+        let a = act.entry(disc.to_string()).or_insert_with(|| Activity {
+            stage: "writing the reply".into(),
+            question: String::new(),
+            draft: String::new(),
+            since: Instant::now(),
+        });
+        a.draft = draft.to_string();
     }
 
     /// The reply landed, or the turn errored/timed out — hide the wheel.
@@ -79,6 +98,7 @@ impl AgentRegistry {
         act.get(disc).map(|a| ActivityView {
             stage: a.stage.clone(),
             question: a.question.clone(),
+            draft: a.draft.clone(),
             elapsed_secs: a.since.elapsed().as_secs(),
         })
     }
@@ -132,6 +152,24 @@ mod tests {
         assert_eq!(v.question, "q?");
         r.clear_activity("d");
         assert!(r.activity("d").is_none());
+    }
+
+    /// The reply so far rides on the turn's activity: it keeps the stage and the question, a later
+    /// stage keeps it (no flicker before the reply lands), and it goes with the turn.
+    #[test]
+    fn a_draft_keeps_the_turn_and_goes_with_it() {
+        let r = AgentRegistry::new();
+        r.set_activity("d", "thinking", "q?");
+        r.set_draft("d", "The answer is");
+        let v = r.activity("d").unwrap();
+        assert_eq!((v.stage.as_str(), v.question.as_str()), ("thinking", "q?"));
+        assert_eq!(v.draft, "The answer is");
+        r.set_activity("d", "writing the reply", "q?");
+        assert_eq!(r.activity("d").unwrap().draft, "The answer is", "a later stage keeps it");
+        r.clear_activity("d");
+        assert!(r.activity("d").is_none());
+        r.set_activity("d", "thinking", "next?");
+        assert_eq!(r.activity("d").unwrap().draft, "", "the next turn starts without one");
     }
 
     #[test]

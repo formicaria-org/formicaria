@@ -70,6 +70,9 @@ struct ActivityReq {
     stage: String,
     #[serde(default)]
     question: String,
+    /// The reply so far (Myrme's contract 1.9): when present, only it changes.
+    #[serde(default)]
+    draft: String,
     #[serde(default)]
     done: bool,
 }
@@ -1079,6 +1082,8 @@ pub fn route(
             if !req.discussion.is_empty() {
                 if req.done {
                     r.clear_activity(&req.discussion);
+                } else if !req.draft.is_empty() {
+                    r.set_draft(&req.discussion, &req.draft);
                 } else {
                     let stage = if req.stage.is_empty() { "working" } else { &req.stage };
                     r.set_activity(&req.discussion, stage, &req.question);
@@ -1091,6 +1096,7 @@ pub fn route(
             let payload = match r.activity(&req.discussion) {
                 Some(a) => serde_json::json!({
                     "active": true, "stage": a.stage, "question": a.question, "elapsed_secs": a.elapsed_secs,
+                    "draft": a.draft,
                 }),
                 None => serde_json::json!({ "active": false }),
             };

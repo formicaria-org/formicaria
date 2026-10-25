@@ -101,3 +101,28 @@ describe('an open discussion, with an idle agent', () => {
 // in `pollBeat.test.ts` rather than by sleeping through several beats here. The clock is needed
 // for the claim above (that a tick does not drag a full-corpus scan behind it) and for nothing
 // else.
+
+// **The reply as it is written** (Myrme's contract 1.9, 2026-10-25): while a turn is in flight the
+// activity may carry the reply so far. It is shown under the wheel, in the posted reply's style, so
+// a person reads it as it comes instead of waiting for the whole reply on a slow device.
+describe('a turn in flight with a draft', () => {
+  it('shows the reply so far under the wheel', async () => {
+    agentActivity.mockResolvedValue({
+      active: true,
+      stage: 'writing the reply',
+      elapsed_secs: 4,
+      draft: 'The note makes three points: first,',
+    });
+    render(NotePanel, { props: { id: ID, onclose: () => {} } });
+    await waitFor(() => expect(getNote).toHaveBeenCalled());
+    const toggle = await screen.findByRole('button', { name: /Discussion/ });
+    await fireEvent.click(toggle);
+    const draft = await screen.findByText(
+      'The note makes three points: first,',
+      {},
+      { timeout: 4000 },
+    );
+    expect(draft.classList.contains('disc-body')).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain('writing the reply');
+  });
+});

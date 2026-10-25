@@ -65,6 +65,44 @@ pub fn online_agents() -> Vec<String> {
     presence().lock().map(|g| g.clone()).unwrap_or_default()
 }
 
+/// **What the in-process assistant is doing, per discussion** — the phone's half of what
+/// `fm-serve`'s `agent_registry` keeps on the desktop: the stage the wheel names, the question, when
+/// the turn began, and the reply so far while it is written (Myrme's contract 1.9, 2026-10-25).
+/// This vault's `activity*` calls write it and the shell's `agent_activity_poll` reads it, in the
+/// desktop's shape, so the webview has no phone branch. Until then the phone answered
+/// `{"active": false}` to every poll and showed only its own guess.
+struct Activity {
+    stage: String,
+    question: String,
+    draft: String,
+    since: std::time::Instant,
+}
+
+/// A turn quiet longer than this died without clearing, as on the desktop: the wheel never spins
+/// forever.
+const ACTIVITY_TTL: std::time::Duration = std::time::Duration::from_secs(180);
+
+fn activity() -> &'static std::sync::Mutex<std::collections::HashMap<String, Activity>> {
+    static A: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, Activity>>> =
+        std::sync::OnceLock::new();
+    A.get_or_init(Default::default)
+}
+
+/// `agent_activity_poll`'s answer for one discussion — the same fields `fm-serve` answers.
+pub fn activity_poll(disc: &str) -> Value {
+    let Ok(mut act) = activity().lock() else { return json!({ "active": false }) };
+    if act.get(disc).is_some_and(|a| a.since.elapsed() > ACTIVITY_TTL) {
+        act.remove(disc);
+    }
+    match act.get(disc) {
+        Some(a) => json!({
+            "active": true, "stage": a.stage, "question": a.question,
+            "elapsed_secs": a.since.elapsed().as_secs(), "draft": a.draft,
+        }),
+        None => json!({ "active": false }),
+    }
+}
+
 /// What can read a picture right now: the running model, when its projector is loaded. Said by
 /// the runner with each heartbeat (`VaultAccess::present`), as on the desktop, and cleared when
 /// the model stops, so a label is never handed to a server that has gone.
@@ -636,11 +674,37 @@ impl VaultAccess for DispatchVault {
             fm_core::ingest::sniff_mime(&path).unwrap_or_else(|| "application/octet-stream".into());
         Ok((bytes, mime))
     }
-    // Presence/activity drive the desktop's "working…" wheel via fm-serve's side channel. On mobile
-    // that channel is the app itself; wiring it to an in-process registry the webview can poll is a
-    // follow-up — the agent answers without it (the reply lands and the thread refreshes).
-    fn activity(&self, _disc: &str, _stage: &str, _question: &str) {}
-    fn activity_done(&self, _disc: &str) {}
+    // The wheel's stage and the reply so far, kept in process for `agent_activity_poll` (see
+    // `activity`). A later stage keeps the draft, as on the desktop, so it does not flicker away
+    // just before the reply lands.
+    fn activity(&self, disc: &str, stage: &str, question: &str) {
+        if let Ok(mut act) = activity().lock() {
+            let a = act.entry(disc.to_string()).or_insert_with(|| Activity {
+                stage: String::new(),
+                question: String::new(),
+                draft: String::new(),
+                since: std::time::Instant::now(),
+            });
+            a.stage = stage.to_string();
+            a.question = question.to_string();
+        }
+    }
+    fn activity_done(&self, disc: &str) {
+        if let Ok(mut act) = activity().lock() {
+            act.remove(disc);
+        }
+    }
+    fn activity_draft(&self, disc: &str, text: &str) {
+        if let Ok(mut act) = activity().lock() {
+            let a = act.entry(disc.to_string()).or_insert_with(|| Activity {
+                stage: "writing the reply".into(),
+                question: String::new(),
+                draft: String::new(),
+                since: std::time::Instant::now(),
+            });
+            a.draft = text.to_string();
+        }
+    }
     fn present(&self, _name: &str, sees: Option<&fm_agent_run::ImageReader>) {
         if let Ok(mut g) = reader().lock() {
             *g = sees.cloned();

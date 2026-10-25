@@ -637,10 +637,14 @@ fn fm_blocking(
     // discussion was open that was a guaranteed-failing blocking round trip every 1.5 s — forty a
     // minute, each one parking the JS thread and filling logcat with the same line.
     //
-    // Answering it here costs nothing and is *honest*: this shell runs no turn of its own, so it
-    // has no activity to report. `{"active": false}` is the exact shape `ipc.ts` already falls
-    // back to on error, so the UI is unchanged — it just stops paying for the error.
+    // Answered here, from the in-process assistant's own board (`agent::activity_poll`, 2026-10-25):
+    // the stage, and the reply so far while it is written, in fm-serve's shape. A build without the
+    // assistant has no turn to report, and answers `{"active": false}`, the shape `ipc.ts` falls
+    // back to on error.
     if cmd == "agent_activity_poll" {
+        #[cfg(agent_shell)]
+        return Ok(agent::activity_poll(args["discussion"].as_str().unwrap_or_default()).to_string());
+        #[cfg(not(agent_shell))]
         return Ok("{\"active\":false}".to_string());
     }
     // **A packet's label, read off a photograph** (`fm_agent_run::label`): a transport concern as

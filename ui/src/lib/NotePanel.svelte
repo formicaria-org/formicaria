@@ -1241,7 +1241,9 @@
 
   // What the study agent is doing right now in this discussion — drives the live "working…" wheel.
   // `null` when idle, so the row shows only while a turn is in flight.
-  let agentWorking = $state<{ stage: string; elapsed: number } | null>(null);
+  // `draft` is the reply so far while Myrme writes it (Myrme's contract 1.9, 2026-10-25): shown under
+  // the wheel in the posted reply's own style, and gone when the reply itself lands.
+  let agentWorking = $state<{ stage: string; elapsed: number; draft?: string } | null>(null);
   // We just posted a mention to an online agent: show the wheel *immediately* (optimistically) until
   // the agent publishes a real stage, the reply lands, or we time out — so there's no dead pause
   // between hitting send and the wheel appearing. `baseCount` is the thread size right after our
@@ -1383,7 +1385,7 @@
     }
     if (a.active) {
       // A real stage from the agent supersedes the optimistic wheel.
-      agentWorking = { stage: a.stage ?? 'working', elapsed: a.elapsed_secs ?? 0 };
+      agentWorking = { stage: a.stage ?? 'working', elapsed: a.elapsed_secs ?? 0, draft: a.draft };
       pending = null;
     } else if (pending) {
       // Still waiting for the agent to pick up: a reply landed (count grew) or it's been too long → done.
@@ -3378,6 +3380,9 @@
                 <span class="disc-working-elapsed">{agentWorking.elapsed}s</span>
               {/if}
             </div>
+            {#if agentWorking.draft}
+              <p class="disc-body disc-draft">{agentWorking.draft}</p>
+            {/if}
           {/if}
           <div class="disc-compose">
             {#if replyTo && replyTo !== note?.id}
@@ -4651,6 +4656,9 @@
     margin: var(--space-1) 0 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .disc-draft {
+    color: var(--text-muted, #666);
   }
   .disc-working {
     display: flex;

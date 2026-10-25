@@ -13371,3 +13371,31 @@ field.
 
 **The four questions.** `#data`, `#seams`, `#ui`, `#agent`. Verdict: **contradicts** two standing
 rulings in part (bannered). Widens what ships: one per-device file and two commands; no new crate.
+
+## 2026-10-25 — four assistant commands on every device; the reply shows as it is written, on the phone too `#agent` `#ui`
+
+**Asked.** The owner: *"we have so many cmds for myrme and the user might be confused, can we
+shorten the list to the minimal set in all devices?"* They chose four. Myrme's side is its own
+`decisions.md`, 2026-10-25, and its plan's *The speed bar*.
+
+1. **`AGENT_COMMANDS` is four: `/research`, `/propose`, `/transcribe`, `/recipe`**, one list behind
+   the composer's buttons on the phone and the desktop alike. `/search` leaves it. Myrme reads a
+   typed `/search` as `/research`, and in a first-class discussion `/research` answers from the web
+   there, as `/search` did. Help says `/research`.
+2. **The activity carries the reply so far.** `/api/agent_activity` takes a `draft`, and
+   `agent_activity_poll` returns it. A draft changes nothing else about the turn, a later stage
+   keeps it, and it goes with the turn.
+3. **The phone keeps the activity too.** Its shell answered every poll `{"active": false}`. Now its
+   `VaultAccess` writes an in-process board, in fm-serve's shape and with fm-serve's 180 s TTL, and
+   the shell's `agent_activity_poll` reads it. The webview has no phone branch.
+4. **The UI shows the draft under the wheel**, in a posted reply's own style, until the reply lands.
+   It is the same component on both screens, and the owner looks at it before release.
+
+**Linked.** Myrme 0.11.0, contract 1.9 (`VaultAccess::activity_draft`); `MYRME_CONTRACT` is 1.9
+because the phone's shell overrides it. Measured on a laptop only; the phone is checked by the
+owner on this release.
+
+**The four questions.** `#agent`, `#ui`. Verdict: **permitted**. It removes a button; the activity
+was always a transport concern answered by the shell, and the phone answering in the desktop's
+shape is the standing rule (2026-09-02, *the phone answers the same status shape as the desktop*). Widens what ships: one optional field on an existing route; no new
+command, file or crate.
