@@ -24,8 +24,15 @@ fn vault() -> (tempfile::TempDir, FileStore, String) {
     std::env::set_var("TZ", "Asia/Tokyo");
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path();
-    let ok = Command::new("git").args(["init", "-q"]).current_dir(p).status().unwrap().success();
-    assert!(ok);
+    // The repo carries its own committer: a runner has no global `user.email` to fall back on.
+    for args in [
+        &["init", "-q"][..],
+        &["config", "user.name", "Tester"],
+        &["config", "user.email", "tester@example.com"],
+    ] {
+        let ok = Command::new("git").args(args).current_dir(p).status().unwrap().success();
+        assert!(ok, "git {args:?}");
+    }
     std::fs::write(p.join("vault.json"), r#"{"notes_time_zone": "+01:00"}"#).unwrap();
     let mut store = FileStore::open(p).unwrap();
     let id = commands::capture(&mut store, "# Meeting\n\nthe agenda", "").unwrap().id;
