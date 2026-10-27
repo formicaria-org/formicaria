@@ -13420,6 +13420,13 @@ pre-fix lockfiles and passes on `6de110e`.
 in `deny.toml` would be six entries nobody can act on; failing on them would make the task red from
 its first run. Vulnerabilities, unsound code and yanked crates still fail it.
 
+**The one GitHub alert this leaves open, on purpose.** GHSA-wrw7-89jp-8q8g (RUSTSEC-2024-0429,
+*unsound*) on `glib 0.18.5` in the phone's lockfile. It reaches the tree only through Tauri's
+desktop-Linux GTK stack (`gtk 0.18` under `tauri`, `tao`, `wry`, `muda`), which an Android or iOS
+build never compiles — Cargo locks every target. No upgrade exists while `tauri` 2.11 pins `gtk
+0.18`. `cargo deny` stays quiet because v2 reports *unsound* only for direct dependencies. The alert
+is dismissed on GitHub as *vulnerable code not used*; revisit when Tauri moves to gtk-rs 0.20.
+
 **Not taken** (the more contentious options): making `sh ci/like-a-runner.sh` the release's local
 gate instead of `pixi run ci`, and a scheduled run of `ci.yml`. Both remain open.
 
