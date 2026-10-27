@@ -233,7 +233,7 @@ impl App {
         //
         // **Only at open, never on a timer**, so the deliberate property that a note being edited by
         // hand is not swept mid-sentence still holds for the whole session. And only paths that are
-        // ours *by construction* — see `adoptable`.
+        // ours *by construction* — see `outstanding`.
         for cfg in &settled {
             store.seed_written(&cfg.name, vec![cfg.path.join("vault.json")]);
             eprintln!(
@@ -258,7 +258,22 @@ impl App {
             }
         }
         for cfg in &vaults {
-            let adopted = adoptable(&cfg.path);
+            let (adopted, blank) = outstanding(&cfg.path);
+            // **A blank note git never saw is removed, not adopted** (2026-10-27, *a blank note is
+            // not kept*). A note opened and left as it came — on a phone, where Back ends the
+            // process, there is no close to discard it on. It holds nothing (`Object::is_blank`)
+            // and no other device has it, so removing it loses nothing; at open, no editor has it.
+            for path in &blank {
+                let id = path.file_stem().and_then(|s| s.to_str()).and_then(|s| s.parse().ok());
+                if let Some(id) = id {
+                    if let Err(e) = Store::delete(&mut store, id) {
+                        eprintln!("note: '{}': a blank note was not removed: {e}", cfg.name);
+                    }
+                }
+            }
+            if !blank.is_empty() {
+                eprintln!("note: removed {} blank note(s) in '{}'", blank.len(), cfg.name);
+            }
             if !adopted.is_empty() {
                 let n = store.seed_written(&cfg.name, adopted);
                 // Said out loud: a startup that quietly adopts files is the kind of thing nobody can
@@ -528,7 +543,10 @@ fn body_key(full: &std::path::Path) -> Option<String> {
     (!body.is_empty()).then(|| fm_core::blob::sha256_hex(body.as_bytes()))
 }
 
-/// Notes git does not have that this app may safely claim as its own writes.
+/// Notes git does not have that this app may safely claim as its own writes (the first list), and
+/// beside them the **blank notes git has never seen** (the second) — from one `git status`. A blank
+/// note is not adopted: it is never recorded (2026-10-27, *a blank note is not kept*), and at open
+/// it is removed.
 ///
 /// **The whole safety argument is the naming scheme.** `add -A` was rejected because a vault may also
 /// be a project repo, and staging everything would make this app a second author of someone's index.
@@ -538,22 +556,49 @@ fn body_key(full: &std::path::Path) -> Option<String> {
 ///
 /// Empty when there is no git, no repo, or nothing outstanding — the common case, costing one
 /// `git status` per vault at open and nothing after.
-fn adoptable(vault: &std::path::Path) -> Vec<std::path::PathBuf> {
+fn outstanding(vault: &std::path::Path) -> (Vec<std::path::PathBuf>, Vec<std::path::PathBuf>) {
     if !vcs::available() {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
     let notes_rel = notes_rel_of(vault);
-    vcs::unrecorded(vault, &notes_rel)
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|u| {
-            std::path::Path::new(&u.path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .is_some_and(|stem| stem.parse::<fm_model::Id>().is_ok())
-        })
-        .map(|u| vault.join(u.path))
-        .collect()
+    let (mut adopt, mut blank) = (Vec::new(), Vec::new());
+    for u in vcs::unrecorded(vault, &notes_rel).unwrap_or_default() {
+        let ours = std::path::Path::new(&u.path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .is_some_and(|stem| stem.parse::<fm_model::Id>().is_ok());
+        if !ours {
+            continue;
+        }
+        let into = if blank_new(vault, &u) { &mut blank } else { &mut adopt };
+        into.push(vault.join(u.path));
+    }
+    (adopt, blank)
+}
+
+/// What a commit records: what this process wrote plus what [`outstanding`] adopts, **less the blank notes git
+/// has never seen**. `written` still names a blank note captured in this run, so dropping it from
+/// the adopted list alone would not keep it out of history.
+fn to_record(vault: &std::path::Path, written: Vec<std::path::PathBuf>) -> Vec<std::path::PathBuf> {
+    let (adopt, blank) = outstanding(vault);
+    let mut paths = written;
+    paths.retain(|p| !blank.contains(p));
+    for extra in adopt {
+        if !paths.contains(&extra) {
+            paths.push(extra);
+        }
+    }
+    paths
+}
+
+/// A note git has never seen whose file holds nothing (`Object::is_blank`). Unparseable is **not**
+/// blank: a file this cannot read is never treated as empty.
+fn blank_new(vault: &std::path::Path, u: &git::UnrecordedNote) -> bool {
+    u.kind == git::UnrecordedKind::New
+        && std::fs::read_to_string(vault.join(&u.path))
+            .ok()
+            .and_then(|t| fm_core::frontmatter::from_file(&t).ok())
+            .is_some_and(|o| o.is_blank())
 }
 
 /// A note's title, or its first non-empty body line — something a human recognises, for a list that
@@ -636,6 +681,7 @@ fn takes_history(cmd: &str) -> bool {
         "capture",
         "create_notes",
         "delete",
+        "discard_if_blank",
         "restore_note",
         "put_back_tutorials",
         "ingest",
@@ -1058,7 +1104,12 @@ fn dispatch_inner(
             let mut out: Vec<crate::dto::Unrecorded> = Vec::new();
             for cfg in &configs {
                 let notes_rel = notes_rel_of(&cfg.path);
-                let found = vcs::unrecorded(&cfg.path, &notes_rel).unwrap_or_default();
+                // A blank note is not work at risk: it is never recorded, and removed at open.
+                let found: Vec<_> = vcs::unrecorded(&cfg.path, &notes_rel)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|u| !blank_new(&cfg.path, u))
+                    .collect();
                 if found.is_empty() {
                     continue;
                 }
@@ -1142,7 +1193,11 @@ fn dispatch_inner(
             // unstaged notes reported *"Nothing left to record"* to a user whose vault had never
             // been a repo — every note outstanding, and the surface saying there was nothing to do.
             vcs::ensure_repo(&cfg.path).map_err(err)?;
-            let found = vcs::unrecorded(&cfg.path, &notes_rel).map_err(err)?;
+            let found: Vec<_> = vcs::unrecorded(&cfg.path, &notes_rel)
+                .map_err(err)?
+                .into_iter()
+                .filter(|u| !blank_new(&cfg.path, u))
+                .collect();
             if found.is_empty() {
                 return json(serde_json::json!({ "committed": false, "notes": 0 }));
             }
@@ -1690,6 +1745,11 @@ fn dispatch_inner(
         "delete" => {
             json(commands::delete_keeping(&mut lock()?.store(scope), &s("id")).map_err(err)?)
         }
+        "discard_if_blank" => {
+            let discarded =
+                commands::discard_if_blank(&mut lock()?.store(scope), &s("id")).map_err(err)?;
+            json(serde_json::json!({ "discarded": discarded }))
+        }
         // **Put a deleted note back** — the session undo's path. Refuses an id that exists again.
         // Help → *Put the tutorials back* (2026-10-18): the missing ones, as shipped.
         "put_back_tutorials" => {
@@ -1799,8 +1859,8 @@ fn dispatch_inner(
             // Exactly the files this app wrote or deleted — not a directory, and certainly
             // not `-A`. A vault may also be a repo you commit to yourself, and this fires
             // five seconds after every save.
-            let mut paths = g.all.written(&cfg.name);
-            // **Plus anything outstanding this process has no memory of writing.**
+            // **Plus anything outstanding this process has no memory of writing** — and less a
+            // blank note git has never seen (`to_record`; 2026-10-27, *a blank note is not kept*).
             //
             // The write list is per-process, and that precision is deliberate. But the owner's
             // report is the case it fails: *"When I press backup it should commit and push. I do
@@ -1820,7 +1880,7 @@ fn dispatch_inner(
             // **The safety argument is unchanged and is the naming scheme**, not the memory: a
             // file at `<notes dir>/<ULID>.md` is what `FileStore` writes and nothing else
             // produces, so this can never sweep up a hand-written file or someone's staged work.
-            // It is the same filter `adoptable` has applied at open since 2026-07-31; only the
+            // It is the same filter `outstanding` has applied at open since 2026-07-31; only the
             // moment is new.
             //
             // Costs one `git status` over the notes dir per commit, on a path already debounced to
@@ -1842,11 +1902,7 @@ fn dispatch_inner(
             // responsibility. On a machine with no git at all it fails here instead of a few lines
             // down, with the same error.
             vcs::ensure_repo(&cfg.path).map_err(err)?;
-            for extra in adoptable(&cfg.path) {
-                if !paths.contains(&extra) {
-                    paths.push(extra);
-                }
-            }
+            let paths = to_record(&cfg.path, g.all.written(&cfg.name));
             let made = vcs::commit_all(&cfg.path, &s("message"), &paths).map_err(err)?;
             // Cleared only once the commit actually landed: a failed commit that forgot its
             // list would leave those notes unstaged forever.
@@ -1968,12 +2024,7 @@ fn dispatch_inner(
             // list `commit` takes: what this process wrote plus anything outstanding in the notes
             // dir. Never during an unfinished merge, which `commit_all` refuses anyway.
             if !path.join(".git/MERGE_HEAD").exists() {
-                let mut paths = g.all.written(&cfg.name);
-                for extra in adoptable(&path) {
-                    if !paths.contains(&extra) {
-                        paths.push(extra);
-                    }
-                }
+                let paths = to_record(&path, g.all.written(&cfg.name));
                 if !paths.is_empty() {
                     let message = "auto: recorded before getting their changes";
                     if vcs::commit_all(&path, message, &paths).map_err(err)? {

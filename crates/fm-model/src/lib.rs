@@ -153,6 +153,27 @@ impl Object {
         }
     }
 
+    /// **Nothing a person put here** (2026-10-27, *a blank note is not kept*): a note with no
+    /// text, no title and no property — only what the app stamps on every note (`id`, `type`,
+    /// `created`, `updated`). Such a note is discarded rather than saved.
+    ///
+    /// Conservative by construction: any custom frontmatter key, a tag, a date, an attachment or
+    /// a single non-whitespace character makes a note not blank, so this can only ever answer
+    /// `true` for a file that holds nothing to lose. An asset note is never blank.
+    pub fn is_blank(&self) -> bool {
+        self.kind == Kind::Note
+            && self.body.trim().is_empty()
+            && self.title.as_deref().is_none_or(|t| t.trim().is_empty())
+            && self.status.is_none()
+            && self.due.is_none()
+            && self.start.is_none()
+            && !self.hard
+            && self.tags.is_empty()
+            && self.assets.is_empty()
+            && self.code.is_empty()
+            && self.extra.is_empty()
+    }
+
     /// Uniform accessor over well-known fields AND the `extra` map. The query
     /// engine reads *every* property through this and never names a hardcoded
     /// field, which is exactly what makes group-by generic: point a board at

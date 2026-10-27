@@ -639,6 +639,21 @@ pub fn delete(store: &mut dyn Store, id: &str) -> Result<(), StoreError> {
     store.delete(id)
 }
 
+/// **A note left as it came is not kept** (2026-10-27, *a blank note is not kept*). The editor
+/// asks this when it leaves a note; the note is deleted only if what is on disk holds nothing
+/// ([`fm_model::Object::is_blank`]) — decided here, against the file, not by the caller. Answers
+/// whether it was discarded; a note that is gone already answers `false`.
+pub fn discard_if_blank(store: &mut dyn Store, id: &str) -> Result<bool, StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    match store.get(id)? {
+        Some(note) if note.is_blank() => {
+            store.delete(id)?;
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
 /// Set one property and write it back to disk (bumping `updated`). This is the
 /// board's drag write-back: dropping a card into a column calls this with the
 /// column's `value`, so a drop and `fm set` change the file identically. An

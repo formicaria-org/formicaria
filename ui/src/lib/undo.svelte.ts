@@ -34,6 +34,8 @@ export type Undoable = {
   label: string;
   undo: () => Promise<void>;
   redo: () => Promise<void>;
+  /** The note this step created, if it created one — see `forgetCreated`. */
+  created?: string;
 };
 
 const LIMIT = 50;
@@ -130,6 +132,13 @@ export async function redo(): Promise<string | null> {
   }
 }
 
+/** **A created note was discarded as blank** (2026-10-27, *a blank note is not kept*): its step has
+ *  nothing left to undo, so it leaves the stack rather than fail when it is reached. */
+export function forgetCreated(id: string) {
+  state.done = state.done.filter((u) => u.created !== id);
+  state.undone = state.undone.filter((u) => u.created !== id);
+}
+
 /** For tests: start empty. */
 export function clear() {
   state.done = [];
@@ -222,6 +231,7 @@ export async function captureUndoable(body: string, vault: string) {
   let kept: { vault: string; file: string } | null = null;
   record({
     label: 'created a note',
+    created: meta.id,
     undo: async () => {
       kept = await deleteNote(meta.id);
     },

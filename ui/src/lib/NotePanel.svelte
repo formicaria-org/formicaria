@@ -6,6 +6,7 @@
     getNote,
     updateBody,
     deleteNote,
+    discardIfBlank,
     copyNote,
     copyStatus,
     uncopyNote,
@@ -40,7 +41,12 @@
   import { clickOutside } from './clickOutside';
   import { popup, type Box } from './popup';
   import { noteName } from './noteName';
-  import { deleteUndoable, recordTextEdit, setPropertyUndoable } from './undo.svelte';
+  import {
+    deleteUndoable,
+    forgetCreated,
+    recordTextEdit,
+    setPropertyUndoable,
+  } from './undo.svelte';
   import { parseStamp, toStamp } from './stamp';
   import LiveEditor from './editor/LiveEditor.svelte';
   import type { EditorHandle } from './editor/handle';
@@ -72,6 +78,7 @@
     id,
     onclose,
     onsaved,
+    ondiscarded,
     onnavigate,
     ontitle,
     ontogglewide,
@@ -87,6 +94,8 @@
     id: string;
     onclose: () => void;
     onsaved?: () => void;
+    /** This note was left blank and discarded (2026-10-27, *a blank note is not kept*). */
+    ondiscarded?: (id: string) => void;
     /** The note's title as loaded or renamed, so the window it is in can be named after it. */
     ontitle?: (title: string | null) => void;
     /** A note chip in the read view was clicked — push it onto the trail. */
@@ -385,8 +394,27 @@
       // other device has it before it is picked up.
       if (wroteIn !== null) leftNote(wroteIn);
       wroteIn = null;
+      leaveIfBlank(which);
     };
   });
+
+  /// **A note left as it came is not kept** (2026-10-27, `decisions.md#data`). Leaving a note — its
+  /// window closed, or this pane moved on — with no text and nothing unsaved in the form asks the
+  /// server to discard it, once any write still queued for it has landed. The server decides against
+  /// the file (`Object::is_blank`), so a title or a tag saved a moment ago keeps the note; a failure
+  /// keeps it too, which is the safe way to be wrong.
+  function leaveIfBlank(which: string) {
+    const held = note;
+    if (!held || held.id !== which || draft.trim() || !holdsNothingUnsaved(held)) return;
+    void bodyWrites
+      .then(() => discardIfBlank(which))
+      .then(({ discarded }) => {
+        if (!discarded) return;
+        forgetCreated(which);
+        ondiscarded?.(which);
+      })
+      .catch(() => {});
+  }
 
   /// What the property form shows for a note — one definition, so loading a note and checking
   /// whether the form holds unsaved edits can never disagree about it.

@@ -68,8 +68,8 @@ describe('a picture shared from another app', () => {
     expect(within(sheet).getByRole('heading').textContent).toBe('Add the picture to…');
     expect(doneCalls).toBe(1);
     await fireEvent.click(within(sheet).getByRole('button', { name: /New note/ }));
-    // The test backend gives a blank new note a sample text; the picture goes at its end.
-    await holds(/\n!\[Screenshot_20261020\.png\]\(asset:sha256-[0-9a-f]+\)\n$/);
+    // A new note starts blank, as on the server, so the picture is all it holds.
+    await holds(/^\n?!\[Screenshot_20261020\.png\]\(asset:sha256-[0-9a-f]+\)\n$/);
   });
 
   it('offers the note open now first, and adds at its end', async () => {

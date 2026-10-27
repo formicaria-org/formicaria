@@ -275,6 +275,10 @@ export const updateBody = (id: string, body: string, base = '') =>
 // `restoreNote`. The text goes only to the person who just deleted it.
 export type DeletedNote = { id: string; vault: string; file: string };
 export const deleteNote = (id: string) => invoke<DeletedNote>('delete', { id });
+/** **A note left as it came is not kept** (2026-10-27): deletes it only if the file holds nothing —
+ *  no text, title or property. The server decides, against the file. */
+export const discardIfBlank = (id: string) =>
+  invoke<{ discarded: boolean }>('discard_if_blank', { id });
 /** Put a deleted note back. Refused if a note with that id exists again. */
 export const restoreNote = (vault: string, file: string) =>
   invoke<ObjectMeta>('restore_note', { vault, file });

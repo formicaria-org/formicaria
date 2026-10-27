@@ -3,7 +3,9 @@
 ## Making something new
 
 - **New note** — creates a blank note and opens it straight in the editor, so you
-  can write a body and set properties.
+  can write a body and set properties. **A note you leave as it came is not kept**:
+  close it — or leave the app — with nothing written, no title and no property set,
+  and it is gone, on every device. Anything at all in it keeps it.
 - **New board** — creates a whiteboard: a note whose body is a freeform canvas.
   It is a note in every other way, so a dated board shows up in the Agenda and a
   statused one groups on the Board.

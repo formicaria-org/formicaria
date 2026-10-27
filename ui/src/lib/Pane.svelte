@@ -49,6 +49,8 @@
     counts?: Record<string, number>;
     onnavigate: (id: string) => void; // a note pane's chip was followed → open that note
     onsaved: () => void; // a note pane wrote → schedule the git commit
+    /** A note pane's note was left blank and discarded — the views drop it. */
+    ondiscarded?: (id: string) => void;
     onchange: (patch: Partial<Pane>) => void;
     /** A note window's title as the note reports it — a label only, so it does not go through
      *  `onchange`, which re-fetches every view. */
@@ -89,6 +91,7 @@
     counts = {},
     onnavigate,
     onsaved,
+    ondiscarded,
     onchange,
     ontitle,
     onopenrecipe,
@@ -379,6 +382,7 @@
             {onclose}
             {onnavigate}
             {onsaved}
+            {ondiscarded}
             ontogglewide={toggleMax}
             {ontitle}
             {onopenrecipe}

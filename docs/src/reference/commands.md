@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 128 of them are below**, grouped by what they are for. If you add an arm to
+**All 129 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -50,6 +50,7 @@ dispatch no longer has fails too.)
 | `create_notes`   | `notes`, `vault`             | `ObjectMeta[]`         | several notes in one call, each made whole: `{ title, body, tags, start, props }`. Every note is checked before any is written. A number in `props` must be whole. The only way to set `log` |
 | `update_body`    | `id`, `body`, `base`         | the new `version`      | byte-for-byte body write; `base` is the `version` you last saw — a mismatch is refused (see below). `''` opts out |
 | `delete`         | `id`                         | `DeletedNote`          | unlinks the file and both index rows, and answers the note's file and notebook so the UI's undo can put it back |
+| `discard_if_blank` | `id`                       | `{ discarded }`        | deletes the note only if it holds nothing — no text, title or property; the editor asks it on leaving a note |
 | `restore_note`   | `vault`, `file`              | `ObjectMeta`           | put a deleted note back from its file; refused if a note with that id exists again |
 | `put_back_tutorials` | `vault?`                 | `ObjectMeta[]`         | Help → *Put the tutorials back*: write again each shipped tutorial missing from the notebook; one that is there, changed or not, is left |
 | `deleted_notes`  | `days` (default 30)          | `DeletedRow[]`         | read-only: notes deleted in the last `days`, read from each notebook's own history (git, or libgit2 on the phone), skipping ones that exist again |

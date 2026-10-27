@@ -339,8 +339,9 @@ function captureNote(body: string, vault = ''): ObjectMeta {
   const n = makeNote({ preview: body, vault: mockVault(vault).name });
   notes.unshift(n);
   // Keep what was written, as the server does — a note captured with text reads back that text,
-  // not the shared sample (which undoing a deletion would otherwise "restore").
-  if (body) bodyOverrides.set(n.id, body);
+  // not the shared sample (which undoing a deletion would otherwise "restore"). A blank note reads
+  // back blank, as it does on the server (2026-10-27, *a blank note is not kept*).
+  bodyOverrides.set(n.id, body);
   return n;
 }
 
@@ -1711,6 +1712,29 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         file,
       });
       return { id, vault: gone.vault, file } as T;
+    }
+    // Mirrors `Object::is_blank`: no text, no title, no property. Gone already answers false.
+    case 'discard_if_blank': {
+      const id = String(args.id);
+      const i = notes.findIndex((x) => x.id === id);
+      const n = notes[i];
+      const blank =
+        !!n &&
+        n.type === 'note' &&
+        !noteDetail(id)?.body.trim() &&
+        !n.title?.trim() &&
+        !n.status &&
+        !n.due &&
+        !n.start &&
+        !n.hard &&
+        !n.tags.length &&
+        !n.assets.length &&
+        !Object.keys(n.props ?? {}).length;
+      if (blank) {
+        notes.splice(i, 1);
+        bodyOverrides.delete(id);
+      }
+      return { discarded: blank } as T;
     }
     case 'put_back_tutorials':
       // The stand-in has no shipped tutorials to write; it answers that none were missing.

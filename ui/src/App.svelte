@@ -300,6 +300,11 @@
     savedSinceRefresh = true;
     scheduleCommit();
   }
+  /** A note was left blank and discarded (2026-10-27, *a blank note is not kept*): the views drop it.
+   *  It arrives after the window has closed, so the refresh `closePane` made may have shown it. */
+  function noteDiscarded() {
+    void refresh();
+  }
   function refreshIfSaved() {
     if (savedSinceRefresh) void refresh();
   }
@@ -3354,6 +3359,7 @@
               counts={threadCounts}
               onnavigate={openNoteInPane}
               onsaved={noteSaved}
+              ondiscarded={noteDiscarded}
               onchange={(patch) => {
                 changePane(pane.id, patch);
                 // A tab of the group this window is in: the same place, another view of it. **Its
