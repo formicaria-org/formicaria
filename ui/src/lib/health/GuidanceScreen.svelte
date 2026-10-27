@@ -60,7 +60,6 @@
     ['nose', 'Nose and allergy'],
     ['daily', 'Every day'],
     ['cycle', 'Cycle'],
-    ['mind', 'Mind'],
     ['own', 'Yours'],
   ];
   const BADGE: Record<HealthCard['rests_on'], string> = {
@@ -152,44 +151,10 @@
   function shownValue(card: HealthCard, c: HealthCounted): string {
     const kind = kindOf(card, c);
     if (kind === 'bp_home') return c.values?.length === 2 ? `${c.values[0]}/${c.values[1]}` : '—';
-    if (kind === 'questionnaire') return c.not_compared ? '—' : String(c.value);
     if (kind === 'cycles_kept' || c.outside !== undefined) return `${c.value} of ${c.of}`;
     if (kind === 'food_mean' && c.not_compared && !c.recorded) return '—';
     return c.values?.length ? c.values.join(', ') : String(c.value);
   }
-  /** A self-harm item answered other than "Not at all": the card's urgent contacts come first. */
-  const urgentNow = (card: HealthCard, f: { checks: HealthCounted[] }) =>
-    !!card.form &&
-    f.checks.some(
-      (c) => kindOf(card, c) === 'questionnaire' && (c.values?.[c.values.length - 1] ?? 0) > 0,
-    );
-
-  // ── a questionnaire on its card ───────────────────────────────────────────────────────────
-  let answers = $state<Record<string, number>>({});
-  let saved = $state('');
-  async function saveForm(card: HealthCard) {
-    if (busy || !card.form || Object.keys(answers).length === 0) return;
-    busy = true;
-    failed = '';
-    try {
-      const id = (await healthDays(today, today)).days[0]?.id;
-      if (id) await setPropertiesUndoable(id, { ...answers }, `answered ${card.name}`);
-      else
-        await createNotesUndoable(
-          [{ title: 'Health diary', start: today, props: { log: 'health', ...answers } }],
-          `answered ${card.name}`,
-        );
-      const n = Object.keys(answers).length;
-      saved = `Saved for today: ${n} of ${card.form.items.length} answered.`;
-      onsaved();
-      await load();
-    } catch (e) {
-      failed = String(e);
-    } finally {
-      busy = false;
-    }
-  }
-
   function against(c: HealthCounted): string {
     if (c.min !== undefined && c.max !== undefined) return `${c.min} to ${c.max}`;
     if (c.min !== undefined) return `at least ${c.min}`;
@@ -201,8 +166,6 @@
   function over(c: HealthCounted, card?: HealthCard): string {
     const kind = card ? kindOf(card, c) : '';
     if (kind === 'bp_home') return `readings on ${c.recorded} of the last 7 days`;
-    if (kind === 'questionnaire')
-      return c.not_compared ? '' : `answered ${dayLabel(c.from)}, out of 27`;
     if (kind === 'food_mean') return `logged in Food on ${c.recorded} of ${daysOf(c.of)}`;
     if (kind === 'cycles_kept') return `cycles of the last 6 months`;
     if (c.cycles) return `${c.recorded} of ${c.of} cycles counted`;
@@ -236,8 +199,6 @@
   function openCard(card: HealthCard) {
     const f = followedOf(card.id);
     picks = Object.fromEntries((card.choose ?? []).map((c) => [c.id, f?.chosen[c.id] ?? []]));
-    answers = {};
-    saved = '';
     open = card;
   }
   function togglePick(choice: string, key: string) {
@@ -440,40 +401,6 @@
         </ul>
       {/if}
 
-      {#if open.form}
-        {@const form = open.form}
-        <h3>Fill it in</h3>
-        <p class="note">{form.prompt}</p>
-        <ol class="form">
-          {#each form.items as item (item.key)}
-            <li>
-              <span>{item.text}</span>
-              <div class="answers" role="group" aria-label={item.text}>
-                {#each form.answers as word, n (n)}
-                  <button
-                    type="button"
-                    class:on={answers[item.key] === n}
-                    aria-pressed={answers[item.key] === n}
-                    onclick={() => (answers = { ...answers, [item.key]: n })}>{word}</button
-                  >
-                {/each}
-              </div>
-            </li>
-          {/each}
-        </ol>
-        <div class="buttons">
-          <button
-            type="button"
-            class="go"
-            disabled={busy || Object.keys(answers).length === 0}
-            onclick={() => saveForm(open!)}>Save today's answers</button
-          >
-        </div>
-        {#if saved}<p class="note" role="status">
-            {saved} It is counted when every question is answered.
-          </p>{/if}
-      {/if}
-
       {#if open.choose?.length}
         <h3>Which of your trackers are which</h3>
         {#if counts.length === 0}
@@ -539,12 +466,6 @@
               <button type="button" class="title" onclick={() => openCard(card)}>{card.name}</button
               >
               <span class="since">since {dayLabel(f.since)}</span>
-              {#if urgentNow(card, f)}
-                <div class="urgent" role="alert">
-                  {#each card.urgent ?? [] as u, k (k)}<p>{u.text}</p>
-                    <cite>{u.by}</cite>{/each}
-                </div>
-              {/if}
               {#each f.checks as c, i (c.id)}
                 <div class="check">
                   <span class="label">{c.label}</span>
@@ -698,37 +619,6 @@
     color: var(--accent);
     text-decoration: underline;
     cursor: pointer;
-  }
-  .form {
-    margin: 0;
-    padding-left: var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-  .form li {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .answers {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-  .answers button {
-    flex: 1 1 8rem;
-    min-height: 2.75rem;
-    padding: 0 var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    cursor: pointer;
-  }
-  .answers button.on {
-    border-color: var(--accent);
-    background: var(--accent-subtle);
-    font-weight: 600;
   }
   .badge {
     padding: 0 var(--space-2);

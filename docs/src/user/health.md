@@ -11,7 +11,7 @@ and it never puts a word to you. It is a record to bring to a doctor, not a doct
 NICE is given **in our own words**, with the recommendation's number and a link: NICE allows its text
 to be reused in the UK only, and formicaria is used everywhere. Such lines say *In our words*.
 
-**Everything stays on your device.** The diary, the record and Mind are notes in your notebook;
+**Everything stays on your device.** The diary and the record are notes in your notebook;
 nothing in Health sends anything anywhere. Your notes go only where your own backup sends them. The
 assistant's model runs on your device too. If you turn its web research on, only the search questions
 it writes go out (to Wikipedia, arXiv and GitHub), never your notes.
@@ -40,6 +40,7 @@ Press **＋** in Health and choose **Track something**. Start from one of these,
   mmHg, as NICE asks for a home reading: for at least 4 days and ideally 7.
 - **Bladder**: times passing urine (and at night), urine measured, leaks, pads and drinks, for at
   least 3 days, as NICE asks of a bladder diary.
+- **Sleep**: how long you slept, how long it took, times awake, how well.
 
 **Your own**: give it a name ("Bedding washed", "Ibuprofen", "Sleep") and say how it is recorded:
 
@@ -141,19 +142,17 @@ not print or save files by itself.
 **Guidance** holds cards, one per question, as in Food and Fitness. Each is in its sources' own
 words, with whose they are, and a badge for what it rests on: **Guideline**, **Expert consensus**,
 **Review**, or **Definition, not advice**. Each card also says **what it does not say**, so it is
-not read as more than it is. Where reputable sources disagree, the card says so and names both.
+not read as more than it is. Where two reputable bodies give different numbers, the card shows both
+and names each. A card is carried only when what it says is settled: a guideline, a definition or a
+health body's own advice, never a question the research still argues over.
 
 - **Keeping a diary**: *Keep a headache diary*; *Painkiller days*.
-- **Nose and allergy**: *Fewer dust mites in the bedroom*; *Rinsing the nose with salt water*;
-  *Hay fever self-care*; *When to see someone*.
+- **Nose and allergy**: *Hay fever self-care*; *When to see someone*.
 - **Every day**: *Sleep*; *Caffeine*; *Water* (counted from Food, beside EFSA's 2.0 L for women or
   2.5 L for men, by the sex in your profile); *Blood pressure at home* (your 7-day average, the
   first day left out as NICE asks, beside the NHS's *"135/85 or higher when checked at home"*).
 - **Cycle**: *Your cycle*; *Heavy periods*; *Periods and migraine*; *Premenstrual symptoms* (the
   cycles your diary covers, beside the NHS's *"at least 2 menstrual cycles"*).
-- **Mind**: *Mood (PHQ-9)*: the questionnaire itself, which its makers allow anyone to carry,
-  answered on the card. It is counted when every question is answered, as its instructions score
-  it, and never named as a diagnosis.
 - **Yours**: the cards you write.
 
 **Follow** a card, and what it counts appears at the top of Guidance. It also adds the things the
@@ -231,28 +230,6 @@ clinician can.
 - **How long to keep a diary**: *"for at least one month"* (ICHD-3); at least 8 weeks (NICE
   CG150, 1.1.4); for a link with periods, at least 2 menstrual cycles (NICE CG150, 1.2.6).
 
-## Mind
-
-A private notebook, not a test: nothing you write in it is scored, judged or read by the app.
-
-- **Mood and activity** (a starter): your mood from 0 to 10, the things you planned and did, and
-  how much pleasure and achievement they brought. Planning activities and doing them (behavioural
-  activation) is the self-help with the strongest research behind it: across 105 trials it helped
-  with low mood, also when people did it on their own (Cuijpers 2026; the COBRA trial, 2016).
-- **Sleep** (a starter): how long you slept, how long it took, times awake, how well.
-- **Mind notes**: **＋ → Start Mind notes** writes templates for a **thought record**, **worry
-  time** and a piece of **writing**, kept on the Library's **mind** shelf (`shelf:mind`). They are our own wording:
-  the well-known worksheets are not free to carry.
-- **Writing it down**: people often feel worse straight after writing about something hard; any good
-  tends to come later, and with a few days between sessions (Frattaroli 2006; Guo 2023).
-- **Mood (PHQ-9)** and **Anxiety (GAD-7)**: the questionnaires themselves, which their makers let
-  anyone carry, answered on their cards and never named as a diagnosis.
-
-If keeping any of this makes you feel worse, stop or take a break: in one trial, people who rated
-their mood every day did no better. When low mood lasts, see someone: help from a person does
-better than help on your own once it is more than mild (Karyotaki 2021). The contacts below are on
-every Mind screen and at the top of every Mind note.
-
 ## When to get help now
 
 A diary is for the weeks ahead, not for an emergency. For a sudden, very bad headache, weakness or
@@ -261,8 +238,7 @@ call your local emergency number now. *When to see someone* in Guidance quotes t
 999 is the UK's number; where you live, use your own.
 
 In Singapore: **995** for an emergency ambulance, and **National mindline 1771**, a 24-hour helpline
-(WhatsApp +65 6669 1771). *Mood (PHQ-9)* and *Premenstrual symptoms* show them on the card, and at
-the top of what is followed whenever PHQ-9's last question is answered other than *Not at all*.
+(WhatsApp +65 6669 1771). *Premenstrual symptoms* shows them on its card.
 
 ## Where the words come from
 

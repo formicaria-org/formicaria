@@ -67,12 +67,11 @@ pub struct Choice {
 /// - `around_period`: of the last three periods, how many had a headache on days −2 to +3;
 /// - `cycles_kept`: cycles of the last six months with a diary entry on every day;
 ///
-/// and on what fm already holds, or a questionnaire of a set shape:
+/// and on what fm already holds:
 /// - `food_mean`: the week's average a day of a value in Food's log, beside a number that depends
 ///   on the sex in the person's profile (`min_female`, `min_male`), compared only when it is there;
 /// - `bp_home`: NICE NG136's home reading, the last 7 days with the first day left out, from at
-///   least 4 days, beside the `max` systolic and `max_second` diastolic;
-/// - `questionnaire`: the latest day all of `keys` were answered, and their total.
+///   least 4 days, beside the `max` systolic and `max_second` diastolic.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Check {
     pub id: String,
@@ -133,10 +132,6 @@ pub struct Card {
     pub trackers: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub choose: Vec<Choice>,
-    /// A questionnaire the card carries word for word, because its holder allows it: a prompt,
-    /// the answers (scored 0, 1, 2 … in order) and the items, each with the key it is kept under.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub form: Option<Form>,
     #[serde(default)]
     pub checks: Vec<Check>,
     /// What the card does not claim, said so nobody reads it in.
@@ -234,22 +229,9 @@ fn own_card(o: &Object) -> Card {
         sources: Vec::new(),
         trackers: stem.map(|_| vec![key]).unwrap_or_default(),
         choose: Vec::new(),
-        form: None,
         checks: check.into_iter().collect(),
         not_said,
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Form {
-    pub prompt: String,
-    pub answers: Vec<String>,
-    pub items: Vec<FormItem>,
-}
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct FormItem {
-    pub key: String,
-    pub text: String,
 }
 
 /// What the person chose for a card: keys, by the id of the choice.
@@ -588,33 +570,6 @@ fn measure_bp(check: &Check, all: &BTreeMap<String, (Series, usize)>, day: Date)
     c
 }
 
-/// `questionnaire`: the latest day in the last 4 weeks with every one of `keys` answered, and the
-/// total. Each item's answer is in `values`, in order, so a screen can see each.
-fn measure_questionnaire(
-    check: &Check,
-    all: &BTreeMap<String, (Series, usize)>,
-    day: Date,
-) -> Counted {
-    let from = day - Duration::days(27);
-    let mut c = blank(check, from, day);
-    let mut d = day;
-    while d >= from {
-        let answers: Option<Vec<i64>> =
-            check.keys.iter().map(|k| all.get(k).and_then(|(s, _)| s.get(&d).copied())).collect();
-        if let Some(a) = answers {
-            c.value = a.iter().sum();
-            c.values = a;
-            c.from = day_string(d);
-            c.recorded = 1;
-            c.of = 1;
-            return c;
-        }
-        d -= Duration::days(1);
-    }
-    c.not_compared = "not filled in in the last 4 weeks".into();
-    c
-}
-
 /// **Count one cycle check on `day`** (`cycle.rs` does the arithmetic). `age` is from the person's
 /// profile, when they gave a year of birth.
 fn measure_cycle(
@@ -806,7 +761,6 @@ pub fn health_guidance(store: &dyn Store, day: &str) -> Result<Guidance, StoreEr
                 match c.kind.as_str() {
                     "food_mean" => return measure_food(c, &food, sex.as_deref(), day),
                     "bp_home" => return measure_bp(c, &all, day),
-                    "questionnaire" => return measure_questionnaire(c, &all, day),
                     _ => {}
                 }
                 // `kept` reads the card's own trackers: the diary it asks for.
@@ -838,11 +792,10 @@ mod tests {
     use fm_model::Stamp;
     use time::Month;
 
-    const KINDS: [&str; 16] = [
+    const KINDS: [&str; 15] = [
         "food_mean",
         "bp_home",
         "cycles_kept",
-        "questionnaire",
         "kept",
         "week_days",
         "month_days",
@@ -864,7 +817,7 @@ mod tests {
         assert!(lib.cards.len() >= 10);
         for card in &lib.cards {
             assert!(
-                ["diary", "nose", "daily", "cycle", "mind"].contains(&card.shelf.as_str()),
+                ["diary", "nose", "daily", "cycle"].contains(&card.shelf.as_str()),
                 "{}",
                 card.id
             );
@@ -1169,29 +1122,6 @@ mod tests {
         let c = &g.followed[0].checks[0];
         assert_eq!(c.values, vec![129, 81], "the 16th's 160/100 is not in it");
         assert_eq!((c.recorded, c.within, c.from.as_str()), (4, Some(true), "2026-10-17"));
-    }
-
-    #[test]
-    fn a_questionnaire_is_the_latest_day_with_every_item_answered() {
-        let mut s = MemoryStore::new();
-        follow(&mut s, "mood-phq9", day(Month::October, 1), &[]);
-        let keys = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
-        let answers = |s: &mut MemoryStore, d: u8, v: [i64; 9]| {
-            let kv: Vec<(String, i64)> =
-                keys.iter().zip(v).map(|(k, v)| (format!("phq9_{k}_0to3"), v)).collect();
-            let kv: Vec<(&str, i64)> = kv.iter().map(|(k, v)| (k.as_str(), *v)).collect();
-            entry(s, day(Month::October, d), &kv)
-        };
-        answers(&mut s, 5, [1, 1, 2, 1, 0, 1, 0, 0, 0]);
-        answers(&mut s, 19, [2, 2, 1, 2, 1, 1, 1, 0, 1]);
-        // A day with one item missing is not a filled-in questionnaire.
-        entry(&mut s, day(Month::October, 21), &[("phq9_a_0to3", 3)]);
-        let g = health_guidance(&s, "2026-10-22").unwrap();
-        let c = &g.followed[0].checks[0];
-        assert_eq!((c.value, c.from.as_str(), c.values[8]), (11, "2026-10-19", 1));
-        let card = g.cards.iter().find(|c| c.id == "mood-phq9").unwrap();
-        assert_eq!(card.form.as_ref().unwrap().items.len(), 9);
-        assert!(card.urgent.iter().any(|u| u.text.contains("995")));
     }
 
     #[test]

@@ -878,9 +878,6 @@ const RECORD_KINDS = [
   'device',
   'contact',
   'none_known',
-  'thought',
-  'worry',
-  'writing',
 ];
 export function healthRecord(notes: ObjectMeta[]): HealthRecord {
   const own = new Set(['record', 'record_status', 'about']);
@@ -888,7 +885,8 @@ export function healthRecord(notes: ObjectMeta[]): HealthRecord {
     ...new Set(
       notes
         .filter((n) => n.tags.includes('template') && typeof n.props.record === 'string')
-        .map((n) => String(n.props.record)),
+        .map((n) => String(n.props.record))
+        .filter((k) => RECORD_KINDS.includes(k)),
     ),
   ].sort();
   const items = notes

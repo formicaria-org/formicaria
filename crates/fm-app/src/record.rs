@@ -16,9 +16,9 @@ use std::collections::BTreeMap;
 
 /// The property a record note is known by, and its kinds.
 pub const RECORD: &str = "record";
-/// The last three are the person's own Mind notes (a thought record, worry time, a piece of
-/// writing), kept on the `shelf:mind` shelf; the doctor's page never shows them.
-pub const KINDS: [&str; 13] = [
+/// A note with any other `record` (Mind's `thought`, `worry` and `writing`, taken out 2026-10-27)
+/// is an ordinary note: not an item, and its template is not the record's.
+pub const KINDS: [&str; 10] = [
     "medicine",
     "allergy",
     "condition",
@@ -29,9 +29,6 @@ pub const KINDS: [&str; 13] = [
     "device",
     "contact",
     "none_known",
-    "thought",
-    "worry",
-    "writing",
 ];
 /// Whether an item is in force: a medicine *current · stopped · on hold*, an allergy or a condition
 /// *active · inactive · remission · resolved* (IPS `status` and `clinicalStatus`). Not `status`, which
@@ -94,6 +91,7 @@ pub fn health_record(store: &dyn Store) -> Result<RecordAnswer, StoreError> {
         .iter()
         .filter(|o| o.kind == Kind::Note && crate::thread::is_template(o))
         .filter_map(|o| text(o.get(RECORD)))
+        .filter(|k| KINDS.contains(&k.as_str()))
         .collect();
     templates.sort();
     templates.dedup();
@@ -185,5 +183,15 @@ mod tests {
         // The lab's range is carried as written, never one of the app's.
         assert_eq!(r[2].fields["ref_text"], "< 0.35 kUA/L");
         assert!(!r[1].fields.contains_key("record_status"));
+    }
+
+    #[test]
+    fn a_mind_note_left_from_before_is_neither_an_item_nor_a_record_template() {
+        let mut s = MemoryStore::new();
+        put(&mut s, "Thought record", &[("record", "thought")], &["template", "shelf:mind"]);
+        put(&mut s, "Monday", &[("record", "thought")], &["shelf:mind"]);
+        let answer = health_record(&s).unwrap();
+        assert!(answer.templates.is_empty(), "the record has not been started");
+        assert!(answer.items.is_empty());
     }
 }

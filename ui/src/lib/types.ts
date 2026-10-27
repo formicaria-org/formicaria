@@ -682,10 +682,7 @@ export interface RecordItem {
     | 'procedure'
     | 'device'
     | 'contact'
-    | 'none_known'
-    | 'thought'
-    | 'worry'
-    | 'writing';
+    | 'none_known';
   title: string;
   status?: string;
   start?: string;
@@ -732,8 +729,7 @@ export interface HealthCheck {
     | 'around_period'
     | 'cycles_kept'
     | 'food_mean'
-    | 'bp_home'
-    | 'questionnaire';
+    | 'bp_home';
   keys?: string[];
   keys_from?: string[];
   value?: number;
@@ -749,7 +745,7 @@ export interface HealthCheck {
 }
 export interface HealthCard {
   id: string;
-  shelf: 'diary' | 'nose' | 'daily' | 'cycle' | 'mind' | 'own';
+  shelf: 'diary' | 'nose' | 'daily' | 'cycle' | 'own';
   name: string;
   rests_on: 'guideline' | 'consensus' | 'review' | 'definition' | 'own';
   says: HealthSaid[];
@@ -758,8 +754,6 @@ export interface HealthCard {
   sources: { by: string; title: string; url: string }[];
   trackers: string[];
   choose?: { id: string; label: string }[];
-  /** A questionnaire carried word for word, its holder allowing it: answers score 0, 1, 2 … */
-  form?: { prompt: string; answers: string[]; items: { key: string; text: string }[] };
   checks: HealthCheck[];
   not_said: string[];
 }
