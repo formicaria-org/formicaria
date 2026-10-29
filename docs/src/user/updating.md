@@ -2,18 +2,24 @@
 
 ## From 0.5.2 on, formicaria updates itself
 
-**Settings → About & updates** says when a newer version is out. formicaria asks GitHub once a day, and
-**Check now** asks straight away; nothing about you, this computer or your notes is sent.
+**formicaria says when a newer version is out**, in a line at the top of the window: press
+**Update** and it does the rest. (Before 0.22.0 this was only in **Settings → About & updates**, in
+three presses.) formicaria asks GitHub once a day, and **Check now** in Settings asks straight away;
+nothing about you, this computer or your notes is sent.
 
-1. Press **Get v…**. It downloads the new version and checks that it is exactly what the release
-   published, signed by us. Anything that does not match is refused, and nothing has changed yet.
-2. Press **Restart into v…**, then **Yes, restart**. What you have typed is saved first. formicaria
-   replaces its own program inside the folder it runs from, and the page loads again by itself once
-   the new version is up. **Your notes do not move** — they stay in the `vault` folder beside it.
-   (In 0.6.6 and earlier the page goes on saying *restarting*; the update has finished, and
-   reloading the page shows it.)
+1. Press **Update** — in that line, or **Update to v…** in Settings. formicaria downloads the new
+   version and checks that it is exactly what the release published, signed by us. Anything that
+   does not match is refused, and nothing has changed yet. **Stop** stops it; pressing Update again
+   carries on from where it was.
+2. As soon as it is checked, formicaria saves what you have typed, replaces its own program inside
+   the folder it runs from, and restarts; the page loads again by itself once the new version is up.
+   **Your notes do not move** — they stay in the `vault` folder beside it. If a sync or backup is
+   still running it says so and changes nothing; press Update again when it has finished.
 3. The version you had is kept. If the new one does not suit you, **Settings → Go back to v…** puts it
    back.
+
+**Later** puts the line away for three days for that version; a newer version is shown at once. The
+offer is always in Settings too.
 
 **If the new version will not start**, start formicaria again the way you always do. When it fails to
 start a few times in a row, the launcher puts the previous version back by itself.

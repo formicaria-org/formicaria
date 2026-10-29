@@ -1,5 +1,7 @@
 <script lang="ts">
   import ReminderBanner from './lib/ReminderBanner.svelte';
+  import UpdateBanner from './lib/UpdateBanner.svelte';
+  import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { setAppClock } from './lib/appTime';
   import { clock as readClock } from './lib/ipc';
@@ -1431,6 +1433,11 @@
   // a second monitor — fires no lifecycle event at all, and would simply stop updating. The
   // battery argument that motivates dropping the poll is a phone argument; on a desktop it
   // buys nothing and costs that.
+  // **A newer version is offered here, not only in Settings** (`decisions.md#toolchain`,
+  // 2026-10-29). Not on a paired device: what this computer runs is not the tablet's to change, and
+  // the server refuses it the update routes anyway.
+  $effect(() => (isRemote() ? undefined : untrack(watchForUpdates)));
+
   $effect(() => {
     // A device that has not paired gets 401 on everything, so the whole app is replaced by the
     // pairing screen. Driven by a callback rather than polled: the very first command fails, and
@@ -3264,6 +3271,7 @@
           it.
         </p>
       {/if}
+      <UpdateBanner />
       {#if error}
         <p class="banner error">
           {error}

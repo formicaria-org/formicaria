@@ -4,13 +4,14 @@
 // The updater can check, download, verify and swap — but until this panel, nothing let a person start
 // any of it, so none of it could reach anyone. What is pinned here is the shape of that path: the
 // check is described beside its switch; a failed background check stays silent while an answer to
-// *Check now* is shown; the download reports bytes and can be stopped; the desktop restart is two
-// steps, like *Go back*; and on Android the last step is the system installer, reached through the
-// shell's bridge rather than a restart the phone cannot do.
+// *Check now* is shown; the download reports bytes and can be stopped; **one press** gets, checks
+// and installs (2026-10-29 — it was three); and on Android the last step is the system installer,
+// reached through the shell's bridge rather than a restart the phone cannot do.
 
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
+import { resetUpdater } from './updater.svelte';
 
 const {
   updateStatus,
@@ -83,6 +84,7 @@ const ready = { stage: 'ready', done: 4_194_304, total: 4_194_304, error: null }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetUpdater();
   updateStatus.mockResolvedValue(status());
   updateCheckNow.mockResolvedValue(status());
   setUpdateCheck.mockImplementation(async (check: boolean) => status({ check }));
@@ -112,7 +114,7 @@ describe('SettingsPanel — getting a newer version', () => {
 
   it('offers the newer version by name, and starts getting it on a press', async () => {
     panel();
-    await fireEvent.click(await screen.findByText(/Get v0\.6\.1/));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Update to v0.6.1' }));
     expect(updateStart).toHaveBeenCalledOnce();
     expect(await screen.findByText(/downloading/)).toBeTruthy();
   });
@@ -124,15 +126,57 @@ describe('SettingsPanel — getting a newer version', () => {
     expect(updateCancel).toHaveBeenCalledOnce();
   });
 
-  /// One press must not replace the running program.
-  it('does not restart on the first press — it says what will happen', async () => {
+  /// **One press, not three.** It was *Get*, then *Restart into…*, then *Yes, restart*; people
+  /// pressed the first and thought they were done. Update now carries on by itself: when the
+  /// download is checked and ready it saves what is being typed and restarts into it.
+  it('gets, checks and installs on one press', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      panel();
+      await fireEvent.click(await screen.findByRole('button', { name: 'Update to v0.6.1' }));
+      expect(updateStart).toHaveBeenCalledOnce();
+      expect(updateApply).not.toHaveBeenCalled();
+      updateStatus.mockResolvedValue(status({ progress: ready }));
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(updateApply).toHaveBeenCalledOnce();
+      expect(await screen.findByText(/restarting as v0\.6\.1/)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /// What was typed in the last half second is still in the editor's debounce, which only the page
+  /// can flush — the server's `settle` commits what is already on disk.
+  it('waits for every open editor to write before restarting', async () => {
+    let landed = false;
+    const onSaveNow = (e: Event) =>
+      (e as CustomEvent<Promise<unknown>[]>).detail.push(
+        new Promise((r) => setTimeout(() => r((landed = true)), 50)),
+      );
+    window.addEventListener('fm-save-now', onSaveNow);
+    updateApply.mockImplementation(async () => {
+      expect(landed).toBe(true);
+      return { restarting: true };
+    });
+    try {
+      updateStatus.mockResolvedValue(status({ progress: ready }));
+      panel();
+      await fireEvent.click(await screen.findByRole('button', { name: 'Update to v0.6.1' }));
+      await vi.waitFor(() => expect(updateApply).toHaveBeenCalledOnce());
+    } finally {
+      window.removeEventListener('fm-save-now', onSaveNow);
+    }
+  });
+
+  /// A refusal (a sync still running) changes nothing, so it is said and Update can be pressed again.
+  it('says why an install was refused, and lets it be pressed again', async () => {
     updateStatus.mockResolvedValue(status({ progress: ready }));
+    updateApply.mockRejectedValueOnce(new Error('a sync is still running'));
     panel();
-    await fireEvent.click(await screen.findByText(/Restart into v0\.6\.1/));
-    expect(updateApply).not.toHaveBeenCalled();
-    expect(await screen.findByText(/your notes are not touched/)).toBeTruthy();
-    await fireEvent.click(await screen.findByText(/Yes, restart/));
-    expect(updateApply).toHaveBeenCalledOnce();
+    await fireEvent.click(await screen.findByRole('button', { name: 'Update to v0.6.1' }));
+    expect(await screen.findByText('a sync is still running')).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Update to v0.6.1' }));
+    await vi.waitFor(() => expect(updateApply).toHaveBeenCalledTimes(2));
   });
 
   /// "This page reconnects by itself" was a sentence with nothing behind it: the message stayed
@@ -143,8 +187,7 @@ describe('SettingsPanel — getting a newer version', () => {
     try {
       updateStatus.mockResolvedValue(status({ progress: ready }));
       panel();
-      await fireEvent.click(await screen.findByText(/Restart into v0\.6\.1/));
-      await fireEvent.click(await screen.findByText(/Yes, restart/));
+      await fireEvent.click(await screen.findByRole('button', { name: 'Update to v0.6.1' }));
       expect(await screen.findByText(/restarting as v0\.6\.1/)).toBeTruthy();
 
       updateStatus.mockRejectedValue(new Error('connection refused'));
@@ -168,7 +211,7 @@ describe('SettingsPanel — getting a newer version', () => {
     (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { install };
     updateStatus.mockResolvedValue(status({ progress: ready }));
     panel();
-    await fireEvent.click(await screen.findByText(/Install v0\.6\.1/));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Install v0.6.1' }));
     expect(install).toHaveBeenCalledOnce();
     expect(screen.queryByText(/Restart into/)).toBeNull();
     expect(await screen.findByText(/The installer has opened/)).toBeTruthy();
@@ -178,7 +221,7 @@ describe('SettingsPanel — getting a newer version', () => {
     (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { install: () => 'permission' };
     updateStatus.mockResolvedValue(status({ progress: ready }));
     panel();
-    await fireEvent.click(await screen.findByText(/Install v0\.6\.1/));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Install v0.6.1' }));
     expect(await screen.findByText(/allow installs from formicaria/)).toBeTruthy();
   });
 
@@ -188,7 +231,7 @@ describe('SettingsPanel — getting a newer version', () => {
     panel();
     expect(await screen.findByText(/v0\.6\.1 is available/)).toBeTruthy();
     expect(screen.getByText(/this folder is protected/)).toBeTruthy();
-    expect(screen.queryByText(/Get v0\.6\.1/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Update to/ })).toBeNull();
   });
 
   /// *Check now* used to exist only in the "up to date" state. A copy that had remembered an old

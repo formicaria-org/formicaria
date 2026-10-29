@@ -2,6 +2,7 @@
   import { onDestroy, tick, untrack } from 'svelte';
   import { clockText, dayOfInstant } from './appTime';
   import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
+  import { SAVE_NOW } from './updater.svelte';
   import {
     getNote,
     updateBody,
@@ -1112,6 +1113,17 @@
     if (typeof document === 'undefined' || document.visibilityState === 'hidden')
       flushPendingSave();
   }
+  /// **An update is about to restart the program** (`updater.svelte.ts`): write what is pending and
+  /// hand the updater the write, so it waits for this text to land before the program goes.
+  $effect(() => {
+    const onSaveNow = (e: Event) => {
+      if (saved || !note) return;
+      clearTimeout(saveTimer);
+      (e as CustomEvent<Promise<unknown>[]>).detail.push(save());
+    };
+    window.addEventListener(SAVE_NOW, onSaveNow);
+    return () => window.removeEventListener(SAVE_NOW, onSaveNow);
+  });
 
   /// **One body write at a time, each carrying the version the one before it returned.**
   ///

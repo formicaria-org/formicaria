@@ -18,23 +18,27 @@ are sure. Choose **Install anyway** (on some phones it is under **More details**
 careful about any app from outside its store, not a sign that something is wrong.
 
 You only do this once. After that, formicaria tells you itself when there is a newer version and
-installs it in two taps — see [Updating](#updating).
+installs it with one tap and Android's own confirmation — see [Updating](#updating).
 
 There is no Play Store version yet.
 
 ## Updating
 
 **From 0.5.2 on, formicaria tells you when there is a newer version.** Once a day it asks GitHub which
-version is newest — nothing about you, the phone or your notes is sent — and **Settings → About &
-updates** says so. **Check now** asks straight away.
+version is newest — nothing about you, the phone or your notes is sent. From 0.22.0 a line at the top
+of the app says so; before, only **Settings → About & updates** did. **Check now** in Settings asks
+straight away.
 
-1. Press **Get v…**. formicaria downloads the new version and checks that it is exactly what the
+1. Tap **Update**. formicaria downloads the new version and checks that it is exactly what the
    release published, signed by us. Anything that does not match is refused.
-2. Press **Install v…**. This hands the checked download to Android's own installer.
+2. As soon as it is checked, Android's own installer opens on it: confirm there. If you left the app
+   while it was downloading, the installer opens when you come back. (Before 0.22.0: **Get v…**, then
+   **Install v…**.)
 3. The first time, Android asks whether formicaria may install apps. Allow it. Some phones add steps
    of their own — on a Xiaomi phone the permission screen makes you wait ten seconds before you can
    confirm, and the phone then scans the app and runs its own virus scan before installing it. That is
-   the phone's caution about apps that did not come from its store, and it is normal.
+   the phone's caution about apps that did not come from its store, and it is normal. Then come
+   back to formicaria and tap **Install v…** in the same line.
 
 Your notes stay where they are: an update keeps the app's storage. **Going back to an earlier version
 is not offered on a phone**, because Android can only do that by uninstalling first, and uninstalling

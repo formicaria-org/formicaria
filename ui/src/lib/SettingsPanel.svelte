@@ -18,7 +18,7 @@
   // never be a reason to hit the network.
   import ManualLink from './ManualLink.svelte';
   import { appToday, appZone, clockText, dayOfInstant, formatMoment } from './appTime';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
   import * as nav from './nav.svelte';
@@ -50,7 +50,6 @@
     chooseAgentModel,
     removeAgentModel,
     updateRollback,
-    reloadPage,
     updateStatus,
     setAgent,
     updateAgentModel,
@@ -60,14 +59,12 @@
     setShare,
     shareCode,
     revokeDevices,
-    installOnPhone,
     phoneCanInstall,
     setUpdateCheck,
-    updateApply,
-    updateCancel,
     updateCheckNow,
-    updateStart,
   } from './ipc';
+  import * as updater from './updater.svelte';
+  import { inFlight, STAGE_WORDS } from './updater.svelte';
   import { isRemote, shareSummary, type ShareStatus } from './remote';
   import type { Config } from './types';
   // **A vault's name is not what it is called.** Two devices that cloned one repository name
@@ -246,13 +243,13 @@
     // Settings must not be a reason to.
     try {
       const u = await updateStatus();
-      upd = u;
+      updater.setStatus(u);
       previousVersion = u.previous;
       canInstall = u.can_install;
       phoneBridge = phoneCanInstall();
       // A download already under way when the panel opened: keep watching it, the same courtesy the
       // assistant's first-enable download gets.
-      if (inFlight(u.progress)) watchUpdate();
+      updater.follow();
     } catch {
       // A build without the updater answers nothing. Hide the row rather than offer a control that
       // cannot work — the same rule the assistant's `agentOn = null` follows.
@@ -372,10 +369,10 @@
   /// Armed by the first click, acted on by the second — the same two steps as removing the model,
   /// and for the same reason: this replaces the running program and cannot be undone from here.
   let goingBack = $state(false);
-  /// The update picture as the server last described it. `null` hides every update row — a build with
+  /// The update picture as the server last described it — shared with the main window's offer
+  /// (`updater.svelte.ts`), so the two never disagree. `null` hides every update row: a build with
   /// no updater, or one whose status never answered.
-  let upd = $state<UpdateStatus | null>(null);
-  let updTimer: ReturnType<typeof setTimeout> | undefined;
+  const upd = $derived<UpdateStatus | null>(updater.status());
   /// Set once **this person** pressed *Check now*. A failed *background* check is silent by design —
   /// an error on every offline start teaches people to dismiss errors — but an answer to a question
   /// somebody just asked is owed to them.
@@ -385,15 +382,9 @@
   /// time the panel sees it — so the button gave no sign of having been pressed, and on the phone the
   /// owner could not tell whether a tap had worked (2026-09-11).
   let looking = $state(false);
-  /// Two steps before restarting, like *Go back* and *Remove the model…*: it replaces the running
-  /// program. Installing forward is recoverable — the way back is kept — which is why one arming is
-  /// enough and there is no third.
-  let restartArmed = $state(false);
-  let restarting = $state(false);
   /// Whether the Android installer bridge is here. Read once: the shell registers it before the page
   /// loads, and it cannot appear later.
   let phoneBridge = $state(false);
-  let phoneMessage = $state<string | null>(null);
   let updateError = $state<string | null>(null);
   let goBackError = $state<string | null>(null);
 
@@ -571,53 +562,6 @@
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
-  }
-
-  onDestroy(() => clearTimeout(updTimer));
-
-  function inFlight(p: UpdateStatus['progress']): boolean {
-    return !!p && p.stage !== 'ready' && p.stage !== 'failed';
-  }
-
-  /** What each stage is doing, in words. Not a combined percentage: the steps are not comparable in
-   *  size, and inventing one figure across them would be making something up. */
-  const STAGE_WORDS: Record<string, string> = {
-    manifest: 'checking what it contains',
-    download: 'downloading',
-    unpack: 'checking it runs on this computer',
-  };
-
-  /** Poll while getting it. The app has no streaming anywhere; this is the cadence the assistant's
-   *  own download already uses, and a failed poll is not a failed download. */
-  function watchUpdate() {
-    clearTimeout(updTimer);
-    updTimer = setTimeout(async () => {
-      try {
-        upd = await updateStatus();
-      } catch {
-        // Keep watching: one missed answer says nothing about the download.
-      }
-      if (inFlight(upd?.progress)) watchUpdate();
-    }, 1500);
-  }
-
-  /** After *Restart* or *Go back*: wait for the other version to answer, then load the page from it.
-   *
-   *  The row said "this page reconnects by itself" and nothing made it true: the message stayed for
-   *  ever, over an app that had restarted long before (a user's desktop, 2026-10-11), and the
-   *  tab kept the old version's interface. A missed answer is the restart itself, so it keeps
-   *  asking; it stops only when the program that answers is no longer the one that was running
-   *  (`was`: its version, or null for a build that has none). */
-  function watchRestart(was: string | null) {
-    clearTimeout(updTimer);
-    updTimer = setTimeout(async () => {
-      try {
-        if ((await updateStatus()).current !== was) return reloadPage();
-      } catch {
-        // Nobody answering yet: that is what a restart looks like.
-      }
-      watchRestart(was);
-    }, 1500);
   }
 
   // ---- One category at a time (`settingsMap.ts`; `decisions.md`, 2026-10-11) ----
@@ -822,7 +766,7 @@
     updateError = null;
     looking = true;
     try {
-      upd = await updateCheckNow();
+      updater.setStatus(await updateCheckNow());
     } catch (e) {
       updateError = reason(e);
     } finally {
@@ -844,61 +788,9 @@
   async function toggleUpdateCheck(on: boolean) {
     updateError = null;
     try {
-      upd = await setUpdateCheck(on);
+      updater.setStatus(await setUpdateCheck(on));
     } catch (e) {
       updateError = reason(e);
-    }
-  }
-
-  async function getUpdate() {
-    updateError = null;
-    phoneMessage = null;
-    try {
-      upd = await updateStart();
-      watchUpdate();
-    } catch (e) {
-      updateError = reason(e);
-    }
-  }
-
-  async function stopUpdate() {
-    clearTimeout(updTimer);
-    try {
-      upd = await updateCancel();
-    } catch (e) {
-      updateError = reason(e);
-    }
-  }
-
-  /** The server saves what is on disk, answers, and only then stops — so this press lands before the
-   *  connection goes, and `App`'s reconnecting surface takes over the gap. */
-  async function restartIntoUpdate() {
-    updateError = null;
-    try {
-      const was = upd?.current ?? null;
-      await updateApply();
-      restarting = true;
-      watchRestart(was);
-    } catch (e) {
-      updateError = reason(e);
-    } finally {
-      restartArmed = false;
-    }
-  }
-
-  /** Android: ask the shell to open the system installer on the download it already checked. */
-  function installOnThisPhone() {
-    updateError = null;
-    phoneMessage = null;
-    const r = installOnPhone();
-    if (r === 'ok') {
-      phoneMessage =
-        'The installer has opened. Confirm there, and formicaria restarts as the new version with your notes as they are.';
-    } else if (r === 'permission') {
-      phoneMessage =
-        'Android needs your permission first: allow installs from formicaria on the screen that just opened, then come back and press Install again.';
-    } else if (r) {
-      updateError = r.replace(/^error:\s*/, '');
     }
   }
 
@@ -912,7 +804,7 @@
       await updateRollback();
       goingBack = false;
       previousVersion = null;
-      watchRestart(was);
+      updater.awaitRestart(was);
     } catch (e) {
       goingBack = false;
       goBackError = e instanceof Error ? e.message : String(e);
@@ -2087,8 +1979,8 @@
 
         <!-- **Newer versions.** Checking is on by default and says, beside the switch, exactly
              what it sends — a network call a person cannot see described is not one they agreed to.
-             Getting and installing are never automatic; each is a press. On a phone the last step
-             belongs to Android's installer, so that row offers *Install* rather than a restart. -->
+             Getting and installing are never automatic: one press, *Update*, does both. On a phone
+             the last step belongs to Android's installer, which asks for its own confirmation. -->
         {#if upd && upd.can_check}
           <ul class="caps updates">
             <li>
@@ -2108,7 +2000,7 @@
             </li>
             <li>
               {#if upd.available && upd.progress && inFlight(upd.progress)}
-                <span class="k">getting {upd.available}</span>
+                <span class="k">updating to {upd.available}</span>
                 <span class="muted">
                   {STAGE_WORDS[upd.progress.stage] ?? upd.progress.stage}…
                   {#if upd.progress.stage === 'download'}
@@ -2117,37 +2009,34 @@
                       : humanSize(upd.progress.done)}
                   {/if}
                 </span>
-                <button onclick={stopUpdate}>Stop</button>
-              {:else if upd.available && upd.progress?.stage === 'ready' && phoneBridge}
-                <span class="k">{upd.available} is ready</span>
-                <span class="muted">Downloaded and checked. Installing it keeps your notes.</span>
-                <button class="primary" onclick={installOnThisPhone}>Install {upd.available}</button
-                >
-              {:else if upd.available && upd.progress?.stage === 'ready' && restarting}
+                <button onclick={updater.stop}>Stop</button>
+              {:else if upd.available && updater.restarting()}
                 <span class="k">restarting</span>
                 <span class="muted">
-                  formicaria is restarting as {upd.available}. This page reconnects by itself.
+                  formicaria is restarting as {upd.available}. This page reloads by itself.
                 </span>
-              {:else if upd.available && upd.progress?.stage === 'ready' && restartArmed}
-                <span class="k">restart into {upd.available}?</span>
-                <span class="muted">
-                  What you have typed is saved first, and your notes are not touched. If
-                  {upd.available} does not suit you, you can go back to {cfg.version} from here.
-                </span>
-                <button class="primary" onclick={restartIntoUpdate}>Yes, restart</button>
-                <button onclick={() => (restartArmed = false)}>Cancel</button>
-              {:else if upd.available && upd.progress?.stage === 'ready'}
-                <span class="k">{upd.available} is ready</span>
-                <span class="muted">Downloaded and checked. Restart to finish.</span>
-                <button onclick={() => (restartArmed = true)}>Restart into {upd.available}…</button>
+              {:else if upd.available && updater.going()}
+                <span class="k">updating to {upd.available}</span>
+                <span class="muted">Saving your work…</span>
               {:else if upd.available && upd.progress?.stage === 'failed'}
                 <span class="k">could not get {upd.available}</span>
                 <span class="bad">{upd.progress.error}</span>
-                <button onclick={getUpdate}>Try again</button>
+                <button onclick={updater.update}>Try again</button>
               {:else if upd.available && upd.can_install}
+                <!-- **One press** (2026-10-29): it gets, checks and installs. It was *Get*, then
+                     *Restart into…*, then *Yes, restart* — three presses where people expected one.
+                     The arming went because installing forward is recoverable from this very
+                     section (*Go back*), and what is typed is saved before the restart. -->
                 <span class="k">{upd.available} is available</span>
-                <span class="muted">You have {cfg.version}.</span>
-                <button onclick={getUpdate}>Get {upd.available}</button>
+                <span class="muted">
+                  You have {cfg.version}. {phoneBridge
+                    ? 'Your notes stay as they are; Android asks you to confirm.'
+                    : `Your notes stay as they are; formicaria restarts by itself, and you can go back to ${cfg.version} from here.`}
+                </span>
+                <button class="primary" onclick={updater.update}>
+                  {phoneBridge && upd.progress?.stage === 'ready' ? 'Install' : 'Update to'}
+                  {upd.available}
+                </button>
               {:else if upd.available}
                 <span class="k">{upd.available} is available</span>
                 <span class="muted">{upd.why}</span>
@@ -2193,8 +2082,11 @@
             {#if askedNow && upd.error && !upd.checking}
               <li><span class="bad">Could not look just now: {upd.error}</span></li>
             {/if}
-            {#if phoneMessage}
-              <li><span class="muted">{phoneMessage}</span></li>
+            {#if updater.error()}
+              <li><span class="bad">{updater.error()}</span></li>
+            {/if}
+            {#if updater.phoneMessage()}
+              <li><span class="muted">{updater.phoneMessage()}</span></li>
             {/if}
           </ul>
         {:else if upd}

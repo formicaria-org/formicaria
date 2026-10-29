@@ -24,6 +24,11 @@ import { backUpFromToolbar } from './lib/harness';
 import { clearFaults, faults, reset } from './lib/mock';
 import { clearSync } from './lib/sync.svelte';
 
+/** The toolbar's working chip. Not "the only status on screen": the offer of a newer version is a
+ *  polite status too (`UpdateBanner.svelte`), and the dev backend always has one on offer. */
+const workingChip = () =>
+  screen.queryAllByRole('status').find((e) => e.classList.contains('working')) ?? null;
+
 beforeEach(() => {
   reset();
   clearFaults();
@@ -45,7 +50,11 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
   await backUpFromToolbar(screen, fireEvent);
 
   // Announced, not merely drawn — the same information for someone who cannot see it spin.
-  const working = await screen.findByRole('status');
+  const working = await vi.waitFor(() => {
+    const w = workingChip();
+    if (!w) throw new Error('not working yet');
+    return w;
+  });
   // **Any of the working labels, not a specific one.** Which step is running when the assertion
   // fires depends on how many round-trips precede the push and on which vault is where — and since
   // a backlog is now planned before the first commit, that is one more than it was. The subject of
@@ -55,7 +64,7 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
 
   // **And it must not outlive the work.** A spinner that never stops is worse than none: it
   // teaches the user that the indicator means nothing.
-  await vi.waitFor(() => expect(screen.queryByRole('status')).toBeNull(), { timeout: 4000 });
+  await vi.waitFor(() => expect(workingChip()).toBeNull(), { timeout: 4000 });
 });
 
 test('pressing Back up starts nothing — it opens the choices', async () => {
@@ -78,14 +87,14 @@ test('pressing Back up starts nothing — it opens the choices', async () => {
   await screen.findByRole('menuitem', { name: /^get their changes/i });
 
   // And nothing was sent. Checked after the menu is up, so the assertion is about a settled state.
-  expect(screen.queryByRole('status')).toBeNull();
+  expect(workingChip()).toBeNull();
 });
 
 test('nothing is spinning when nothing is happening', async () => {
   render(App);
   // Anchored on a control that must render, so this cannot pass by the app failing to boot.
   await screen.findByRole('button', { name: /^back up$/i });
-  expect(screen.queryByRole('status')).toBeNull();
+  expect(workingChip()).toBeNull();
 });
 
 test('a backup that fails still stops the spinner', async () => {
@@ -95,5 +104,5 @@ test('a backup that fails still stops the spinner', async () => {
   render(App);
 
   await backUpFromToolbar(screen, fireEvent);
-  await vi.waitFor(() => expect(screen.queryByRole('status')).toBeNull(), { timeout: 4000 });
+  await vi.waitFor(() => expect(workingChip()).toBeNull(), { timeout: 4000 });
 });
