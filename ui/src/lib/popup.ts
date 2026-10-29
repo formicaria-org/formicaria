@@ -132,6 +132,14 @@ export function popup(node: HTMLElement, options: PopupOptions = {}) {
   place();
   const resized = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
   resized?.observe(node);
+  // **And whenever what is in it changes.** A popup capped to the room it was first placed in does
+  // not change size when more arrives: the new content scrolls inside it, so the size observer never
+  // fires. The search panel opened under the field with "Searching…", into the strip between the
+  // field and a phone's keyboard; its results then filled a 48 px box, and appeared only when the
+  // keyboard went away (2026-10-29). Placed again, it measures its whole content and takes the side
+  // with room.
+  const changed = typeof MutationObserver === 'function' ? new MutationObserver(schedule) : null;
+  changed?.observe(node, { childList: true, subtree: true, characterData: true });
   window.addEventListener('resize', schedule);
   window.visualViewport?.addEventListener('resize', schedule);
   window.addEventListener(KEYBOARD_EVENT, schedule);
@@ -145,6 +153,7 @@ export function popup(node: HTMLElement, options: PopupOptions = {}) {
     destroy() {
       if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
       resized?.disconnect();
+      changed?.disconnect();
       window.removeEventListener('resize', schedule);
       window.visualViewport?.removeEventListener('resize', schedule);
       window.removeEventListener(KEYBOARD_EVENT, schedule);

@@ -86,6 +86,32 @@ describe('popup', () => {
     }
   });
 
+  it('is placed again when its content grows, as search results arrive', async () => {
+    // A phone's bottom bar with the keyboard up: a thin strip between the field and the keys.
+    document.documentElement.style.setProperty('--kb', '330px');
+    try {
+      const fieldTop = H - 330 - 130;
+      let height = 40; // "Searching…"
+      const p = document.createElement('div');
+      Object.defineProperty(p, 'offsetWidth', { configurable: true, get: () => 300 });
+      Object.defineProperty(p, 'offsetHeight', { configurable: true, get: () => height });
+      document.body.append(p);
+      popup(p, {
+        anchor: anchorAt({ top: fieldTop, bottom: fieldTop + 30, left: 60, right: 190 }),
+      });
+      expect(p.dataset.open).toBe('down');
+
+      // The results come: more than the strip holds. Its own size need not change for it to move.
+      height = 300;
+      p.append(document.createElement('ul'));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(p.dataset.open).toBe('up');
+      expect(p.style.top).toBe(`${fieldTop - 4 - 300}px`);
+    } finally {
+      document.documentElement.style.removeProperty('--kb');
+    }
+  });
+
   it('lines up end edges when asked', () => {
     const p = sized(208, 200);
     popup(p, { anchor: anchorAt({ top: 60, bottom: 88, left: 300, right: 338 }), align: 'end' });
