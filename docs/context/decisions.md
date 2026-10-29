@@ -13705,3 +13705,21 @@ with, except that B12 and D written in micrograms are read in the new unit.
 is invented*, *the food list is carried in the app*. Verdict: **contradicts** them in the parts named,
 by the owner's decision (bannered). Widens what ships: the pack's size, and one provenance table in it.
 
+## 2026-10-29 (evening) — the assistant's research reads only reputable sources; the food list is one of them `#agent` `#data`
+
+The owner: *"use only reputable sources, to avoid security issues"*; on the plan, *"Follow your
+recommendations but no need to ask for permissions … it's public data that needs dissemination
+often."* Ruled in Myrme (its `decisions.md`, 2026-10-29 evening; plan and measurements in its
+`docs/research/2026-10-29-reputable-sources.md`); what it means for this app:
+
+- **Myrme 0.12.0, contract 1.10.** `/research` reads only a list of sources — public health bodies
+  (MedlinePlus, WHO, NHS, CDC, EFSA, gesund.bund.de, BfR, DGE, BLV, Santé publique France, ANSES,
+  ISS EpiCentro), Wikipedia, Europe PMC, arXiv, Crossref, Stack Overflow, GitHub — chosen from the
+  question; it opens pages of those sites only, through a guarded fetch. No general search engine.
+- **This widens what ships** (four questions, item 4): the opt-in web search now reaches those
+  bodies' pages, not only three APIs. `site/privacy.html` names them, as its own rule requires of a
+  changed outbound path.
+- **The food list is a source** for "how much of a nutrient in a food": `MYRME_CONTRACT` is 1.10, and
+  the phone's `DispatchVault` answers `VaultAccess::food` with `food_search` and `food_get` in process
+  (the desktop's agent asks the same two over `/api`). Reading the list moves no note.
+

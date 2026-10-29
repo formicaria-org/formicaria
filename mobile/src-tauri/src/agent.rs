@@ -605,6 +605,13 @@ impl VaultAccess for DispatchVault {
     fn clock(&self) -> Option<Value> {
         self.call("clock", json!({})).ok()
     }
+    /// The app's food list (Myrme contract 1.10), for `/research`'s "how much X in Y": the food the
+    /// list offers for `name` that is that food (Myrme's `best_food`), then its values per 100 g.
+    fn food(&self, name: &str) -> Option<Value> {
+        let hits = self.call("food_search", json!({ "q": name, "limit": 10 })).ok()?;
+        let id = fm_agent_run::fmserve::best_food(name, hits.as_array()?)?;
+        self.call("food_get", json!({ "id": id })).ok().filter(|v| v["per100"].is_object())
+    }
     fn reply(&self, note: &str, body: &str) -> Result<Value, String> {
         self.call("reply", json!({ "id": note, "body": body }))
     }

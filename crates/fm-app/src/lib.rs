@@ -29,7 +29,9 @@
 /// 1.8: the app's clock, handed to the assistant (`VaultAccess::clock`; `/api/clock` on the desktop).
 /// 1.9: the reply so far, while it is written (`VaultAccess::activity_draft`, kept by the phone's
 /// shell; `draft` on `/api/agent_activity` on the desktop).
-pub const MYRME_CONTRACT: (u32, u32) = (1, 9);
+/// 1.10: the app's food list, a source for `/research` (`VaultAccess::food`, answered by the phone's
+/// shell; `food_search` and `food_get` on the desktop).
+pub const MYRME_CONTRACT: (u32, u32) = (1, 10);
 
 /// The compile-time check of [`MYRME_CONTRACT`] against the Myrme a crate links: another major, or
 /// an older minor, does not build, and says why rather than failing on a missing function. A macro
