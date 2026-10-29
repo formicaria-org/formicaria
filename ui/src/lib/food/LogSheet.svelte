@@ -37,6 +37,7 @@
   } from '../ipc';
   import { digitsOf, isBarcode, sameCode } from './barcode';
   import { aboutLines, ingredientsFor, nameFor } from './productInfo';
+  import { againFromList, fromList } from './refresh';
   import {
     AMOUNT_KEYS,
     amountKey,
@@ -90,6 +91,8 @@
     entry?: ObjectMeta | null;
     /** A recipe to open on: `recipe/<word>` (the person's own) or `<collection key>/<id>`. */
     open?: string;
+    /** Open on the search, ready to type: the Day screen's *Search a food to log* (2026-10-29). */
+    find?: boolean;
     onclose: () => void;
     /** Something was written; `removed` names an entry that was taken away. */
     onwrote: (what?: { removed?: string }) => void;
@@ -103,6 +106,7 @@
     slot,
     entry = null,
     open = '',
+    find = false,
     onclose,
     onwrote,
     onopennote,
@@ -146,7 +150,7 @@
   const unplaced = $derived(def.slots.length > 0 && !chosen);
 
   type Mode = 'recent' | 'search' | 'recipes' | 'quick';
-  let mode = $state<Mode>('recent');
+  let mode = $state<Mode>(untrack(() => (find ? 'search' : 'recent')));
   let failed = $state('');
   let busy = $state(false);
   let added = $state(0);
@@ -792,7 +796,7 @@
     if (!keys.length) return '';
     const from = [...new Set(keys.map((k) => p.borrowed[k]))].join('; ');
     const t = tableOf(p.source);
-    const where = t ? `Not measured in ${TABLE_NAMES[t]}` : 'Not measured in its table';
+    const where = t ? `${TABLE_NAMES[t]} has no value for this food` : 'Its table has no value';
     return `${where}: ${keys.map(nutrientName).join(', ')} — taken from ${from}.`;
   };
 
@@ -942,12 +946,18 @@
   const addAgain = (r: RecentItem) =>
     write(async () => {
       const { slot: _slot, log: _log, planned: _planned, ...rest } = r.props;
-      const props = Object.fromEntries(
+      let props = Object.fromEntries(
         Object.entries(rest).filter(
           (e): e is [string, string | number] =>
             typeof e[1] === 'string' || typeof e[1] === 'number',
         ),
       );
+      // A food of the list is logged with the list's values now, not the old entry's: an entry
+      // from before the list had choline gave eggs logged after it none (2026-10-29).
+      if (fromList(props)) {
+        const food = await foodGet(String(props.source)).catch(() => null);
+        if (food) props = againFromList(props, food);
+      }
       await createNotesUndoable([draft(r.title, props)], `logged “${r.title}”`);
       added += 1;
       onwrote();

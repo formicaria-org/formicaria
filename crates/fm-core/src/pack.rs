@@ -86,6 +86,18 @@ pub struct FoodPack {
     info: PackInfo,
 }
 
+/// A table as a person reads its name where a value was borrowed from it.
+fn table_name(src: &str) -> String {
+    match src {
+        "usda" => "USDA".into(),
+        "ciqual" => "Ciqual (France)".into(),
+        "bls" => "BLS (Germany)".into(),
+        "swiss" => "the Swiss table".into(),
+        "crea" => "CREA (Italy)".into(),
+        other => other.to_uppercase(),
+    }
+}
+
 impl FoodPack {
     /// Open a pack read-only. A file that is not a food pack is an error that says so, never a
     /// pack with nothing in it.
@@ -253,7 +265,7 @@ impl FoodPack {
                 .query_map([row], |r| {
                     let (key, src, name): (String, String, String) =
                         (r.get(0)?, r.get(1)?, r.get(2)?);
-                    Ok((key, format!("{}: {name}", src.to_uppercase())))
+                    Ok((key, format!("{}: {name}", table_name(&src))))
                 })
                 .map_err(sql)?
                 .collect::<Result<BTreeMap<_, _>, _>>()

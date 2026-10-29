@@ -86,7 +86,7 @@ import zipfile
 # The list's own version: bump it whenever an input, the constituents or the layout changes.
 # An entry records `<name>@<version>/<food>` as where its numbers came from.
 NAME = "foods"
-VERSION = "2026.10.4"
+VERSION = "2026.10.5"
 
 # ── inputs, each pinned by checksum ──────────────────────────────────────────────────────────────
 
@@ -703,45 +703,99 @@ def read_usda(cache):
                 yield f"usda:{fdc}", title, "usda", "", v, portions.get(fdc, []), ""
 
 
-# ── borrowing what a table never measures ────────────────────────────────────────────────────────
-# `decisions.md#data`, 2026-10-29. Choline is in USDA's table alone, CREA measures no vitamin B12, D,
-# A, E, K1, B6 or iodine, the Swiss table no K1, B6, folate, copper or manganese, BLS no selenium —
-# so an egg from a European table had no choline at all, and an Italian one none of half the vitamins.
-# Where a food's own table carries a nutrient for fewer than BORROW_BELOW of its foods (a gap in the
-# table, not one food's missing analysis), the value is taken from USDA's closest food: one that shares
-# a word of its name and agrees on the macronutrients, above MATCH_AT. A measured value is never
-# replaced, nothing is averaged, and where it came from is kept (`borrowed`).
-BORROW_BELOW = 0.05
+# ── borrowing what a food's table did not measure ────────────────────────────────────────────────
+# `decisions.md#data`, 2026-10-29 and (reworked) 2026-10-29. Choline is in USDA's table alone; CREA
+# measures no vitamin B12, D, A, E, K1, B6 or iodine, the Swiss table no K1, B6, folate, copper or
+# manganese, BLS no selenium; and every table leaves single foods unanalysed (a third of Ciqual's lack
+# selenium). **Any value a food lacks** is taken from the closest food of another table that has it:
+#
+# 1. **USDA lends first**, to every European food it matches.
+# 2. **Then the European tables lend each other** what they hold — measured, or lent by USDA in step 1
+#    (the value keeps its origin: the food that measured it). A European measurement is nearer a
+#    European food than USDA's, and BLS and the Swiss table measure most vitamins for nearly all
+#    their foods.
+#
+# A match is a food of the same kind (the shorter name's head is inside the other's), in the same
+# state (fried or not, preserved or fresh, dried or not, smoked or cured or not, a juice or not, a
+# dish or not), whose names share enough
+# words and whose macronutrients agree. Names are read alike first (`norm`): "Chicken Egg, whole,
+# boiled, a la coque or hard-boiled" and USDA's "Egg, whole, boiled or poached" are one food, which
+# the first version missed by one percent of name likeness. A measured value is never replaced,
+# nothing is averaged, and where each value came from is kept (`borrowed`).
+#
+# **American fortification is not lent** (`lends`): US enriched grain carries iron, folic acid,
+# thiamin, riboflavin and niacin by law, and US milk vitamin D (and A, when reduced in fat); a
+# European flour or milk mostly does not.
+#
+# Measured on the 2026-10-29 build (`docs/context/nutrient-data-audit-2026-10-29.md` §6), and read by
+# eye on random samples of the matches.
 MATCH_AT = 0.62
 # Words that say how a food was handled or sold, not what it is: shared by too many foods to match on.
+# (Not "bone": "Pork, bones" is a food of its own.)
 NAME_NOISE = set("""raw cooked boiled fried baked roasted grilled steamed stewed fresh frozen canned
 dried whole average plain with without and or in of the a to for from not ns nfs as on prepared
 added salt unsalted salted drained solids liquid solid mixed type made commercial home homemade
-regular all purpose including excluding skin skinless boneless bone meat only lean fat""".split())
+regular all purpose including excluding skin skinless boneless meat only lean fat scrambled omelet
+pan pickled""".split())
 # Each macronutrient's own scale, so a difference counts as much as it matters: 20 kcal, 1 g.
 MACROS = {"kcal": 20, "protein_mg": 1000, "fat_mg": 1000, "carbs_mg": 1000, "water_mg": 5000}
+# The tables' names for one thing, made one: their English differs ("Chicken Egg … a la coque",
+# "Egg … boiled or poached"; CREA's "scrumbled"). A hen's egg is "egg", as USDA writes it; a duck's
+# stays a duck egg.
+SAME = [(r"\bfrozen yogh?urts?\b", "frozenyogurt"), (r"\bomelettes?\b", "omelet"),
+        (r"\bscrumbled\b", "scrambled"), (r"\byoghurts?\b", "yogurt"),
+        (r"\b(hard|soft)[- ]boiled\b", "boiled"), (r"\ba la coque\b", "boiled"), (r"\bhard\b", ""),
+        (r"\bpoached\b", "boiled"), (r"\b(chicken|hen'?s?) eggs?\b", "egg"),
+        (r"\bwholemeal\b", "whole wheat"), (r"\bwholegrain\b", "whole grain"),
+        (r"\baubergines?\b", "eggplant"), (r"\bcourgettes?\b", "zucchini"), (r"\bminced\b", "ground")]
+# A dish of several foods (a sandwich, a salad, "with …") shares words with many others; it must
+# share more of them to be the same dish.
+DISH = set("with sandwich salad pizza burger quiche pie soup dish stew sauce casserole".split())
+STATE = set("raw cooked boiled fried baked roasted grilled steamed stewed braised".split())
+FRIED = {"fried", "omelet", "scrambled", "sauteed"}
+KEPT = {"canned", "pickled", "syrup", "brine", "preserved", "jarred", "tinned"}
+DRY = {"dried", "dry", "dehydrated", "powder", "powdered", "flakes"}
+JUICE = {"juice", "nectar", "smoothie", "squash", "syrup"}
+CURED = {"smoked", "cured"}
+GRAIN = set("""bread roll bun bagel flour pasta macaroni spaghetti noodle cereal cracker rice tortilla
+muffin biscuit cake cookie pancake waffle pretzel couscous semolina""".split())
+ENRICHED = {"folate_dfe_ug", "thiamin_ug", "riboflavin_ug", "niacin_ug", "iron_ug"}
+
+
+def norm(title):
+    t = title.lower()
+    for a, b in SAME:
+        t = re.sub(a, b, t)
+    return t
 
 
 def name_words(title):
     out = set()
-    for w in re.findall(r"[a-z]+", title.lower()):
+    for w in re.findall(r"[a-z]+", norm(title)):
         w = w[:-1] if len(w) > 3 and w.endswith("s") else w
         if len(w) > 2 and w not in NAME_NOISE:
             out.add(w)
     return out
 
 
-# A dish of several foods (a sandwich, a salad, "with …") shares words with many others; it must
-# share more of them to be the same dish.
-DISH = set("with sandwich salad pizza burger quiche pie soup dish stew sauce casserole".split())
-STATE = set("raw cooked boiled fried baked roasted grilled steamed stewed braised".split())
+def shape(i, foods):
+    t = norm(foods[i][1])
+    low = set(re.findall(r"[a-z]+", t))
+    return {"i": i, "words": name_words(foods[i][1]), "v": foods[i][4],
+            "head": name_words(re.split(r"[,(]", foods[i][1])[0]), "dish": bool(low & DISH),
+            "fried": bool(low & FRIED), "kept": bool(low & KEPT), "dry": bool(low & DRY),
+            "juice": bool(low & JUICE), "cured": bool(low & CURED), "raw": "raw" in low,
+            "cooked": bool(low & ((STATE - {"raw"}) | FRIED))}
 
 
 def likeness(a, b):
-    """How alike two foods are, 0–1: half their names' shared words, half their macronutrients —
-    or 0 when they are not alike enough to lend a value: too few shared words (half for a dish),
-    fewer than three macronutrients to compare, any one of them far apart (fried rice's fat is four
-    times wholegrain rice's), or the macronutrients apart on average."""
+    """How alike two foods are, 0–1: four tenths their names' shared words, six tenths their
+    macronutrients — or 0 when they are not alike enough to lend a value: not the same kind of food,
+    not in the same state, too few shared words (half for a dish), fewer than three macronutrients
+    to compare, any one far apart (fried rice's fat is four times wholegrain rice's), or apart on
+    average. Names may share fewer words (a fifth) only when one holds every word of the other and
+    the macronutrients agree closely: no rival variety on either side (a pecorino is not a Swiss
+    cheese, an apricot kernel oil not a coconut oil, with the same fat)."""
     na, nb = a["words"], b["words"]
     if not na or not nb or not (na & nb):
         return 0.0
@@ -751,68 +805,94 @@ def likeness(a, b):
     ha, hb = sorted((a["head"], b["head"]), key=len)
     if not ha or not ha <= hb:
         return 0.0
-    # Fried and not fried are different foods for what is borrowed: the fat and what was fried in it.
-    if ("fried" in a["state"]) != ("fried" in b["state"]):
-        return 0.0
-    names = len(na & nb) / len(na | nb)
-    if names < (0.5 if (a["dish"] or b["dish"]) else 0.34):
+    # And a dish lends only to a dish: raw salmon is not a salmon salad.
+    if any(a[k] != b[k] for k in ("fried", "kept", "dry", "juice", "cured", "dish")):
         return 0.0
     diffs = [abs(a["v"][k] - b["v"][k]) / (max(a["v"][k], b["v"][k]) + scale)
              for k, scale in MACROS.items() if k in a["v"] and k in b["v"]]
     if len(diffs) < 3 or max(diffs) > 0.5:
         return 0.0
     macros = 1 - sum(diffs) / len(diffs)
-    if macros < 0.75:
+    names = len(na & nb) / len(na | nb)
+    nested = na <= nb or nb <= na
+    if a["dish"] or b["dish"]:
+        need = 0.5
+    elif nested and macros >= 0.9 and max(diffs) <= 0.25:
+        need = 0.2
+    else:
+        need = 0.34
+    if names < need or macros < 0.75:
         return 0.0
-    # Raw against cooked: the same food, but water and heat move the values; a match in the same
-    # state is preferred.
-    # Only when both names say: a name that states none ("Chicken Egg, whole") is not a cooked one.
-    state = 0.1 if (a["state"] and b["state"] and ("raw" in a["state"]) != ("raw" in b["state"])) else 0.0
-    return 0.5 * names + 0.5 * macros - state
+    # Raw against cooked: the same food, but water and heat move the values; the same state is
+    # preferred. Only when both names say.
+    state = 0.1 if ((a["raw"] and b["cooked"]) or (a["cooked"] and b["raw"])) else 0.0
+    return 0.4 * names + 0.6 * macros - state
+
+
+FORTIFIED = re.compile(r"\b(?<!un)(enriched|fortified)\b")
+
+
+def lends(title, key):
+    """Whether a USDA food may lend `key`: not a fortified value a European food would not have."""
+    t = norm(title)
+    if FORTIFIED.search(t):
+        return False
+    head = name_words(re.split(r"[,(]", title)[0])
+    if head & GRAIN and key in ENRICHED and "unenriched" not in t:
+        return False
+    if "milk" in head and key in {"vitamin_d_ng", "vitamin_a_rae_ug"}:
+        return False
+    return True
+
+
+def matches(foods, i, index, from_srcs):
+    """The best match of food `i` in each other table of `from_srcs`, best first: [(j, score)]."""
+    me = shape(i, foods)
+    seen, best = set(), {}
+    for w in me["words"]:
+        for u in index.get(w, []):
+            src = foods[u["i"]][2]
+            if u["i"] in seen or src == foods[i][2] or src not in from_srcs:
+                continue
+            seen.add(u["i"])
+            s = likeness(me, u)
+            if s > MATCH_AT and s > best.get(src, (None, 0))[1]:
+                best[src] = (u["i"], s)
+    return sorted(best.values(), key=lambda x: -x[1])
 
 
 def borrow(foods):
-    """For every European food, the values its table never measures, from USDA's closest food.
-    `foods` is the list of rows the readers yield; returns {food index: {key: (value, from index)}}."""
-    by_src = {}
-    for i, f in enumerate(foods):
-        by_src.setdefault(f[2], []).append(i)
-    def shape(i):
-        low = set(re.findall(r"[a-z]+", foods[i][1].lower()))
-        return {"i": i, "words": name_words(foods[i][1]), "v": foods[i][4],
-                "head": name_words(re.split(r"[,(]", foods[i][1])[0]),
-                "dish": bool(low & DISH), "state": low & STATE}
-    usda = [shape(i) for i in by_src.get("usda", [])]
+    """For every European food, each value it lacks, from the closest food that has it (see above).
+    `foods` is the list of rows the readers yield; returns {food index: {key: (value, origin index)}}."""
+    keys = [key for key, *_ in NUTRIENTS]
+    shapes = [shape(i, foods) for i in range(len(foods))]
     index = {}
-    for u in usda:
+    for u in shapes:
         for w in u["words"]:
             index.setdefault(w, []).append(u)
+    europe = [i for i, f in enumerate(foods) if f[2] != "usda"]
     out = {}
-    for src, idx in by_src.items():
-        if src == "usda":
-            continue
-        gaps = [key for key, *_ in NUTRIENTS
-                if sum(key in foods[i][4] for i in idx) < BORROW_BELOW * len(idx)]
-        if not gaps:
-            continue
-        for i in idx:
-            title, values = foods[i][1], foods[i][4]
-            me = shape(i)
-            seen, best, best_score = set(), None, MATCH_AT
-            for w in me["words"]:
-                for u in index.get(w, []):
-                    if u["i"] in seen:
-                        continue
-                    seen.add(u["i"])
-                    s = likeness(me, u)
-                    if s > best_score:
-                        best, best_score = u, s
-            if best is None:
-                continue
-            got = {k: (foods[best["i"]][4][k], best["i"]) for k in gaps
-                   if k not in values and k in foods[best["i"]][4]}
+    # 1. USDA lends.
+    for i in europe:
+        for j, _ in matches(foods, i, index, {"usda"})[:1]:
+            got = {k: (foods[j][4][k], j) for k in keys
+                   if k not in foods[i][4] and k in foods[j][4] and lends(foods[j][1], k)}
             if got:
                 out[i] = got
+    # 2. The European tables lend each other what they hold, with its origin.
+    held = [{**{k: (v, i) for k, v in f[4].items()}, **out.get(i, {})} for i, f in enumerate(foods)]
+    tables = {f[2] for f in foods} - {"usda"}
+    for i in europe:
+        ranked = matches(foods, i, index, tables)
+        for k in keys:
+            if k in foods[i][4] or k in out.get(i, {}):
+                continue
+            for j, _ in ranked:
+                # A European food named enriched or fortified (some breakfast cereals) lends what it
+                # was given no more than an American one.
+                if k in held[j] and not FORTIFIED.search(norm(foods[held[j][k][1]][1])):
+                    out.setdefault(i, {})[k] = held[j][k]
+                    break
     return out
 
 

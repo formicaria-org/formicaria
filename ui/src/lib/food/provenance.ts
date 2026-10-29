@@ -60,24 +60,6 @@ export function valueOf(props: Record<string, unknown>, key: string): number | n
   return null;
 }
 
-/** Why the entries that lack `key` lack it, in a few words: the tables that never measured it, and
- *  entries typed by hand. Empty when every entry has it. */
-export function whyMissing(entries: { props: Record<string, unknown> }[], key: string): string {
-  const tables = new Set<string>();
-  let typed = 0;
-  for (const e of entries) {
-    if (valueOf(e.props, key) !== null) continue;
-    const t = tableOf(e.props.source);
-    if (t) tables.add(TABLES[t]);
-    else typed += 1;
-  }
-  const parts: string[] = [];
-  if (tables.size) parts.push(`not measured in ${[...tables].sort().join(' or ')}`);
-  if (typed)
-    parts.push(typed === 1 ? 'one entry typed without it' : `${typed} entries typed without it`);
-  return parts.join('; ');
-}
-
 /** A nutrient key as a word: `vitamin_b12_ng` → `vitamin B12`, `choline_ug` → `choline`. */
 export function nutrientName(key: string): string {
   const words = key.split('_').slice(0, -1);

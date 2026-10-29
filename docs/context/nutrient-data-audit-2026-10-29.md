@@ -2,7 +2,9 @@
 
 > **Investigation, not a ruling.** Prompted by a user who logged eggs and saw no choline. Everything
 > below was measured on the installed food pack (`foods@2026.10.3`, 18,338 foods) and its builder's
-> source files, or read in the code. All six fixes (F1–F6) were made the same day: §5.
+> source files, or read in the code. Six fixes (F1–F6) were made the same day (§5); **they did not
+> solve it** — the same user still read no choline the next day. §6 measures why and what replaced
+> F1.
 
 ## 1. How a number reaches the day screen
 
@@ -143,4 +145,63 @@ Share of each table's foods with a value, and in brackets the share borrowed fro
 - **What no fix reaches:** CREA's iodine (USDA has none either); a food with no confident match. For
   those the nutrients sheet now says *why* — "not measured in CREA (Italy)" — instead of a bare count.
 - **Old entries** keep what they were logged with; their B12 and D in micrograms are read as ×1000.
+
+## 6. The first fix fell short (2026-10-29), and what replaced it (`foods@2026.10.5`)
+
+The user logged eggs after 0.22.1 and read no choline; she also found no selenium in macadamia nuts.
+Measured on `foods@2026.10.4` with the builder's own code (single foods only — no dish — and per
+table):
+
+| Single foods with a value | Ciqual | BLS | Swiss | CREA |
+|---|---|---|---|---|
+| choline | 23% | 18% | 29% | 27% |
+| selenium | 64% | 20% | 73% | 22% |
+| vitamin B12 | 66% | 96% | 98% | 28% |
+| magnesium | 80% | 99% | 99% | 35% |
+| iodine | 64% | 83% | 96% | 0% |
+
+**Why**, three causes:
+1. F1 filled a nutrient only for a table that measures it for under 5% of its foods. Ciqual measures
+   selenium for 62% of its foods, so none of the other 38% — its macadamia nuts among them — was
+   filled, nor CREA's magnesium and zinc.
+2. The matcher compared the English names' words. CREA's "Chicken Egg, whole, boiled, a la coque or
+   hard-boiled" and USDA's "Egg, whole, boiled or poached" shared 33% of them, against a bar of 34%:
+   the boiled egg had no choline, nor CREA's fried egg, the Swiss hard-boiled one or BLS's fried one.
+   Of 223 European egg foods, 66 had choline.
+3. "＋ again" in the logging sheet copied the old entry's numbers, so a food the list now completed
+   still logged without it; entries already written were never told.
+
+**What replaced F1** (`ci/pack-foods.py`, *borrowing*; `decisions.md#data`, 2026-10-29): every value a
+food lacks is borrowed, first from USDA's closest food, then from the closest food of another European
+table (measured, or lent by USDA — the value keeps its origin); names are read alike first; the
+macronutrients weigh more. Rules each found in a sample of matches read by eye keep apart a dish and
+a single food, fried and not, preserved and fresh, dried, smoked or cured, a juice and its fruit, and
+keep American fortification (enriched grain, vitamin D in milk) out.
+
+| Single foods with a value, after | Ciqual | BLS | Swiss | CREA |
+|---|---|---|---|---|
+| choline | 33% | 22% | 35% | 39% |
+| selenium | 77% | 36% | 84% | 66% |
+| vitamin D | 80% | 97% | 99% | 65% |
+| vitamin B12 | 81% | 97% | 99% | 64% |
+| folate | 59% | 99% | 58% | 61% |
+| magnesium | 88% | 99% | 99% | 78% |
+| zinc | 87% | 99% | 99% | 79% |
+| iodine | 75% | 88% | 98% | 53% |
+
+- **The reported foods**: CREA's boiled egg has 268 mg of choline per 100 g, from USDA's *Egg, whole,
+  boiled or poached*; its fried egg, the Swiss hard-boiled egg and BLS's fried egg likewise. Ciqual's
+  macadamia nuts have selenium (12 µg per 100 g, from USDA's *Macadamia nuts*). USDA's own two records
+  for macadamia nuts disagree (12 and 33 µg; its 2023 analysis of eight samples ranged 9–54):
+  selenium follows the soil, and a borrowed value is one country's measurement.
+- **Entries**: the nutrients sheet names each entry without a value and why, and offers to update
+  entries logged before the list had values it has now; "＋ again" reads the list as it is.
+- **Still not covered**: choline for most foods USDA has no close match for (it alone measures it);
+  dishes their table did not analyse; CREA's iodine where no table has a close food. Each is said per
+  entry, never shown as zero.
+
+**How this was measured.** The builder's readers over its cached sources, the coverage counted per
+table for foods without a dish word, before and after; samples of 50–60 matches drawn at random and
+read by eye at each step (the rules above each answer a wrong match seen in one). No user data was
+used.
 

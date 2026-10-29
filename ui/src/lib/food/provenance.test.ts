@@ -1,7 +1,7 @@
 // Where a logged value came from, in words (2026-10-29): a user logged eggs, saw no choline, and
 // nothing said the egg's table never measures it.
 import { describe, expect, it } from 'vitest';
-import { borrowedOf, borrowedProp, nutrientName, tableOf, valueOf, whyMissing } from './provenance';
+import { borrowedOf, borrowedProp, nutrientName, tableOf, valueOf } from './provenance';
 
 describe('provenance', () => {
   it('reads the table from an entry’s source', () => {
@@ -25,19 +25,6 @@ describe('provenance', () => {
     expect(valueOf({ vitamin_b12_ug: 2 }, 'vitamin_b12_ng')).toBe(2000);
     expect(valueOf({ vitamin_b12_ng: 450 }, 'vitamin_b12_ng')).toBe(450);
     expect(valueOf({}, 'vitamin_d_ng')).toBeNull();
-  });
-
-  it('says why the entries that lack a nutrient lack it', () => {
-    const entries = [
-      { props: { source: 'foods@2026.10.4/crea:812' } },
-      { props: { source: 'foods@2026.10.4/ciqual:22000' } },
-      { props: { source: 'foods@2026.10.4/usda:1', choline_ug: 335000 } },
-      { props: { kcal: 200 } },
-    ];
-    expect(whyMissing(entries, 'choline_ug')).toBe(
-      'not measured in CREA (Italy) or Ciqual (France); one entry typed without it',
-    );
-    expect(whyMissing([{ props: { choline_ug: 1 } }], 'choline_ug')).toBe('');
   });
 
   it('names a nutrient key as a word', () => {
