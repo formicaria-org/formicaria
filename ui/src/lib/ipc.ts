@@ -1382,8 +1382,9 @@ export const logRecent = (view: string, opts: { slot?: string; q?: string; limit
   invoke<RecentItem[]>('log_recent', { view, ...opts });
 /** The recipes saved in a log, each with the sum of its ingredients. */
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
-export const logNutrients = (view: string, day: string) =>
-  invoke<Nutrients>('log_nutrients', { view, day });
+/** One day's nutrients; `planned` counts what is planned too (a day still to come). */
+export const logNutrients = (view: string, day: string, planned = false) =>
+  invoke<Nutrients>('log_nutrients', { view, day, planned });
 /** One request to Open Food Facts, made by the shell. `null` when they have no such product. */
 export const productLookup = (code: string) =>
   invoke<ProductFound | null>('product_lookup', { code });

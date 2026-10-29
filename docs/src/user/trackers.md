@@ -77,8 +77,7 @@ Trends, Diet).
 to; the app does not guess one from the time of day.
 
 - **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
-  logs it again with the amount it had, and the food's values as the list has them now. Tapping
-  the row lets you change the amount first.
+  logs it again with the amount it had. Tapping the row lets you change the amount first.
 - **Search** — a food from the list. Choose one, then say how much: the **−** and **＋** change the
   amount. Where the food's table gives household portions ("1 cup", "1 medium") they are offered
   as chips; the European tables give none.
@@ -311,10 +310,13 @@ not advice.
 
 **All nutrients**, under *Also today*, lists every vitamin and mineral of the day beside the
 European reference value for an adult of your sex. Press one to see which foods it came from,
-and, for each entry without it, why: typed in by hand, its label does not state it, its table and
-no close food in another has it, or it was logged before the food list had it. When entries were
-logged before the list had values it has now, the sheet says so and offers **Update**: it adds the
-values they lack, at the amount you logged; what they have stays as it was.
+and, for each entry without it, why: typed in by hand, its label does not state it, or no table has
+it for that food. A day still to come counts what you have planned for it.
+
+**An entry from the food list is the food and how much of it.** Its numbers are worked out from the
+food list each time they are shown, so when an update improves the list, every entry you logged
+improves with it — past days and planned ones alike. A packet written down from its label, a
+serving of your recipe and a food you typed in keep the numbers they were given.
 Where the reference differs for men and women and the app does not know which you are, it is
 left out until you say so in *About you*. The references describe what covers a population, not
 what you in particular need.

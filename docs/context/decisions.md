@@ -13763,6 +13763,10 @@ English name, its table's own beside it.
 
 ## 2026-10-29 (late night) — a value a food lacks is borrowed from the closest food of any table; an entry can be brought up to date `#data` `#toolchain`
 
+> SUPERSEDED IN PART (2026-10-29, later that night, *every view sums from the food list*): an entry
+> no longer holds copied numbers to bring up to date; the *Update* offer and the re-reading in
+> "＋ again" are gone.
+
 > Reworks *the food list fills what a table never measures* (2026-10-29), which did not fix what it
 > was for.
 
@@ -13852,4 +13856,35 @@ phone"*.
   Chrome the browser's own swipe to go back fired on the same right swipe and left the group.
 - Checked by driving a phone-sized Chromium with real touch input: Day → Diet and back by swipes,
   nothing past the ends, a vertical scroll and a swipe across the board's columns left alone.
+
+## 2026-10-29 (later that night) — every view sums from the food list; an entry is a food and an amount `#data` `#seams`
+
+> Reverses in part the entry above (*an entry can be brought up to date*), and *a logged entry
+> holds its numbers* wherever earlier entries assumed it.
+
+**What happened.** A user planned macadamia nuts for the next day, after updating, and read no
+selenium. Reproduced against the real app on a scratch notebook: the entry held 4 µg of selenium, but
+the day's nutrients left every planned entry out. The owner: *"this is a symptom of an underlying
+problem that started with the choline … the views are not using a simple sum from lookup tables
+after all"* — and, offered the choice, *"Sum from the list"*. Every fix to the food list had needed a
+way to reach entries that held copies of its numbers, and each missed a path.
+
+**Decision.**
+- **An entry of the food list is its food (`source`) and its amount (`amount_g`).** Its numbers are
+  worked out — the food's values per 100 g times the amount — whenever it is read, by
+  `packs::resolve`, applied by the one store every view reads through (`fm_core::Scoped::
+  with_resolver`, on `candidates`; `get` is left as the file, so an opened note is what was
+  written). The day, the nutrients, the menu, trends and plans all read the same sum, and a list
+  that improves improves every entry, past and planned.
+- **Writing keeps only the food and the amount** (`log::food_and_amount_only`, in `create_notes` and
+  `set_properties`), whatever a client sends — so a phone on an older version cannot write copies
+  either. A packet from its label, a recipe's serving and a food typed in by hand keep their own
+  numbers. An entry whose food a later list no longer has keeps the numbers it was written with.
+- **A day still to come counts what is planned for it** (`log_nutrients`' `planned`, asked by the
+  sheet for a day after today), as the menu already did.
+- **Cost:** a list entry's note no longer shows its numbers to a reader of the file; `fm show`
+  prints the note as written. Old entries keep their old numbers in their files, unread.
+- Checked end to end against the real server and UI at phone size: macadamia nuts planned for
+  tomorrow are saved as food and amount, the day screen shows their 221 kcal, the nutrients 4 µg of
+  selenium.
 

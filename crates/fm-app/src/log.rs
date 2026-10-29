@@ -844,6 +844,28 @@ fn build(draft: &NoteDraft, vault: &str) -> Result<Object, StoreError> {
 /// **Every draft is checked before any note is written**, so a refused value writes nothing. The
 /// writes themselves are one after another under one lock; a disk failing half-way would leave the
 /// first of them behind, and the error says how many.
+/// **An entry of the food list keeps its food and its amount, and no copy of their numbers**
+/// (`decisions.md#data`, 2026-10-29, *every view sums from the food list*): every view works them
+/// out from the list when it reads the entry (`packs::resolve`), so a copy could only go stale —
+/// as choline did, for eggs logged after the list had it. Whatever a client sends, numbers are not
+/// written for such an entry; a packet from its label, a recipe's serving or a food typed in by hand
+/// keeps its own.
+pub fn food_and_amount_only(o: &mut Object) {
+    let PropertyValue::Text(src) = o.get("source") else { return };
+    if !src.starts_with("foods@") || !matches!(o.get("amount_g"), PropertyValue::Int(_)) {
+        return;
+    }
+    o.extra.retain(|k, _| !is_amount_of_a_nutrient(k) && k != "borrowed");
+}
+
+/// `kcal`, or a key in a nutrient's unit (`protein_mg`, `iron_ug`, `vitamin_d_ng`) — never the
+/// amount eaten.
+pub fn is_amount_of_a_nutrient(key: &str) -> bool {
+    key == "kcal"
+        || (!key.starts_with("amount_")
+            && (key.ends_with("_mg") || key.ends_with("_ug") || key.ends_with("_ng")))
+}
+
 pub fn create_notes(
     store: &mut dyn Store,
     vault: &str,
@@ -855,7 +877,9 @@ pub fn create_notes(
             drafts.len()
         )));
     }
-    let built: Vec<Object> = drafts.iter().map(|d| build(d, vault)).collect::<Result<_, _>>()?;
+    let mut built: Vec<Object> =
+        drafts.iter().map(|d| build(d, vault)).collect::<Result<_, _>>()?;
+    built.iter_mut().for_each(food_and_amount_only);
     for (i, obj) in built.iter().enumerate() {
         store.put(obj).map_err(|e| {
             StoreError::Io(format!("{e} — {i} of {} had been written", built.len()))
@@ -883,6 +907,7 @@ pub fn set_properties(
         previous.insert(key.clone(), (!before.is_null()).then(|| before.display()));
         apply_property(&mut obj, key, &as_written(key, value)?)?;
     }
+    food_and_amount_only(&mut obj);
     // Values the note already holds are not a write (`commands::update_body` says why).
     if obj == unchanged {
         return Ok(previous);

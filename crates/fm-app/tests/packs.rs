@@ -64,6 +64,41 @@ fn the_list_the_app_carries_is_unpacked_on_first_use_and_put_right_when_it_is_wr
     let again = packs::food_get(&format!("{}/{}", food.pack, food.id)).unwrap().unwrap();
     assert_eq!(again.name, food.name);
 
+    // **An entry is read with the food list's values as they are now** (2026-10-29): macadamia
+    // nuts logged with an old list's numbers — no selenium, a wrong energy — read 30 g of the food
+    // as the list has it, saying what was borrowed. Writing one keeps only the food and the amount.
+    let mut entry = fm_model::Object::new(fm_model::Kind::Note, String::new());
+    for (k, v) in [
+        ("source", fm_model::PropertyValue::Text("foods@2026.10.3/bls:H190100".into())),
+        ("amount_g", fm_model::PropertyValue::Int(30)),
+        ("kcal", fm_model::PropertyValue::Int(999)),
+        ("vitamin_b12_ug", fm_model::PropertyValue::Int(1)),
+        ("slot", fm_model::PropertyValue::Text("snacks".into())),
+    ] {
+        entry.extra.insert(k.into(), v);
+    }
+    let mut read = entry.clone();
+    packs::resolve(&mut read);
+    let nut = packs::food_get("bls:H190100").unwrap().unwrap();
+    let at30 = |k: &str| (nut.per100[k] as f64 * 0.3).round() as i64;
+    assert_eq!(read.get("kcal"), fm_model::PropertyValue::Int(at30("kcal")));
+    assert_eq!(read.get("selenium_ug"), fm_model::PropertyValue::Int(at30("selenium_ug")));
+    assert!(read.get("vitamin_b12_ug").is_null(), "the old microgram key gives way");
+    assert!(read.get("borrowed").display().contains("selenium_ug=USDA: Macadamia nuts"));
+    assert_eq!(read.get("slot"), fm_model::PropertyValue::Text("snacks".into()));
+    let mut written = read.clone();
+    fm_app::log::food_and_amount_only(&mut written);
+    assert!(written.get("kcal").is_null() && written.get("selenium_ug").is_null());
+    assert!(written.get("borrowed").is_null());
+    assert_eq!(written.get("amount_g"), fm_model::PropertyValue::Int(30));
+    // A packet from its label, or a food typed in by hand, keeps its own numbers.
+    let mut typed = entry.clone();
+    typed.extra.insert("source".into(), fm_model::PropertyValue::Text("product/01ABC".into()));
+    let before = typed.clone();
+    packs::resolve(&mut typed);
+    fm_app::log::food_and_amount_only(&mut typed);
+    assert_eq!(typed, before);
+
     // Something else in its place — cut short, or left by another build — is put right, and the
     // half-written sidecar does not stay behind.
     std::fs::write(&file, b"not the list").unwrap();

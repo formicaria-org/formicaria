@@ -653,7 +653,7 @@ fn a_days_nutrients_are_set_beside_the_reference_for_the_person() {
         ],
     )
     .unwrap();
-    let before = log_nutrients(&s, &day_view(), "2026-10-11").unwrap();
+    let before = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
     let row = |n: &fm_app::nutrients::Nutrients, key: &str| {
         let r = n.rows.iter().find(|r| r.key == key).unwrap();
         (r.sum, r.n, r.reference)
@@ -674,11 +674,16 @@ fn a_days_nutrients_are_set_beside_the_reference_for_the_person() {
         &[draft("About me", "", json!({ "profile": "me", "sex": "female", "born": 2004 }))],
     )
     .unwrap();
-    let after = log_nutrients(&s, &day_view(), "2026-10-11").unwrap();
+    let after = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
     assert!(!after.needs_sex);
     assert_eq!(row(&after, "vitamin_c_ug").2, Some(95_000));
     assert_eq!(row(&after, "iron_ug"), (4_000, 1, Some(16_000)));
     assert_eq!(row(&after, "calcium_ug").2, Some(1_000_000), "22 years old: the higher figure");
+
+    // A day still to come counts what is planned for it (2026-10-29: macadamia nuts planned for
+    // tomorrow read no selenium): asked with `planned`, the plan is in.
+    let planned = log_nutrients(&s, &day_view(), "2026-10-11", true).unwrap();
+    assert_eq!(planned.of, 3);
 }
 
 /// An amount known only roughly: the entry keeps its amount and a least and a most, and the day's

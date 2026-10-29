@@ -37,7 +37,6 @@
   } from '../ipc';
   import { digitsOf, isBarcode, sameCode } from './barcode';
   import { aboutLines, ingredientsFor, nameFor } from './productInfo';
-  import { againFromList, fromList } from './refresh';
   import {
     AMOUNT_KEYS,
     amountKey,
@@ -946,18 +945,14 @@
   const addAgain = (r: RecentItem) =>
     write(async () => {
       const { slot: _slot, log: _log, planned: _planned, ...rest } = r.props;
-      let props = Object.fromEntries(
+      // An entry of the food list is read with the list's values as they are now (the server's
+      // `packs::resolve`), whatever numbers the old entry was written with.
+      const props = Object.fromEntries(
         Object.entries(rest).filter(
           (e): e is [string, string | number] =>
             typeof e[1] === 'string' || typeof e[1] === 'number',
         ),
       );
-      // A food of the list is logged with the list's values now, not the old entry's: an entry
-      // from before the list had choline gave eggs logged after it none (2026-10-29).
-      if (fromList(props)) {
-        const food = await foodGet(String(props.source)).catch(() => null);
-        if (food) props = againFromList(props, food);
-      }
       await createNotesUndoable([draft(r.title, props)], `logged “${r.title}”`);
       added += 1;
       onwrote();

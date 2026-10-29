@@ -179,6 +179,7 @@ pub fn log_nutrients(
     store: &dyn Store,
     def: &TotalsDef,
     day: &str,
+    planned: bool,
 ) -> Result<Nutrients, StoreError> {
     let date = Date::parse(day, &Iso8601::DATE).map_err(|_| {
         StoreError::Parse(format!("day must be a day like 2026-07-20, not '{day}'"))
@@ -193,7 +194,9 @@ pub fn log_nutrients(
         .rows
         .into_iter()
         .filter(|o| o.start.is_some_and(|s| s.date == date))
-        .filter(|o| !matches!(o.get(PLANNED), PropertyValue::Int(n) if n != 0))
+        // A plan is in no total until it is eaten — except on a day still to come, which is its
+        // plan (`planned`): macadamia nuts planned for tomorrow read no selenium (2026-10-29).
+        .filter(|o| planned || !matches!(o.get(PLANNED), PropertyValue::Int(n) if n != 0))
         .collect();
 
     let profile = plan_profile(store)?;

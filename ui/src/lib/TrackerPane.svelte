@@ -711,12 +711,7 @@
   {/if}
   {#if nutrientsOpen}
     {#await import('./food/NutrientsSheet.svelte') then { default: NutrientsSheet }}
-      <NutrientsSheet
-        {view}
-        day={selected}
-        onclose={() => (nutrientsOpen = false)}
-        onwrote={wrote}
-      />
+      <NutrientsSheet {view} day={selected} onclose={() => (nutrientsOpen = false)} />
     {/await}
   {/if}
   {#if targetsOpen && def}

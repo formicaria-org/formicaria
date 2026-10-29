@@ -2623,7 +2623,9 @@ fn dispatch_inner(
             let mut g = lock()?;
             let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
             let store = g.store(scope);
-            json(crate::nutrients::log_nutrients(&store, &def, &s("day")).map_err(err)?)
+            // `planned: true` counts what is planned too: a day still to come is its plan.
+            let planned = args.get("planned").and_then(Value::as_bool).unwrap_or(false);
+            json(crate::nutrients::log_nutrients(&store, &def, &s("day"), planned).map_err(err)?)
         }
         "recipe_library" => json(crate::log::recipe_library(&s("book")).map_err(err)?),
         "recipe_libraries" => json(crate::log::recipe_libraries().map_err(err)?),
@@ -2889,7 +2891,8 @@ impl Vaults {
     /// `fm-cli`, the phone and the study agent — costs nothing: `Scoped` with no list delegates
     /// straight through.
     fn store<'a>(&'a mut self, scope: &'a Scope) -> Scoped<'a> {
-        Scoped::new(&mut self.all, scope.names())
+        // A food entry is read with its numbers from the food list as it is now (`packs::resolve`).
+        Scoped::new(&mut self.all, scope.names()).with_resolver(crate::packs::resolve)
     }
 
     /// A named vault; an empty name means the default (the first).

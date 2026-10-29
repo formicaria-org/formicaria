@@ -4,63 +4,30 @@
   //
   // A row says three things and no more: what the day came to, the reference where there is one
   // figure for this person, and — pressed — which entries it came from and, for each entry without
-  // it, why (2026-10-29: "No entry of this day carries it" under choline, and nothing about the eggs,
-  // read as the app failing). Entries logged before the food list had values it has now are offered
-  // an update, on a press: an entry is a snapshot, and only the person changes it.
+  // it, why (2026-10-29: "No entry of this day carries it" under choline read as the app failing).
+  // An entry of the food list is read with the list's values as they are now (the server's
+  // `packs::resolve`). A day still to come counts what is planned for it: it is its plan.
   import { onMount } from 'svelte';
   import Icon from '../Icon.svelte';
   import Meter from '../charts/Meter.svelte';
-  import { foodGet, logNutrients, setProperties } from '../ipc';
-  import { dayLabel, showWith } from '../units';
+  import { logNutrients } from '../ipc';
+  import { dayLabel, showWith, today } from '../units';
   import { borrowedOf, valueOf } from './provenance';
-  import { freshValues, fromList, whyNot } from './refresh';
-  import type { FoodDetail, NutrientRow, Nutrients, ObjectMeta } from '../types';
+  import { whyNot } from './refresh';
+  import type { NutrientRow, Nutrients, ObjectMeta } from '../types';
 
   interface Props {
     view: string;
     day: string;
     onclose: () => void;
-    /** Entries were brought up to date: the day behind should read them again. */
-    onwrote?: () => void;
   }
-  let { view, day, onclose, onwrote }: Props = $props();
+  let { view, day, onclose }: Props = $props();
 
   let got = $state<Nutrients | null>(null);
   let failed = $state('');
   let opened = $state<string | null>(null);
-  /// Each list entry's food as the list has it now, by entry id; `null` where it is not in the list.
-  let foods = $state<Record<string, FoodDetail | null>>({});
-  let updating = $state(false);
-  async function load() {
-    got = await logNutrients(view, day);
-    const listed = got.entries.filter((e) => fromList(e.props));
-    const read = await Promise.all(
-      listed.map(
-        async (e) => [e.id, await foodGet(String(e.props.source)).catch(() => null)] as const,
-      ),
-    );
-    foods = Object.fromEntries(read);
-  }
-  /// The entries the list could complete, with what it would add.
-  const stale = $derived(
-    (got?.entries ?? []).flatMap((e) => {
-      const f = foods[e.id];
-      const add = f ? freshValues(e.props, f) : null;
-      return add ? [{ e, add }] : [];
-    }),
-  );
-  async function update() {
-    updating = true;
-    try {
-      for (const { e, add } of stale) await setProperties(e.id, add);
-      await load();
-      onwrote?.();
-    } catch (e) {
-      failed = String(e);
-    } finally {
-      updating = false;
-    }
-  }
+  /// A day still to come is its plan, so what is planned for it counts.
+  const load = async () => (got = await logNutrients(view, day, day > today()));
   onMount(async () => {
     try {
       await load();
@@ -81,7 +48,7 @@
   const without = (r: NutrientRow) =>
     (got?.entries ?? [])
       .filter((e: ObjectMeta) => valueOf(e.props, r.key) === null)
-      .map((e) => ({ e, why: whyNot(e.props, r.key, fromList(e.props) ? foods[e.id] : null) }));
+      .map((e) => ({ e, why: whyNot(e.props, r.key) }));
   const share = (r: NutrientRow) => (r.reference ? Math.round((r.sum / r.reference) * 100) : null);
 </script>
 
@@ -101,17 +68,6 @@
       {#if got.of === 0}
         <p class="says">Nothing is logged for this day.</p>
       {:else}
-        {#if stale.length}
-          <div class="stale" role="status">
-            <p>
-              {stale.length === 1 ? 'One entry was' : `${stale.length} entries were`} logged before the
-              food list had some of the values it has now (choline, for instance).
-            </p>
-            <button type="button" onclick={update} disabled={updating}>
-              {updating ? 'Updating…' : stale.length === 1 ? 'Update it' : 'Update them'}
-            </button>
-          </div>
-        {/if}
         {#if got.needs_sex}
           <p class="says">
             Some references differ for men and women and are left out until you say which, under
@@ -309,24 +265,6 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--danger-fg);
-  }
-  .stale {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin: 0 0 var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-2, 6px);
-    background: var(--surface);
-  }
-  .stale p {
-    margin: 0;
-  }
-  .stale button {
-    flex: none;
-    min-height: 2.75rem;
   }
   .missing {
     color: var(--text-muted);

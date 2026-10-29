@@ -286,12 +286,24 @@ pub struct Scoped<'a> {
     inner: &'a mut MultiStore,
     /// `None` = every vault. `Some` = these names, and no others.
     allow: Option<&'a [String]>,
+    /// What every note a query reads passes through on its way out (`with_resolver`).
+    resolve: Option<fn(&mut Object)>,
 }
 
 impl<'a> Scoped<'a> {
     /// Restrict `inner` to `allow`. `None` is the unrestricted view and costs nothing.
     pub fn new(inner: &'a mut MultiStore, allow: Option<&'a [String]>) -> Self {
-        Scoped { inner, allow }
+        Scoped { inner, allow, resolve: None }
+    }
+
+    /// **Every note a query reads is passed through `f`** before any view sees it — how a food
+    /// entry's numbers are computed from the food list when read rather than copied when written
+    /// (fm-app's `packs::resolve`, `decisions.md#data`, 2026-10-29). Here, at the one seam every
+    /// view reads through, so no view can sum a copy; `get` is left alone, so a note opened to be
+    /// edited is its file as written.
+    pub fn with_resolver(mut self, f: fn(&mut Object)) -> Self {
+        self.resolve = Some(f);
+        self
     }
 
     fn permits(&self, vault: &str) -> bool {
@@ -421,6 +433,9 @@ impl Store for Scoped<'_> {
             let (objs, r) = v.candidates(filter)?;
             all.extend(objs);
             residual = r;
+        }
+        if let Some(f) = self.resolve {
+            all.iter_mut().for_each(f);
         }
         Ok((all, residual))
     }

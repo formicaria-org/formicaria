@@ -97,3 +97,52 @@ pub fn food_status() -> PackStatus {
         Err(e) => PackStatus { installed: None, bytes: FOOD_BYTES, error: Some(e) },
     }
 }
+
+/// **A food entry's numbers, from the food list as it is now** (`decisions.md#data`, 2026-10-29,
+/// *every view sums from the food list*). An entry of the list keeps its food (`source`) and its
+/// amount (`amount_g`); what it holds is the food's values per 100 g times the amount, worked out
+/// whenever the entry is read — so a list that improves improves every entry, past and planned, and
+/// no view can sum an old copy. Applied to every note a query reads (`fm_core::Scoped::with_resolver`);
+/// anything else (a note, a packet from its label, a food typed in by hand) passes untouched, as
+/// does an entry whose food the list no longer has, which keeps the numbers it was written with.
+pub fn resolve(o: &mut fm_model::Object) {
+    use fm_model::PropertyValue;
+    let PropertyValue::Text(src) = o.get("source") else { return };
+    if !src.starts_with("foods@") {
+        return;
+    }
+    let PropertyValue::Int(grams) = o.get("amount_g") else { return };
+    let code = src.rsplit('/').next().unwrap_or("").to_string();
+    let Some(food) = cached(&code) else { return };
+    for (key, per100) in &food.per100 {
+        let v = (*per100 as f64 * grams as f64 / 100.0).round() as i64;
+        o.extra.insert(key.clone(), PropertyValue::Int(v));
+    }
+    // An entry from before vitamin B12 and D were kept in nanograms holds the old key too.
+    for (new, old, _) in crate::nutrients::RENAMED {
+        if food.per100.contains_key(*new) {
+            o.extra.remove(*old);
+        }
+    }
+    let lent: Vec<String> = food.borrowed.iter().map(|(k, from)| format!("{k}={from}")).collect();
+    if lent.is_empty() {
+        o.extra.remove("borrowed");
+    } else {
+        o.extra.insert("borrowed".into(), PropertyValue::Text(lent.join("; ")));
+    }
+}
+
+/// A food of the list by its code, read once per process: a day's view reads the same few foods
+/// again and again.
+fn cached(code: &str) -> Option<std::sync::Arc<FoodDetail>> {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+    static FOODS: OnceLock<Mutex<HashMap<String, Option<Arc<FoodDetail>>>>> = OnceLock::new();
+    let map = FOODS.get_or_init(Default::default);
+    if let Some(hit) = map.lock().unwrap_or_else(|e| e.into_inner()).get(code) {
+        return hit.clone();
+    }
+    let found = food_get(code).ok().flatten().map(Arc::new);
+    map.lock().unwrap_or_else(|e| e.into_inner()).insert(code.to_string(), found.clone());
+    found
+}
