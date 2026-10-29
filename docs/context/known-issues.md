@@ -1649,6 +1649,22 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
 - **Measured on one real graph only** — Logseq, `:file/name-format :triple-lowbar`. An older
   `:legacy` name format or a non-default journal title format is handled in code but unmeasured.
 
+## Search — what it cannot find (2026-10-29)
+
+Measured with the app's own tokenizer on SQLite 3.46.1; the full survey and the plan are in Myrme's
+`docs/research/2026-10-29-search-and-retrieval.md` (in a sibling checkout).
+
+- **Note search is not ranked.** `fts` has one text column (`fm-core/src/file.rs`), and
+  `commands::search` sorts the matches by `updated`, newest first — the doc comment on it says
+  "ranked", which is not what the code does. A title cannot outweigh a body.
+- **Chinese words are not found.** `unicode61` keeps an unspaced run of CJK characters as one token,
+  so `世界` does not match a note containing `你好世界`; a two-character word is also below the
+  trigram tokenizer's minimum. Fix: bigrams in Rust at index and query time.
+- **The inside of a compound word is not found**: `beratung` misses `Ernährungsberatung`. A trigram
+  table as a fallback finds it. Accents already work (`legumes` finds `légumes`).
+- **Foods cannot be searched by nutrient.** The food pack's search is over names only; the amounts
+  are stored but nothing asks "which foods are rich in vitamin K".
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).
