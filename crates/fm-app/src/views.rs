@@ -1232,6 +1232,17 @@ mod tests {
         assert!(ui.contains(&format!("export const HOME_VIEW = '{name}';")), "HOME_VIEW is {name}");
     }
 
+    /// Every launch after the first opens on Food's Day by name (`START_VIEW`, ui/src/lib/panes.ts).
+    #[test]
+    fn the_start_view_the_ui_names_is_the_shipped_food_day() {
+        let ui = include_str!("../../../ui/src/lib/panes.ts");
+        let name = shipped_name(include_str!("shipped/food-day.view")).unwrap();
+        assert!(
+            ui.contains(&format!("export const START_VIEW = '{name}';")),
+            "START_VIEW is {name}"
+        );
+    }
+
     #[test]
     fn the_assets_exclusion_cannot_be_forgotten() {
         // A board view's base is Kind(Note); even a filter that mentions assets stays notes-only.

@@ -20,6 +20,7 @@
     matchesTarget,
     isView,
     migrateWorkspace,
+    opening,
     BUILTIN_PANES,
     OPENABLE_PANES,
     RAIL_PANES,
@@ -150,7 +151,9 @@
     } catch {
       /* fall through to the default */
     }
-    return migrateWorkspace(raw);
+    const loaded = migrateWorkspace(raw);
+    // A first launch opens on the shelves; every later one on Food's Day (`opening`, 2026-10-29).
+    return raw ? { workspace: opening(loaded.workspace), migrated: true } : loaded;
   }
   const loaded = loadWorkspace();
   let workspace = $state<Workspace>(loaded.workspace);

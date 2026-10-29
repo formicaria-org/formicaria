@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   BUILTIN_PANES,
   SCHEMA,
@@ -15,6 +15,9 @@ import {
   reidentify,
   rendererKind,
   reorder,
+  opening,
+  setStartView,
+  START_VIEW,
   type Pane,
 } from './panes';
 
@@ -330,5 +333,35 @@ describe('icons', () => {
     // tabs that cannot be told apart in a bar that shows nothing else.
     const icons = BUILTIN_PANES.map((p) => p.icon);
     expect(new Set(icons).size).toBe(icons.length);
+  });
+});
+
+describe('opening', () => {
+  // Every launch after the first opens on Food's Day (2026-10-29): the view in front is replaced,
+  // the open notes are kept.
+  afterEach(() => setStartView(null));
+  it('puts the start view in front and keeps the open notes', () => {
+    setStartView(START_VIEW);
+    const ws = migrateWorkspace({
+      v: 3,
+      cols: 1,
+      layout: 'single',
+      active: 1,
+      panes: [
+        { id: 'a', kind: 'board', colSpan: 1, rowSpan: 1 },
+        { id: 'b', kind: 'note', noteId: 'N1', colSpan: 1, rowSpan: 1 },
+      ],
+    }).workspace;
+    const opened = opening(ws);
+    expect(opened.panes.map((p) => [p.kind, p.viewName ?? p.noteId])).toEqual([
+      ['view', START_VIEW],
+      ['note', 'N1'],
+    ]);
+    expect(opened.active).toBe(0);
+  });
+  it('changes nothing when turned off', () => {
+    setStartView(null);
+    const ws = defaultWorkspace();
+    expect(opening(ws)).toBe(ws);
   });
 });

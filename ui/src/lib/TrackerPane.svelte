@@ -19,6 +19,8 @@
   // keyed by its name and a day is not part of a name. The feed it is handed is used as a signal:
   // when the app refreshes (an undo, another device's change), this asks again.
   import { untrack } from 'svelte';
+  import Icon from './Icon.svelte';
+  import { stepped, swipe } from './swipe';
   import Totals from '../renderers/Totals.svelte';
   import Trends from '../renderers/Trends.svelte';
   import SessionScreen from './training/SessionScreen.svelte';
@@ -261,6 +263,8 @@
     entry: ObjectMeta | null;
     /** A recipe to open the sheet on: `recipe/<word>` or `nhlbi/<id>`. */
     open?: string;
+    /** Open on the search, ready to type. */
+    find?: boolean;
   } | null>(null);
   const closeSheet = () => (sheet = null);
   $effect(() => {
@@ -495,6 +499,12 @@
     nav.visit({ kind: pane.kind, noteId: pane.noteId ?? null, viewName: first });
     onchange({ viewName: first });
   }
+  /// The group's next or previous view, as its tab would open it — a swipe on a touch screen
+  /// (`swipe.ts`, 2026-10-29).
+  function step(by: 1 | -1) {
+    const v = group ? stepped(group.views, wanted, by) : null;
+    if (v) onchange({ viewName: v });
+  }
 </script>
 
 <div class="tracker" class:tabbed={tabs}>
@@ -513,7 +523,14 @@
 
   {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
 
-  <div class="screen">
+  <div
+    class="screen"
+    use:swipe={{
+      enabled: !!group && group.views.length > 1,
+      onnext: () => step(1),
+      onprev: () => step(-1),
+    }}
+  >
     {#if !def}
       <p class="wait">Loading…</p>
     {:else if def.add === 'health'}
@@ -603,6 +620,19 @@
         onroutine={(routine) => (routineSheet = { routine })}
       />
     {:else}
+      {#if def.add === 'food'}
+        <!-- **The search comes first** (the owner, 2026-10-29: *"the most used feature"*): one
+             press opens the logging sheet on its search with the keyboard up. Which meal is still
+             asked there — none is guessed (2026-10-11). -->
+        <button
+          type="button"
+          class="find-food"
+          onclick={() => (sheet = { slot: null, entry: null, find: true })}
+        >
+          <Icon name="search" size={16} />
+          <span>Search a food to log</span>
+        </button>
+      {/if}
       <Totals
         {def}
         {day}
@@ -681,7 +711,12 @@
   {/if}
   {#if nutrientsOpen}
     {#await import('./food/NutrientsSheet.svelte') then { default: NutrientsSheet }}
-      <NutrientsSheet {view} day={selected} onclose={() => (nutrientsOpen = false)} />
+      <NutrientsSheet
+        {view}
+        day={selected}
+        onclose={() => (nutrientsOpen = false)}
+        onwrote={wrote}
+      />
     {/await}
   {/if}
   {#if targetsOpen && def}
@@ -706,6 +741,7 @@
         slot={sheet.slot}
         entry={sheet.entry}
         open={sheet.open}
+        find={sheet.find}
         onclose={closeSheet}
         onwrote={wrote}
         onopennote={onopen
@@ -720,6 +756,25 @@
 </div>
 
 <style>
+  .find-food {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 2.75rem;
+    margin: 0 0 var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font: inherit;
+    text-align: left;
+    cursor: text;
+  }
+  .find-food:hover {
+    border-color: var(--accent);
+  }
   .tracker {
     position: relative;
     height: 100%;

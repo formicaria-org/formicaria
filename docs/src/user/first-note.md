@@ -101,7 +101,9 @@ window is narrow (a phone, or a split screen). Same buttons, same order, whereve
 Closing the browser tab stops formicaria — that is how you quit it. (If you have turned
 reminders on and one is waiting, it stays running quietly until that has been said.) To start again, double-click the
 same file you used the first time, in the folder you unpacked. Your notes are still in `vault`,
-exactly as you left them, and they are still there whether formicaria is running or not.
+exactly as you left them, and they are still there whether formicaria is running or not. From
+the second time on, formicaria opens on **Food → Day**, its most used screen; the notes you had
+open are still open.
 
 ## More, when you need it
 

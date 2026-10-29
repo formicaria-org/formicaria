@@ -484,6 +484,19 @@ test('a label half typed, and a food half typed in, are there when the sheet is 
   expect((within(sheet).getByLabelText('Name') as HTMLInputElement).value).toBe('Soup');
 });
 
+test('the food search is the first thing on the day screen, and opens the sheet on its search', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(await screen.findByRole('button', { name: 'Search a food to log' }));
+  const sheet = await screen.findByRole('dialog', { name: 'log a food' });
+  const field = within(sheet).getByLabelText('search foods');
+  expect(document.activeElement).toBe(field);
+  // No meal is guessed (2026-10-11): it is asked.
+  expect(within(sheet).getByText('Which meal?')).toBeTruthy();
+});
+
 test('every nutrient of the day is one press from the day screen, each beside its reference', async () => {
   seedTrackerDemo();
   showTrackers();
