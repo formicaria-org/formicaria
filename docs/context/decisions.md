@@ -22,7 +22,7 @@ survives (the value of "we tried X, then Y" is the whole chain). Prune only exac
 The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
 heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 
-- **`#seams`** (the compile-time invariants): ***A backup on the network no longer holds the vault lock; a history lock keeps writers in line*** (2026-10-18; read before adding a dispatch arm that writes `.git`, or adding a command to `takes_history`'s saves) · ***Search reads a note's tags and properties*** (2026-10-15; read before changing `searchable_text` or `INDEX_SCHEMA`) · ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
+- **`#seams`** (the compile-time invariants): ***Search ranks by relevance and finds words inside words*** (2026-10-29; read before changing `fm_query::relevance`, `Query::rank_by`, or how `FileStore` matches a `Text` term) · ***A backup on the network no longer holds the vault lock; a history lock keeps writers in line*** (2026-10-18; read before adding a dispatch arm that writes `.git`, or adding a command to `takes_history`'s saves) · ***Search reads a note's tags and properties*** (2026-10-15; read before changing `searchable_text` or `INDEX_SCHEMA`) · ***A reminder is the note's own date, said at its time*** (2026-10-13; read before storing a reminder, asking Android for an exact alarm, or keeping the desktop program alive in the background) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
   ***The vault lock is not held across a subprocess or a revwalk*** (read before adding a `dispatch`
   arm that shells out or walks git) · ***`Kind` is the second predicate that reaches SQL***
   (read before adding a pushdown — and before assuming `perf.rs` can see your change) ·
@@ -13598,3 +13598,39 @@ no dependency, no route, no new network call (the main window reads `update_stat
 on load, 20 s later, then hourly). Tests: `UpdateBanner.svelte.test.ts`,
 `SettingsPanel.update.svelte.test.ts` (*gets, checks and installs on one press*, *waits for every open
 editor to write before restarting*).
+
+## 2026-10-29 — search ranks by relevance, and finds words inside words `#seams` `#data`
+
+**Measured** (`known-issues.md`, *Search — what it cannot find*; Myrme's
+`docs/research/2026-10-29-search-and-retrieval.md`): search came back newest-edited first, so a note
+*about* a word sat below every newer note that named it; `世界` did not find `你好世界`; `beratung`
+did not find *Ernährungsberatung*. The last two were also **a break in the store contract**:
+`MemoryStore`'s substring scan found them and `FileStore` did not.
+
+**Decision — the ranking is the pure engine's.** `Query` gains `rank_by: Option<String>`;
+`fm_query::run` orders by `fm_query::relevance` first and lets `sort` break ties (a stable sort).
+`commands::search` sets it to what was typed and keeps `updated` descending for ties. The score is an
+integer from the note alone: per search word, where it is found (title 100, tag 80 for an exact tag,
+property 40, body up to 30 with repeats) and whether it starts a word (otherwise about half), plus a
+bonus for the words as written in the title or the body; accents folded; Chinese, Japanese and Korean
+matched anywhere. **Not SQLite's `bm25()`**, by the seam's own logic: a store only narrows,
+`MultiStore` concatenates every vault's candidates and the engine runs once, so a score that lived
+inside one vault's index could not be compared with another's, and `MemoryStore` has none. Computed
+from the note, it ranks every store and every vault alike.
+
+**Decision — `FileStore` finds a term inside a word.** `fts_match_expr` became `fts_terms`: a term
+of three letters or more is matched at a word start **or** inside a word (`LIKE` over the indexed
+text, beside the `MATCH`); a CJK term anywhere; a shorter term only at a word start, since `ab`
+inside words would bury the notes that begin with it. When every term is a word start the query is
+the old single `MATCH`. **No index change, no rebuild.**
+
+**Rejected: a trigram index.** Measured on 47 MB of text: 1.3 ms a search, but the index grew from
+100 MB to 220 MB — on every vault, the phone's included — and trigrams cannot match a two-character
+Chinese word, which is most of them. The scan costs ~13 ms over 20 MB in a debug build (new
+`perf.rs` budget test, 100 ms) and needs no disk.
+
+**What it does not do:** accents and non-ASCII capitals are not folded *inside* a word (SQLite's
+`LIKE`); no synonyms, typos or meaning (the research doc's later steps). Tests: `fm-query`'s
+`rank` module (9), `tests/search.rs` (four, three of them asserting both stores agree), `perf.rs`
+(`a_search_inside_words_stays_under_budget_at_20_mb`).
+

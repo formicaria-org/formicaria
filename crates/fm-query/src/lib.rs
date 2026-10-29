@@ -14,6 +14,9 @@ use indexmap::IndexMap;
 use std::collections::BTreeMap;
 use time::Date;
 
+mod rank;
+pub use rank::{is_cjk, relevance};
+
 /// A full query: what to keep, how to order, whether to group, and a page window.
 #[derive(Clone, Debug, Default)]
 pub struct Query {
@@ -27,6 +30,10 @@ pub struct Query {
     pub tally: Vec<String>,
     pub limit: Option<usize>,
     pub offset: usize,
+    /// **Order by how well each row answers this search** ([`relevance`]), before `sort`, which then
+    /// only breaks ties. `None` keeps the order `sort` gives. Search sets it to what was typed
+    /// (2026-10-29): it is computed here, from the rows, so every store and every vault rank alike.
+    pub rank_by: Option<String>,
 }
 
 /// Conjunction (AND) of predicates.
@@ -202,6 +209,13 @@ pub fn run(query: &Query, objects: &[Object]) -> QueryResult {
     let mut matched: Vec<&Object> = objects.iter().filter(|o| matches(&query.filter, o)).collect();
 
     sort_rows(&mut matched, &query.sort);
+    if let Some(text) = query.rank_by.as_deref().filter(|t| !t.trim().is_empty()) {
+        // Stable: rows the search scores alike keep the order `sort` gave them.
+        let mut scored: Vec<(u32, &Object)> =
+            matched.into_iter().map(|o| (relevance(text, o), o)).collect();
+        scored.sort_by_key(|&(score, _)| std::cmp::Reverse(score));
+        matched = scored.into_iter().map(|(_, o)| o).collect();
+    }
     let total = matched.len();
 
     let groups = query.group_by.as_deref().map(|key| group_rows(&matched, key, &query.tally));

@@ -760,19 +760,53 @@ impl FileStore {
         Ok(objs)
     }
 
-    /// Load only the objects whose full text matches an FTS5 expression, joining
-    /// back to `objects` for canonical content. Deserializing just the hits (not
-    /// all 10k) is what keeps search under the 100 ms budget.
-    fn fts_load(&self, match_expr: &str) -> Result<Vec<Object>, StoreError> {
+    /// Load only the objects whose full text holds every term, joining back to `objects` for
+    /// canonical content. Deserializing just the hits (not all 10k) is what keeps search under the
+    /// 100 ms budget.
+    ///
+    /// When every term is a word start, this is one FTS5 `MATCH`. A term that may also be found
+    /// **inside** a word (see [`Find`]) adds a `LIKE` over the indexed text — a scan, measured at
+    /// ~30 ms over 47 MB of text, chosen over a trigram index that measured 2.2× the index's size on
+    /// disk and still could not match a two-character Chinese word (2026-10-29).
+    fn fts_load(&self, terms: &[Term]) -> Result<Vec<Object>, StoreError> {
+        let (sql_text, params): (String, Vec<String>) =
+            if terms.iter().all(|t| t.find == Find::WordStart) {
+                let expr = terms.iter().map(|t| format!("\"{}\"*", t.token)).collect::<Vec<_>>();
+                ("fts MATCH ?1".to_string(), vec![expr.join(" ")])
+            } else {
+                let mut conds = Vec::new();
+                let mut params = Vec::new();
+                for t in terms {
+                    let starts = "fts.rowid IN (SELECT rowid FROM fts WHERE fts MATCH ?)";
+                    match t.find {
+                        Find::WordStart => {
+                            conds.push(starts.to_string());
+                            params.push(format!("\"{}\"*", t.token));
+                        }
+                        Find::StartOrInside => {
+                            conds.push(format!("({starts} OR fts.text LIKE ?)"));
+                            params.push(format!("\"{}\"*", t.token));
+                            params.push(format!("%{}%", t.token));
+                        }
+                        Find::Anywhere => {
+                            conds.push("fts.text LIKE ?".to_string());
+                            params.push(format!("%{}%", t.token));
+                        }
+                    }
+                }
+                (conds.join(" AND "), params)
+            };
         let mut stmt = self
             .db
-            .prepare(
+            .prepare(&format!(
                 "SELECT objects.content
                  FROM fts JOIN objects ON objects.id = fts.id
-                 WHERE fts MATCH ?1",
-            )
+                 WHERE {sql_text}"
+            ))
             .map_err(sql)?;
-        let rows = stmt.query_map([match_expr], |r| r.get::<_, String>(0)).map_err(sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(params.iter()), |r| r.get::<_, String>(0))
+            .map_err(sql)?;
         let mut objs = Vec::new();
         for row in rows {
             objs.push(self.hydrate(&row.map_err(sql)?)?);
@@ -887,8 +921,8 @@ impl Store for FileStore {
     /// back everything and the filter whole: the exact MemoryStore path, which is what
     /// keeps the two stores answering identically.
     fn candidates(&self, filter: &Filter) -> Result<(Vec<Object>, Filter), StoreError> {
-        match fts_match_expr(filter) {
-            Some(expr) => Ok((self.fts_load(&expr)?, strip_text(filter))),
+        match fts_terms(filter) {
+            Some(terms) => Ok((self.fts_load(&terms)?, strip_text(filter))),
             // No text to accelerate. Still avoid hydrating rows a top-level `Kind` already
             // excludes — that is every planning view, which asks for `Kind(Note)` and would
             // otherwise parse every asset note (and, for a PDF, its whole extracted text).
@@ -1079,16 +1113,38 @@ impl Store for FileStore {
     }
 }
 
-/// Build the FTS5 MATCH expression for a query, or `None` when the pure path
-/// should handle it: no `Text` predicate at all, or a `Text` needle that yields
-/// no FTS tokens (e.g. punctuation only) — which FTS can't express but a
-/// substring scan can. Every token becomes a prefix term (`"tok"*`) so the
-/// search box matches as you type; terms AND together, matching FTS5's default.
+/// How a search term is found in a note's text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Find {
+    /// At the start of a word, as typed so far (`"tok"*`) — accents folded by the index.
+    WordStart,
+    /// At the start of a word, **or inside one**: `beratung` in *Ernährungsberatung*. For terms of
+    /// three letters or more; a shorter one inside words would match nearly everything.
+    StartOrInside,
+    /// Anywhere: Chinese, Japanese and Korean are written without spaces, so the index holds a
+    /// whole run as one word and `世界` is never the start of `你好世界`.
+    Anywhere,
+}
+
+/// One term of a search and how it is found.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Term {
+    token: String,
+    find: Find,
+}
+
+/// The terms of a query's `Text` predicates, or `None` when the pure path should handle it: no
+/// `Text` predicate at all, or a needle that yields no tokens (e.g. punctuation only) — which the
+/// index can't express but a substring scan can. Terms AND together.
 ///
-/// `None` is only returned when it is safe: either there is nothing to strip, or
-/// *some* `Text` needle is inexpressible, in which case the whole query (Text
-/// included) falls back to the substring engine rather than dropping a filter.
-fn fts_match_expr(filter: &Filter) -> Option<String> {
+/// Until 2026-10-29 every term was a word start only, so FileStore missed what MemoryStore's
+/// substring scan found — the inside of a compound word, and any Chinese word not at the start of a
+/// run (`known-issues.md`, *Search — what it cannot find*).
+///
+/// `None` is only returned when it is safe: either there is nothing to strip, or *some* `Text`
+/// needle is inexpressible, in which case the whole query (Text included) falls back to the
+/// substring engine rather than dropping a filter.
+fn fts_terms(filter: &Filter) -> Option<Vec<Term>> {
     let needles: Vec<&String> = filter
         .all
         .iter()
@@ -1106,11 +1162,18 @@ fn fts_match_expr(filter: &Filter) -> Option<String> {
         if tokens.is_empty() {
             return None; // inexpressible in FTS — let the substring engine handle it
         }
-        for t in tokens {
-            terms.push(format!("\"{t}\"*"));
+        for token in tokens {
+            let find = if token.chars().any(fm_query::is_cjk) {
+                Find::Anywhere
+            } else if token.chars().count() >= 3 {
+                Find::StartOrInside
+            } else {
+                Find::WordStart
+            };
+            terms.push(Term { token, find });
         }
     }
-    Some(terms.join(" "))
+    Some(terms)
 }
 
 /// Split a needle into FTS-safe tokens: alphanumeric runs, lowercased. Because

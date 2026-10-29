@@ -1652,18 +1652,21 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
 ## Search — what it cannot find (2026-10-29)
 
 Measured with the app's own tokenizer on SQLite 3.46.1; the full survey and the plan are in Myrme's
-`docs/research/2026-10-29-search-and-retrieval.md` (in a sibling checkout).
+`docs/research/2026-10-29-search-and-retrieval.md` (in a sibling checkout). **Fixed the same day**
+(`decisions.md#seams`, *search ranks by relevance and finds words inside words*): results are ranked,
+Chinese words and the inside of compound words are found. What remains:
 
-- **Note search is not ranked.** `fts` has one text column (`fm-core/src/file.rs`), and
-  `commands::search` sorts the matches by `updated`, newest first — the doc comment on it says
-  "ranked", which is not what the code does. A title cannot outweigh a body.
-- **Chinese words are not found.** `unicode61` keeps an unspaced run of CJK characters as one token,
-  so `世界` does not match a note containing `你好世界`; a two-character word is also below the
-  trigram tokenizer's minimum. Fix: bigrams in Rust at index and query time.
-- **The inside of a compound word is not found**: `beratung` misses `Ernährungsberatung`. A trigram
-  table as a fallback finds it. Accents already work (`legumes` finds `légumes`).
 - **Foods cannot be searched by nutrient.** The food pack's search is over names only; the amounts
   are stored but nothing asks "which foods are rich in vitamin K".
+- **Inside a word, `LIKE` folds only ASCII case and no accents.** `beratung` finds
+  *Ernährungsberatung*; a term spelled without its accent is still found where it **starts** a word
+  (the index folds those), but not inside one (`ahrung` misses *Ernährung*). Non-ASCII capitals
+  inside a word (`ÄRZTE` for `ärzte`) are not folded either.
+- **The inside-a-word search is a scan**: ~13 ms over 20 MB of note text in a debug build
+  (`perf.rs`), ~30 ms over 47 MB in a script. A vault with very large extracted PDFs pays more per
+  keystroke; a phone has not been measured.
+- **No synonyms, typo tolerance or meaning** — `vitamin K` does not find *phylloquinone*. Plan: the
+  research doc's S2–S5.
 
 ## Deferred (intentionally not built yet)
 

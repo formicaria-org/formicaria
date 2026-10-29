@@ -677,12 +677,13 @@ pub fn set_property(
     Ok(())
 }
 
-/// Full-text search across every note, newest-updated first. This is "zero new
-/// code" again — the same engine and `ObjectMeta`, just a `Text` predicate. In
-/// `FileStore` that predicate is answered by SQLite FTS5 (prefix terms, ranked);
-/// in `MemoryStore` by a substring scan — so the one command works identically
-/// against both, exactly as the CLI's `fm search` does. An empty needle returns
-/// nothing rather than dumping the whole vault.
+/// Full-text search across every note, **the best answers first** (`fm_query::relevance`: where each
+/// word is found — title, tag, property, body — and whether it starts a word), newest-updated among
+/// equals. The same engine and `ObjectMeta`, just a `Text` predicate: in `FileStore` it is answered by
+/// SQLite FTS5 (prefix terms), in `MemoryStore` by a substring scan, and the ranking is the engine's,
+/// so the one command orders both alike, exactly as the CLI's `fm search` does. (Until 2026-10-29 the
+/// order was newest-edited only, though this comment said "ranked".) An empty needle returns nothing
+/// rather than dumping the whole vault.
 pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreError> {
     if query.trim().is_empty() {
         return Ok(vec![]);
@@ -694,6 +695,7 @@ pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreEr
             .and(Predicate::Text(query.to_string()))
             .and(crate::thread::not_logged()),
         sort: vec![SortKey::desc("updated")],
+        rank_by: Some(query.to_string()),
         ..Default::default()
     };
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())

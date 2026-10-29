@@ -47,7 +47,9 @@ There is no Edit button to look for.
 Two ways, and you will use both:
 
 **Search** — the box at the top of the **sidebar**. It looks inside every note, not just titles, so
-searching for a phrase you half-remember works.
+searching for a phrase you half-remember works. The best matches come first: a note with your words
+in its title or tags before one that only mentions them. It finds part of a long word too
+(*beratung* finds *Ernährungsberatung*), and Chinese words anywhere in a sentence.
 
 ![Search results for "paper": the matching notes, each with its title, first line and
 tags](../images/search.png)

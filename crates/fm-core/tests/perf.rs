@@ -51,6 +51,46 @@ fn search_10k_under_budget() {
     println!("fts search over {N} notes: {elapsed:?}");
 }
 
+/// **The inside-a-word scan stays under the same budget at realistic sizes** (2026-10-29). A term of
+/// three letters or more is also looked for inside words (`Ernährungsberatung`), which is a `LIKE`
+/// over the indexed text rather than an index lookup — so this times it over 10k notes of ~2 KB
+/// (20 MB of text), ranking included, where `search_10k_under_budget`'s one-line notes barely
+/// exercise it. Measured ~30 ms over 47 MB in a script before it was written; debug build here.
+#[test]
+fn a_search_inside_words_stays_under_budget_at_20_mb() {
+    let dir = tempdir().unwrap();
+    let notes = dir.path().join("notes");
+    std::fs::create_dir_all(&notes).unwrap();
+    let filler =
+        "routine paragraph about gradients, estimators and the weather in spring. ".repeat(27);
+    for i in 0..N {
+        let body = if i % 1000 == 7 {
+            format!("{filler} Termin zur Ernährungsberatung, Notiz {i}.")
+        } else {
+            format!("{filler} Notiz {i}.")
+        };
+        let o = Object::new(Kind::Note, body);
+        let content = frontmatter::to_file(&o).unwrap();
+        std::fs::write(notes.join(format!("{}.md", o.id)), content).unwrap();
+    }
+    let store = FileStore::open(dir.path()).unwrap();
+    let q = Query {
+        filter: Filter::new().and(Predicate::Text("beratung".into())),
+        sort: vec![SortKey::desc("updated")],
+        rank_by: Some("beratung".into()),
+        ..Default::default()
+    };
+    let t = Instant::now();
+    let r = store.query(&q).unwrap();
+    let elapsed = t.elapsed();
+    assert_eq!(r.total, 10, "found inside the compound, in one note of every thousand");
+    assert!(
+        elapsed.as_millis() < BUDGET_MS,
+        "an inside-word search over {N} notes of ~2 KB took {elapsed:?}, budget is {BUDGET_MS} ms"
+    );
+    println!("inside-word search over {N} notes of ~2 KB: {elapsed:?}");
+}
+
 /// The local poll's budget. Every open tab beats `ping` every 3 seconds and each beat runs
 /// an incremental reindex, so this is the one piece of work the app repeats forever — and
 /// the quiet case (nothing changed) is the case that has to be nearly free.

@@ -4,7 +4,7 @@
 //! fallback for inexpressible needles — that MemoryStore's substring scan
 //! approximates for the equivalence contract in `file.rs`.
 
-use fm_core::{FileStore, Store};
+use fm_core::{FileStore, MemoryStore, Store};
 use fm_model::{Kind, Object};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use tempfile::tempdir;
@@ -77,4 +77,79 @@ fn inexpressible_needle_falls_back_instead_of_erroring() {
     s.put(&Object::new(Kind::Note, "plain content")).unwrap();
     let r = s.query(&text_query("%%%")).unwrap();
     assert_eq!(r.total, 0);
+}
+
+/// The same notes in both stores — the seam contract, now for the searches FileStore used to miss.
+fn both(notes: &[Object]) -> (FileStore, MemoryStore, tempfile::TempDir) {
+    let dir = tempdir().unwrap();
+    let mut f = FileStore::open(dir.path()).unwrap();
+    let mut m = MemoryStore::new();
+    for n in notes {
+        f.put(n).unwrap();
+        m.put(n).unwrap();
+    }
+    (f, m, dir)
+}
+
+fn ids(s: &dyn Store, q: &Query) -> Vec<String> {
+    s.query(q).unwrap().rows.iter().map(|o| o.id.to_string()).collect()
+}
+
+/// **The inside of a compound word is found** (2026-10-29). The index kept `Ernährungsberatung` as
+/// one word and matched only its start, so `beratung` found nothing in FileStore while MemoryStore's
+/// substring scan found it.
+#[test]
+fn the_inside_of_a_compound_word_is_found_in_both_stores() {
+    let compound = Object::new(Kind::Note, "Termin zur Ernährungsberatung am Montag");
+    let other = Object::new(Kind::Note, "Einkaufsliste");
+    let (f, m, _dir) = both(&[compound.clone(), other]);
+    let q = text_query("beratung");
+    assert_eq!(ids(&f, &q), vec![compound.id.to_string()]);
+    assert_eq!(ids(&f, &q), ids(&m, &q));
+}
+
+/// **A Chinese word is found inside a run without spaces** (2026-10-29): `世界` was never the start
+/// of the index's one-word `你好世界`.
+#[test]
+fn a_chinese_word_is_found_inside_a_run_in_both_stores() {
+    let zh = Object::new(Kind::Note, "你好世界，我喜欢学习");
+    let other = Object::new(Kind::Note, "维生素和铁");
+    let (f, m, _dir) = both(&[zh.clone(), other]);
+    for word in ["世界", "学习", "好"] {
+        let q = text_query(word);
+        assert_eq!(ids(&f, &q), vec![zh.id.to_string()], "{word}");
+        assert_eq!(ids(&f, &q), ids(&m, &q), "{word}");
+    }
+}
+
+/// A short term stays a word start: `ab` inside every word that contains it would bury the notes
+/// that begin with it.
+#[test]
+fn a_short_term_is_found_only_at_the_start_of_a_word() {
+    let starts = Object::new(Kind::Note, "abacus lesson");
+    let inside = Object::new(Kind::Note, "a crab on the beach");
+    let (f, _m, _dir) = both(&[starts.clone(), inside]);
+    assert_eq!(ids(&f, &text_query("ab")), vec![starts.id.to_string()]);
+}
+
+/// **The best answer first, in both stores** (2026-10-29): a note titled with the words outranks a
+/// newer note that only mentions them, and recency still orders notes the search scores alike.
+#[test]
+fn search_ranks_by_relevance_then_recency_alike_in_both_stores() {
+    let mut about = Object::new(Kind::Note, "Leafy greens and natto.");
+    about.title = Some("Vitamin K".into());
+    about.updated = datetime!(2020-01-01 0:00 UTC);
+    let mut mention = Object::new(Kind::Note, "Shopping: greens, they have vitamin K.");
+    mention.updated = datetime!(2026-01-01 0:00 UTC);
+    let mut mention_older = Object::new(Kind::Note, "Shopping: greens, they have vitamin K.");
+    mention_older.updated = datetime!(2025-01-01 0:00 UTC);
+    let (f, m, _dir) = both(&[mention_older.clone(), about.clone(), mention.clone()]);
+    let q = Query {
+        sort: vec![SortKey::desc("updated")],
+        rank_by: Some("vitamin k".into()),
+        ..text_query("vitamin k")
+    };
+    let want = vec![about.id.to_string(), mention.id.to_string(), mention_older.id.to_string()];
+    assert_eq!(ids(&f, &q), want);
+    assert_eq!(ids(&m, &q), want);
 }
