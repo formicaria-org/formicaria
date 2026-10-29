@@ -49,6 +49,13 @@
   import { draftOf, dropDraft, drafting, keepDraft } from '../drafts';
   import { readLabel } from './labelText';
   import {
+    TABLES as TABLE_NAMES,
+    borrowedOf,
+    borrowedProp,
+    nutrientName,
+    tableOf,
+  } from './provenance';
+  import {
     createNotesUndoable,
     setPropertiesUndoable,
     deleteUndoable,
@@ -668,6 +675,7 @@
       baseGrams: 0,
       portions: serving ? [{ label: `1 serving (${shownAs(serving, unit)})`, grams: serving }] : [],
       source: `product/${p.id}`,
+      borrowed: {},
     };
   }
 
@@ -744,6 +752,8 @@
     baseGrams: number;
     portions: FoodPortion[];
     source: string;
+    /** The values its own table never measures, and the food each was borrowed from. */
+    borrowed: Record<string, string>;
   };
   let portion = $state<Portion | null>(null);
 
@@ -765,6 +775,20 @@
     );
   }
   const now = $derived(portion ? valuesAt(portion, portion.grams) : {});
+  /// Where an entry's borrowed values came from, kept with it (2026-10-29), so a total can say so.
+  const lentOf = (p: Portion): Record<string, string> => {
+    const lent = borrowedProp(p.borrowed, Object.keys(valuesAt(p, p.grams)));
+    return lent ? { borrowed: lent } : {};
+  };
+  /// "Not measured in CREA (Italy): choline, vitamin B12 — from USDA: Egg, whole, raw."
+  const lentLine = (p: Portion): string => {
+    const keys = Object.keys(p.borrowed).sort();
+    if (!keys.length) return '';
+    const from = [...new Set(keys.map((k) => p.borrowed[k]))].join('; ');
+    const t = tableOf(p.source);
+    const where = t ? `Not measured in ${TABLE_NAMES[t]}` : 'Not measured in its table';
+    return `${where}: ${keys.map(nutrientName).join(', ')} — taken from ${from}.`;
+  };
 
   async function openPortion(title: string, props: Record<string, unknown>) {
     if (whole(props[PCT]) !== null) return openServing(title, props);
@@ -789,6 +813,7 @@
       baseGrams: grams,
       portions: found?.portions ?? [],
       source,
+      borrowed: found?.borrowed ?? borrowedOf(props),
     };
   }
   async function openHit(h: FoodHit) {
@@ -806,6 +831,7 @@
         baseGrams: 0,
         portions: f.portions,
         source: `${f.pack}/${f.id}`,
+        borrowed: f.borrowed ?? {},
       };
       pendingGrams = null;
     } catch (e) {
@@ -928,7 +954,7 @@
       if (into) {
         // An ingredient for a recipe that is already kept: one more entry under its word.
         const r = into;
-        const props = { [amountKey(p.unit)]: p.grams, ...valuesAt(p, p.grams) };
+        const props = { [amountKey(p.unit)]: p.grams, ...valuesAt(p, p.grams), ...lentOf(p) };
         await createNotesUndoable(
           [
             {
@@ -957,6 +983,7 @@
         ...valuesAt(p, p.grams),
         // A range is in grams; an amount in millilitres has none yet.
         ...(p.unit === 'g' ? rangeProps(p.grams) : {}),
+        ...lentOf(p),
       };
       if (p.source) props.source = p.source;
       await createNotesUndoable([draft(p.title, props)], `logged “${p.title}”`);
@@ -977,6 +1004,7 @@
           slot: chosen,
           ...valuesAt(p, p.grams),
           ...(p.unit === 'g' ? rangeProps(p.grams) : {}),
+          ...lentOf(p),
           // Only when the time was changed: the day is the entry's own, never the screen's.
           ...(at !== was
             ? { start: at ? `${dayOf(entry.start) || day}T${at}` : dayOf(entry.start) || day }
@@ -1608,6 +1636,7 @@
       <section class="portion">
         <h2>{portion.title}</h2>
         {#if entryResumed}<Resumed onafresh={entryAfresh} />{/if}
+        {#if lentLine(portion)}<p class="hint" role="note">{lentLine(portion)}</p>{/if}
         {#if ofProduct}
           {#if ofProduct.per100.kcal === undefined}
             <p class="hint" role="status">

@@ -21,3 +21,9 @@ CREATE TABLE portion(food INTEGER NOT NULL, seq INTEGER NOT NULL, label TEXT NOT
 -- the first letters of a word, typed on a phone.
 CREATE VIRTUAL TABLE names USING fts5(name, alt, content='food', content_rowid='id',
                                       tokenize='unicode61 remove_diacritics 2', prefix='1 2 3');
+-- **A value a food's own table never measures, borrowed** (`decisions.md#data`, 2026-10-29): from
+-- another table's closest food, where the food's table carries that nutrient for almost none of its
+-- foods. The value is in `amount` like any other; this says where it came from, so the app can say
+-- it. A pack built before has no such table, and every value in it is the food's own.
+CREATE TABLE borrowed(food INTEGER NOT NULL, n INTEGER NOT NULL, from_food INTEGER NOT NULL,
+                      PRIMARY KEY(food, n)) WITHOUT ROWID;

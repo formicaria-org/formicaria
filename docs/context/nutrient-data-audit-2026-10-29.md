@@ -2,8 +2,7 @@
 
 > **Investigation, not a ruling.** Prompted by a user who logged eggs and saw no choline. Everything
 > below was measured on the installed food pack (`foods@2026.10.3`, 18,338 foods) and its builder's
-> source files, or read in the code. The decisions it asks for are at the end; nothing here is fixed
-> yet.
+> source files, or read in the code. All six fixes (F1–F6) were made the same day: §5.
 
 ## 1. How a number reaches the day screen
 
@@ -113,3 +112,35 @@ against this document's numbers.
 The installed pack read with SQLite, read-only; the builder's cached Ciqual and CREA sources parsed
 for the "< x" and fatty-acid figures; the logging, totals and nutrients-sheet code read. No user data
 was used: the report was about eggs, and eggs were looked up in the pack.
+
+## 5. After the fixes (`foods@2026.10.4`, the same day)
+
+Share of each table's foods with a value, and in brackets the share borrowed from USDA:
+
+| Nutrient | BLS | Ciqual | CREA | Swiss |
+|---|---|---|---|---|
+| choline | 16% (16%) | 19% (19%) | 28% (28%) | 24% (24%) |
+| vitamin B12 | 97% | 63% | 29% (29%) | 99% |
+| vitamin D | 98% | 64% | 31% (29%) | 99% |
+| vitamin A | 100% | 56% | 29% (29%) | 99% |
+| vitamin K1 | 90% | 46% | 30% (30%) | 25% (25%) |
+| vitamin B6 | 98% | 74% | 32% (32%) | 27% (27%) |
+| folate (DFE) | 100% | 26% | 11% (its own, F5) | 24% (24%) |
+| selenium | 17% (17%) | 62% | 21% | 72% |
+| saturated fat | 100% | 95% | 25% (F4: no value where no factor fits) | 100% |
+
+- **The reported case:** an egg from any of the five tables now has choline, 335 mg/100 g, from USDA's
+  *Egg, whole, raw*; CREA's whole egg also borrows B12, D, A, E, K1 and B6 from it, and its saturated
+  fat is 3.29 g (was 3.96).
+- **Milk's B12** (Ciqual) is 200 ng/100 g — 0.2 µg — where it was 0.
+- **Matching is deliberately conservative** (`ci/pack-foods.py`, *borrowing*): a shared head word
+  (the food itself, before the first comma), a third of the name's words (half for a dish), no
+  macronutrient far apart, fried never matched to not fried. About 2,500 European foods borrow; the
+  rest of a table's gap stays a gap. Matches for twenty common foods are printed at every build and
+  were read: eggs, milk, yoghurt, butter, cheese, beef, pork, lard, salmon, tuna, potato, rice, bread,
+  fruit juices, banana, spinach, broccoli, lentils, almonds. Borderline ones remain (*White bean stew
+  with pork ← Stew, pork*; *Pasta with egg ← Pasta, cooked*): each is shown as borrowed, from that food.
+- **What no fix reaches:** CREA's iodine (USDA has none either); a food with no confident match. For
+  those the nutrients sheet now says *why* — "not measured in CREA (Italy)" — instead of a bare count.
+- **Old entries** keep what they were logged with; their B12 and D in micrograms are read as ×1000.
+

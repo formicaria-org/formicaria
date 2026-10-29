@@ -32,9 +32,11 @@ upstream file is a refusal here, not a silently different list.
 
 **What comes out, and what was changed on the way.** Every value per 100 g, as a whole number in
 the unit its key names — `kcal`, `protein_mg`, `iron_ug` — the form a logged entry stores. A
-subset of each table's constituents is kept (the ones below). Ciqual's *traces* and *< x* are
-stored as 0, and its *-* (no value) as no value at all. Nothing is averaged across tables, and no
-food in one table is treated as the same food in another.
+subset of each table's constituents is kept (the ones below). Ciqual's *traces* are stored as 0,
+its *< x* as x/2 (since 2026-10-29), and its *-* (no value) as no value at all. Nothing is averaged
+across tables. **One exception, since 2026-10-29:** a nutrient a food's own table carries for almost
+none of its foods (choline in every European table; most vitamins in CREA's) is borrowed from USDA's
+closest food, and the pack records where it came from (see *borrowing*, below).
 
 **One key, one definition.** The tables do not all mean the same thing by the same word, so each
 key below is tied to one FAO/INFOODS food component identifier (the *tagname* — the international
@@ -84,7 +86,7 @@ import zipfile
 # The list's own version: bump it whenever an input, the constituents or the layout changes.
 # An entry records `<name>@<version>/<food>` as where its numbers came from.
 NAME = "foods"
-VERSION = "2026.10.3"
+VERSION = "2026.10.4"
 
 # ── inputs, each pinned by checksum ──────────────────────────────────────────────────────────────
 
@@ -111,7 +113,9 @@ USDA_FILES = [
 # ── which constituents are kept, and where each table has them ───────────────────────────────────
 # (key, INFOODS identifier, Ciqual constituent code, BLS component code, USDA nutrient numbers —
 # first present wins). `None` where a table has no constituent of that definition. The key's
-# ending is the unit stored: `_mg` for what is weighed in grams, `_ug` for milligrams or less.
+# ending is the unit stored: `_mg` for what is weighed in grams, `_ug` for milligrams or less, and
+# `_ng` for vitamin B12 and D, whose foods hold fractions of a microgram: in whole micrograms, milk's
+# B12 (about 0.4 µg/100 g) was stored as 0 (`decisions.md#data`, 2026-10-29).
 NUTRIENTS = [
     ("kcal", "ENERC", "328", "ENERCC", ["208", "958", "957"]),
     ("protein_mg", "PROCNT", "25003", "PROT625", ["203"]),
@@ -135,7 +139,7 @@ NUTRIENTS = [
     ("iodine_ug", "ID", "10530", "ID", None),
     ("vitamin_a_rae_ug", "VITA_RAE", "51104", "VITAA", ["320"]),
     ("vitamin_c_ug", "VITC", "55100", "VITC", ["401"]),
-    ("vitamin_d_ug", "VITD", "52100", "VITD", ["328"]),
+    ("vitamin_d_ng", "VITD", "52100", "VITD", ["328"]),
     ("vitamin_e_ug", "TOCPHA", "71010", "VITE", ["323"]),
     ("vitamin_k1_ug", "VITK1", "54101", "VITK1", ["430"]),
     ("thiamin_ug", "THIA", "56100", "THIA", ["404"]),
@@ -143,7 +147,7 @@ NUTRIENTS = [
     ("niacin_ug", "NIA", "56310", "NIA", ["406"]),
     ("pantothenic_acid_ug", "PANTAC", "56400", "PANTAC", ["410"]),
     ("vitamin_b6_ug", "VITB6", "56500", "VITB6", ["415"]),
-    ("vitamin_b12_ug", "VITB12", "56600", "VITB12", ["418"]),
+    ("vitamin_b12_ng", "VITB12", "56600", "VITB12", ["418"]),
     ("folate_dfe_ug", "FOLDFE", "56702", "FOL", ["435"]),
     ("cholesterol_ug", "CHOL-", "75100", "CHORL", ["601"]),
     ("choline_ug", "CHOLN", None, None, ["421"]),
@@ -158,6 +162,7 @@ PER = {
     "kcal": {"kcal": 1},
     "mg": {"g": 1000, "mg": 1},
     "ug": {"g": 1_000_000, "mg": 1000, "ug": 1},
+    "ng": {"g": 1_000_000_000, "mg": 1_000_000, "ug": 1000, "ng": 1},
 }
 # The unit each Ciqual constituent kept here is published in, read from its English name
 # (`Protein (g/100g)`). Written out, not parsed: one of the names has a misprint in its unit.
@@ -217,12 +222,18 @@ def text(el, tag):
 
 
 def ciqual_number(s):
-    """A Ciqual value: a number with a decimal comma; `traces` and `< x` are 0; `-` is no value."""
+    """A Ciqual value: a number with a decimal comma; `traces` is 0; `< x` (below the limit of
+    detection or quantification) is x/2, the middle bound of EFSA's guidance on left-censored data
+    (2010) — small, not nothing (`decisions.md#data`, 2026-10-29: it had been 0, and 46 % of Ciqual's
+    selenium values are given this way); `-` is no value."""
     s = s.strip()
     if not s or s == "-":
         return None
-    if s == "traces" or s.startswith("<"):
+    if s == "traces":
         return 0.0
+    if s.startswith("<"):
+        n = ciqual_number(s[1:])
+        return None if n is None else n / 2
     try:
         return float(s.replace(",", "."))
     except ValueError:
@@ -360,13 +371,13 @@ SWISS_COLUMNS = {
     "iodine_ug": "Iodide (I) (µg)",                        # ID
     "vitamin_a_rae_ug": "Vitamin A activity, RAE (µg)",    # VITA_RAE
     "vitamin_c_ug": "Vitamin C (ascorbic acid) (mg)",      # VITC
-    "vitamin_d_ug": "Vitamin D (calciferol) (µg)",         # VITD
+    "vitamin_d_ng": "Vitamin D (calciferol) (µg)",         # VITD
     "vitamin_e_ug": "Vitamin E (α-tocopherol) (mg)",       # TOCPHA
     "thiamin_ug": "Vitamin B1 (thiamine) (mg)",            # THIA
     "riboflavin_ug": "Vitamin B2 (riboflavin) (mg)",       # RIBF
     "niacin_ug": "Niacin (mg)",                            # NIA
     "pantothenic_acid_ug": "Pantothenic acid (mg)",        # PANTAC
-    "vitamin_b12_ug": "Vitamin B12 (cobalamin) (µg)",      # VITB12
+    "vitamin_b12_ng": "Vitamin B12 (cobalamin) (µg)",      # VITB12
     "cholesterol_ug": "Cholesterol (mg)",                  # CHOL-
 }
 SWISS_PER_100G = "per 100g edible portion"
@@ -456,7 +467,7 @@ CREA_SNAPSHOT = ("crea-2019.json.gz", "a4e54838e276007a4f20efe977d5a29a5bbcec090
 # FAO/WHO (1973) factor for the food; fibre by the AOAC enzymatic-gravimetric method. Left out
 # because the definition is not the key's: available carbohydrate (monosaccharide equivalents —
 # see CREA_CARBS), vitamin A (retinol equivalents, β-carotene ÷ 6), vitamin E (α-tocopherol
-# equivalents), folate (total), vitamin B6 (not said).
+# equivalents), vitamin B6 (not said). (Folate is kept since 2026-10-29: see its line.)
 CREA_LINES = {
     "Energia (kcal)": ("kcal", "kcal"),
     "Proteine (g)": ("protein_mg", "g"),
@@ -477,10 +488,14 @@ CREA_LINES = {
     "Manganese (mg)": ("manganese_ug", "mg"),
     "Selenio (μg)": ("selenium_ug", "ug"),
     "Vitamina C (mg)": ("vitamin_c_ug", "mg"),
-    "Vitamina D (μg)": ("vitamin_d_ug", "ug"),
+    "Vitamina D (μg)": ("vitamin_d_ng", "ug"),
     "Tiamina (mg)": ("thiamin_ug", "mg"),
     "Riboflavina (mg)": ("riboflavin_ug", "mg"),
     "Niacina (mg)": ("niacin_ug", "mg"),
+    # **Folate, as dietary folate equivalents** (2026-10-29). CREA prints total food folate; DFE adds
+    # 1.7 × folic acid, which only a fortified food has, and none of CREA's 89 foods with this line
+    # is fortified — so for them the two are equal.
+    "Folati (μg)": ("folate_dfe_ug", "ug"),
 }
 # **Carbohydrate.** CREA's *Carboidrati disponibili* is starch × 1.10 plus sugars, in
 # monosaccharide equivalents (CHOAVLM), which is not what `carbs_mg` holds (CHOAVL, by weight).
@@ -490,9 +505,71 @@ CREA_LINES = {
 # the starch, and for the sugars high by up to a twentieth of the sugars. A food without both
 # lines has no carbohydrate here, unless its available carbohydrate is printed as 0.
 CREA_CARBS = ("Amido (g)", "Zuccheri solubili (g)")
-# **Saturated fat.** *"Il contenuto in acidi grassi è riportato in % di lipidi"*: the saturated
-# fatty acids are a percentage of the food's fat, so the grams are fat × that ÷ 100.
+# **Saturated fat** (corrected 2026-10-29). CREA prints each class of fatty acids as a percentage,
+# and its three classes sum to 100.2 % (the median of its 244 foods that have all three) — they are
+# shares of the *fatty acids*, not of the fat, which also holds glycerol, phospholipids and sterols.
+# So the grams are fat × the fatty-acid conversion factor (XFA) × the share ÷ 100: FAO/INFOODS,
+# *Guidelines for Converting Units, Denominators and Expressions* (2012), Tables 4.4-5 and 4.4-6.
+# Read as a share of the fat, as it was until then, an egg had 3.96 g where the other tables give
+# 2.4–3.1 g. A food no factor in those tables fits has no saturated-fat value: none is guessed.
 CREA_SATURATED = "Acidi grassi Saturi (%)"
+
+
+def crea_xfa(category, name, fat_g):
+    """The FAO/INFOODS fatty-acid conversion factor (g fatty acids per g fat) for a CREA food, or
+    None when its tables give none for it."""
+    n = name.lower()
+    has = lambda *ws: any(w in n for w in ws)
+    fatty = fat_g >= 20
+    if category == "Uova":
+        return 0.83
+    if category in ("Latte e yogurt", "Formaggi e latticini") or has("burro") and not has("arachid"):
+        return 0.945                                     # milk and milk products
+    if category == "Oli e grassi":
+        if has("cocco"):
+            return 0.942                                 # coconut oil
+        if has("lardo", "strutto", "sugna"):
+            return 0.953                                 # pork, fat
+        return 0.956                                     # fats and oils, and peanut butter as nuts
+    if category == "Frutta secca a guscio e semi oleaginosi":
+        return 0.956                                     # nuts
+    if category == "Frattaglie":
+        for word, x in (("fegato", 0.741), ("cuore", 0.789), ("rene", 0.747), ("rognon", 0.747),
+                        ("cervell", 0.561)):
+            if word in n:
+                return x
+        return None
+    if category in ("Carni fresche", "Carni trasformate e conservate"):
+        if has("pollo", "tacchino", "faraona", "oca", "anatra", "gallina", "cappone"):
+            return 0.945                                 # poultry
+        if has("maiale", "suino", "prosciutto", "salam", "mortadella", "coppa", "pancetta",
+               "speck", "cotechino", "zampone", "ciccioli", "wurstel"):
+            return 0.953 if fatty else 0.910             # pork, fat or lean
+        if has("bovino", "vitell", "bufalo", "bresaola", "manzo", "agnell", "pecora", "montone"):
+            return 0.953 if fatty else 0.916             # beef (lamb taken as beef), fat or lean
+        return None                                      # horse, goat, rabbit, game: no factor
+    if category == "Prodotti della pesca":
+        if has("calamar", "cozz", "mitil", "vongol", "polpo", "seppi", "ostric", "totan",
+               "moscardin", "lumach"):
+            return 0.956 - 0.296 / fat_g if fat_g >= 0.55 else 0.417   # molluscs
+        if has("gamber", "scamp", "aragost", "astice", "granch", "mazzancoll", "canoc"):
+            return 0.956 - 0.237 / fat_g if fat_g >= 0.55 else 0.459   # crustaceans
+        return 0.933 - 0.143 / fat_g if fat_g >= 0.55 else 0.673       # finfish
+    if category == "Cereali e derivati":
+        if has("crusca"):
+            return 0.82                                  # bran
+        if has("avena"):
+            return 0.94                                  # oats
+        if has("riso"):
+            return 0.85                                  # rice, milled
+        if has("farina di frumento", "semola"):
+            return 0.67                                  # wheat flour
+        if has("frumento", "orzo") and not has("germe"):
+            return 0.72                                  # wheat, barley, wholegrain
+        return None
+    if category in ("Verdure e ortaggi", "Frutta"):
+        return 0.956 if has("avocado") else 0.80
+    return None
 
 
 def crea_number(s):
@@ -530,8 +607,10 @@ def read_crea(cache):
         elif got.get("Carboidrati disponibili (g)") == 0:
             # None is none in any unit.
             v["carbs_mg"] = 0
-        if CREA_SATURATED in got and "Lipidi (g)" in got:
-            v["saturated_fat_mg"] = round(got["Lipidi (g)"] * got[CREA_SATURATED] / 100 * 1000)
+        if CREA_SATURATED in got and got.get("Lipidi (g)"):
+            xfa = crea_xfa(f["category"], f["name"], got["Lipidi (g)"])
+            if xfa is not None:
+                v["saturated_fat_mg"] = round(got["Lipidi (g)"] * xfa * got[CREA_SATURATED] / 100 * 1000)
         italian, english = f["name"].strip(), f["english"].strip()
         if "kcal" not in v or not (italian or english):
             continue
@@ -624,6 +703,125 @@ def read_usda(cache):
                 yield f"usda:{fdc}", title, "usda", "", v, portions.get(fdc, []), ""
 
 
+# ── borrowing what a table never measures ────────────────────────────────────────────────────────
+# `decisions.md#data`, 2026-10-29. Choline is in USDA's table alone, CREA measures no vitamin B12, D,
+# A, E, K1, B6 or iodine, the Swiss table no K1, B6, folate, copper or manganese, BLS no selenium —
+# so an egg from a European table had no choline at all, and an Italian one none of half the vitamins.
+# Where a food's own table carries a nutrient for fewer than BORROW_BELOW of its foods (a gap in the
+# table, not one food's missing analysis), the value is taken from USDA's closest food: one that shares
+# a word of its name and agrees on the macronutrients, above MATCH_AT. A measured value is never
+# replaced, nothing is averaged, and where it came from is kept (`borrowed`).
+BORROW_BELOW = 0.05
+MATCH_AT = 0.62
+# Words that say how a food was handled or sold, not what it is: shared by too many foods to match on.
+NAME_NOISE = set("""raw cooked boiled fried baked roasted grilled steamed stewed fresh frozen canned
+dried whole average plain with without and or in of the a to for from not ns nfs as on prepared
+added salt unsalted salted drained solids liquid solid mixed type made commercial home homemade
+regular all purpose including excluding skin skinless boneless bone meat only lean fat""".split())
+# Each macronutrient's own scale, so a difference counts as much as it matters: 20 kcal, 1 g.
+MACROS = {"kcal": 20, "protein_mg": 1000, "fat_mg": 1000, "carbs_mg": 1000, "water_mg": 5000}
+
+
+def name_words(title):
+    out = set()
+    for w in re.findall(r"[a-z]+", title.lower()):
+        w = w[:-1] if len(w) > 3 and w.endswith("s") else w
+        if len(w) > 2 and w not in NAME_NOISE:
+            out.add(w)
+    return out
+
+
+# A dish of several foods (a sandwich, a salad, "with …") shares words with many others; it must
+# share more of them to be the same dish.
+DISH = set("with sandwich salad pizza burger quiche pie soup dish stew sauce casserole".split())
+STATE = set("raw cooked boiled fried baked roasted grilled steamed stewed braised".split())
+
+
+def likeness(a, b):
+    """How alike two foods are, 0–1: half their names' shared words, half their macronutrients —
+    or 0 when they are not alike enough to lend a value: too few shared words (half for a dish),
+    fewer than three macronutrients to compare, any one of them far apart (fried rice's fat is four
+    times wholegrain rice's), or the macronutrients apart on average."""
+    na, nb = a["words"], b["words"]
+    if not na or not nb or not (na & nb):
+        return 0.0
+    # The food itself comes first in these names ("Egg, raw", "Tomato sauce, with cheese"): the
+    # shorter head must be inside the other — a chicken egg is an egg, a tomato sauce is no cheese
+    # sauce.
+    ha, hb = sorted((a["head"], b["head"]), key=len)
+    if not ha or not ha <= hb:
+        return 0.0
+    # Fried and not fried are different foods for what is borrowed: the fat and what was fried in it.
+    if ("fried" in a["state"]) != ("fried" in b["state"]):
+        return 0.0
+    names = len(na & nb) / len(na | nb)
+    if names < (0.5 if (a["dish"] or b["dish"]) else 0.34):
+        return 0.0
+    diffs = [abs(a["v"][k] - b["v"][k]) / (max(a["v"][k], b["v"][k]) + scale)
+             for k, scale in MACROS.items() if k in a["v"] and k in b["v"]]
+    if len(diffs) < 3 or max(diffs) > 0.5:
+        return 0.0
+    macros = 1 - sum(diffs) / len(diffs)
+    if macros < 0.75:
+        return 0.0
+    # Raw against cooked: the same food, but water and heat move the values; a match in the same
+    # state is preferred.
+    # Only when both names say: a name that states none ("Chicken Egg, whole") is not a cooked one.
+    state = 0.1 if (a["state"] and b["state"] and ("raw" in a["state"]) != ("raw" in b["state"])) else 0.0
+    return 0.5 * names + 0.5 * macros - state
+
+
+def borrow(foods):
+    """For every European food, the values its table never measures, from USDA's closest food.
+    `foods` is the list of rows the readers yield; returns {food index: {key: (value, from index)}}."""
+    by_src = {}
+    for i, f in enumerate(foods):
+        by_src.setdefault(f[2], []).append(i)
+    def shape(i):
+        low = set(re.findall(r"[a-z]+", foods[i][1].lower()))
+        return {"i": i, "words": name_words(foods[i][1]), "v": foods[i][4],
+                "head": name_words(re.split(r"[,(]", foods[i][1])[0]),
+                "dish": bool(low & DISH), "state": low & STATE}
+    usda = [shape(i) for i in by_src.get("usda", [])]
+    index = {}
+    for u in usda:
+        for w in u["words"]:
+            index.setdefault(w, []).append(u)
+    out = {}
+    for src, idx in by_src.items():
+        if src == "usda":
+            continue
+        gaps = [key for key, *_ in NUTRIENTS
+                if sum(key in foods[i][4] for i in idx) < BORROW_BELOW * len(idx)]
+        if not gaps:
+            continue
+        for i in idx:
+            title, values = foods[i][1], foods[i][4]
+            me = shape(i)
+            seen, best, best_score = set(), None, MATCH_AT
+            for w in me["words"]:
+                for u in index.get(w, []):
+                    if u["i"] in seen:
+                        continue
+                    seen.add(u["i"])
+                    s = likeness(me, u)
+                    if s > best_score:
+                        best, best_score = u, s
+            if best is None:
+                continue
+            got = {k: (foods[best["i"]][4][k], best["i"]) for k in gaps
+                   if k not in values and k in foods[best["i"]][4]}
+            if got:
+                out[i] = got
+    return out
+
+
+# Foods whose matches are printed at every build, for a person to look at.
+REVIEW = ["egg,", "milk", "yogurt", "butter", "cheese", "chicken", "beef", "pork", "salmon", "tuna",
+          "potato", "rice", "bread", "apple", "banana", "spinach", "broccoli", "lentil", "almond",
+          "oil"]
+
+
 # ── the list ─────────────────────────────────────────────────────────────────────────────────────
 
 def build(cache, out, embed):
@@ -637,17 +835,33 @@ def build(cache, out, embed):
     db.executescript("PRAGMA page_size = 4096;\n" + layout)
     keys = {key: i for i, (key, *_) in enumerate(NUTRIENTS)}
     db.executemany("INSERT INTO nutrient(n, key) VALUES (?, ?)", [(i, k) for k, i in keys.items()])
-    counts, fid = {}, 0
-    for source in (read_ciqual, read_bls, read_swiss, read_crea, read_usda):
-        for code, title, src, grp, values, portions, alt in source(cache):
-            fid += 1
-            db.execute("INSERT INTO food(id, code, name, src, grp, alt) VALUES (?, ?, ?, ?, ?, ?)",
-                       (fid, code, title, src, grp, alt))
-            db.executemany("INSERT INTO amount VALUES (?, ?, ?)",
-                           [(fid, keys[k], v) for k, v in values.items()])
-            db.executemany("INSERT INTO portion VALUES (?, ?, ?, ?)",
-                           [(fid, i, label, grams) for i, (label, grams) in enumerate(portions)])
-            counts[src] = counts.get(src, 0) + 1
+    foods = [row for source in (read_ciqual, read_bls, read_swiss, read_crea, read_usda)
+             for row in source(cache)]
+    lent = borrow(foods)
+    counts = {}
+    for at, (code, title, src, grp, values, portions, alt) in enumerate(foods):
+        fid = at + 1
+        db.execute("INSERT INTO food(id, code, name, src, grp, alt) VALUES (?, ?, ?, ?, ?, ?)",
+                   (fid, code, title, src, grp, alt))
+        mine = dict(values)
+        for k, (v, _) in lent.get(at, {}).items():
+            mine[k] = v
+        db.executemany("INSERT INTO amount VALUES (?, ?, ?)",
+                       [(fid, keys[k], v) for k, v in mine.items()])
+        db.executemany("INSERT INTO borrowed VALUES (?, ?, ?)",
+                       [(fid, keys[k], frm + 1) for k, (_, frm) in lent.get(at, {}).items()])
+        db.executemany("INSERT INTO portion VALUES (?, ?, ?, ?)",
+                       [(fid, i, label, grams) for i, (label, grams) in enumerate(portions)])
+        counts[src] = counts.get(src, 0) + 1
+    print(f"  borrowed: {sum(len(v) for v in lent.values())} values for {len(lent)} foods")
+    for word in REVIEW:
+        shown = 0
+        for at, got in lent.items():
+            if word in foods[at][1].lower() and shown < 2:
+                frm = next(iter(got.values()))[1]
+                print(f"    {foods[at][2]:7} {foods[at][1][:44]:44} <- {foods[frm][1][:44]}"
+                      f"  [{', '.join(sorted(got))[:60]}]")
+                shown += 1
     db.execute("INSERT INTO names(rowid, name, alt) SELECT id, name, alt FROM food")
     meta = {
         "name": NAME,

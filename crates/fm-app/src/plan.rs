@@ -625,11 +625,10 @@ pub struct Progress {
     pub followed: Vec<Followed>,
 }
 
+/// A logged value as a total reads it — through `nutrients::int_of`, which also reads a key from
+/// before its unit changed.
 fn int_of(o: &Object, key: &str) -> Option<i64> {
-    match o.get(key) {
-        PropertyValue::Int(v) => Some(v),
-        _ => None,
-    }
+    crate::nutrients::int_of(o, key)
 }
 fn text_of(o: &Object, key: &str) -> String {
     match o.get(key) {

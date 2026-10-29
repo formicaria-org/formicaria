@@ -18,6 +18,9 @@ function tidy(n: number): string {
 type Step = { unit: string; per: number };
 /** The units a suffix may be shown in, smallest first. `per` is how many stored units make one. */
 const LADDERS: Record<string, Step[]> = {
+  // Vitamin B12 and D are kept in nanograms (2026-10-29: in whole micrograms, milk's B12 was 0) and
+  // read in micrograms, with the decimal that whole micrograms could not keep: 0.2 µg, 4 µg.
+  ng: [{ unit: 'µg', per: 1000 }],
   ug: [
     { unit: 'µg', per: 1 },
     // …and no further: a value kept in micrograms is a vitamin or a mineral, and those are read
@@ -86,6 +89,8 @@ export function typed(key: string): Step {
   if (sfx === 'kcal') return { unit: 'kcal', per: 1 };
   if (sfx === 'mg') return { unit: 'g', per: 1000 };
   if (sfx === 'ug') return { unit: 'mg', per: 1000 };
+  // Nanograms are typed in micrograms, as a label prints vitamin B12 and D.
+  if (sfx === 'ng') return { unit: 'µg', per: 1000 };
   // Grams are typed as kilograms: what is kept in grams and typed by hand is a weight.
   if (sfx === 'g') return { unit: 'kg', per: 1000 };
   return { unit: '', per: 1 };

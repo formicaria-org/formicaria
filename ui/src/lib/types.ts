@@ -1030,6 +1030,9 @@ export interface FoodDetail {
   portions: FoodPortion[];
   /** The pack and version the values came from; an entry records it as its `source`. */
   pack: string;
+  /** The values its own table never measures, and the food each was borrowed from
+   *  (`{ choline_ug: 'USDA: Egg, whole, raw' }`). Absent for a pack built before 2026-10-29. */
+  borrowed?: Record<string, string>;
 }
 
 /** What this installation is configured as — the Settings screen's whole payload.

@@ -41,3 +41,16 @@ describe('units', () => {
     ]);
   });
 });
+
+// Vitamin B12 and D are kept in nanograms and read in micrograms, with the decimal whole micrograms
+// lost (2026-10-29: milk's B12, about 0.2 µg per 100 g, had been 0).
+describe('nanograms', () => {
+  it('are read in micrograms, to the tenth below ten', () => {
+    expect(show('vitamin_b12_ng', 200)).toEqual({ text: '0.2', unit: 'µg' });
+    expect(show('vitamin_b12_ng', 4000)).toEqual({ text: '4', unit: 'µg' });
+    expect(show('vitamin_d_ng', 15000)).toEqual({ text: '15', unit: 'µg' });
+  });
+  it('are typed in micrograms', () => {
+    expect(typed('vitamin_b12_ng')).toEqual({ unit: 'µg', per: 1000 });
+  });
+});

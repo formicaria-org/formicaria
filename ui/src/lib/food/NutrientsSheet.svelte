@@ -9,7 +9,8 @@
   import Icon from '../Icon.svelte';
   import Meter from '../charts/Meter.svelte';
   import { logNutrients } from '../ipc';
-  import { dayLabel, showWith, whole } from '../units';
+  import { dayLabel, showWith } from '../units';
+  import { borrowedOf, valueOf, whyMissing } from './provenance';
   import type { NutrientRow, Nutrients } from '../types';
 
   interface Props {
@@ -35,9 +36,12 @@
   };
   const from = (r: NutrientRow) =>
     (got?.entries ?? [])
-      .filter((e) => (whole(e.props[r.key]) ?? 0) > 0)
-      .sort((a, b) => (whole(b.props[r.key]) ?? 0) - (whole(a.props[r.key]) ?? 0))
+      .filter((e) => (valueOf(e.props, r.key) ?? 0) > 0)
+      .sort((a, b) => (valueOf(b.props, r.key) ?? 0) - (valueOf(a.props, r.key) ?? 0))
       .slice(0, 4);
+  /// Why the other entries lack it — the tables that never measure it, or typed by hand (2026-10-29:
+  /// "from 0 of 3 entries" alone read as the app failing to record choline).
+  const why = (r: NutrientRow) => whyMissing(got?.entries ?? [], r.key);
   const share = (r: NutrientRow) => (r.reference ? Math.round((r.sum / r.reference) * 100) : null);
 </script>
 
@@ -93,15 +97,22 @@
                   <span class="sub">limit {showWith(r.key, r.upper)}</span>
                 {/if}
                 {#if r.n < got.of}
-                  <span class="partial">from {r.n} of {got.of} entries</span>
+                  <span class="partial"
+                    >from {r.n} of {got.of} entries{#if why(r)}
+                      — {why(r)}{/if}</span
+                  >
                 {/if}
               </button>
               {#if opened === r.key}
                 <div class="why">
                   {#each from(r) as e (e.id)}
                     <p class="made">
-                      <span>{e.title ?? 'Untitled'}</span>
-                      <span>{showWith(r.key, whole(e.props[r.key]) ?? 0)}</span>
+                      <span
+                        >{e.title ?? 'Untitled'}{#if borrowedOf(e.props)[r.key]}<span class="sub">
+                            · borrowed from {borrowedOf(e.props)[r.key]}</span
+                          >{/if}</span
+                      >
+                      <span>{showWith(r.key, valueOf(e.props, r.key) ?? 0)}</span>
                     </p>
                   {:else}
                     <p>No entry of this day carries it.</p>

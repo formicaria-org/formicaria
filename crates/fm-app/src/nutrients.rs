@@ -70,7 +70,7 @@ const REFS: &[Ref] = &[
     },
     fixed("potassium_ug", "Potassium", 3_500_000, 3_500_000, AI, None),
     fixed("vitamin_a_rae_ug", "Vitamin A", 750, 650, PRI, None),
-    fixed("vitamin_d_ug", "Vitamin D", 15, 15, AI, Some(100)),
+    fixed("vitamin_d_ng", "Vitamin D", 15_000, 15_000, AI, Some(100_000)),
     fixed("vitamin_e_ug", "Vitamin E", 13_000, 11_000, AI, None),
     fixed("vitamin_k1_ug", "Vitamin K", 70, 70, AI, None),
     fixed("vitamin_c_ug", "Vitamin C", 110_000, 95_000, PRI, None),
@@ -97,7 +97,7 @@ const REFS: &[Ref] = &[
     fixed("pantothenic_acid_ug", "Pantothenic acid (B5)", 5_000, 5_000, AI, None),
     fixed("vitamin_b6_ug", "Vitamin B6", 1_700, 1_600, PRI, Some(12_000)),
     fixed("folate_dfe_ug", "Folate", 330, 330, PRI, None),
-    fixed("vitamin_b12_ug", "Vitamin B12", 4, 4, AI, None),
+    fixed("vitamin_b12_ng", "Vitamin B12", 4_000, 4_000, AI, None),
     fixed("choline_ug", "Choline", 400_000, 400_000, AI, None),
     fixed("calcium_ug", "Calcium", 950_000, 950_000, PRI, Some(2_500_000)),
     fixed("phosphorus_ug", "Phosphorus", 550_000, 550_000, AI, None),
@@ -153,10 +153,24 @@ pub struct Nutrients {
     pub entries: Vec<ObjectMeta>,
 }
 
-fn int_of(o: &Object, key: &str) -> Option<i64> {
+/// **A key whose unit changed, and how many of the new unit one of the old makes** (2026-10-29,
+/// `decisions.md#data`): vitamin B12 and D are kept in nanograms, since in whole micrograms milk's
+/// B12 was 0. An entry logged before holds the old key; it is read in the new unit and never
+/// rewritten.
+pub(crate) const RENAMED: &[(&str, &str, i64)] =
+    &[("vitamin_b12_ng", "vitamin_b12_ug", 1000), ("vitamin_d_ng", "vitamin_d_ug", 1000)];
+
+/// An entry's whole number under `key`, or under the key it had before its unit changed, in the
+/// new unit. The one reader of a logged value that a total uses.
+pub(crate) fn int_of(o: &Object, key: &str) -> Option<i64> {
     match o.get(key) {
         PropertyValue::Int(v) => Some(v),
-        _ => None,
+        _ => RENAMED.iter().find(|(new, ..)| *new == key).and_then(|(_, old, per)| {
+            match o.get(old) {
+                PropertyValue::Int(v) => Some(v.saturating_mul(*per)),
+                _ => None,
+            }
+        }),
     }
 }
 
@@ -231,13 +245,27 @@ mod tests {
 
     /// Each figure against the table it was read from (EFSA 2017, Tables 5 to 11), in the key's
     /// own unit — a slip of a thousand here would tell someone they are short of a vitamin.
+    /// An entry logged before B12 and D moved to nanograms keeps its microgram key, and is read in
+    /// the new unit beside a new one: 2 µg and 450 ng are 2,450 ng (2026-10-29).
+    #[test]
+    fn an_entry_from_before_a_unit_changed_is_read_in_the_new_one() {
+        let mut old = Object::new(fm_model::Kind::Note, "");
+        old.extra.insert("vitamin_b12_ug".into(), PropertyValue::Int(2));
+        let mut new = Object::new(fm_model::Kind::Note, "");
+        new.extra.insert("vitamin_b12_ng".into(), PropertyValue::Int(450));
+        let total: i64 = [&old, &new].iter().filter_map(|o| int_of(o, "vitamin_b12_ng")).sum();
+        assert_eq!(total, 2_450);
+        assert_eq!(int_of(&old, "vitamin_d_ng"), None, "a key nobody wrote is still nothing");
+        assert_eq!(int_of(&old, "vitamin_b12_ug"), Some(2), "the old key reads as it was");
+    }
+
     #[test]
     fn the_references_are_the_figures_read() {
         let of = |key: &str| REFS.iter().find(|r| r.key == key).unwrap();
         assert_eq!(of("vitamin_c_ug").adult, Some((110_000, 95_000)));
         assert_eq!(of("vitamin_a_rae_ug").adult, Some((750, 650)));
         assert_eq!(of("iron_ug").adult, Some((11_000, 16_000)));
-        assert_eq!(of("vitamin_b12_ug").adult, Some((4, 4)));
+        assert_eq!(of("vitamin_b12_ng").adult, Some((4_000, 4_000)));
         assert_eq!(of("calcium_ug").upper, Some(2_500_000));
         assert_eq!(of("selenium_ug").upper, Some(255));
         assert!(of("zinc_ug").adult.is_none() && !of("zinc_ug").note.is_empty());
@@ -246,7 +274,7 @@ mod tests {
         keys.dedup();
         assert_eq!(keys.len(), REFS.len(), "a key is listed twice");
         for r in REFS {
-            assert!(r.key.ends_with("_ug") || r.key.ends_with("_mg"), "{}", r.key);
+            assert!(["_ug", "_mg", "_ng"].iter().any(|u| r.key.ends_with(u)), "{}", r.key);
         }
     }
 }

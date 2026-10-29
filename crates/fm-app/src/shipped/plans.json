@@ -77,8 +77,8 @@
         { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "min_male": 11000, "min_female": 16000, "basis": "EFSA: 11 mg a day for men; 16 mg for women before the menopause, 11 mg after", "min_postmenopausal": 11000 },
         { "id": "magnesium", "label": "Magnesium", "kind": "sum", "key": "magnesium_ug", "min_male": 350000, "min_female": 300000, "basis": "EFSA: 350 mg a day for men, 300 mg for women (adequate intake)" },
         { "id": "vitamin_c", "label": "Vitamin C", "kind": "sum", "key": "vitamin_c_ug", "min_male": 110000, "min_female": 95000, "basis": "EFSA: 110 mg a day for men, 95 mg for women" },
-        { "id": "vitamin_d", "label": "Vitamin D", "kind": "sum", "key": "vitamin_d_ug", "min": 15, "max": 100, "basis": "EFSA: 15 µg a day (adequate intake); upper level 100 µg" },
-        { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ug", "min": 4, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
+        { "id": "vitamin_d", "label": "Vitamin D", "kind": "sum", "key": "vitamin_d_ng", "min": 15000, "max": 100000, "basis": "EFSA: 15 µg a day (adequate intake); upper level 100 µg" },
+        { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ng", "min": 4000, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
         { "id": "folate", "label": "Folate", "kind": "sum", "key": "folate_dfe_ug", "min": 330, "basis": "EFSA: 330 µg of dietary folate equivalents a day; 600 µg in pregnancy, 500 µg while breastfeeding", "min_pregnant": 600, "min_breastfeeding": 500 }
       ],
       "unmeasured": [
@@ -353,7 +353,7 @@
       ],
       "needs": ["sex", "born"],
       "checks": [
-        { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ug", "min": 4, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
+        { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ng", "min": 4000, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
         { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "min_male": 11000, "min_female": 16000, "min_postmenopausal": 11000, "basis": "EFSA: 11 mg a day for men; 16 mg for women before the menopause, 11 mg after" },
         { "id": "calcium", "label": "Calcium", "kind": "sum", "key": "calcium_ug", "min": 950000, "min_young": 1000000, "max": 2500000, "basis": "EFSA: 950 mg a day, 1,000 mg at 18–24; upper level 2,500 mg" },
         { "id": "iodine", "label": "Iodine", "kind": "sum", "key": "iodine_ug", "min": 150, "min_pregnant": 200, "min_breastfeeding": 200, "max": 600, "basis": "EFSA: 150 µg a day (adequate intake), 200 µg in pregnancy and while breastfeeding; upper level 600 µg" }

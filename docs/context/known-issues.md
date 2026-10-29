@@ -1668,15 +1668,14 @@ Chinese words and the inside of compound words are found. What remains:
 - **No synonyms, typo tolerance or meaning** — `vitamin K` does not find *phylloquinone*. Plan: the
   research doc's S2–S5.
 
-## Nutrient values — what is missing or wrong (2026-10-29)
+## Nutrient values — what is still missing (2026-10-29)
 
-Full audit with the measurements: `nutrient-data-audit-2026-10-29.md`. In short: **choline is in
-the USDA table only**, so an egg from any European table has none; **CREA (Italian) has no B12, D,
-A, E, K1, B6, folate or iodine at all**, the Swiss table no K1, B6, folate, copper or manganese, BLS no
-selenium; **B12 and vitamin D as whole µg/100 g** round sub-microgram foods (milk) to 0 or 1;
-**Ciqual's "< x" is stored as 0** (46% of its selenium values, 39% of iodine); **CREA's saturated fat
-is ~25% high** (a share of fatty acids read as a share of fat); **CREA's folate is dropped** (not DFE).
-Macros, units, scaling and totals are sound. Six proposed fixes (F1–F6) await the owner.
+The audit and the six fixes (`foods@2026.10.4`): `nutrient-data-audit-2026-10-29.md`, `decisions.md#data`.
+What remains after them: **borrowing is conservative** — choline reaches 16–28% of each European
+table's foods, CREA's vitamins about 30%; a food with no confident USDA match keeps its table's gap,
+and the nutrients sheet says which table never measures it. **CREA has no iodine** and neither has
+USDA. **A borrowed value is an estimate from another food**, named beside it; borderline matches exist
+(listed in the audit). **Old entries are not recomputed** (their B12 and D in µg are read ×1000).
 
 ## Deferred (intentionally not built yet)
 

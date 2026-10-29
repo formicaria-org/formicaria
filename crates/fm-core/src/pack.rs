@@ -74,6 +74,11 @@ pub struct FoodDetail {
     pub portions: Vec<FoodPortion>,
     /// `<name>@<version>` — with the id, what an entry records as where its numbers came from.
     pub pack: String,
+    /// **The values its own table never measures, and the food each was borrowed from**
+    /// (`decisions.md#data`, 2026-10-29): `{"choline_ug": "USDA: Egg, whole, raw"}`. Those values
+    /// are in `per100` like the rest; this is what lets the app say so. Empty for a pack built before.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub borrowed: BTreeMap<String, String>,
 }
 
 pub struct FoodPack {
@@ -227,6 +232,36 @@ impl FoodPack {
             .map_err(sql)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(sql)?;
+        let has_borrowed = self
+            .db
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'borrowed'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .map_err(sql)?
+            > 0;
+        let borrowed = if has_borrowed {
+            let mut stmt = self
+                .db
+                .prepare(
+                    "SELECT n.key, f.src, f.name FROM borrowed b JOIN nutrient n USING (n)
+                     JOIN food f ON f.id = b.from_food WHERE b.food = ?1",
+                )
+                .map_err(sql)?;
+            let got = stmt
+                .query_map([row], |r| {
+                    let (key, src, name): (String, String, String) =
+                        (r.get(0)?, r.get(1)?, r.get(2)?);
+                    Ok((key, format!("{}: {name}", src.to_uppercase())))
+                })
+                .map_err(sql)?
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .map_err(sql)?;
+            got
+        } else {
+            BTreeMap::new()
+        };
         Ok(Some(FoodDetail {
             id: code,
             name,
@@ -235,6 +270,7 @@ impl FoodPack {
             per100,
             portions,
             pack: format!("{}@{}", self.info.name, self.info.version),
+            borrowed,
         }))
     }
 }
@@ -259,7 +295,8 @@ mod tests {
             db.execute("INSERT INTO meta VALUES (?1, ?2)", [k, v]).unwrap();
         }
         db.execute_batch(
-            "INSERT INTO nutrient VALUES (0, 'kcal'), (1, 'protein_mg'), (2, 'iron_ug');
+            "INSERT INTO nutrient VALUES (0, 'kcal'), (1, 'protein_mg'), (2, 'iron_ug'),
+                                         (3, 'choline_ug');
              INSERT INTO food(id, code, name, src, grp) VALUES
                (1, 'bls:F503400', 'Banana dried', 'bls', ''),
                (2, 'bls:F503100', 'Banana raw', 'bls', ''),
@@ -272,7 +309,8 @@ mod tests {
              INSERT INTO food(id, code, name, src, grp, alt) VALUES
                (9, 'swiss:1234', 'Ham, raw', 'swiss', 'Meat', 'Prosciutto crudo · Rohschinken · Jambon cru');
              INSERT INTO amount VALUES (2, 0, 95), (2, 1, 1150), (2, 2, 350), (4, 0, 97), (6, 0, 140),
-                                       (7, 0, 300), (8, 0, 112);
+                                       (7, 0, 300), (8, 0, 112), (6, 3, 335000);
+             INSERT INTO borrowed VALUES (6, 3, 4);
              INSERT INTO portion VALUES (4, 0, '1 medium', 118), (4, 1, '1 cup, sliced', 150);
              INSERT INTO names(rowid, name, alt) SELECT id, name, alt FROM food;",
         )
@@ -297,6 +335,20 @@ mod tests {
         assert_eq!(pack.search("jambon cr", 5).unwrap()[0].alt, "Jambon cru");
         // Found by its English name, it shows no other.
         assert_eq!(pack.search("ham", 5).unwrap()[0].alt, "");
+    }
+
+    /// A value the food's own table never measures is borrowed, and the food says from where
+    /// (2026-10-29: an egg from a European table had no choline at all).
+    #[test]
+    fn a_borrowed_value_says_where_it_came_from() {
+        let (_d, path) = pack();
+        let p = FoodPack::open(&path).unwrap();
+        let egg = p.get("ciqual:22000").unwrap().unwrap();
+        assert_eq!(egg.per100["choline_ug"], 335_000);
+        assert_eq!(egg.borrowed["choline_ug"], "USDA: Banana, raw");
+        assert!(!egg.borrowed.contains_key("kcal"), "a measured value is the food's own");
+        let banana = p.get("bls:F503100").unwrap().unwrap();
+        assert!(banana.borrowed.is_empty());
     }
 
     #[test]
