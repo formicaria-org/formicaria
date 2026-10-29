@@ -24,7 +24,9 @@ The views are gathered into five groups, and they are all ways of looking at the
 | **Health** | a diary of what you track, looking back with a page for a doctor, cards to follow ([Health](./health.md)) | Diary, Over time, Guidance |
 
 - **A group's views are tabs** across the top of its window: in Tasks, *Board* and *Agenda*; in
-  Food, *Day*, *Menu*, *Trends* and *Diet*.
+  Food, *Day*, *Menu*, *Trends* and *Diet*. On a touch screen, a swipe left or right steps to the
+  next or previous one — except over something that scrolls sideways itself, such as a board's
+  columns.
 - **On a wide window** the groups head the sidebar.
 - **On a phone** the bar along the bottom is the same on every screen: the **＋**, search, the
   menu of views, your open notes (a numbered button, there while a note is open), backing up,

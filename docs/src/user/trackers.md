@@ -49,6 +49,17 @@ four do not have: foods they do not list, and household portions ("1 cup", "1 me
 neither European table gives. A search shows European foods first, and each result says which
 table it is from — two tables may both list a banana, and they are two measurements, not one.
 
+**A value a food's table did not measure is borrowed, and says so.** No European table measures
+choline, CREA measures few vitamins, and every table leaves some foods unanalysed. Where a food has
+no value for a nutrient, it is taken from the closest food of another table that has one — the
+same food, or a very near one, by its name and its protein, fat, carbohydrate and water: from the
+U.S. table first, then from the other European tables. Logging the food says which values were
+borrowed and from what ("choline — taken from USDA: Egg, whole, boiled or poached"). A value is
+never invented: where no table has the nutrient for a close enough food — choline for many foods,
+since only the U.S. table measures it — there is no value, and the day says so rather than counting
+it as nothing. U.S. foods enriched by law (flour, bread, rice) and U.S. milk do not lend the
+vitamins and iron they were enriched with.
+
 A food from a European table is logged by weight. If you want to log "1 cup", pick the food from
 the U.S. table, which is offered when the European ones leave room in the results.
 
@@ -58,11 +69,16 @@ by its barcode (see *A packaged food* below). Anything else can still be logged 
 
 ## Logging a food
 
-Open **Food → Day** and press **＋**, or the **＋** beside a meal. From the bar's **＋** you say which meal it
-belongs to; the app does not guess one from the time of day.
+formicaria opens on **Food → Day** (the very first time, on the Library and its tutorials). On a
+phone or tablet, swipe left or right to go to the group's next or previous view (Day, Menu,
+Trends, Diet).
+**Search a food to log**, at the top, opens the search with the keyboard up. You can also press
+**＋**, or the **＋** beside a meal. From the search or the bar's **＋** you say which meal it belongs
+to; the app does not guess one from the time of day.
 
 - **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
-  logs it again with the amount it had. Tapping the row lets you change the amount first.
+  logs it again with the amount it had, and the food's values as the list has them now. Tapping
+  the row lets you change the amount first.
 - **Search** — a food from the list. Choose one, then say how much: the **−** and **＋** change the
   amount. Where the food's table gives household portions ("1 cup", "1 medium") they are offered
   as chips; the European tables give none.
@@ -294,7 +310,11 @@ not advice.
 ### All nutrients
 
 **All nutrients**, under *Also today*, lists every vitamin and mineral of the day beside the
-European reference value for an adult of your sex. Press one to see which foods it came from.
+European reference value for an adult of your sex. Press one to see which foods it came from,
+and, for each entry without it, why: typed in by hand, its label does not state it, its table and
+no close food in another has it, or it was logged before the food list had it. When entries were
+logged before the list had values it has now, the sheet says so and offers **Update**: it adds the
+values they lack, at the amount you logged; what they have stays as it was.
 Where the reference differs for men and women and the app does not know which you are, it is
 left out until you say so in *About you*. The references describe what covers a population, not
 what you in particular need.

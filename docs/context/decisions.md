@@ -1789,6 +1789,10 @@ phone-only component tree". This finishes the thought rather than reversing it.
   and `100dvh` rather than `100vh`. On a real phone the toolbar was painting under the status
   bar with the clock on top of the search field — invisible on the emulator.
 
+> SUPERSEDED IN PART (2026-10-29, late night, *a swipe steps between a group's views*): a swipe now
+> steps between a group's views on a touch screen — never started on anything that scrolls
+> sideways itself, so the board's columns keep theirs.
+
 **Deliberately not done:** swipe between panes. `Board` already uses `scroll-snap-type: x
 mandatory` for its columns on narrow screens, so a horizontal pane swipe would compete with a
 horizontal column swipe and make both feel broken. If it is ever wanted it must be an edge
@@ -12047,6 +12051,10 @@ From the audit of the day's work (the owner: *"many ad hoc custom paths"*):
 
 ## 2026-10-18 — Home is the Library's shelves; tutorials are notes `#ui` `#vault`
 
+> SUPERSEDED IN PART (2026-10-29, late night, *the app opens on Food's Day*): a first launch still opens on the
+> shelves, but a later one no longer reopens the saved view — it opens on Food's Day, the open notes
+> kept.
+
 > SUPERSEDED IN PART (2026-10-24, *a shelf is a `shelf:` tag*): point 1's `shelf` **property** is
 > gone; a shelf is now a tag named `shelf:<name>`, and existing properties are rewritten at start.
 
@@ -13663,6 +13671,10 @@ Widens what ships: nothing.
 
 ## 2026-10-29 — the food list fills what a table never measures, keeps fractions of a microgram, and reads its sources as they define themselves `#data` `#toolchain` `#ui`
 
+> SUPERSEDED IN PART (2026-10-29, late night, *a value a food lacks is borrowed from the closest food
+> of any table*): borrowing only where a table measures a nutrient for under 5% of its foods, and
+> from USDA alone, left most gaps open; it is now per food, from every table.
+
 > Amends *the food list is European* and *every nutrient key has one international definition*
 > (2026-10-11; bannered). Written before the change, as a reversal must be.
 
@@ -13748,4 +13760,96 @@ English name, its table's own beside it.
 - **A translation by the assistant was proposed as a last step and is not built**: it would be a new
   Myrme method and contract item for the products with neither an English name nor a category, and
   they were not measured yet.
+
+## 2026-10-29 (late night) — a value a food lacks is borrowed from the closest food of any table; an entry can be brought up to date `#data` `#toolchain`
+
+> Reworks *the food list fills what a table never measures* (2026-10-29), which did not fix what it
+> was for.
+
+**What happened.** The person who reported no choline in eggs logged eggs after 0.22.1 and still read
+0; she also found no selenium in macadamia nuts, which the web gives. The owner: *"Did you actually
+solve the underlying issue of all micro nutrients and nutrients?"* It had not. Measured on
+`foods@2026.10.4` (`nutrient-data-audit-2026-10-29.md` §6), for single foods, not dishes: choline in
+18–29% of each table's foods; CREA's vitamins in under a third; CREA's magnesium and zinc never
+filled. Three causes:
+
+1. **Gaps were filled per table, not per food**: only for a nutrient a table measures for under 5%
+   of its foods. Ciqual measures selenium for 62% of its foods; its macadamia nuts are in the 38%
+   that were never filled.
+2. **The matcher missed the same food named another way.** CREA's "Chicken Egg, whole, boiled, a la
+   coque or hard-boiled" against USDA's "Egg, whole, boiled or poached" shared 33% of their name
+   words, against a bar of 34%. CREA's boiled and fried eggs, the Swiss hard-boiled egg and BLS's
+   fried egg had no choline; an Italian logging boiled eggs read 0.
+3. **"＋ again" copied the old entry's numbers**, and entries logged before an update were never
+   told — so even a food the list now completes logged without it.
+
+**Decision.**
+- **Every value a food lacks is borrowed**, whatever its table measures for its other foods: first
+  from USDA's closest food, **then from the closest food of another European table**, which holds
+  measured European values (BLS and the Swiss table measure most vitamins for nearly all their
+  foods) and what USDA lent it — a value keeps its origin, the food that measured it.
+- **Names are read alike** before they are compared (a hen's egg is "egg"; "a la coque",
+  "hard-boiled", "poached" are boiled; "omelette", CREA's "scrumbled"), and the macronutrients weigh
+  more than the names (6 to 4). A name may share fewer words only when one holds every word of the
+  other and the macronutrients agree closely: no rival variety on each side.
+- **What may not lend**, each found in a sample of matches read by eye: a dish to a single food
+  ("Salmon, raw" ← a salmon salad); across states — fried, preserved (canned, pickled, in syrup),
+  dried, smoked or cured, juice; a food named enriched or fortified; US grain foods the enrichment
+  nutrients (iron, folic acid, thiamin, riboflavin, niacin) unless named unenriched; US milk vitamin D
+  and A. Without these, cod liver oil took coconut oil's values and a French flour US flour's folic
+  acid.
+- **Measured** (single foods; §6): Ciqual's vitamin B12 66% → 81%, selenium 64% → 77%; CREA's
+  vitamins 28–30% → 61–65%, magnesium 35% → 78%, iodine 0% → 53%; choline 22–39% (only USDA measures
+  it). Random samples of the new matches were read by eye; the remaining ones are the same food or
+  a near one (a raw lamb from a cooked one), and every borrowed value says from what.
+- **An entry from the list can be brought up to date, on a press**: the nutrients sheet says when
+  entries were logged before the list had values it has now and offers *Update*, which adds only
+  what the entry lacks, at its own amount; what it has stays as logged. **"＋ again" logs the food as
+  the list has it now.** Each entry without a nutrient says why: typed by hand, its label does not
+  state it, logged before the list had it, or no table has it for that food or one close enough.
+- **A borrowed value names its table** ("BLS (Germany): Chicken egg boiled"), not its code.
+
+**Still not covered**, and said on screen per entry: choline for most foods USDA has no close
+match for; dishes whose table did not measure a value; CREA's iodine where no other table has the
+food.
+
+## 2026-10-29 (late night) — the app opens on Food's Day; the food search is the first thing there; a menu follows its content `#ui`
+
+> Reverses in part *Home is the Library's shelves* (2026-10-18): see its banner.
+
+**The owner**, on the phone: *"the search food should also be the default first thing a person see,
+it is the most used feature"*, choosing, of three, *"Open on Food, every start"*.
+
+- **Every launch after the first opens on Food's Day** (`panes.ts::opening`, `START_VIEW`, pinned to
+  the shipped file by a Rust test); the open notes are kept. A first launch still opens on the
+  shelves and their tutorials, for a newcomer.
+- **"Search a food to log" heads the Day screen** and opens the logging sheet on its search, the
+  keyboard up. Which meal is still asked there: none is guessed (2026-10-11).
+- **A popup is placed again whenever its content changes** (`popup.ts`), not only its size. On a phone
+  the search panel opened under the field with "Searching…", in the strip above the keyboard; its
+  results then scrolled inside a 48 px box and showed only once the keyboard was put away (the
+  owner: *"I do not see the results … till I press back"*). Reproduced in a phone-sized browser with
+  the keyboard as the Android shell reports it, and fixed there.
+
+## 2026-10-29 (late night) — a swipe steps between a group's views on a touch screen `#ui`
+
+> Reverses in part *One shell, two arrangements* (2026-07-19), whose "deliberately not done: swipe
+> between panes" it answers; see its banner.
+
+**The owner:** *"maybe a swipe left right in a view can be used to switch between subviews on the
+phone"*.
+
+- **On a touch screen, a swipe left opens the group's next view, right its previous** (Day → Menu →
+  Trends → Diet; the Library's and Tasks' views likewise), as its tab would; nothing past either end.
+  `swipe.ts`, on the screen of `TrackerPane` and the body of a view's `Pane`.
+- **The 2026-07-19 objection is met, not ignored**: a swipe never starts on anything that answers a
+  sideways move itself — a box that scrolls sideways (the board's columns, a strip of chips), a
+  field, the note's text, or anything marked `data-no-swipe`. On a board the columns keep the
+  gesture; its tabs are still there.
+- **It must be clearly a swipe**: 60 px across, twice as far across as down, within 0.7 s; a
+  vertical scroll is never taken.
+- **A sideways move that is ours is claimed** (`preventDefault` on `touchmove`): in a phone-sized
+  Chrome the browser's own swipe to go back fired on the same right swipe and left the group.
+- Checked by driving a phone-sized Chromium with real touch input: Day → Diet and back by swipes,
+  nothing past the ends, a vertical scroll and a swipe across the board's columns left alone.
 

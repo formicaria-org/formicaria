@@ -2,6 +2,7 @@
   // One pane of the workspace: a compact header (view picker, per-view controls, close) over
   // one of the existing renderers. The renderers are pure and already `height:100%`, so a pane
   // is a thin frame around them — the whole reason the flexible grid is cheap.
+  import { swipe } from './swipe';
   import {
     draggable,
     dropTargetForElements,
@@ -226,6 +227,19 @@
 
   // The picker's options: the built-in kinds (from the one registry, so a new kind appears here,
   // in the ⌘K palette, and in the bottom bar together) plus each saved `.view` (by name).
+  /// The group's next or previous view, as its tab would open it — a swipe on a touch screen
+  /// (`swipe.ts`, 2026-10-29).
+  function stepTab(by: 1 | -1) {
+    const at = spaceTabs.findIndex((t) =>
+      t.viewName ? pane.kind === 'view' && pane.viewName === t.viewName : pane.kind === t.kind,
+    );
+    const t = at < 0 ? undefined : spaceTabs[at + by];
+    if (!t) return;
+    onchange(
+      t.viewName ? { kind: 'view', viewName: t.viewName } : { kind: t.kind, viewName: undefined },
+    );
+  }
+
   /// **The window's name, and nothing more.** This used to be a *rotator*: clicking the name
   /// stepped to the next view, and the whole header rotated on a wheel or a swipe. It is gone.
   ///
@@ -344,7 +358,15 @@
     </header>
   {/if}
 
-  <div class="pane-body" class:note-body={pane.kind === 'note'}>
+  <div
+    class="pane-body"
+    class:note-body={pane.kind === 'note'}
+    use:swipe={{
+      enabled: spaceTabs.length > 1 && pane.kind !== 'note',
+      onnext: () => stepTab(1),
+      onprev: () => stepTab(-1),
+    }}
+  >
     <!-- **A group's views, as tabs**, on every width: a phone's bar is the app's own, so this is
          how one steps from the board to the agenda there too. The same strip a group of
          tracker views draws for itself (`decisions.md#ui`, 2026-10-12). -->
