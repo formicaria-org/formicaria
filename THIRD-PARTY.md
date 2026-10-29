@@ -161,7 +161,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | libloading | v0.9.0 | ISC |
 | libm | v0.2.16 | MIT |
 | libsqlite3-sys | v0.38.1 | MIT |
-| libz-sys | v1.1.29 | MIT OR Apache-2.0 |
+| libz-sys | v1.1.31 | MIT OR Apache-2.0 |
 | linux-raw-sys | v0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | v0.8.2 | Unicode-3.0 |
 | log | v0.4.33 | MIT OR Apache-2.0 |
