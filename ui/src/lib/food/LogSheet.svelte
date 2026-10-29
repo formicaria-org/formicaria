@@ -36,6 +36,7 @@
     foodGet,
   } from '../ipc';
   import { digitsOf, isBarcode, sameCode } from './barcode';
+  import { aboutLines, ingredientsFor, nameFor } from './productInfo';
   import {
     AMOUNT_KEYS,
     amountKey,
@@ -403,11 +404,15 @@
   /// (`decisions.md#data`, 2026-10-12). What comes back fills the form; the person saves it.
   let looking = $state(false);
   let lookedUp = $state('');
+  /// What the look-up says about the product: its English, where it is sold, where its barcode was
+  /// issued (`productInfo.ts`).
+  let about = $state<string[]>([]);
   async function lookUp() {
     const l = labelling;
     if (!l || looking || !isBarcode(l.barcode)) return;
     looking = true;
     lookedUp = '';
+    about = [];
     try {
       const found = await productLookup(digitsOf(l.barcode));
       if (labelling !== l) return;
@@ -415,9 +420,10 @@
         lookedUp = 'Open Food Facts does not have this product. Type its label in below.';
         return;
       }
-      l.name = l.name.trim() || found.name;
+      l.name = l.name.trim() || nameFor(found);
       l.serving = l.serving || (found.serving_g ?? null);
-      l.ingredients = l.ingredients.trim() || found.ingredients;
+      l.ingredients = l.ingredients.trim() || ingredientsFor(found);
+      about = aboutLines(found);
       l.page = found.page;
       // What comes back is per 100 g, as a European label reads: the form is set to match.
       l.basis = '100g';
@@ -2079,6 +2085,7 @@
           </p>
         {/if}
         {#if lookedUp}<p class="hint" role="status">{lookedUp}</p>{/if}
+        {#each about as line (line)}<p class="hint">{line}</p>{/each}
         <button type="button" class="quiet" onclick={() => pick('label')} disabled={readingLabel}>
           {readingLabel
             ? 'Reading the label…'

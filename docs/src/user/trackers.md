@@ -260,6 +260,15 @@ outside Europe and North America — there is nothing. This is the one thing in 
 the internet. It happens only when you press the button, and it sends the barcode number and
 nothing else. The saved note says where its figures came from.
 
+**In English too.** Open Food Facts keeps a product's name in the language of whoever first typed
+it in, so a tin bought in Italy can come back with a German name. The form's name therefore starts
+with what the product is in English — its English name there, or else its category ("Canned
+chickpeas — Kichererbsen") — and the ingredients get an English line when the database has one.
+When neither exists, the nearest food in the food list is named underneath instead. The look-up
+also says which countries it is sold in, and where its barcode was issued: a German number on a
+tin in Italy means the brand got its number in Germany (a German chain's own brand, often), not
+that the food was made there.
+
 ### When you ate
 
 A food you log today is marked with the time you logged it; you are never asked. Open the entry to

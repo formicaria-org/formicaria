@@ -2393,6 +2393,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         String(args.code) === '3017624010701'
           ? {
               name: 'Nutella (Ferrero)',
+              english: { name: 'Hazelnut spreads', from: 'category' },
+              sold_in: ['France', 'Italy'],
+              registered: 'France',
               barcode: '3017624010701',
               serving_g: 15,
               per100: { kcal: 539, fat_mg: 30_900, sodium_ug: 43_000 },

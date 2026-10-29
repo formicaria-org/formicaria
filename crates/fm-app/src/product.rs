@@ -18,9 +18,12 @@ use std::collections::BTreeMap;
 const READ: &str = "https://world.openfoodfacts.org/api/v2/product";
 /// Where a person can see the same product, and what its note links to.
 const PAGE: &str = "https://world.openfoodfacts.org/product";
-/// What is asked for: the label, and nothing that is somebody's picture or score.
-const FIELDS: &str = "code,product_name,brands,serving_quantity,serving_quantity_unit,\
-                      ingredients_text,nutriments";
+/// What is asked for: the label, and nothing that is somebody's picture or score. Its name and
+/// ingredients in English too, its categories (named in English) and where it is sold: a product first typed in by someone in another country comes back in their
+/// language (2026-10-29, `decisions.md#data`).
+const FIELDS: &str = "code,product_name,product_name_en,brands,serving_quantity,\
+                      serving_quantity_unit,ingredients_text,ingredients_text_en,categories_tags,\
+                      countries_tags,nutriments";
 /// An answer larger than this is not one product.
 pub const LIMIT: usize = 512 * 1024;
 
@@ -57,14 +60,37 @@ pub fn address(code: &str) -> Result<String, String> {
 /// A product as its label would be typed in: what 100 g hold, by the keys every food uses.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Found {
+    /// Its name as Open Food Facts has it, with the brand: in whatever language it was typed in.
+    /// Which language that is is not said: their record of it is often wrong (an Italian name filed
+    /// as Spanish, another as English).
     pub name: String,
+    /// **What it is, in English**, when that says more than the name: their English name, else
+    /// their most specific category, else the app's food list's food of that name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub english: Option<English>,
+    /// Where they say it is sold, by country name.
+    pub sold_in: Vec<String>,
+    /// Where its barcode was issued (GS1's prefix): not where it was made, nor the brand's home.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub registered: String,
     pub barcode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_g: Option<i64>,
     pub per100: BTreeMap<String, i64>,
     pub ingredients: String,
+    /// The ingredients in English, when they have them and the label's are in another language.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub ingredients_en: String,
     /// The product's own page, to link to and to credit.
     pub page: String,
+}
+
+/// A product's name in English, and where that came from.
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+pub struct English {
+    pub name: String,
+    /// `name` (their English name), `category` (their category) or `list` (the app's food list).
+    pub from: &'static str,
 }
 
 /// The label's lines and the keys they are kept under, with how many of the key's unit a gram is.
@@ -99,6 +125,25 @@ pub fn read(body: &[u8]) -> Result<Option<Found>, String> {
     };
     let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or("").trim().to_string();
     let (name, brand) = (text("product_name"), text("brands"));
+    let tags = |k: &str| -> Vec<String> {
+        p.get(k)
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+            .unwrap_or_default()
+    };
+    let (name_en, ingredients, ingredients_en) =
+        (text("product_name_en"), text("ingredients_text"), text("ingredients_text_en"));
+    // Their English name counts only when it is another name: some records hold the label's own
+    // words in the English field ("CECI SOTTOVUOTO").
+    let english = if !name_en.is_empty() && !same_words(&name_en, &name) {
+        Some(English { name: name_en, from: "name" })
+    } else {
+        // A category whose words are all in the name already (*Hummus* for "Hummus ceci") says
+        // nothing more.
+        category(&tags("categories_tags"))
+            .filter(|c| !within(c, &name))
+            .map(|c| English { name: c, from: "category" })
+    };
     let n = p.get("nutriments").cloned().unwrap_or(Value::Null);
     let mut per100 = BTreeMap::new();
     if let Some(kcal) = n.get("energy-kcal_100g").and_then(number) {
@@ -112,6 +157,18 @@ pub fn read(body: &[u8]) -> Result<Option<Found>, String> {
     let code = text("code");
     let grams = text("serving_quantity_unit");
     Ok(Some(Found {
+        english,
+        sold_in: tags("countries_tags")
+            .iter()
+            .filter_map(|t| t.strip_prefix("en:"))
+            .map(country)
+            .collect(),
+        registered: registered(&code).unwrap_or_default().to_string(),
+        ingredients_en: if same_words(&ingredients_en, &ingredients) {
+            String::new()
+        } else {
+            ingredients_en
+        },
         name: match (name.is_empty(), brand.is_empty()) {
             (false, false) if !name.to_lowercase().contains(&brand.to_lowercase()) => {
                 format!("{name} ({brand})")
@@ -125,21 +182,167 @@ pub fn read(body: &[u8]) -> Result<Option<Found>, String> {
             .filter(|q| *q >= 1.0 && (grams.is_empty() || grams == "g"))
             .map(|q| q.round() as i64),
         per100,
-        ingredients: text("ingredients_text"),
+        ingredients,
         page: format!("{PAGE}/{code}"),
         barcode: code,
     }))
+}
+
+/// Two texts that are the same words, case and accents aside.
+fn same_words(a: &str, b: &str) -> bool {
+    let fold = |s: &str| -> Vec<String> {
+        s.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_lowercase)
+            .collect()
+    };
+    fold(a) == fold(b)
+}
+
+/// A tag as words: `canned-chickpeas` → `Canned chickpeas`.
+fn words(tag: &str) -> String {
+    let w = tag.replace('-', " ");
+    let mut c = w.chars();
+    c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+}
+
+/// A country tag as its name: `bosnia-and-herzegovina` → `Bosnia and Herzegovina`.
+fn country(tag: &str) -> String {
+    tag.split('-')
+        .enumerate()
+        .map(|(i, w)| {
+            if i > 0 && matches!(w, "and" | "of" | "the") {
+                w.to_string()
+            } else {
+                let mut c = w.chars();
+                c.next()
+                    .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
+                    .unwrap_or_default()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Their most specific category in English (`en:canned-chickpeas` → `Canned chickpeas`): the last of
+/// their own taxonomy's English tags, which are slugs. A tag in another language (`sk:cicer`) is
+/// one nobody has translated yet, and free text someone typed (`en:Vegetables - Prepared/Processed
+/// (Shelf Stable)`) is not theirs; both are passed over.
+fn category(tags: &[String]) -> Option<String> {
+    tags.iter()
+        .rev()
+        .filter_map(|t| t.strip_prefix("en:"))
+        .find(|t| {
+            !t.is_empty()
+                && t.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
+        .map(words)
+}
+
+/// Whether every word of `part` is in `whole`, case aside.
+fn within(part: &str, whole: &str) -> bool {
+    let w = |s: &str| -> Vec<String> {
+        s.split(|c: char| !c.is_alphanumeric())
+            .filter(|x| !x.is_empty())
+            .map(str::to_lowercase)
+            .collect()
+    };
+    let whole = w(whole);
+    w(part).iter().all(|x| whole.contains(x))
+}
+
+/// **Where a barcode was issued**, by GS1's prefix: the country of the GS1 office that gave the
+/// brand its numbers. Not where the food was made, nor where the brand is from — a German chain's
+/// own brand sold in Italy carries a German number. `None` for a prefix not listed here, for
+/// in-store codes (20–29) and for books and magazines.
+pub fn registered(code: &str) -> Option<&'static str> {
+    // A 12-digit UPC is an EAN-13 with a leading 0.
+    let code = if code.len() == 12 { format!("0{code}") } else { code.to_string() };
+    if code.len() != 13 {
+        return None;
+    }
+    let p: u32 = code.get(..3)?.parse().ok()?;
+    Some(match p {
+        0..=19 | 30..=39 | 60..=139 => "the United States or Canada",
+        300..=379 => "France",
+        380 => "Bulgaria",
+        383 => "Slovenia",
+        385 => "Croatia",
+        400..=440 => "Germany",
+        450..=459 | 490..=499 => "Japan",
+        460..=469 => "Russia",
+        471 => "Taiwan",
+        489 => "Hong Kong",
+        500..=509 => "the United Kingdom",
+        520..=521 => "Greece",
+        540..=549 => "Belgium or Luxembourg",
+        560 => "Portugal",
+        569 => "Iceland",
+        570..=579 => "Denmark",
+        590 => "Poland",
+        594 => "Romania",
+        599 => "Hungary",
+        600..=601 => "South Africa",
+        640..=649 => "Finland",
+        690..=699 => "China",
+        700..=709 => "Norway",
+        729 => "Israel",
+        730..=739 => "Sweden",
+        750 => "Mexico",
+        760..=769 => "Switzerland",
+        789..=790 => "Brazil",
+        800..=839 => "Italy",
+        840..=849 => "Spain",
+        858 => "Slovakia",
+        859 => "the Czech Republic",
+        860 => "Serbia",
+        868..=869 => "Turkey",
+        870..=879 => "the Netherlands",
+        880 => "South Korea",
+        885 => "Thailand",
+        888 => "Singapore",
+        890 => "India",
+        893 => "Vietnam",
+        899 => "Indonesia",
+        900..=919 => "Austria",
+        930..=939 => "Australia",
+        940..=949 => "New Zealand",
+        955 => "Malaysia",
+        _ => return None,
+    })
+}
+
+/// **The food list's English name for a product named in another language**: its first food found
+/// by that language's own name (the list keeps each table's own names beside the English one, and
+/// says which was matched). A food found only by its English name is no translation and is not
+/// taken. The brand, in brackets, is left out of the search.
+fn from_list(name: &str, search: &dyn Fn(&str) -> Vec<fm_core::pack::FoodHit>) -> Option<English> {
+    let q = name.split(" (").next().unwrap_or(name).trim();
+    if q.is_empty() {
+        return None;
+    }
+    search(q)
+        .into_iter()
+        .find(|h| !h.alt.is_empty())
+        .map(|h| English { name: h.name, from: "list" })
 }
 
 /// The shell's side of a look-up: given the address and the User-Agent, the status and the body,
 /// capped at [`LIMIT`].
 pub type Fetch<'a> = dyn Fn(&str, &str) -> Result<(u16, Vec<u8>), String> + 'a;
 
-/// Ask for one product.
+/// Ask for one product. When their record names it in English nowhere, the app's food list is
+/// asked (on the device, nothing sent) for a food of that name.
 pub fn lookup(code: &str, fetch: &Fetch) -> Result<Option<Found>, String> {
     let (status, body) = fetch(&address(code)?, &user_agent())?;
     match status {
-        200 => read(&body),
+        200 => Ok(read(&body)?.map(|mut f| {
+            if f.english.is_none() {
+                f.english =
+                    from_list(&f.name, &|q| crate::packs::food_search(q, 5).unwrap_or_default());
+            }
+            f
+        })),
         404 => Ok(None),
         429 | 503 => Err("Open Food Facts is asking for fewer requests just now. Try again in a \
                           minute, or type the label in."
@@ -206,5 +409,79 @@ mod tests {
             .contains("minute"));
         // Not a barcode: refused before anything is sent.
         assert!(lookup("hello", &|_, _| panic!("nothing may be sent")).is_err());
+    }
+
+    /// A tin bought in Italy whose record a German contributor typed in (2026-10-29): its name is
+    /// German, the English comes from their category, and where it is sold and where its barcode was
+    /// issued are said.
+    #[test]
+    fn a_product_typed_in_another_language_says_so_and_what_it_is_in_english() {
+        let body = br#"{"status":1,"product":{"code":"4056489123457","lang":"de",
+          "product_name":"Kichererbsen","product_name_en":"","brands":"Freshona",
+          "ingredients_text":"Kichererbsen, Wasser, Salz","ingredients_text_en":"Chickpeas, water, salt",
+          "categories_tags":["en:plant-based-foods","en:legumes","en:chickpeas","sk:cicer"],
+          "countries_tags":["en:germany","en:italy","en:bosnia-and-herzegovina"],
+          "nutriments":{"energy-kcal_100g":112}}}"#;
+        let p = read(body).unwrap().unwrap();
+        assert_eq!(p.name, "Kichererbsen (Freshona)");
+        assert_eq!(p.english, Some(English { name: "Chickpeas".into(), from: "category" }));
+        assert_eq!(p.sold_in, ["Germany", "Italy", "Bosnia and Herzegovina"]);
+        assert_eq!(p.registered, "Germany");
+        assert_eq!(p.ingredients_en, "Chickpeas, water, salt");
+
+        // Their English name, when it is another name, comes first.
+        let named = br#"{"status":1,"product":{"code":"8001234567890","lang":"it",
+          "product_name":"Ceci lessati","product_name_en":"Boiled chickpeas","categories_tags":["en:chickpeas"]}}"#;
+        let p = read(named).unwrap().unwrap();
+        assert_eq!(p.english, Some(English { name: "Boiled chickpeas".into(), from: "name" }));
+        assert_eq!(p.registered, "Italy");
+
+        // As three real records were on 2026-10-29: the label's own words in the English field are
+        // no English name, free text among the categories is not one of theirs, and a category
+        // whose words are all in the name says nothing more.
+        let same = br#"{"status":1,"product":{"code":"3083681003949","lang":"en",
+          "product_name":"CECI SOTTOVUOTO","product_name_en":"CECI SOTTOVUOTO",
+          "categories_tags":["en:legumes","en:chickpeas","en:canned-chickpeas",
+            "en:Vegetables - Prepared/Processed (Shelf Stable)","sk:cicer"]}}"#;
+        let p = read(same).unwrap().unwrap();
+        assert_eq!(p.english.unwrap().name, "Canned chickpeas");
+        assert_eq!(p.registered, "France");
+        let hummus = br#"{"status":1,"product":{"code":"8017596128164","lang":"en",
+          "product_name":"Hummus ceci","categories_tags":["en:dips","en:hummus"]}}"#;
+        assert_eq!(read(hummus).unwrap().unwrap().english, None);
+        let filed_as_spanish = br#"{"status":1,"product":{"code":"8003712010376","lang":"es",
+          "product_name":"Sfogliette ai ceci","categories_tags":["en:snacks","en:appetizers"]}}"#;
+        assert_eq!(read(filed_as_spanish).unwrap().unwrap().english.unwrap().name, "Appetizers");
+    }
+
+    #[test]
+    fn the_food_list_names_it_only_when_found_by_its_own_language_s_name() {
+        let hit = |name: &str, alt: &str| fm_core::pack::FoodHit {
+            id: "x:1".into(),
+            name: name.into(),
+            src: "bls".into(),
+            kcal: 0,
+            alt: alt.into(),
+        };
+        let search = |q: &str| {
+            assert_eq!(q, "Kichererbsen", "the brand is not searched");
+            vec![hit("Chickpea, ripe seeds, dried", "Kichererbse reif getrocknet")]
+        };
+        assert_eq!(
+            from_list("Kichererbsen (Freshona)", &search),
+            Some(English { name: "Chickpea, ripe seeds, dried".into(), from: "list" })
+        );
+        assert_eq!(from_list("Hummus", &|_| vec![hit("Hummus", "")]), None);
+    }
+
+    #[test]
+    fn a_barcode_says_where_it_was_issued_not_where_it_was_made() {
+        assert_eq!(registered("4056489123457"), Some("Germany"));
+        assert_eq!(registered("8001234567890"), Some("Italy"));
+        assert_eq!(registered("3017624010701"), Some("France"));
+        assert_eq!(registered("036000291452"), Some("the United States or Canada"));
+        assert_eq!(registered("2001234567893"), None, "an in-store code");
+        assert_eq!(registered("9780306406157"), None, "a book");
+        assert_eq!(registered("96385074"), None);
     }
 }

@@ -775,12 +775,21 @@ test('a barcode is looked up only when asked, fills the label, and the note says
   await waitFor(() =>
     expect((within(form).getByLabelText('Energy') as HTMLInputElement).value).toBe('539'),
   );
-  expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe('Nutella (Ferrero)');
+  // What it is in English comes first, then its name as typed (2026-10-29).
+  expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe(
+    'Hazelnut spreads — Nutella (Ferrero)',
+  );
+  expect(within(form).getByText(/Sold in France and Italy/)).toBeTruthy();
+  expect(
+    within(form).getByText(/barcode was issued in France — where the brand got its number/),
+  ).toBeTruthy();
   // Sodium came back; the form shows it as the salt a label states.
   expect((within(form).getByLabelText('Salt') as HTMLInputElement).value).toBe('0.11');
   expect(within(form).getByText(/Check it against the pack/)).toBeTruthy();
   await fireEvent.click(within(form).getByRole('button', { name: 'Save it' }));
-  expect(await within(sheet).findByRole('heading', { name: 'Nutella (Ferrero)' })).toBeTruthy();
+  expect(
+    await within(sheet).findByRole('heading', { name: 'Hazelnut spreads — Nutella (Ferrero)' }),
+  ).toBeTruthy();
 });
 
 test('what you say you have in your kitchen is a list of names, kept from the menu', async () => {

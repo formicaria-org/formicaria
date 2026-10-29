@@ -13723,3 +13723,29 @@ often."* Ruled in Myrme (its `decisions.md`, 2026-10-29 evening; plan and measur
   the phone's `DispatchVault` answers `VaultAccess::food` with `food_search` and `food_get` in process
   (the desktop's agent asks the same two over `/api`). Reading the list moves no note.
 
+## 2026-10-29 (night) — a scanned product says what it is in English, where it is sold and where its barcode was issued `#data` `#ui`
+
+The owner: *"can we also translate the food names and other info at least always also in english.
+I scanned a ceci box in italy and it got something in german"*. Open Food Facts keeps one name per
+language and a "main" one, the language of whoever typed the record in; the app asked for the main
+one only. Measured on 2026-10-29: of 40 chickpea products sold in Italy, 18 have an English name,
+and records misfile their language (an Italian name filed as Spanish, another as English; Bonduelle's
+English field holds "CECI SOTTOVUOTO"). The food list was never the problem: every food has an
+English name, its table's own beside it.
+
+- **The same one request by barcode**, asking also `product_name_en`, `ingredients_text_en`,
+  `categories_tags` and `countries_tags` (`product.rs::FIELDS`; the address check in `ci/checks.sh`
+  is unchanged).
+- **English, from what exists, never invented**: their English name when it is another name; else
+  their most specific category from their own taxonomy (a slug: `en:canned-chickpeas`; free text and
+  other languages' tags are passed over), unless its words are all in the name already; else the
+  food list's food found by that language's own name, offered under the form, never put in the name
+  (a kind of food, not this product). The form's name is `English — name as typed`; the ingredients
+  gain an English line.
+- **The language is not named**: their record of it is wrong too often to show.
+- **Where it is sold** (their countries) **and where its barcode was issued** (GS1's prefix, "not
+  where it was made") answer "is this the product I bought?".
+- **A translation by the assistant was proposed as a last step and is not built**: it would be a new
+  Myrme method and contract item for the products with neither an English name nor a category, and
+  they were not measured yet.
+

@@ -904,7 +904,16 @@ export interface Product {
 }
 /** A product as Open Food Facts gave it, shaped as the label form's fields (`product_lookup`). */
 export interface ProductFound {
+  /** Its name as Open Food Facts has it, with the brand, in whatever language it was typed in. */
   name: string;
+  /** What it is in English, when that says more than the name (`product.rs`, 2026-10-29). */
+  english?: { name: string; from: 'name' | 'category' | 'list' };
+  /** The countries they say it is sold in. */
+  sold_in: string[];
+  /** Where its barcode was issued: not where it was made. */
+  registered?: string;
+  /** The ingredients in English, when the label's are in another language. */
+  ingredients_en?: string;
   barcode: string;
   serving_g?: number;
   per100: Record<string, number>;
