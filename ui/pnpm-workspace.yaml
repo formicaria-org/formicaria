@@ -15,3 +15,12 @@ overrides:
   "source-map-js@<1.2.2": "^1.2.2"
   "chokidar@<4": "^4.0.3"
   "katex@<0.18.2": "0.18.10"
+
+# **One advisory waived, because its fix does not exist** (2026-10-29, `decisions.md#toolchain`; the
+# owner's decision). GHSA-gcqx-w48m-w2h4 (low) names deepmerge 4.3.2 as the fix; the newest release
+# is 4.3.1 (2023), so no override can reach it. Its only path is `@sveltejs/vite-plugin-svelte`, at
+# build time, merging this project's own config: nothing untrusted reaches it, and it is not in the
+# app. Remove this the day 4.3.2 (or the plugin without deepmerge) is published.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-gcqx-w48m-w2h4
