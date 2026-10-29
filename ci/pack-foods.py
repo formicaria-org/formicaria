@@ -76,6 +76,7 @@ import hashlib
 import html
 import io
 import os
+import random
 import re
 import sqlite3
 import sys
@@ -86,7 +87,7 @@ import zipfile
 # The list's own version: bump it whenever an input, the constituents or the layout changes.
 # An entry records `<name>@<version>/<food>` as where its numbers came from.
 NAME = "foods"
-VERSION = "2026.10.5"
+VERSION = "2026.10.6"
 
 # ── inputs, each pinned by checksum ──────────────────────────────────────────────────────────────
 
@@ -896,6 +897,192 @@ def borrow(foods):
     return out
 
 
+# ── one food, one set of values ──────────────────────────────────────────────────────────────────
+# `decisions.md#data`, 2026-10-29 (later that night). The same food in several tables was several
+# foods with different values: macadamia nuts were BLS's, Ciqual's, CREA's and USDA's, with selenium
+# 12, 12, 4 and 33 µg, and which one a person got depended on the row they tapped. Now the same food
+# is **one group**, and every member holds the group's values: each nutrient from the first table, in
+# ORDER, that measured it — one real measurement, never a computed one (the owner's choice, "one table
+# first"); where none measured it, what was lent to the first that has a lent value.
+#
+# A group is strict, because a wrong group gives a food another food's values: same kind, same
+# state (raw or cooked as well as the states `likeness` keeps apart), the same numbers in the name
+# (wheat flour type 550 is not type 812), the same organ or part (a mutton heart is not mutton meat),
+# names one inside the other (the same words for a dish), protein, fat, carbohydrate and water within
+# a quarter; at most one food per table, and every member strictly alike every other.
+ORDER = ["bls", "swiss", "ciqual", "crea", "usda"]
+PARTS = set("""heart liver kidney tongue brain tripe lung stomach gizzard marrow sweetbread yolk white
+stalk leaf leaves root seed bran germ skin peel""".split())
+
+
+def same_food(a, b, foods):
+    s = likeness(a, b)
+    if s < 0.75 or a["raw"] != b["raw"] or a["cooked"] != b["cooked"]:
+        return False
+    num = lambda i: set(re.findall(r"\d+(?:[.,]\d+)?", foods[i][1]))
+    if num(a["i"]) != num(b["i"]):
+        return False
+    low = lambda i: set(re.findall(r"[a-z]+", norm(foods[i][1])))
+    if (low(a["i"]) ^ low(b["i"])) & PARTS:
+        return False
+    na, nb = a["words"], b["words"]
+    if a["dish"] or b["dish"]:
+        if na != nb:
+            return False
+    elif not (na <= nb or nb <= na):
+        return False
+    d = [abs(a["v"][k] - b["v"][k]) / (max(a["v"][k], b["v"][k]) + sc)
+         for k, sc in MACROS.items() if k in a["v"] and k in b["v"]]
+    return len(d) >= 4 and max(d) <= 0.25
+
+
+def groups(foods):
+    """Groups of the same food across tables, as lists of food indexes."""
+    shapes = [shape(i, foods) for i in range(len(foods))]
+    index = {}
+    for u in shapes:
+        for w in u["words"]:
+            index.setdefault(w, []).append(u)
+    pairs = []
+    for a in shapes:
+        seen = set()
+        for w in a["words"]:
+            for b in index.get(w, []):
+                if b["i"] <= a["i"] or b["i"] in seen or foods[b["i"]][2] == foods[a["i"]][2]:
+                    continue
+                seen.add(b["i"])
+                if same_food(a, b, foods):
+                    pairs.append((likeness(a, b), a["i"], b["i"]))
+    pairs.sort(reverse=True)
+    root = list(range(len(foods)))
+    members = {i: [i] for i in range(len(foods))}
+    def find(i):
+        while root[i] != i:
+            root[i] = root[root[i]]
+            i = root[i]
+        return i
+    for _, a, b in pairs:
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            continue
+        if {foods[m][2] for m in members[ra]} & {foods[m][2] for m in members[rb]}:
+            continue
+        if not all(same_food(shapes[x], shapes[y], foods) for x in members[ra] for y in members[rb]):
+            continue
+        root[rb] = ra
+        members[ra] += members.pop(rb)
+    return [sorted(m, key=lambda i: ORDER.index(foods[i][2])) for m in members.values() if len(m) > 1]
+
+
+# ── estimates, only where they were tested ───────────────────────────────────────────────────────
+# Same night. Where no table measured a nutrient for a food, nor for a food close enough to lend
+# it, the value may be **estimated** from the most similar foods of its kind that have it: the five
+# nearest by protein, fat, carbohydrate, water and fibre, their nutrient per gram of protein (for a
+# nutrient that goes with protein) or per kilocalorie, times the food's own. **Only for a nutrient
+# and a kind of food where the method was tested and held**: at every build, measured values are
+# hidden and estimated from other foods — never from a food of the same name — and a pair is used
+# only when the typical error is within 20% and three in five estimates are within 30%. On the
+# 2026-10-29 sources 35 pairs held, most of them the absence of vitamin B12, vitamin D and
+# cholesterol in plant foods; choline only for meat. Everything else stays a gap, said per entry.
+# A zero is given only to plant foods (vegetables, fruit, legumes, nuts, drinks) — never to
+# mushrooms (vitamin D), algae or yeast (B12), anything fortified, or a plant drink.
+KINDS = [
+    ("egg", "egg eggs"),
+    ("offal", "liver kidney heart tongue brain tripe lung gizzard sweetbread offal"),
+    ("fish", """fish salmon tuna cod trout herring mackerel sardine anchovy halibut plaice sole carp
+     pike perch hake haddock pollock saithe whiting bream bass turbot eel catfish tilapia swordfish
+     monkfish anglerfish ling redfish mullet sprat char whitefish zander shrimp prawn crab lobster
+     mussel oyster clam scallop squid octopus cuttlefish crayfish caviar roe seafood shellfish
+     sturgeon"""),
+    ("cheese", """cheese cheddar gouda emmental emmentaler brie camembert mozzarella parmesan
+     parmigiano grana ricotta feta gorgonzola pecorino fontina gruyere comte edam tilsit limburger
+     mascarpone provolone taleggio asiago raclette appenzeller stracchino caciotta caciocavallo"""),
+    ("dairy", "milk yogurt kefir quark whey buttermilk cream curd skyr"),
+    ("fat", "oil butter margarine lard ghee dripping suet"),
+    ("nut", """nut nuts almond hazelnut walnut cashew pistachio pecan macadamia peanut seed seeds
+     sesame sunflower chia flax linseed coconut pine"""),
+    ("legume", "bean beans lentil lentils chickpea chickpeas soy soya tofu lupin pea peas"),
+    ("meat", """beef veal pork lamb mutton goat venison deer boar rabbit hare horse ham bacon sausage
+     salami chicken turkey duck goose poultry meat steak mince meatball mortadella speck chorizo"""),
+    ("grain", """flour bread roll pasta rice oat oats wheat rye barley corn maize millet quinoa cereal
+     muesli cracker crackers biscuit cake pastry croissant noodle noodles spaghetti couscous semolina
+     bran germ polenta buckwheat spelt"""),
+    ("sweet", "sugar chocolate candy honey jam marmalade sweet sweets dessert pudding ice cookie syrup praline"),
+    ("drink", "juice tea coffee soda water beer wine spirit liqueur lemonade cola drink nectar smoothie"),
+    ("fruit", """apple pear peach apricot plum cherry grape banana orange lemon lime mandarin grapefruit
+     strawberry raspberry blueberry blackberry currant kiwi mango papaya pineapple melon watermelon
+     fig date fruit berry berries pomegranate quince persimmon lychee passion avocado olive"""),
+    ("veg", """vegetable vegetables carrot potato tomato onion garlic leek cabbage broccoli cauliflower
+     spinach lettuce salad cucumber zucchini pepper eggplant pumpkin squash celery fennel asparagus
+     artichoke beet beetroot radish turnip kale chard mushroom mushrooms sprouts endive chicory rocket
+     cress okra parsnip"""),
+]
+KIND_WORDS = [(k, set(w.split())) for k, w in KINDS]
+# Nutrients that go with protein, so scaled by it; the rest by energy.
+WITH_PROTEIN = {"choline_ug", "selenium_ug", "vitamin_b12_ng", "zinc_ug", "iron_ug",
+                "phosphorus_ug", "niacin_ug", "vitamin_b6_ug", "pantothenic_acid_ug", "iodine_ug",
+                "copper_ug", "riboflavin_ug", "thiamin_ug", "cholesterol_ug"}
+NOT_ESTIMATED = {"kcal", "protein_mg", "fat_mg", "carbs_mg", "water_mg", "fiber_mg", "sugars_mg",
+                 "saturated_fat_mg", "alcohol_mg", "caffeine_ug", "sodium_ug", "total_carbs_mg"}
+NEVER_ZERO = re.compile(r"\b(mushrooms?|algae|seaweed|spirulina|nori|yeast|fortified|enriched|"
+                        r"(soy|soya|oat|almond|rice|coconut|plant)[- ](drink|milk|beverage))\b")
+MACRO_FEATURES = ["protein_mg", "fat_mg", "carbs_mg", "water_mg", "fiber_mg"]
+PLANT = {"veg", "fruit", "legume", "nut", "drink"}
+
+
+def kind_of(f):
+    t = set(re.findall(r"[a-z]+", norm(f[1] + " " + (f[3] or ""))))
+    if t & DISH:
+        return "dish"
+    for k, ws in KIND_WORDS:
+        if t & ws:
+            return k
+    return "other"
+
+
+def estimate(foods, i, key, donors):
+    """The estimate for food `i` from `donors`, and how many it rests on; None with fewer than 3."""
+    v = foods[i][4]
+    x = [v.get(k, 0) / 1000 for k in MACRO_FEATURES]
+    near = sorted(donors, key=lambda j: sum((a - foods[j][4].get(k, 0) / 1000) ** 2
+                                            for a, k in zip(x, MACRO_FEATURES)))[:5]
+    if len(near) < 3:
+        return None
+    base = (lambda w: max(w.get("protein_mg", 0), 1)) if key in WITH_PROTEIN else \
+        (lambda w: max(w.get("kcal", 0), 1))
+    ratios = sorted(foods[j][4][key] / base(foods[j][4]) for j in near)
+    return round(ratios[len(ratios) // 2] * base(v)), len(near)
+
+
+def tested(foods, kinds, heads):
+    """The (nutrient, kind) pairs the method holds for: hide, estimate, compare (see above)."""
+    rng = random.Random(7)
+    keys = [k for k, *_ in NUTRIENTS if k not in NOT_ESTIMATED]
+    pools = {}
+    for i, f in enumerate(foods):
+        for k in keys:
+            if k in f[4]:
+                pools.setdefault((k, kinds[i]), []).append(i)
+    held = {}
+    for (k, kind), pool in pools.items():
+        if kind == "other" or len(pool) < 20:
+            continue
+        errs = []
+        for i in rng.sample(pool, min(60, len(pool))):
+            got = estimate(foods, i, k, [j for j in pool if j != i and not heads[j] & heads[i]])
+            if got is None:
+                continue
+            t = foods[i][4][k]
+            errs.append(abs(got[0] - t) / t if t > 0 else (0.0 if got[0] == 0 else 1.0))
+        if len(errs) < 20:
+            continue
+        errs.sort()
+        typical = errs[len(errs) // 2]
+        if typical <= 0.2 and sum(e <= 0.3 for e in errs) >= 0.6 * len(errs):
+            held[(k, kind)] = typical
+    return held
+
+
 # Foods whose matches are printed at every build, for a person to look at.
 REVIEW = ["egg,", "milk", "yogurt", "butter", "cheese", "chicken", "beef", "pork", "salmon", "tuna",
           "potato", "rice", "bread", "apple", "banana", "spinach", "broccoli", "lentil", "almond",
@@ -918,18 +1105,71 @@ def build(cache, out, embed):
     foods = [row for source in (read_ciqual, read_bls, read_swiss, read_crea, read_usda)
              for row in source(cache)]
     lent = borrow(foods)
+    # Every food's values and where each came from: its own (origin itself), then borrowed.
+    held = [{**{k: (v, i) for k, v in f[4].items()}, **lent.get(i, {})} for i, f in enumerate(foods)]
+    # One food, one set of values: each nutrient from the first table that measured it, else lent.
+    same = groups(foods)
+    first_of = {}
+    for g in same:
+        one = {}
+        for k in keys:
+            mine = [m for m in g if k in foods[m][4]]
+            if mine:
+                one[k] = (foods[mine[0]][4][k], mine[0])
+            elif any(k in held[m] for m in g):
+                one[k] = held[next(m for m in g if k in held[m])][k]
+        for m in g:
+            held[m] = dict(one)
+            first_of[m] = g[0]
+    # What was lent from a member of a group carries the group's value: roasted macadamia nuts
+    # lent selenium by USDA's "Macadamia nuts" hold the group's, not USDA's own.
+    canon = {m: held[m] for g in same for m in g}
+    for i in range(len(foods)):
+        if i in canon:
+            continue
+        for k, (v, frm) in list(held[i].items()):
+            if frm is not None and frm != i and frm in canon and k in canon[frm]:
+                held[i][k] = canon[frm][k]
+    print(f"  one food, one set of values: {len(same)} groups of {sum(len(g) for g in same)} foods")
+    # Estimates, only where the method was tested and held at this build.
+    kinds = [kind_of(f) for f in foods]
+    heads = [name_words(re.split(r"[,(]", f[1])[0]) for f in foods]
+    held_pairs = tested(foods, kinds, heads)
+    print(f"  estimates hold for {len(held_pairs)} nutrient and kind pairs:")
+    for (k, kind), typical in sorted(held_pairs.items()):
+        print(f"    {k:20} {kind:7} typically {round(100 * typical)}% off")
+    donors = {}
+    for i, f in enumerate(foods):
+        for k in f[4]:
+            if (k, kinds[i]) in held_pairs:
+                donors.setdefault((k, kinds[i]), []).append(i)
+    guessed = {}
+    for i, f in enumerate(foods):
+        for (k, kind) in held_pairs:
+            if kind != kinds[i] or k in held[i]:
+                continue
+            got = estimate(foods, i, k, [j for j in donors[(k, kind)] if not heads[j] & heads[i]])
+            # A zero only for plant foods: a test on typical error cannot see the cakes made with
+            # eggs and butter among the grains, or the butter among the fats.
+            if got is None or (got[0] == 0 and (kind not in PLANT or NEVER_ZERO.search(norm(f[1])))):
+                continue
+            held[i][k] = (got[0], None)
+            guessed.setdefault(i, {})[k] = f"{got[1]} similar foods ({kind})"
+    print(f"  estimated: {sum(len(v) for v in guessed.values())} values for {len(guessed)} foods")
     counts = {}
     for at, (code, title, src, grp, values, portions, alt) in enumerate(foods):
         fid = at + 1
         db.execute("INSERT INTO food(id, code, name, src, grp, alt) VALUES (?, ?, ?, ?, ?, ?)",
                    (fid, code, title, src, grp, alt))
-        mine = dict(values)
-        for k, (v, _) in lent.get(at, {}).items():
-            mine[k] = v
         db.executemany("INSERT INTO amount VALUES (?, ?, ?)",
-                       [(fid, keys[k], v) for k, v in mine.items()])
+                       [(fid, keys[k], v) for k, (v, _) in held[at].items()])
         db.executemany("INSERT INTO borrowed VALUES (?, ?, ?)",
-                       [(fid, keys[k], frm + 1) for k, (_, frm) in lent.get(at, {}).items()])
+                       [(fid, keys[k], frm + 1) for k, (_, frm) in held[at].items()
+                        if frm is not None and frm != at])
+        db.executemany("INSERT INTO estimated VALUES (?, ?, ?)",
+                       [(fid, keys[k], basis) for k, basis in guessed.get(at, {}).items()])
+        if at in first_of:
+            db.execute("INSERT INTO same VALUES (?, ?)", (fid, first_of[at] + 1))
         db.executemany("INSERT INTO portion VALUES (?, ?, ?, ?)",
                        [(fid, i, label, grams) for i, (label, grams) in enumerate(portions)])
         counts[src] = counts.get(src, 0) + 1

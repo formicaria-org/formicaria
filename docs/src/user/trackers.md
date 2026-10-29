@@ -60,6 +60,18 @@ since only the U.S. table measures it — there is no value, and the day says so
 it as nothing. U.S. foods enriched by law (flour, bread, rice) and U.S. milk do not lend the
 vitamins and iron they were enriched with.
 
+**The same food is one food, whatever table or language you find it by.** Macadamia nuts appear in
+the German, French, Italian and U.S. tables; they are offered once, with one set of values: each
+nutrient from the first of these tables that measured it — the German, the Swiss, the French, the
+Italian, then the U.S. one.
+
+**Some values are estimates, marked ≈.** Where no table measured a nutrient for a food or a close
+one, it is estimated from the most similar foods of the same kind — but only for nutrients and kinds
+of food where the estimate was tested against real measurements and came out close (choline in
+meat, for instance, typically within a fifth). Selenium, iodine, folate and vitamins A, E and K
+are never estimated: tested, the estimates were too far off. The nutrients sheet says *estimated
+from 5 similar foods (meat)* beside such a value.
+
 A food from a European table is logged by weight. If you want to log "1 cup", pick the food from
 the U.S. table, which is offered when the European ones leave room in the results.
 

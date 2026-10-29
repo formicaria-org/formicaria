@@ -19,9 +19,9 @@ static FOOD_GZ: &[u8] = include_bytes!("../packs/foods.sqlite.gz");
 
 /// What the bytes above unpack to. **These three change together with the file**, and
 /// `tests/packs.rs` holds them to it: the version, the size, and the checksum the script prints.
-pub const FOOD_VERSION: &str = "2026.10.5";
-pub const FOOD_BYTES: u64 = 12_165_120;
-pub const FOOD_SHA256: &str = "0aa4c7983420d500a24233ea00d7c80c5a2af85b73b1a5418f4b20457cb4f589";
+pub const FOOD_VERSION: &str = "2026.10.6";
+pub const FOOD_BYTES: u64 = 12_570_624;
+pub const FOOD_SHA256: &str = "dd5cd31139b40f354cb7e78acdb5fdf54b9d6a2ad4b1f5aa82b3c1536895ccd4";
 
 /// Where the list is unpacked: beside the assistant's models and runtime, outside every vault.
 /// `FM_PACKS_DIR` overrides it, for tests.
@@ -124,11 +124,13 @@ pub fn resolve(o: &mut fm_model::Object) {
             o.extra.remove(*old);
         }
     }
-    let lent: Vec<String> = food.borrowed.iter().map(|(k, from)| format!("{k}={from}")).collect();
-    if lent.is_empty() {
-        o.extra.remove("borrowed");
-    } else {
-        o.extra.insert("borrowed".into(), PropertyValue::Text(lent.join("; ")));
+    for (prop, from) in [("borrowed", &food.borrowed), ("estimated", &food.estimated)] {
+        let said: Vec<String> = from.iter().map(|(k, f)| format!("{k}={f}")).collect();
+        if said.is_empty() {
+            o.extra.remove(prop);
+        } else {
+            o.extra.insert(prop.into(), PropertyValue::Text(said.join("; ")));
+        }
     }
 }
 

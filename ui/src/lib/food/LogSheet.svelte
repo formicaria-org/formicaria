@@ -685,6 +685,7 @@
       portions: serving ? [{ label: `1 serving (${shownAs(serving, unit)})`, grams: serving }] : [],
       source: `product/${p.id}`,
       borrowed: {},
+      estimated: {},
     };
   }
 
@@ -763,6 +764,8 @@
     source: string;
     /** The values its own table never measures, and the food each was borrowed from. */
     borrowed: Record<string, string>;
+    /** Values estimated from similar foods, and from what. */
+    estimated: Record<string, string>;
   };
   let portion = $state<Portion | null>(null);
 
@@ -823,6 +826,7 @@
       portions: found?.portions ?? [],
       source,
       borrowed: found?.borrowed ?? borrowedOf(props),
+      estimated: found?.estimated ?? {},
     };
   }
   async function openHit(h: FoodHit) {
@@ -841,6 +845,7 @@
         portions: f.portions,
         source: `${f.pack}/${f.id}`,
         borrowed: f.borrowed ?? {},
+        estimated: f.estimated ?? {},
       };
       pendingGrams = null;
     } catch (e) {
@@ -1648,6 +1653,12 @@
         <h2>{portion.title}</h2>
         {#if entryResumed}<Resumed onafresh={entryAfresh} />{/if}
         {#if lentLine(portion)}<p class="hint" role="note">{lentLine(portion)}</p>{/if}
+        {#if Object.keys(portion.estimated).length}
+          <p class="hint" role="note">
+            No table measured {Object.keys(portion.estimated).sort().map(nutrientName).join(', ')} for
+            it: estimated from {[...new Set(Object.values(portion.estimated))].join('; ')}.
+          </p>
+        {/if}
         {#if ofProduct}
           {#if ofProduct.per100.kcal === undefined}
             <p class="hint" role="status">

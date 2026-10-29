@@ -855,7 +855,7 @@ pub fn food_and_amount_only(o: &mut Object) {
     if !src.starts_with("foods@") || !matches!(o.get("amount_g"), PropertyValue::Int(_)) {
         return;
     }
-    o.extra.retain(|k, _| !is_amount_of_a_nutrient(k) && k != "borrowed");
+    o.extra.retain(|k, _| !is_amount_of_a_nutrient(k) && k != "borrowed" && k != "estimated");
 }
 
 /// `kcal`, or a key in a nutrient's unit (`protein_mg`, `iron_ug`, `vitamin_d_ng`) — never the

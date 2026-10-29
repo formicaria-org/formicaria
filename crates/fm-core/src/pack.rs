@@ -79,6 +79,11 @@ pub struct FoodDetail {
     /// are in `per100` like the rest; this is what lets the app say so. Empty for a pack built before.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub borrowed: BTreeMap<String, String>,
+    /// **Values estimated from similar foods** (2026-10-29, later that night), where no table
+    /// measured them for this food or one close enough: `{"choline_ug": "5 similar foods (meat)"}`.
+    /// In `per100` like the rest; shown as estimates. Empty for a pack built before.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub estimated: BTreeMap<String, String>,
 }
 
 pub struct FoodPack {
@@ -99,6 +104,18 @@ fn table_name(src: &str) -> String {
 }
 
 impl FoodPack {
+    /// Whether the pack has `name` — a pack built before a table was added has not.
+    fn has_table(&self, name: &str) -> Result<bool, StoreError> {
+        self.db
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                [name],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|n| n > 0)
+            .map_err(sql)
+    }
+
     /// Open a pack read-only. A file that is not a food pack is an error that says so, never a
     /// pack with nothing in it.
     pub fn open(path: &Path) -> Result<Self, StoreError> {
@@ -148,33 +165,46 @@ impl FoodPack {
         }
         // Each term is letters and digits only, so quoting it is all the escaping there is.
         let expr = terms.iter().map(|t| format!("\"{t}\"*")).collect::<Vec<_>>().join(" ");
+        // A pack built before groups has no `same`: every food is its own.
+        let grouped = self.has_table("same")?;
+        let (group, join) = if grouped {
+            ("coalesce(s.first, f.id)", "\n                   LEFT JOIN same s ON s.food = f.id")
+        } else {
+            ("f.id", "")
+        };
         let mut stmt = self
             .db
-            .prepare(
-                "SELECT f.code, f.name, f.src, coalesce(a.per100, 0), f.alt
+            .prepare(&format!(
+                "SELECT f.code, f.name, f.src, coalesce(a.per100, 0), f.alt, {group}
                    FROM names
-                   JOIN food f ON f.id = names.rowid
+                   JOIN food f ON f.id = names.rowid{join}
                    LEFT JOIN amount a
                      ON a.food = f.id AND a.n = (SELECT n FROM nutrient WHERE key = 'kcal')
                   WHERE names MATCH ?1
                   ORDER BY (f.src = 'usda'), bm25(names)
-                  LIMIT 600",
-            )
+                  LIMIT 600"
+            ))
             .map_err(sql)?;
+        let mut group_of = BTreeMap::new();
         let mut found: Vec<(u8, u8, usize, FoodHit)> = stmt
             .query_map([&expr], |r| {
-                Ok(FoodHit {
+                let hit = FoodHit {
                     id: r.get(0)?,
                     name: r.get(1)?,
                     src: r.get(2)?,
                     kcal: r.get(3)?,
                     alt: r.get(4)?,
-                })
+                };
+                Ok((hit, r.get::<_, i64>(5)?))
             })
             .map_err(sql)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(sql)?
             .into_iter()
+            .map(|(hit, group)| {
+                group_of.insert(hit.id.clone(), group);
+                hit
+            })
             .map(|mut hit| {
                 let fallback = u8::from(hit.src == "usda");
                 // The name the person's words are in: the English one, or one of the others.
@@ -198,7 +228,15 @@ impl FoodPack {
             })
             .collect();
         found.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)).then(a.3.name.cmp(&b.3.name)));
-        Ok(found.into_iter().take(limit.max(1)).map(|f| f.3).collect())
+        // **One food, one result** (2026-10-29, later that night): the same food from several tables
+        // holds one set of values, so it is offered once — under the name it was found by.
+        let mut shown = std::collections::BTreeSet::new();
+        Ok(found
+            .into_iter()
+            .filter(|f| shown.insert(group_of.get(&f.3.id).copied().unwrap_or(-1)))
+            .take(limit.max(1))
+            .map(|f| f.3)
+            .collect())
     }
 
     /// One food, by its id — or by an entry's `source` (`foods@2026.10.1/ciqual:1000`), whatever
@@ -274,6 +312,23 @@ impl FoodPack {
         } else {
             BTreeMap::new()
         };
+        let estimated = if self.has_table("estimated")? {
+            let mut stmt = self
+                .db
+                .prepare(
+                    "SELECT n.key, e.basis FROM estimated e JOIN nutrient n USING (n)
+                     WHERE e.food = ?1",
+                )
+                .map_err(sql)?;
+            let got = stmt
+                .query_map([row], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                .map_err(sql)?
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .map_err(sql)?;
+            got
+        } else {
+            BTreeMap::new()
+        };
         Ok(Some(FoodDetail {
             id: code,
             name,
@@ -283,6 +338,7 @@ impl FoodPack {
             portions,
             pack: format!("{}@{}", self.info.name, self.info.version),
             borrowed,
+            estimated,
         }))
     }
 }
@@ -323,6 +379,7 @@ mod tests {
              INSERT INTO amount VALUES (2, 0, 95), (2, 1, 1150), (2, 2, 350), (4, 0, 97), (6, 0, 140),
                                        (7, 0, 300), (8, 0, 112), (6, 3, 335000);
              INSERT INTO borrowed VALUES (6, 3, 4);
+             INSERT INTO estimated VALUES (2, 3, '5 similar foods (fruit)');
              INSERT INTO portion VALUES (4, 0, '1 medium', 118), (4, 1, '1 cup, sliced', 150);
              INSERT INTO names(rowid, name, alt) SELECT id, name, alt FROM food;",
         )
@@ -361,6 +418,24 @@ mod tests {
         assert!(!egg.borrowed.contains_key("kcal"), "a measured value is the food's own");
         let banana = p.get("bls:F503100").unwrap().unwrap();
         assert!(banana.borrowed.is_empty());
+    }
+
+    /// One food, one result (2026-10-29, later that night): the same banana from three tables is
+    /// one group, offered once — under the name it was found by.
+    #[test]
+    fn the_same_food_from_several_tables_is_offered_once() {
+        let (_d, path) = pack();
+        Connection::open(&path)
+            .unwrap()
+            .execute_batch("INSERT INTO same VALUES (2, 2), (3, 2), (4, 2);")
+            .unwrap();
+        let p = FoodPack::open(&path).unwrap();
+        let raw: Vec<String> = names(&p, "banana raw", 10);
+        assert_eq!(raw, ["Banana raw"], "one of the three");
+        assert_eq!(names(&p, "banana", 10).len(), 2, "the dried one is another food");
+        let b = p.get("bls:F503100").unwrap().unwrap();
+        assert_eq!(b.estimated["choline_ug"], "5 similar foods (fruit)");
+        assert!(p.get("ciqual:22000").unwrap().unwrap().estimated.is_empty());
     }
 
     #[test]

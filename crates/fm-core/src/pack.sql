@@ -27,3 +27,15 @@ CREATE VIRTUAL TABLE names USING fts5(name, alt, content='food', content_rowid='
 -- it. A pack built before has no such table, and every value in it is the food's own.
 CREATE TABLE borrowed(food INTEGER NOT NULL, n INTEGER NOT NULL, from_food INTEGER NOT NULL,
                       PRIMARY KEY(food, n)) WITHOUT ROWID;
+-- **One food, one set of values** (`decisions.md#data`, 2026-10-29, later that night): the same food
+-- in several tables — macadamia nuts in BLS, Ciqual, CREA and USDA — is one group, and every member
+-- holds the group's values (each nutrient from the first table, in a fixed order, that measured
+-- it). `first` is the group's first member; a search shows a group once. A food in no group has
+-- no row. A pack built before has no such table.
+CREATE TABLE same(food INTEGER PRIMARY KEY, first INTEGER NOT NULL);
+-- **A value estimated from similar foods** (same night): where no table measured a nutrient for a
+-- food or one close enough, and only for a nutrient and a kind of food where hiding measured values
+-- and estimating them came out within 20% typically. The value is in `amount`; `basis` says from
+-- what ("12 similar meats"). A pack built before has no such table.
+CREATE TABLE estimated(food INTEGER NOT NULL, n INTEGER NOT NULL, basis TEXT NOT NULL,
+                       PRIMARY KEY(food, n)) WITHOUT ROWID;

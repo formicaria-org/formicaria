@@ -62,3 +62,23 @@ test('a day still to come counts what is planned for it; today counts what was e
   render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
   await vi.waitFor(() => expect(logNutrients).toHaveBeenLastCalledWith('Day', today(), false));
 });
+
+test('an estimated value is shown as an estimate, with what it was estimated from', async () => {
+  logNutrients.mockResolvedValueOnce({
+    ...day([
+      entry('M1', 'Pork chop', {
+        source: 'foods@2026.10.6/bls:U1',
+        amount_g: 150,
+        choline_ug: 120000,
+        estimated: 'choline_ug=5 similar foods (meat)',
+      }),
+    ]),
+    rows: [
+      { key: 'choline_ug', label: 'Choline', kind: 'AI', reference: 400000, sum: 120000, n: 1 },
+    ],
+  });
+  render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
+  await fireEvent.click(await screen.findByRole('button', { name: /Choline/ }));
+  expect(await screen.findByText(/estimated from 5 similar foods \(meat\)/)).toBeTruthy();
+  expect(screen.getByText(/^≈ /)).toBeTruthy();
+});

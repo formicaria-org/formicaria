@@ -12,7 +12,7 @@
   import Meter from '../charts/Meter.svelte';
   import { logNutrients } from '../ipc';
   import { dayLabel, showWith, today } from '../units';
-  import { borrowedOf, valueOf } from './provenance';
+  import { borrowedOf, estimatedOf, valueOf } from './provenance';
   import { whyNot } from './refresh';
   import type { NutrientRow, Nutrients, ObjectMeta } from '../types';
 
@@ -112,11 +112,18 @@
                   {#each from(r) as e (e.id)}
                     <p class="made">
                       <span
-                        >{e.title ?? 'Untitled'}{#if borrowedOf(e.props)[r.key]}<span class="sub">
+                        >{e.title ?? 'Untitled'}{#if estimatedOf(e.props)[r.key]}<span class="sub">
+                            · estimated from {estimatedOf(e.props)[r.key]}</span
+                          >{:else if borrowedOf(e.props)[r.key]}<span class="sub">
                             · borrowed from {borrowedOf(e.props)[r.key]}</span
                           >{/if}</span
                       >
-                      <span>{showWith(r.key, valueOf(e.props, r.key) ?? 0)}</span>
+                      <span
+                        >{estimatedOf(e.props)[r.key] ? '≈ ' : ''}{showWith(
+                          r.key,
+                          valueOf(e.props, r.key) ?? 0,
+                        )}</span
+                      >
                     </p>
                   {/each}
                   {#each without(r) as { e, why } (e.id)}

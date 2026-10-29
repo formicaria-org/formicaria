@@ -1042,6 +1042,8 @@ export interface FoodDetail {
   /** The values its own table never measures, and the food each was borrowed from
    *  (`{ choline_ug: 'USDA: Egg, whole, raw' }`). Absent for a pack built before 2026-10-29. */
   borrowed?: Record<string, string>;
+  /** Values estimated from similar foods, and from what: `{choline_ug: '5 similar foods (meat)'}`. */
+  estimated?: Record<string, string>;
 }
 
 /** What this installation is configured as — the Settings screen's whole payload.

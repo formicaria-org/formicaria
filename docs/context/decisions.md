@@ -13888,3 +13888,28 @@ way to reach entries that held copies of its numbers, and each missed a path.
   tomorrow are saved as food and amount, the day screen shows their 221 kcal, the nutrients 4 µg of
   selenium.
 
+## 2026-10-29 (later that night) — one food, one set of values; estimates only where tested `#data` `#toolchain`
+
+**The owner:** *"that same food in different languages mean different things"* and *"tables are too
+incomplete, make sure they are as complete as possible"*; choosing, of three, *"One table first"* for
+a food the tables disagree on, and *"Estimate, tested, marked ≈"* for what no table measured.
+
+**Decision** (`ci/pack-foods.py`; measured in `nutrient-data-audit-2026-10-29.md` §7):
+- **The same food across tables is one group** (`same` in the list), offered once in a search, every
+  member holding the group's values: each nutrient from the first table that measured it, in the
+  fixed order **BLS, Swiss, Ciqual, CREA, USDA** — the European tables by how completely and recently
+  they measure, USDA last. One real measurement, never a computed one. Groups are strict (same kind,
+  state, numbers, organ or part, nested names, macronutrients within a quarter, one food per
+  table, all members alike), because a wrong group gives a food another's values. A value lent from
+  a grouped food carries the group's.
+- **Estimates, only where a test at every build holds**: hide each measured value, estimate it from
+  the five most similar foods of the same kind and another name, and use the method for a
+  nutrient and kind only when the typical error is within 20% and three in five within 30%. 30
+  pairs held on these sources; selenium, iodine, folate and vitamins A, E and K held for none and
+  stay gaps. An estimate is stored as such (`estimated`, with what it rests on) and shown with "≈".
+  A zero only for plant foods, never for mushrooms, algae, yeast, the fortified or plant drinks.
+- **This reverses "nothing is averaged"** (2026-10-29, *the food list fills what a table never
+  measures*) for estimates alone; measured and borrowed values are still one food's measurement.
+- **Result**: every vitamin and mineral for 26% of single foods and 5% of dishes; choline 39%, selenium
+  57%. What remains is said per entry.
+

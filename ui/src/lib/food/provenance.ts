@@ -32,6 +32,10 @@ export function borrowedOf(props: Record<string, unknown>): Record<string, strin
   return out;
 }
 
+/** An entry's estimated values, from its `estimated` property — the same form as `borrowed`. */
+export const estimatedOf = (props: Record<string, unknown>): Record<string, string> =>
+  borrowedOf({ borrowed: props.estimated });
+
 /** The `borrowed` property for an entry: only the keys it carries, in a stable order. */
 export function borrowedProp(borrowed: Record<string, string>, keys: string[]): string {
   return keys

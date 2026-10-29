@@ -84,7 +84,14 @@ fn the_list_the_app_carries_is_unpacked_on_first_use_and_put_right_when_it_is_wr
     assert_eq!(read.get("kcal"), fm_model::PropertyValue::Int(at30("kcal")));
     assert_eq!(read.get("selenium_ug"), fm_model::PropertyValue::Int(at30("selenium_ug")));
     assert!(read.get("vitamin_b12_ug").is_null(), "the old microgram key gives way");
-    assert!(read.get("borrowed").display().contains("selenium_ug=USDA: Macadamia nuts"));
+    // One food, one set of values: the macadamia nuts of every table carry the first measurement
+    // in the tables' order — CREA's, since BLS, the Swiss table and Ciqual measured none.
+    assert!(read.get("borrowed").display().contains("selenium_ug=CREA (Italy): Macadamia Nuts"));
+    assert_eq!(
+        packs::food_get("ciqual:15027").unwrap().unwrap().per100["selenium_ug"],
+        nut.per100["selenium_ug"],
+        "the French and the German macadamia nuts are one food"
+    );
     assert_eq!(read.get("slot"), fm_model::PropertyValue::Text("snacks".into()));
     let mut written = read.clone();
     fm_app::log::food_and_amount_only(&mut written);

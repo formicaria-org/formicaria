@@ -205,3 +205,47 @@ table for foods without a dish word, before and after; samples of 50–60 matche
 read by eye at each step (the rules above each answer a wrong match seen in one). No user data was
 used.
 
+## 7. Entries read from the list, one food one set of values, tested estimates (`foods@2026.10.6`)
+
+Later the same night a user planned macadamia nuts for the next day and read no selenium; the owner:
+*"this is a symptom of an underlying problem … the views are not using a simple sum from lookup
+tables"*, and *"that same food in different languages means different things"*. Three changes
+(`decisions.md#data`, 2026-10-29, later that night):
+
+1. **Every view sums from the list.** An entry is its food and its amount; its numbers are worked
+   out from the list when read. Planned days count their plan. Reproduced and checked on the real
+   app: the planned macadamia nuts now give the next day 4 µg of selenium.
+2. **One food, one set of values.** 706 groups of the same food across tables (1,571 foods), strictly
+   formed (same kind, state, numbers, organ or part, nested names, macronutrients within a
+   quarter, one food per table). Each nutrient comes from the first table in the order BLS, Swiss,
+   Ciqual, CREA, USDA that measured it. Every macadamia nut of the list now carries CREA's measured
+   4 µg of selenium per 100 g, except USDA's separately analysed *raw* nuts (33 µg); a value lent
+   from a grouped food carries the group's.
+3. **Estimates only where tested.** At every build each measured value of a nutrient and a kind of
+   food is hidden in turn and estimated from the five most similar foods of that kind (never of the
+   same name); an estimate is used only where the typical error is within 20% and three in five
+   are within 30%. **30 pairs held**: choline in meat (19%); magnesium, potassium and phosphorus in
+   meat, offal, fish or cheese (16–20%); and the absence of vitamin B12, vitamin D, cholesterol and
+   selenium in plant foods. **Selenium, iodine, folate and vitamins A, E and K held for no real kind
+   of food** (typical errors 30–270%), so they are not estimated. 1,969 values for 1,516 foods are
+   estimated, shown as "≈ … estimated from 5 similar foods (meat)". A zero is given to plant foods
+   only, never to mushrooms, algae, yeast, anything fortified or a plant drink.
+
+**Result**, European foods with a value:
+
+| | Single foods (8,882) | Dishes (3,647) |
+|---|---|---|
+| choline | 39% | 6% |
+| selenium | 57% | 25% |
+| vitamin D, B12 | 92% | 88–89% |
+| iodine | 82% | 84% |
+| folate | 81% | 73% |
+| vitamin K1 | 78% | 78% |
+| magnesium, zinc | 94% | 90–91% |
+| **every vitamin and mineral** | **26%** | **5%** |
+
+**What remains a gap, and why.** Only USDA measures choline, and a value needs a close USDA food or a
+tested estimate; selenium varies with the soil (macadamia nuts measured 4, 12 and 33 µg) and no
+estimate from similar foods held; a dish's values depend on its recipe, which no table publishes.
+These are said per entry, never counted as zero.
+
