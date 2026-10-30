@@ -126,6 +126,59 @@ testers before publishing; keeps our signing key via Play App Signing. **F-Droid
 source by F-Droid with its key (so not an update to our APK), and the bundled model runtime would
 need to be built or declared. Neither is started; both need the owner's accounts.
 
+**Correction (2026-10-30), read at source.** "F-Droid signs with its own key" is only one of its
+modes. With reproducible builds, F-Droid rebuilds from source and ships **our** signed APK: *"F-Droid
+will never attempt to publish APKs signed by F-Droid. If fdroid publish can verify that the
+downloaded APK matches the one built from the fdroiddata recipe, the downloaded APK will be
+published"* ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/), `Binaries:` +
+`AllowedAPKSigningKeys`). The hard part for us is the Rust/NDK native libraries; that page notes
+NDK versions alone change the binaries. On the runtime download, the
+[Inclusion Policy](https://f-droid.org/docs/Inclusion_Policy/) says apps *"must not download
+additional executable binary files (e.g. add-ons, auto-updates, etc.) without explicit user
+consent"*, which must be opt-in: the assistant's enable step likely qualifies, and the built-in
+updater must be opt-in or left out of an F-Droid build. The 2026-10-18 `decisions.md` wording
+("builds from source with its own key") is superseded by this note.
+
+**Plan: `fdroid-distribution-plan-2026-10-30.md`** (one APK for every channel). **Status
+2026-10-30:** Phase 0 built (no unasked model download on a fresh phone; the update check follows
+the installer); Phase 2, our own F-Droid repo, built and rehearsed but **off until the owner adds
+the repo key** (plan §10); IzzyOnDroid request drafted (§11); f-droid.org not started (§5). **Owner's
+order (2026-10-30): this first, then the training coach** (`training-coach-plan-2026-10-30.md`,
+research in its Part 2; watch files as note assets, coaching in Myrme).
+
+**Routes that keep our signature, cheapest first:**
+1. **Obtainium** on GitHub Releases: works today (`docs/src/user/android.md`).
+2. **Our own F-Droid repo**: a *"simple binary repo"* of our APKs (`fdroid init`, `fdroid update`;
+   [Setup an F-Droid App Repo](https://f-droid.org/docs/Setup_an_F-Droid_App_Repo/)), publishable
+   from `pages.yml`. No review; users add the repo once.
+3. **IzzyOnDroid**: ships *"official binaries built and signed by the original application
+   developers"*; per-app size limit; rejects self-updaters that are not strictly opt-in; requests
+   now go through its Codeberg repo.
+4. **f-droid.org with reproducible builds**: the long goal.
+5. Accrescent keeps developer keys and updates unattended, but is *"currently in alpha"*.
+
+**Updates then need no tapping.** Since F-Droid client 1.19.0 it updates apps unattended on
+Android 12+ once it is the app's installer of record; the first update after switching asks once
+([TWIF 2024-02-08](https://f-droid.org/2024/02/08/twif.html)). We target SDK 36
+(`mobile/src-tauri/gen/android/app/build.gradle.kts:24`), so the target-SDK condition holds.
+Unchecked: whether the rewritten F-Droid 2.0 (2026-09) keeps this, and vendor background
+killing, which can stop the client from checking.
+
+**A route that changes the signature needs a one-time switch, and fm already has the pieces:**
+sync the vault to another device, uninstall, install from the new source, sync back. Only guidance
+is new, at two moments:
+- *Before uninstalling*, one check that says plainly: everything synced (or *N changes not synced
+  yet*); attachments over `git_assets_max` that exist only on this device (back them up with the
+  media backup first); and that uninstalling deletes everything stored in the app.
+- *After installing*, the first screen offers *restore from your other device* (same remote, then
+  sync), and says the assistant's model downloads again.
+
+**Watch: Google's developer verification.** From 2026-09-30 certified devices in a first set of
+countries need apps from verified developers, with a global rollout planned for 2027; installing
+from unverified developers goes through an "advanced" flow (a developer-options switch and a
+one-time 24-hour wait), ADB installs excepted. Reports disagree on its scope, and F-Droid calls it
+an existential threat. It applies to every route above that is not Google Play.
+
 ### 1.5 The rest of the 2026-10-18 audit — folded later, by the owner's choice
 
 Phase 6 of `~/.claude/plans/reactive-wandering-tulip.md`: **one `fm_agent_run::settings`** for the

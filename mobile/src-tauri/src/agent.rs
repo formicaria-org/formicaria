@@ -218,15 +218,18 @@ fn clear_running(generation: u64) {
     }
 }
 
-/// The persisted on/off setting (`<agents_dir>/agent.json`, `{"enabled": bool}`). **Default on** on the
-/// phone (where the assistant has always run), so an app update does not silently turn off a working
-/// agent; the user turns it off in Settings when they want it gone from memory.
+/// The persisted on/off setting (`<agents_dir>/agent.json`, `{"enabled": bool}`). A stored choice
+/// always wins. **With none, the assistant is on only if a model is already on this phone** — so an
+/// app update does not silently turn off a working agent — and **off on a fresh install**, where the
+/// default used to start a ~700 MB download at the first launch, on any network, with no question
+/// (`decisions.md` 2026-10-30, *a fresh phone asks before the assistant downloads anything*). Off,
+/// the Settings switch opens the first-enable chooser, which shows each model's size first.
 pub fn is_enabled(agents_dir: &std::path::Path) -> bool {
     std::fs::read_to_string(agents_dir.join("agent.json"))
         .ok()
         .and_then(|s| serde_json::from_str::<Value>(&s).ok())
         .and_then(|v| v["enabled"].as_bool())
-        .unwrap_or(true)
+        .unwrap_or_else(|| installed(agents_dir).is_some_and(|f| f.running.is_some()))
 }
 
 /// Whether audio transcription is on (`<agents_dir>/agent.json`, `{"transcribe": bool}`). **Default

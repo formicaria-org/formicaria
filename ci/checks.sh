@@ -1949,7 +1949,7 @@ echo "[check] the phone's update_status answers every key the desktop's does, by
 # The same Settings panel renders both, so a key missing on one side is a row that renders wrong on that
 # platform only — the bug the agent_status guard above exists for, one feature over.
 if [ -f mobile/src-tauri/src/update.rs ] && [ -f crates/fm-serve/src/update.rs ]; then
-    for k in can_check can_install why current available previous can_go_back checking check last_check error progress page; do
+    for k in can_check can_install why current available previous can_go_back checking check last_check error progress page updated_by; do
         if ! grep -aq "\"$k\"" crates/fm-serve/src/update.rs; then
             echo "  FAIL: this guard names \"$k\", which fm-serve's update_status no longer answers."
             echo "        Update the list here rather than letting it check a key nobody sends."

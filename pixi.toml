@@ -257,10 +257,27 @@ cargo check --target aarch64-apple-ios -p fm-agent &&
 cargo check --target aarch64-apple-ios-sim -p fm-agent
 """
 
+# **formicaria's own F-Droid repository** (`decisions.md` 2026-10-30, *our own F-Droid repo*). The
+# tool that writes and signs an F-Droid index is `fdroidserver`, which is on PyPI only, so it lives in
+# an environment of its own, with nothing from the default feature, never in a release archive (it is
+# AGPL and a build tool; it reads our APKs, it is not linked). `ci/fdroid-repo.sh` uses it; CI runs it
+# on Linux only.
+[feature.fdroid.dependencies]
+python = "3.12.*"
+# keytool and jarsigner, which sign the repository index.
+openjdk = "21.*"
+
+[feature.fdroid.pypi-dependencies]
+fdroidserver = "==2.4.5"
+
+[feature.fdroid.tasks]
+fdroid-repo = "sh ci/fdroid-repo.sh"
+
 [environments]
 default = { features = [] }
 android = { features = ["android"] }
 cross = { features = ["cross"] }
+fdroid = { features = ["fdroid"], no-default-feature = true }
 
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard

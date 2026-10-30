@@ -76,6 +76,7 @@ const status = (over: Record<string, unknown> = {}) => ({
   error: null,
   progress: null,
   page: 'https://github.com/formicaria-org/formicaria/releases/latest',
+  updated_by: null,
   ...over,
 });
 
@@ -104,6 +105,23 @@ describe('SettingsPanel — getting a newer version', () => {
     expect(
       await screen.findByText(/Nothing about you, this computer or your notes is sent/),
     ).toBeTruthy();
+  });
+
+  /// **A store install says who updates it** (2026-10-30), and the switch still works.
+  it('names the app store that keeps a store install up to date', async () => {
+    updateStatus.mockResolvedValue(status({ updated_by: 'F-Droid', check: false }));
+    panel();
+    expect(
+      await screen.findByText(/Updates come from F-Droid, which installed formicaria/),
+    ).toBeTruthy();
+    await fireEvent.click(await screen.findByLabelText('look for newer versions'));
+    expect(setUpdateCheck).toHaveBeenCalledWith(true);
+  });
+
+  it('names no store when none installed it', async () => {
+    panel();
+    await screen.findByLabelText('look for newer versions');
+    expect(screen.queryByText(/Updates come from/)).toBeNull();
   });
 
   it('turns the check off', async () => {

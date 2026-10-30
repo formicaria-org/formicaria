@@ -250,11 +250,32 @@ class MainActivity : TauriActivity() {
       window.attributes.layoutInDisplayCutoutMode =
         WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
     }
+    recordInstaller()
     super.onCreate(savedInstanceState)
     // Keep the app + its network alive for the study assistant's download and inference.
     val svc = Intent(this, AgentService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
     takeShared(intent)
+  }
+
+  /// **Which app installed formicaria** (the installer of record), written to `cacheDir/installer`
+  /// at every start and before `super.onCreate`, so the Rust side has it when it starts. An app store
+  /// keeps formicaria up to date itself, so the phone's own GitHub check starts off for a store
+  /// install (`decisions.md` 2026-10-30, *the Android update check follows who installed the app*);
+  /// `update.rs::installer_file` reads the same literal path. Empty when Android names nobody.
+  /// Failure is silent and harmless: no file means today's default, the check on.
+  private fun recordInstaller() {
+    try {
+      val who = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        packageManager.getInstallSourceInfo(packageName).installingPackageName
+      } else {
+        @Suppress("DEPRECATION")
+        val name = packageManager.getInstallerPackageName(packageName)
+        name
+      }
+      File(cacheDir, "installer").writeText(who ?: "")
+    } catch (e: Exception) {
+    }
   }
 
   // `singleTask`: a share while the app is open arrives here rather than as a second app.

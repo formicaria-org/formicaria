@@ -1983,6 +1983,17 @@
              the last step belongs to Android's installer, which asks for its own confirmation. -->
         {#if upd && upd.can_check}
           <ul class="caps updates">
+            <!-- **Installed from an app store** (2026-10-30): the store keeps formicaria up to date,
+                 so the check below starts off; the person can still turn it on. -->
+            {#if upd.updated_by}
+              <li>
+                <span class="k">{upd.updated_by}</span>
+                <span class="muted">
+                  Updates come from {upd.updated_by}, which installed formicaria. The check below is
+                  off unless you turn it on.
+                </span>
+              </li>
+            {/if}
             <li>
               <label class="choice">
                 <input

@@ -5,6 +5,8 @@
 #                      fetched from anyone else
 #   /formicaria.svg    docs/assets/formicaria.svg, copied here so the drawing has one source
 #   /manual/           the mdBook, exactly as `pixi run docs` builds it
+#   /fdroid/           formicaria's own F-Droid repository (`ci/fdroid-site.sh`), **only once the
+#                      repo key is set** (`decisions.md` 2026-10-30) — until then, nothing
 #
 # **Pages must be switched on once, by the owner, before this can work**: repository Settings →
 # Pages → *Build and deployment* → Source: **GitHub Actions**. Until then `configure-pages` fails
@@ -32,6 +34,10 @@ on:
       - 'ci/myrme-*.sh'
       - 'Cargo.lock'
       - '.github/workflows/pages.yml'
+      # The F-Droid repository's scripts and listing. A new *release* republishes it too: `release.yml`
+      # dispatches this workflow on `main` once the APK is attached.
+      - 'ci/fdroid-*.sh'
+      - 'fastlane/**'
 
 # **Read at the top; write only where publishing happens** — the same shape as `release.yml`. The
 # `build` job needs nothing but the tree. The `deploy` job re-declares the two scopes a Pages
@@ -88,6 +94,19 @@ jobs:
       # manual's title the way back to the first page, and checks every link from the site's pages.
       - name: Assemble the site
         run: sh ci/site-assemble.sh _site _setup
+      # **formicaria's own F-Droid repository**, at /fdroid/repo (`decisions.md` 2026-10-30). It lists
+      # the newest release APKs exactly as published — signed with our key, checked against the pin —
+      # and its index is signed with a separate repo key. **Without that key this step fetches nothing
+      # and writes nothing**, so the site is published exactly as before. `apksigner` (which signs the
+      # index) comes from the runner's preinstalled Android SDK.
+      - name: F-Droid repository (only with the repo key)
+        env:
+          FDROID_KEYSTORE_B64: ${{ secrets.FDROID_KEYSTORE_B64 }}
+          FDROID_KEYSTORE_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          FDROID_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+          FDROID_KEY_PASS: ${{ secrets.FDROID_KEY_PASS }}
+          GH_TOKEN: ${{ github.token }}
+        run: sh ci/fdroid-site.sh _site/fdroid
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site

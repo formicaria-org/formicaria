@@ -360,7 +360,14 @@ impl Default for Settings {
 
 /// Read the settings at `path`, defaulting anything missing or unreadable.
 pub fn settings_at(path: &Path) -> Settings {
-    let d = Settings::default();
+    settings_or(path, Settings::default().check)
+}
+
+/// [`settings_at`], with the shell choosing what `check` is **when the person never set it**. A
+/// stored choice always wins. The phone passes `false` when an app store installed it
+/// (`decisions.md` 2026-10-30, *the Android update check follows who installed the app*).
+pub fn settings_or(path: &Path, check_default: bool) -> Settings {
+    let d = Settings { check: check_default, ..Settings::default() };
     let Some(v) = std::fs::read_to_string(path)
         .ok()
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
@@ -399,6 +406,24 @@ pub fn merged(
         .unwrap_or_else(|| serde_json::json!({}));
     f(&mut v);
     serde_json::to_vec_pretty(&v).map_err(|e| e.to_string())
+}
+
+/// **The app store that installed this copy, by name, or `None`** — from the installer of record
+/// Android reports (`PackageManager.getInstallSourceInfo`). A store keeps the app up to date itself,
+/// so the phone's own GitHub check starts off there and the Settings row says who updates it
+/// (`decisions.md` 2026-10-30). Anything not listed — a browser, the system package installer, this
+/// app's own updater, a cable — is `None`, which keeps today's behaviour: the check is on.
+pub fn store_name(installer: &str) -> Option<&'static str> {
+    Some(match installer.trim() {
+        "org.fdroid.fdroid" | "org.fdroid.basic" | "org.fdroid.fdroid.privileged" => "F-Droid",
+        "com.looker.droidify" => "Droid-ify",
+        "com.machiav3lli.fdroid" => "Neo Store",
+        "dev.imranr.obtainium" | "dev.imranr.obtainium.fdroid" => "Obtainium",
+        "app.accrescent.client" => "Accrescent",
+        "com.aurora.store" => "Aurora Store",
+        "com.android.vending" => "Google Play",
+        _ => return None,
+    })
 }
 
 /// Seconds since the epoch.
@@ -500,7 +525,16 @@ pub fn newer_than(
 /// `force` is *Check now*: it ignores both the switch and the interval, because somebody pressed it,
 /// and an explicit ask is its own consent. It also clears an earlier rejection — an ask outranks a no.
 pub fn check_at(path: &Path, force: bool) -> Result<Option<Version>, String> {
-    let s = settings_at(path);
+    check_at_or(path, force, Settings::default().check)
+}
+
+/// [`check_at`] with the shell's default for an unset switch, as [`settings_or`].
+pub fn check_at_or(
+    path: &Path,
+    force: bool,
+    check_default: bool,
+) -> Result<Option<Version>, String> {
+    let s = settings_or(path, check_default);
     if !force && (!s.check || now().saturating_sub(s.last_check) < EVERY) {
         return Ok(s
             .last_seen
@@ -798,6 +832,59 @@ mod tests {
             let out = merged(junk, |v| v["check"] = serde_json::Value::Bool(true)).unwrap();
             let after: serde_json::Value = serde_json::from_slice(&out).unwrap();
             assert_eq!(after["check"], serde_json::json!(true), "{junk:?}");
+        }
+    }
+
+    /// **The shell's default applies only to a switch nobody set** (2026-10-30): a store install
+    /// starts with the check off, but a person's own choice, either way, is kept.
+    #[test]
+    fn the_default_is_for_an_unset_switch_and_a_stored_choice_wins() {
+        let dir = std::env::temp_dir().join(format!("fm-update-default-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("update.json");
+        let _ = std::fs::remove_file(&path);
+
+        // No file at all: the default decides, and the desktop's default is unchanged.
+        assert!(!settings_or(&path, false).check);
+        assert!(settings_or(&path, true).check);
+        assert!(settings_at(&path).check, "the desktop still checks unless told not to");
+
+        // A file without the key (an earlier check wrote only its own fields): still the default.
+        std::fs::write(&path, r#"{"last_check":5,"last_seen":"v0.6.1"}"#).unwrap();
+        let s = settings_or(&path, false);
+        assert!(!s.check);
+        assert_eq!((s.last_check, s.last_seen.as_deref()), (5, Some("v0.6.1")));
+
+        // A stored choice wins over either default.
+        for (stored, default) in [(true, false), (false, true)] {
+            std::fs::write(&path, format!(r#"{{"check":{stored}}}"#)).unwrap();
+            assert_eq!(
+                settings_or(&path, default).check,
+                stored,
+                "stored {stored}, default {default}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_a_store_is_named_and_everything_else_keeps_todays_check() {
+        assert_eq!(store_name("org.fdroid.fdroid"), Some("F-Droid"));
+        assert_eq!(store_name("org.fdroid.basic"), Some("F-Droid"));
+        assert_eq!(store_name("dev.imranr.obtainium"), Some("Obtainium"));
+        assert_eq!(store_name("com.android.vending"), Some("Google Play"));
+        // A browser download, the system installer (any vendor's), this app's own updater, a cable:
+        // not a store, so the phone keeps checking as it always has.
+        for not_a_store in [
+            "",
+            "com.google.android.packageinstaller",
+            "com.android.packageinstaller",
+            "com.miui.packageinstaller",
+            "com.android.shell",
+            "com.android.chrome",
+            "org.mozilla.firefox",
+        ] {
+            assert_eq!(store_name(not_a_store), None, "{not_a_store:?}");
         }
     }
 }

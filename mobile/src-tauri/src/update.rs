@@ -20,7 +20,7 @@ use fm_update::Version;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 /// How far a download has got. **In memory only** — a "downloading" written to disk would outlive the
 /// process that meant it.
@@ -32,6 +32,8 @@ struct Progress {
 }
 
 static CHECKING: AtomicBool = AtomicBool::new(false);
+/// The app store that installed this copy, if one did — read once from what `MainActivity` wrote.
+static STORE: OnceLock<Option<&'static str>> = OnceLock::new();
 static ERROR: Mutex<Option<String>> = Mutex::new(None);
 static PROGRESS: Mutex<Option<Progress>> = Mutex::new(None);
 /// **Cancel is a generation counter**, as on the desktop and in the assistant's model download:
@@ -56,6 +58,33 @@ fn apk_version(cache: &Path) -> PathBuf {
     cache.join("update").join("formicaria.apk.version")
 }
 
+/// **Which app installed this one**, as Android reports it (the installer of record). `MainActivity`
+/// writes it at every start, before the Rust side runs; it reads the same literal path — if one of
+/// them moves, the other must move with it. Empty when Android names nobody (a cable install).
+fn installer_file(cache: &Path) -> PathBuf {
+    cache.join("installer")
+}
+
+/// Read who installed this copy, once per run. A store keeps the app up to date itself, so the
+/// GitHub check starts off for a store install and the row says who updates it (`decisions.md`
+/// 2026-10-30, *the Android update check follows who installed the app*). Anything else — the
+/// website, this app's own updater, a cable — keeps today's default: on.
+fn note_installer(cache: &Path) {
+    STORE.get_or_init(|| {
+        std::fs::read_to_string(installer_file(cache)).ok().and_then(|t| fm_update::store_name(&t))
+    });
+}
+
+/// The store that installed this copy, if one did.
+fn store() -> Option<&'static str> {
+    STORE.get().copied().flatten()
+}
+
+/// What the check switch is when the person never set it: off for a store install, on otherwise.
+fn check_default() -> bool {
+    store().is_none()
+}
+
 /// Why this copy cannot look for a newer version, or `None`. A reason, never a bool.
 /// Why this copy cannot check, if it cannot. **A build with no version can** (2026-10-09): it is
 /// offered the latest release, so a test build put on by cable can get back in line from Settings.
@@ -68,7 +97,9 @@ fn cannot_check() -> Option<String> {
 
 fn status() -> serde_json::Value {
     let why = cannot_check();
-    let s = settings_path().map(|p| fm_update::settings_at(&p)).unwrap_or_default();
+    let s = settings_path()
+        .map(|p| fm_update::settings_or(&p, check_default()))
+        .unwrap_or(fm_update::Settings { check: check_default(), ..Default::default() });
     let available = s
         .last_seen
         .as_deref()
@@ -95,6 +126,8 @@ fn status() -> serde_json::Value {
         "error": ERROR.lock().ok().and_then(|e| e.clone()),
         "progress": progress,
         "page": fm_update::RELEASES_PAGE,
+        // The store that keeps this copy up to date, by name, or null (`decisions.md` 2026-10-30).
+        "updated_by": store(),
     })
 }
 
@@ -111,7 +144,7 @@ fn check(force: bool) {
     }
     let result = settings_path()
         .ok_or_else(|| "this phone has nowhere to keep settings".to_string())
-        .and_then(|p| fm_update::check_at(&p, force));
+        .and_then(|p| fm_update::check_at_or(&p, force, check_default()));
     set_error(result.err());
     CHECKING.store(false, Ordering::SeqCst);
 }
@@ -121,6 +154,7 @@ fn check(force: bool) {
 /// **Matched by exact name, never by prefix.** `update_body` — saving a note — starts with `update_`
 /// too, so a prefix match here would swallow every edit made on the phone. `ci/checks.sh` refuses one.
 pub fn handle(cmd: &str, args: &serde_json::Value, cache: &Path) -> Option<Result<String, String>> {
+    note_installer(cache);
     let answer = |r: Result<(), String>| r.map(|()| status().to_string());
     Some(match cmd {
         "update_status" => Ok(status().to_string()),
@@ -259,6 +293,7 @@ fn start(cache: PathBuf) -> Result<(), String> {
 /// error on every offline start is how people learn to dismiss errors.
 pub fn on_start(cache: Option<PathBuf>) {
     if let Some(cache) = cache {
+        note_installer(&cache);
         let installed = std::fs::read_to_string(apk_version(&cache))
             .ok()
             .and_then(|t| Version::parse(t.trim()))
@@ -269,7 +304,7 @@ pub fn on_start(cache: Option<PathBuf>) {
         }
     }
     if cannot_check().is_some()
-        || !settings_path().is_some_and(|p| fm_update::settings_at(&p).check)
+        || !settings_path().is_some_and(|p| fm_update::settings_or(&p, check_default()).check)
     {
         return;
     }

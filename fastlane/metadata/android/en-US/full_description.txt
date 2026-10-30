@@ -1,0 +1,15 @@
+<p>formicaria is a local-first notebook for research and daily life: notes, tasks, a food log and a training log, and collaboration, over plain Markdown files.</p>
+
+<p>Each note is a single Markdown file in a vault you control. There is no account and no cloud service. A vault can sync with git to your own remote, so the same notes open on a phone and a computer.</p>
+
+<ul>
+<li><b>Library</b>: your notes, with links, attachments and search.</li>
+<li><b>Tasks</b>: a note with a due date is a task, on a board and an agenda.</li>
+<li><b>Food</b>: log what you eat from 18,300 foods that come with the app and are searched offline, with recipes, menus and sourced diets.</li>
+<li><b>Fitness</b>: a weekly timetable, exercise cards and sourced regimes.</li>
+<li><b>Study assistant (optional)</b>: a small AI model that runs on the phone. It is off until you turn it on, and it shows what it will download first.</li>
+</ul>
+
+<p>Food and fitness figures name the body that published them; nothing in the app is medical advice.</p>
+
+<p>The same signed APK is published on the website and in formicaria's own F-Droid repository, so a copy installed from either updates from the other without reinstalling.</p>

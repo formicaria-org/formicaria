@@ -1263,6 +1263,9 @@ export type UpdateStatus = {
   error: string | null;
   progress?: UpdateProgress | null;
   page?: string;
+  /** The app store that keeps this copy up to date, by name (a phone installed from F-Droid, say),
+   *  or null. Its own check then starts off; the person can still turn it on. */
+  updated_by?: string | null;
 };
 
 /** Look now, rather than waiting for the once-a-day check. An explicit ask ignores the switch and the

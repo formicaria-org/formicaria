@@ -614,6 +614,7 @@ function mockUpdateStatus() {
     error: null,
     progress: mockUpdateProgress,
     page: 'https://github.com/formicaria-org/formicaria/releases/latest',
+    updated_by: null,
   };
 }
 let mockProvisioning: {

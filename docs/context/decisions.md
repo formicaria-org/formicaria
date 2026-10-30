@@ -13941,3 +13941,85 @@ the app."*
   *"A packaged food? Write it down from its label"* shows only once something is typed, where it
   can say a typed barcode is new.
 - **Cost:** logging the same food again is one tap further (Recent); a search is the commoner way in.
+
+## 2026-10-30 — the Android update check follows who installed the app; the website channel stays first-class `#toolchain` `#ui`
+
+> Changes `fm-update`'s `Settings.check` default (on for everyone, `crates/fm-update/src/lib.rs:343-357`)
+> on Android only. Plan: `fdroid-distribution-plan-2026-10-30.md` Phase 0.2, option (b). Not built yet.
+
+**The owner:** *"one should still be able to continue downloading and updating also with our current
+methods, to not bind us to a particular method, our current one works nicely"*; then, of the two
+ways to meet the stores' opt-in rule, chose **(b), the default by installer of record**.
+
+- **Same APK, same key, every channel.** Website, Obtainium, a self-hosted F-Droid repo,
+  IzzyOnDroid and a reproducible f-droid.org build deliver one file, so a person moves between
+  channels without reinstalling. No store flavour unless a review forces one.
+- **The default follows the installer of record** (`PackageManager.getInstallSourceInfo`):
+  installed by a browser or the system package installer → the GitHub check is **on**, exactly as
+  today; installed by a store client (F-Droid, IzzyOnDroid's client, Obtainium-style updaters) →
+  **off**, and the update rows say *"Updates come from <store>"*. Either way the person can turn the
+  check on or off in Settings, and the setting they choose wins over the default.
+- **Why (b) over a first-launch question:** no new tap for the people the current channel already
+  serves. **Cost:** IzzyOnDroid tolerates self-updaters only *"clearly opt-in (i.e. disabled by
+  default)"*; a reviewer reading the code may still call (b) "on by default". If one does, the
+  answer is the first-launch question (option (a)) for non-store installs, not a second APK.
+- **Unchanged:** the signed manifest, the signer and versionCode checks before handing an APK to
+  Android, and press-to-install.
+
+## 2026-10-30 — a fresh phone asks before the assistant downloads anything `#agent` `#track-m`
+
+> Extends *an update offers a newer assistant model; it never downloads one unasked* (2026-10-10)
+> from updates to a fresh install. Found while planning F-Droid distribution
+> (`fdroid-distribution-plan-2026-10-30.md` Phase 0.1), where an unasked download is also a blocker.
+
+**What the code did.** The phone's `agent::is_enabled` answered **on** whenever `agent.json` had no
+`enabled` key, so it could keep a working assistant on across an update. On a fresh install that
+same default sent `agent::start` → `launch` → a first enable → Myrme's `run_in_process` →
+`fetch::ensure_model` + `ensure_mmproj`: for `qwen3.5-0.8b`, 507,154,688 + 204,987,232 bytes from
+Hugging Face at the first launch, on any network, with no question. The chooser that shows sizes and
+licences was only on the Settings path, which a fresh install never took. The 2026-09-02 entry had
+already named the phone's silent start as *the failure being avoided* on the desktop.
+
+**Decision.**
+- **A stored choice always wins.** With none, the assistant is **on only if a model is already on
+  the phone** (the update case the old default protected) and **off otherwise**.
+- **Off, the Settings switch opens the existing first-enable chooser** (`toggleAgent` →
+  `openChooser` when not provisioned), which shows each model's download first. Nothing new in the
+  UI.
+- **Cost:** a person who installs fresh and wants the assistant turns it on once, and sees what it
+  downloads. A phone that had begun a first download and never finished it (no model yet) also now
+  waits for that switch instead of resuming silently at the next start.
+- The manual's phone steps come from Myrme (`docs/manual/assistant.md`, *First launch downloads…*):
+  corrected there, reaching formicaria with the next Myrme pin.
+
+## 2026-10-30 — our own F-Droid repo: the release APKs, listed on the website, switched on by a key `#toolchain` `#track-m`
+
+> Phase 2 of `fdroid-distribution-plan-2026-10-30.md`. Chosen by Claude on the owner's instruction
+> *"finish all phases for this plan with your recommended options … simple and documented choices
+> that do not break our app"* (owner away). Built and rehearsed, **off until the owner adds the key**.
+
+- **What it is.** `ci/fdroid-site.sh` fetches the newest three release APKs (and each release's own
+  news, trimmed to 500 characters) from GitHub; `ci/fdroid-repo.sh` builds a standard F-Droid repo
+  from them with `fdroidserver`; `pages.yml` publishes it at `/fdroid/repo` with a page at
+  `/fdroid/` (address + key fingerprint). `release.yml` dispatches `pages.yml` on `main` after
+  `attach` (job `fdroid-site`), so each release reaches F-Droid users within minutes.
+- **The APKs are ours, unchanged.** Same file as the website and the in-app updater, so channels mix
+  without reinstalling. `fdroid-repo.sh` **refuses** any version not signed with the certificate
+  pinned in `android/signing-certificate.sha256`.
+- **A separate repo key signs only the index.** Four secrets, read by `pages.yml` alone:
+  `FDROID_KEYSTORE_B64`, `FDROID_KEYSTORE_PASS`, `FDROID_KEY_ALIAS`, `FDROID_KEY_PASS`. The passwords
+  never reach disk or a command line (`{env: …}` in fdroidserver's config, `-storepass:env`). The
+  release job holds no secret: it only starts `pages.yml` (`actions: write`).
+- **Gated.** Without `FDROID_KEYSTORE_B64` both scripts print why and exit 0; the site publishes as
+  before. Rehearsed 2026-10-30 with a throwaway key on the real v0.23.0, v0.22.4 and v0.22.3: index
+  signed, all three verified against the pin, no key material in the output.
+- **Toolchain.** `fdroidserver` 2.4.5 is on PyPI only, so it has its own pixi environment `fdroid`
+  (no default feature; the default, android and cross environments are unchanged in `pixi.lock`).
+  It is AGPL and a build tool: it reads our APKs and is never linked or shipped. `apksigner` comes
+  from Android build-tools (`.android/` locally, the runner's SDK in CI).
+- **Listing text** lives in `fastlane/metadata/android/en-US/` — the layout IzzyOnDroid and
+  f-droid.org also read. No screenshots yet (the repo is text-only; F-Droid takes the icon from the
+  APK, the repo icon from `mobile/src-tauri/icons/`).
+- **Cost:** one more Pages deploy per release; about 85 MB of APKs on the site; a second
+  irreplaceable key to keep (losing it means every user re-adds the repo — back it up off-machine,
+  like the APK keystore).

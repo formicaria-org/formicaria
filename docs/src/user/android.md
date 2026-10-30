@@ -22,6 +22,11 @@ installs it with one tap and Android's own confirmation — see [Updating](#upda
 
 There is no Play Store version yet.
 
+**Installed from an app store instead?** If an app store such as F-Droid or Obtainium installed
+formicaria, that store keeps it up to date, so formicaria's own check starts off and **Settings →
+About & updates** says which store updates it. You can still turn the check on there. Installed from
+this website, nothing changes: formicaria checks as described below.
+
 ## Updating
 
 **From 0.5.2 on, formicaria tells you when there is a newer version.** Once a day it asks GitHub which

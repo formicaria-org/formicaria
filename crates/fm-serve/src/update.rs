@@ -952,6 +952,9 @@ fn status_json(state: &UpdateState) -> serde_json::Value {
         // The release page, so the panel never has to build a URL and the one address this
         // feature knows lives in one place.
         "page": RELEASES_PAGE,
+        // Which app store keeps this copy up to date. A computer has none; the phone may
+        // (`decisions.md` 2026-10-30).
+        "updated_by": serde_json::Value::Null,
     })
 }
 
