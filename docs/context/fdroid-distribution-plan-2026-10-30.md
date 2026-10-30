@@ -288,5 +288,5 @@ repodata`, *app inclusion request* template). Draft text:
 > **Network:** the optional study assistant downloads a model from Hugging Face only after the
 > person picks one in a dialog that shows its size and licence; nothing is downloaded at first
 > launch. Some offered models are under the LFM Open License v1.0; the default is Apache-2.0.
-> **Size:** about 28 MB, arm64 only.
+> **Size:** about 48 MB, arm64 only.
 
