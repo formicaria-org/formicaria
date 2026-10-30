@@ -3,8 +3,10 @@
   //
   // **This is a form about food, on purpose** — one of the closed set of domain parts a group's add
   // control may open (`decisions.md#ui`, 2026-10-11). A sheet with one number field per metric
-  // would be a spreadsheet row. So it opens on what you ate before, which needs no keyboard at all;
-  // search and typing a food in by hand are one tap further.
+  // would be a spreadsheet row. **It opens on the search, the keyboard up** (the owner, 2026-10-30:
+  // *"too many clicks or hand movements are a death trap for the app"*; `decisions.md#ui`): a food
+  // is found by typing its first letters, so the field takes them at once. What you ate before, a
+  // packet and a recipe are one tap further, below it or in the tabs beside Search.
   //
   // The words for meals and values still come from the view's definition, and the units from the
   // keys. An amount is never rescaled from numbers that were already rounded: it is recomputed from
@@ -90,8 +92,6 @@
     entry?: ObjectMeta | null;
     /** A recipe to open on: `recipe/<word>` (the person's own) or `<collection key>/<id>`. */
     open?: string;
-    /** Open on the search, ready to type: the Day screen's *Search a food to log* (2026-10-29). */
-    find?: boolean;
     onclose: () => void;
     /** Something was written; `removed` names an entry that was taken away. */
     onwrote: (what?: { removed?: string }) => void;
@@ -105,7 +105,6 @@
     slot,
     entry = null,
     open = '',
-    find = false,
     onclose,
     onwrote,
     onopennote,
@@ -149,7 +148,7 @@
   const unplaced = $derived(def.slots.length > 0 && !chosen);
 
   type Mode = 'recent' | 'search' | 'recipes' | 'quick';
-  let mode = $state<Mode>(untrack(() => (find ? 'search' : 'recent')));
+  let mode = $state<Mode>('search');
   let failed = $state('');
   let busy = $state(false);
   let added = $state(0);
@@ -1588,6 +1587,20 @@
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
+<!-- A packet is the commonest thing to add and was two screens away, behind a line of small print at
+     the foot of Search: the owner could not find it on the phone. So it is on every tab: on Search
+     under the field, elsewhere at the top. -->
+{#snippet packet()}
+  <div class="packet" role="group" aria-label="a packaged food">
+    <button type="button" class="quiet" onclick={() => pick('barcode')} disabled={reading2}>
+      {reading2 ? 'Reading…' : 'Scan a barcode'}
+    </button>
+    <button type="button" class="quiet" onclick={() => pick('label')}>Photograph a label</button>
+    {@render fromGallery('label', 'or use a picture from the gallery')}
+    <button type="button" class="quiet" onclick={startLabel}>Type in a label</button>
+  </div>
+  {#if scanned}<p class="hint">{scanned}</p>{/if}
+{/snippet}
 <!-- Beside every "take a picture": the same, from a picture already on the device. -->
 {#snippet fromGallery(what: typeof wanted, label = 'or choose one from the gallery')}
   <button type="button" class="link gallery" onclick={() => pick(what, true)} disabled={busy}
@@ -2295,11 +2308,11 @@
         <button type="button" class="link" onclick={backFromPicking}> Back to the recipe </button>
       {/if}
       <div class="modes" role="group" aria-label="how to add">
-        <button type="button" class:on={mode === 'recent'} onclick={() => (mode = 'recent')}
-          >Recent</button
-        >
         <button type="button" class:on={mode === 'search'} onclick={() => (mode = 'search')}
           >Search</button
+        >
+        <button type="button" class:on={mode === 'recent'} onclick={() => (mode = 'recent')}
+          >Recent</button
         >
         {#if !picking}
           <button type="button" class:on={mode === 'recipes'} onclick={() => (mode = 'recipes')}
@@ -2311,18 +2324,7 @@
         {/if}
       </div>
 
-      <!-- A packet is the commonest thing to add and was two screens away, behind a line of
-           small print at the foot of Search: the owner could not find it on the phone. -->
-      <div class="packet" role="group" aria-label="a packaged food">
-        <button type="button" class="quiet" onclick={() => pick('barcode')} disabled={reading2}>
-          {reading2 ? 'Reading…' : 'Scan a barcode'}
-        </button>
-        <button type="button" class="quiet" onclick={() => pick('label')}>Photograph a label</button
-        >
-        {@render fromGallery('label', 'or use a picture from the gallery')}
-        <button type="button" class="quiet" onclick={startLabel}>Type in a label</button>
-      </div>
-      {#if scanned}<p class="hint">{scanned}</p>{/if}
+      {#if mode !== 'search'}{@render packet()}{/if}
       {#if mode === 'recent'}
         {#if recent === null}
           <ul class="rows" aria-hidden="true">
@@ -2356,14 +2358,15 @@
           </ul>
         {/if}
       {:else if mode === 'search'}
-        <!-- svelte-ignore a11y_autofocus -->
+        <!-- Focused as it appears, whatever holds the focus: `autofocus` takes it only from the page
+             itself, and on a phone the ＋ that was pressed still holds it (2026-10-30). -->
         <input
           class="field"
           type="search"
           placeholder="Search foods"
           aria-label="search foods"
           bind:value={q}
-          autofocus
+          {@attach (el) => el.focus()}
           spellcheck="false"
         />
         {#if q.trim() && hits.length === 0 && mine.length === 0}
@@ -2398,11 +2401,15 @@
             </li>
           {/each}
         </ul>
-        <button type="button" class="link" onclick={startLabel}>
-          {isBarcode(q) && mine.length === 0
-            ? 'A barcode you have not written down: add it'
-            : 'A packaged food? Write it down from its label'}
-        </button>
+        {#if q.trim()}
+          <button type="button" class="link" onclick={startLabel}>
+            {isBarcode(q) && mine.length === 0
+              ? 'A barcode you have not written down: add it'
+              : 'A packaged food? Write it down from its label'}
+          </button>
+        {/if}
+        <!-- Below the field and what it found, so the keyboard covers neither (2026-10-30). -->
+        {@render packet()}
       {:else if mode === 'recipes'}
         {#if recipes === null}
           <ul class="rows" aria-hidden="true">

@@ -84,15 +84,17 @@ by its barcode (see *A packaged food* below). Anything else can still be logged 
 formicaria opens on **Food → Day** (the very first time, on the Library and its tutorials). On a
 phone or tablet, swipe left or right to go to the group's next or previous view (Day, Menu,
 Trends, Diet).
-**Search a food to log**, at the top, opens the search with the keyboard up. You can also press
-**＋**, or the **＋** beside a meal. From the search or the bar's **＋** you say which meal it belongs
-to; the app does not guess one from the time of day.
+**Search a food to log**, at the top, or the **＋** beside a meal, opens the search with the
+keyboard up: type the first letters of a food straight away. You can also press the bar's **＋**.
+From the search or the bar's **＋** you say which meal it belongs to; the app does not guess one
+from the time of day.
 
-- **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
-  logs it again with the amount it had. Tapping the row lets you change the amount first.
 - **Search** — a food from the list. Choose one, then say how much: the **−** and **＋** change the
   amount. Where the food's table gives household portions ("1 cup", "1 medium") they are offered
-  as chips; the European tables give none.
+  as chips; the European tables give none. Under the search are the buttons for a packet: scan
+  its barcode, photograph its label, or type the label in.
+- **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
+  logs it again with the amount it had. Tapping the row lets you change the amount first.
 - **Quick add** — any name and its energy. Protein, carbohydrate and fat are optional.
 
 Tap a logged entry to change its amount. To take one entry out on its own, press the **✕** at the

@@ -1,5 +1,6 @@
-// Logging a food: what you ate before needs no keyboard, a food from the list gets a portion, and a
-// food typed in by hand needs only a name and its energy.
+// Logging a food: the sheet opens on the search, ready to type; what you ate before is one tap
+// away, a food from the list gets a portion, and a food typed in by hand needs only a name and its
+// energy.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import LogSheet from './LogSheet.svelte';
@@ -44,8 +45,25 @@ const open = (over = {}) => {
 };
 
 describe('the food sheet', () => {
-  it('opens on what was eaten before, and a row’s own plus logs it again in one tap', async () => {
+  it('opens on the search with its field ready to type, the packet below it', async () => {
+    // On a phone the ＋ that was pressed still holds the focus as the sheet opens.
+    const plus = document.body.appendChild(document.createElement('button'));
+    plus.focus();
+    open();
+    const field = await screen.findByLabelText('search foods');
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    plus.remove();
+    const tabs = screen.getByRole('group', { name: 'how to add' });
+    expect(tabs.querySelector('button')?.textContent).toBe('Search');
+    expect(tabs.querySelector('.on')?.textContent).toBe('Search');
+    // The field comes before the packet's buttons, so nothing sits between the keyboard and it.
+    const packet = screen.getByRole('group', { name: 'a packaged food' });
+    expect(field.compareDocumentPosition(packet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('what was eaten before is one tap away, and a row’s own plus logs it again', async () => {
     const { onwrote } = open();
+    await fireEvent.click(screen.getByRole('button', { name: 'Recent' }));
     const again = await screen.findAllByRole('button', { name: /^add .* again$/ });
     expect(again.length).toBeGreaterThan(3);
 
@@ -57,6 +75,7 @@ describe('the food sheet', () => {
 
   it('opened without a meal it guesses none, and adds nothing until one is named', async () => {
     const { onwrote } = open({ slot: null });
+    await fireEvent.click(screen.getByRole('button', { name: 'Recent' }));
     const again = await screen.findAllByRole('button', { name: /^add .* again$/ });
     expect((again[0] as HTMLButtonElement).disabled).toBe(true);
 
@@ -253,6 +272,7 @@ describe('the food sheet', () => {
 
   it('logging is one step to undo', async () => {
     open();
+    await fireEvent.click(screen.getByRole('button', { name: 'Recent' }));
     await fireEvent.click((await screen.findAllByRole('button', { name: /^add .* again$/ }))[0]);
     await waitFor(() => expect(nextUndo()?.label).toMatch(/^logged/));
     await undo();
@@ -261,7 +281,6 @@ describe('the food sheet', () => {
 
   it('a food from the list gets a portion, and the entry records where it came from', async () => {
     const { onwrote } = open();
-    await fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'banana' } });
     await fireEvent.click(await screen.findByText('Banana'));
 

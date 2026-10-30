@@ -21,6 +21,7 @@
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import { stepped, swipe } from './swipe';
+  import { holdKeyboard } from './keyboard';
   import Totals from '../renderers/Totals.svelte';
   import Trends from '../renderers/Trends.svelte';
   import SessionScreen from './training/SessionScreen.svelte';
@@ -263,10 +264,13 @@
     entry: ObjectMeta | null;
     /** A recipe to open the sheet on: `recipe/<word>` or `nhlbi/<id>`. */
     open?: string;
-    /** Open on the search, ready to type. */
-    find?: boolean;
   } | null>(null);
   const closeSheet = () => (sheet = null);
+  /// The sheet opens on the food search with the keyboard up (2026-10-30), raised by this press.
+  function addFood(slot: string | null) {
+    holdKeyboard();
+    sheet = { slot, entry: null };
+  }
   $effect(() => {
     // A layer, so Back closes the sheet before it leaves the view (`nav.svelte.ts`).
     if (sheet) nav.openLayer(`log-sheet:${pane.id}`, closeSheet);
@@ -557,7 +561,7 @@
           signal={[feed, wrotes]}
           onadd={(d, slot) => {
             selected = d;
-            sheet = { slot, entry: null };
+            addFood(slot);
           }}
           onedit={(entry, d) => {
             selected = d;
@@ -624,11 +628,7 @@
         <!-- **The search comes first** (the owner, 2026-10-29: *"the most used feature"*): one
              press opens the logging sheet on its search with the keyboard up. Which meal is still
              asked there — none is guessed (2026-10-11). -->
-        <button
-          type="button"
-          class="find-food"
-          onclick={() => (sheet = { slot: null, entry: null, find: true })}
-        >
+        <button type="button" class="find-food" onclick={() => addFood(null)}>
           <Icon name="search" size={16} />
           <span>Search a food to log</span>
         </button>
@@ -641,7 +641,7 @@
         {today}
         {yesterday}
         onday={pick}
-        onadd={(slot) => (sheet = { slot, entry: null })}
+        onadd={addFood}
         onedit={(entry) => (sheet = { slot: null, entry })}
         oncopy={copyYesterday}
         ontargets={() => (targetsOpen = true)}
@@ -736,7 +736,6 @@
         slot={sheet.slot}
         entry={sheet.entry}
         open={sheet.open}
-        find={sheet.find}
         onclose={closeSheet}
         onwrote={wrote}
         onopennote={onopen

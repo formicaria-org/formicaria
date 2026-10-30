@@ -215,6 +215,7 @@ test('a meal added to a day still to come is a plan, in no total until it is con
   expect(await screen.findByText('Planned')).toBeTruthy();
 
   await fireEvent.click(screen.getByRole('button', { name: 'add to Dinner' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'Recent' }));
   const again = await screen.findAllByRole('button', { name: /^add .* again$/ });
   const what = again[0].getAttribute('aria-label')!.replace(/^add (.*) again$/, '$1');
   await fireEvent.click(again[0]);
@@ -654,7 +655,6 @@ test('where no model can read a label the picture is kept, and the label is sett
   // It is in the day with its amount and no energy. Find it again by name.
   await fireEvent.click(await screen.findByRole('button', { name: 'add to Food' }));
   sheet = await screen.findByRole('dialog');
-  await fireEvent.click(within(sheet).getByRole('button', { name: 'Search' }));
   await fireEvent.input(within(sheet).getByRole('searchbox'), { target: { value: 'Oat bar' } });
   await fireEvent.click(
     await within(sheet).findByRole('button', { name: /Oat bar.*label not read yet/ }),
@@ -694,10 +694,8 @@ test('a packaged food is written down once from its label, and is then one of yo
   await openFood();
   await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
   const sheet = await screen.findByRole('dialog');
-  await fireEvent.click(within(sheet).getByRole('button', { name: 'Search' }));
-  await fireEvent.click(
-    await within(sheet).findByRole('button', { name: /A packaged food\? Write it down/ }),
-  );
+  // The sheet opens on the search; a packet's buttons are under its field.
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Type in a label' }));
   const form = await within(sheet).findByRole('region', {
     name: 'a packaged food, from its label',
   });
@@ -767,7 +765,6 @@ test('a barcode is looked up only when asked, fills the label, and the note says
   await openFood();
   await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
   const sheet = await screen.findByRole('dialog');
-  await fireEvent.click(within(sheet).getByRole('button', { name: 'Search' }));
   await fireEvent.input(within(sheet).getByLabelText('search foods'), {
     target: { value: '3017624010701' },
   });

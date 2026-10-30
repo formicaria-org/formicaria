@@ -18,3 +18,23 @@ export function keyboardInset(): number {
   const n = parseFloat(raw);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
+
+/// **Raise the keyboard now, for a field that is not on the screen yet** (2026-10-30). A phone opens
+/// its keyboard for a field focused while a press is being handled; the food search is drawn a
+/// moment later, once the logging sheet has loaded, and a focus that late may get no keyboard. So
+/// the press focuses a stand-in field, and the search's own `autofocus` then takes the focus — the
+/// keyboard stays up across the move — and the stand-in goes. Only with a touch screen: a mouse
+/// has no keyboard to raise.
+export function holdKeyboard(ms = 2000): void {
+  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  const hold = document.createElement('input');
+  hold.setAttribute('aria-hidden', 'true');
+  hold.tabIndex = -1;
+  // 16px, or iOS zooms the page in to show it.
+  hold.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px';
+  document.body.append(hold);
+  hold.focus();
+  const gone = () => hold.remove();
+  hold.addEventListener('blur', gone, { once: true });
+  setTimeout(gone, ms);
+}
