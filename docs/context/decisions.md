@@ -14023,3 +14023,20 @@ already named the phone's silent start as *the failure being avoided* on the des
 - **Cost:** one more Pages deploy per release; about 85 MB of APKs on the site; a second
   irreplaceable key to keep (losing it means every user re-adds the repo — back it up off-machine,
   like the APK keystore).
+
+## 2026-10-30 — the app key's password, recovered from the GitHub secrets `#toolchain` `#track-m`
+
+> Owner, 2026-10-30: *"lets recover it"*. The owner does not hold the password of
+> `android-release.keystore`; the laptop's copy in `android-release.properties` was overwritten on
+> 2026-09-09 (`known-issues.md`, *Signing a phone build locally*). Only the `ANDROID_*` secrets hold
+> it, and GitHub never shows a secret again — so the key's off-machine backup could not be opened.
+
+- **How.** A one-off `workflow_dispatch` workflow, `key-recovery.yml`: it checks the secrets open the
+  key pinned in `android/signing-certificate.sha256`, then uploads the keystore and its four values
+  **encrypted with age to a public key whose private half only the maintainer holds**. One
+  day's retention; nothing decrypted or printed on the runner. The workflow is deleted after its run.
+- **Same key, nothing re-signed.** The app's identity does not change, so no install anywhere is
+  affected. The passwords go into the owner's password manager; the keystore and the restored
+  `android-release.properties` go into the off-machine backup with the other release keys.
+- **Why not rotate instead.** A new password means re-wrapping the key and replacing four secrets —
+  more steps on the one key whose loss is unrecoverable, to reach the same end.

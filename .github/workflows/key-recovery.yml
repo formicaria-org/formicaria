@@ -1,0 +1,68 @@
+# ONE-OFF, to be deleted after its single run (decisions.md, 2026-10-30, *the app key's password,
+# recovered from the GitHub secrets*).
+#
+# The app's signing key password exists only in the ANDROID_* secrets: the laptop's
+# `android-release.properties` was overwritten on 2026-09-09 (known-issues.md, *Signing a phone
+# build locally*), and a secret cannot be read back. This run hands the owner the four values
+# **encrypted to an age key whose private half only the maintainer holds** (`recipient`, its public half).
+# Nothing is decrypted here, nothing is printed, and the artifact lives one day. A public
+# repository's artifacts can be downloaded by anyone signed in to GitHub, which is why the bundle is
+# encrypted and not merely zipped.
+#
+# It also checks the secrets against the published certificate pin first, so what it hands back is
+# provably the key every release has been signed with.
+name: key-recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      recipient:
+        description: "age public key (age1…), its private half held by the maintainer"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: age
+        run: sudo apt-get install -y -qq age >/dev/null
+      - name: bundle the key, encrypted to the owner
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          RECIPIENT: ${{ inputs.recipient }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printenv RECIPIENT | grep -qxE 'age1[0-9a-z]{58}' \
+            || { echo "recipient is not an age public key (age1…)" >&2; exit 1; }
+          d=$(mktemp -d); umask 077
+          printenv KEYSTORE_B64 | base64 -d > "$d/android-release.keystore"
+          # No `storeFile=` line: this runner's path means nothing on the laptop, which adds its own.
+          {
+            echo "storePassword=$(printenv STORE_PASSWORD)"
+            echo "keyAlias=$(printenv KEY_ALIAS)"
+            echo "keyPassword=$(printenv KEY_PASSWORD)"
+          } > "$d/android-release.properties"
+          # The pin check: the secrets must open the key, and the key must be the one releases carry.
+          pin=$(grep -E '^sha256 ' android/signing-certificate.sha256 | awk '{print $2}')
+          got=$(keytool -exportcert -keystore "$d/android-release.keystore" -storetype PKCS12 \
+                  -alias "$(printenv KEY_ALIAS)" -storepass:env STORE_PASSWORD \
+                | sha256sum | cut -d' ' -f1)
+          [ "$got" = "$pin" ] || { echo "the secrets do not open the pinned key" >&2; exit 1; }
+          echo "the secrets open the key releases are signed with"
+          tar -C "$d" -cf - android-release.keystore android-release.properties \
+            | age -r "$(printenv RECIPIENT)" -o key-recovery.tar.age
+          shred -u "$d"/* 2>/dev/null || rm -f "$d"/*
+      - uses: actions/upload-artifact@v6
+        with:
+          name: key-recovery
+          path: key-recovery.tar.age
+          retention-days: 1
+          if-no-files-found: error
