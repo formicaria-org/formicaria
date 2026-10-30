@@ -1171,6 +1171,11 @@ Which of the two the phone showed was not recorded. Read its exact wording befor
 
 ## Signing a phone build locally (2026-10-09)
 
+> **Restored 2026-10-30.** The file holds its four lines again, recovered from the `ANDROID_*`
+> secrets by the one-off `key-recovery.yml` (`decisions.md`, 2026-10-30, *the app key's password,
+> recovered from the GitHub secrets*; the workflow is deleted). What follows is how it broke, and
+> how to restore it if it breaks again.
+
 On the owner's machine, `~/.config/formicaria/android-release.properties` held a byte-copy of the
 keystore instead of its four lines. It was overwritten on 2026-09-09. Since then a local
 `pixi run -e android android-release` builds and aligns, but `apksigner` fails silently (its stderr

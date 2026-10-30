@@ -14034,7 +14034,8 @@ already named the phone's silent start as *the failure being avoided* on the des
 - **How.** A one-off `workflow_dispatch` workflow, `key-recovery.yml`: it checks the secrets open the
   key pinned in `android/signing-certificate.sha256`, then uploads the keystore and its four values
   **encrypted with age to a public key whose private half only the maintainer holds**. One
-  day's retention; nothing decrypted or printed on the runner. The workflow is deleted after its run.
+  day's retention; nothing decrypted or printed on the runner. The workflow is deleted after its run. **Done the same day:** the run's secrets opened the pinned key, the
+  recovered password opened the laptop's identical keystore, and the workflow was deleted.
 - **Same key, nothing re-signed.** The app's identity does not change, so no install anywhere is
   affected. The passwords go into the owner's password manager; the keystore and the restored
   `android-release.properties` go into the off-machine backup with the other release keys.
