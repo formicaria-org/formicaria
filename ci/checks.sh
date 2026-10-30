@@ -1186,7 +1186,8 @@ echo "[check] every 'pixi run <task>' in the docs is a task that exists..."
 # one that does not exist has no way to tell a typo from a missing dependency. `MASTERPLAN.md` sent
 # people to `pixi run dev` and `pixi run lint`, neither of which has ever existed.
 # `pixi run cargo …` and friends are not tasks: pixi also runs a binary from the environment.
-known_bins="cargo pnpm npm node python3 python sh bash git restic mdbook adb"
+# `keytool` is Java's, in the `fdroid` environment (`pixi run -e fdroid keytool`, the repo key).
+known_bins="cargo pnpm npm node python3 python sh bash git restic mdbook adb keytool"
 # **Two repositories make the app since 2026-10-18**: the assistant's tasks (fetch-model, model-bench,
 # check-pins, integration, …) live in Myrme's `pixi.toml`, read here at the tag this build pins
 # (through `cargo metadata`, like the cross-crate guards below). A documented task must exist in
