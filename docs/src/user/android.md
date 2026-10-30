@@ -54,6 +54,26 @@ If you would rather have another app watch for new versions,
 [Obtainium](https://github.com/ImranR98/Obtainium) still works: point it at
 `github.com/formicaria-org/formicaria`.
 
+### Updating through F-Droid
+
+formicaria has its own F-Droid repository. It holds the same signed app as this website, so a copy
+you already have updates from it **without reinstalling**, and your notes stay where they are.
+
+1. On the phone, open
+   **[formicaria-org.github.io/formicaria/fdroid](https://formicaria-org.github.io/formicaria/fdroid/)**,
+   long-press the long link on that page and choose **Copy link address**.
+2. In **F-Droid**, tap **Settings** → **Repositories** → **+**, paste the address and tap **Add**.
+3. F-Droid shows the repository's fingerprint. Check that it is
+   `5D3F5309005F299E32FBA61D27921AA773BD46675A595CD9C6515022D2AE30B6`, the same as on that page, and
+   confirm.
+4. Search for **formicaria** in F-Droid: it shows the copy you have as installed, and offers each new
+   version from then on.
+
+Once F-Droid has installed an update, **Settings → About & updates** says that F-Droid keeps
+formicaria up to date, and formicaria's own check is off unless you turn it on. On Android 12 or
+later, F-Droid can then install later updates without asking, if that is switched on in F-Droid's
+own settings.
+
 ## Your notes, and why backup matters more on a phone
 
 Your notes live inside the app's own storage, not in a folder you can browse. **Deleting the app

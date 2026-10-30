@@ -141,8 +141,8 @@ updater must be opt-in or left out of an F-Droid build. The 2026-10-18 `decision
 
 **Plan: `fdroid-distribution-plan-2026-10-30.md`** (one APK for every channel). **Status
 2026-10-30:** Phase 0 built (no unasked model download on a fresh phone; the update check follows
-the installer); Phase 2, our own F-Droid repo, built and rehearsed but **off until the owner adds
-the repo key** (plan §10); IzzyOnDroid request drafted (§11); f-droid.org not started (§5). **Owner's
+the installer); Phase 2, our own F-Droid repo, **on since 2026-10-30** (released in 0.24.0, key set, a phone
+saw its website copy as installed); IzzyOnDroid request drafted (§11); f-droid.org not started (§5). **Owner's
 order (2026-10-30): this first, then the training coach** (`training-coach-plan-2026-10-30.md`,
 research in its Part 2; watch files as note assets, coaching in Myrme).
 

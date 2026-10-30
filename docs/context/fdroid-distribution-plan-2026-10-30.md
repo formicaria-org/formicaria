@@ -29,7 +29,7 @@ committed, pushed, published or submitted; every step that needs the owner is in
 | Phase 0.1 — no unasked model download | **Built**, gate green, APK builds | Owner: one fresh install with a network capture (§2.1) |
 | Phase 0.2 — update check by installer (option b) | **Built**, gate green, Kotlin compiles | Nothing; reviewers may still ask for (a) |
 | Phase 1 — Obtainium | Works today | Nothing |
-| Phase 2 — our own F-Droid repo | **Built and rehearsed, off** until the key exists | Owner: create the key, add 4 secrets (§10) |
+| Phase 2 — our own F-Droid repo | **On since 2026-10-30**: key made, 4 secrets set, published; a phone with the website copy saw it as installed (same signature, no reinstall). Linked from `site/get.html` and `android.md` | — (key backup off the laptop: §10) |
 | Phase 3 — IzzyOnDroid | **Prepared**: listing text, request draft (§11) | Owner: wait one release with Phase 2 on, then send the request |
 | Phase 4 — f-droid.org | **Not started on purpose**; next steps chosen (§5) | Needs a phone test of a from-source runtime and two decisions |
 | §6 — transparency, the switch guide | Store line built (Phase 0.2); **switch guide not built** (not needed with one APK) | Nothing |
@@ -102,7 +102,8 @@ background on recent Android. No code.
 
 ## 4. Phase 2 — our own F-Droid repo, from our releases
 
-> **Built 2026-10-30, off until the key exists** (`decisions.md`, *our own F-Droid repo*). As built,
+> **Built 2026-10-30, switched on the same day** (repo key fingerprint
+> `5D3F5309005F299E32FBA61D27921AA773BD46675A595CD9C6515022D2AE30B6`) (`decisions.md`, *our own F-Droid repo*). As built,
 > the steps below differ from the sketch in three ways: the release does not deploy the site itself
 > but dispatches `pages.yml` on `main` (Pages deploys from `main`; the release job holds no secret);
 > the repo passwords stay in the environment; and the script refuses any APK not signed with our
