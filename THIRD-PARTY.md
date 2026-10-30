@@ -97,8 +97,8 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | filetime | v0.2.29 | MIT/Apache-2.0 |
 | find-msvc-tools | v0.1.9 | MIT OR Apache-2.0 |
 | flate2 | v1.1.9 | MIT OR Apache-2.0 |
-| fm-agent | v0.12.1 | MIT |
-| fm-agent-run | v0.12.1 | MIT |
+| fm-agent | v0.12.2 | MIT |
+| fm-agent-run | v0.12.2 | MIT |
 | fm-app | v0.0.0 | MIT |
 | fm-cli | v0.0.0 | MIT |
 | fm-core | v0.0.0 | MIT |
