@@ -27,7 +27,7 @@ committed, pushed, published or submitted; every step that needs the owner is in
 | Part | State | What is left, and for whom |
 |---|---|---|
 | Phase 0.1 — no unasked model download | **Built**, gate green, APK builds | Owner: one fresh install with a network capture (§2.1) |
-| Phase 0.2 — update check by installer (option b) | **Built**, gate green, Kotlin compiles | Nothing; reviewers may still ask for (a) |
+| Phase 0.2 — update check by installer (option b) | **Built and seen on a phone** (2026-10-30): an in-app-updated 0.24.0 took 0.24.1 from our F-Droid repo without reinstalling, and Settings then said F-Droid updates it, the check off | Nothing; reviewers may still ask for (a) |
 | Phase 1 — Obtainium | Works today | Nothing |
 | Phase 2 — our own F-Droid repo | **On since 2026-10-30**: key made, 4 secrets set, published; a phone with the website copy saw it as installed (same signature, no reinstall). Linked from `site/get.html` and `android.md` | — (key backup off the laptop: §10) |
 | Phase 3 — IzzyOnDroid | **Prepared**: listing text, request draft (§11) | Owner: wait one release with Phase 2 on, then send the request |
