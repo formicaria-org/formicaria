@@ -1654,6 +1654,24 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
 - **Measured on one real graph only** — Logseq, `:file/name-format :triple-lowbar`. An older
   `:legacy` name format or a non-default journal title format is handled in code but unmeasured.
 
+## Play Protect calls the APK harmful (2026-10-30)
+
+Since about mid-October, installing or updating the phone app shows Google Play Protect's *"App scan
+recommended"* and, after **Scan app**, *"Harmful app blocked — This app may be harmful. Installing
+this app may put your device at risk."* — on every channel (in-app update, website, our F-Droid repo).
+**More details → Install anyway** installs it; the phone maker's own scan finds nothing. The wording
+matches none of Google's category strings (`developers.google.com/android/play-protect/warning-strings`),
+so Google names no reason.
+
+- **Suspected:** the permission profile — microphone + update installer + start at boot + wake-up
+  alarms. It appeared after 0.7.7 added the boot receiver. Evidence and the first fix:
+  `decisions.md` 2026-10-30, *the restart receiver is on only while a reminder waits*.
+- **The test is a release.** Each fix ships, the owner updates and taps **Scan app**, and the result
+  goes here. Many small apps saw one-off flags clear by themselves in the next build (Molly,
+  Haven), so one clean scan is a good sign, not proof; a flag that stays across releases is the
+  pattern.
+- **Results:** 0.24.2 (restart receiver off unless a reminder waits) — *to be scanned*.
+
 ## Search — what it cannot find (2026-10-29)
 
 Measured with the app's own tokenizer on SQLite 3.46.1; the full survey and the plan are in Myrme's

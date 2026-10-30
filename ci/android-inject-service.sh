@@ -106,8 +106,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import org.json.JSONArray
 
@@ -157,7 +159,23 @@ object Reminders {
       set += 1
     }
     prefs.edit().putString(KEY, json).apply()
+    listenForRestart(ctx, set > 0)
     return set
+  }
+
+  /// **The restart is heard only while a reminder waits** (`decisions.md#track-m`, 2026-10-30).
+  /// `BootReceiver` ships switched off; it is switched on when an alarm is set and off when none is
+  /// left. A phone with no reminders never starts formicaria at boot — and a start-at-boot receiver
+  /// beside the microphone and the update installer is the profile Play Protect called harmful.
+  private fun listenForRestart(ctx: Context, on: Boolean) {
+    val state =
+      if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+      else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    try {
+      ctx.packageManager.setComponentEnabledSetting(
+        ComponentName(ctx, BootReceiver::class.java), state, PackageManager.DONT_KILL_APP
+      )
+    } catch (e: Exception) { }
   }
 
   /// After the phone restarts, alarms are gone: set the kept list again.
@@ -783,7 +801,7 @@ if ! grep -q 'ReminderReceiver' "$manifest"; then
     awk '
         /<\/application>/ && !r {
             print "        <receiver android:name=\".ReminderReceiver\" android:exported=\"false\" />"
-            print "        <receiver android:name=\".BootReceiver\" android:exported=\"true\">"
+            print "        <receiver android:name=\".BootReceiver\" android:exported=\"true\" android:enabled=\"false\">"
             print "            <intent-filter>"
             print "                <action android:name=\"android.intent.action.BOOT_COMPLETED\" />"
             print "            </intent-filter>"
@@ -793,6 +811,10 @@ if ! grep -q 'ReminderReceiver' "$manifest"; then
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
+
+# The restart receiver ships **off** (2026-10-30, see `Reminders.listenForRestart`); a manifest written
+# by an earlier run of this script is brought up to date too.
+sed -i 's|<receiver android:name=".BootReceiver" android:exported="true">|<receiver android:name=".BootReceiver" android:exported="true" android:enabled="false">|' "$manifest"
 
 # Share: formicaria in Android's share menu for pictures (`decisions.md#ui`, 2026-10-20). One file
 # or several; the activity takes them (`takeShared`). Pictures only: what a screenshot is, and what

@@ -14041,3 +14041,25 @@ already named the phone's silent start as *the failure being avoided* on the des
   `android-release.properties` go into the off-machine backup with the other release keys.
 - **Why not rotate instead.** A new password means re-wrapping the key and replacing four secrets —
   more steps on the one key whose loss is unrecoverable, to reach the same end.
+
+## 2026-10-30 — the restart receiver is on only while a reminder waits `#track-m`
+
+> Owner, 2026-10-30, after Play Protect showed "Harmful app blocked — This app may be harmful" on
+> every phone update since about mid-October: *"we can also go through minor releases and test them
+> so that we see it in the real setting"*. One change per release, each a real fix, scanned on the
+> phone (`known-issues.md`, *Play Protect calls the APK harmful*).
+
+- **What.** `BootReceiver` ships `android:enabled="false"`. `Reminders.set` switches it on when it
+  set at least one alarm and off when none is left (`setComponentEnabledSetting`, `DONT_KILL_APP`).
+  Reminders still return after a restart; a phone with no pending reminder never starts formicaria
+  at boot. The `RECEIVE_BOOT_COMPLETED` permission stays declared.
+- **Why this first.** The verdict appeared after 0.7.7 (2026-10-13) added the boot receiver and its
+  wake-up alarms; the microphone (July) and the update installer (0.5.2, September) were there
+  before without it. Another Tauri app saw the same: microphone + installer passed, adding
+  start-at-boot + wake lock was flagged, removing both scanned clean (busytools/forge #2674). An app
+  that made its boot receiver opt-in later passed Play Protect review (oruviyex18/AndMTProto #6, #7).
+  This step keeps every feature, so it is tried before anything that costs one.
+- **If the scan still says harmful:** the next release takes the installer out — the Update button
+  opens the release's APK in the browser and Android's installer takes it from there (dropping
+  `REQUEST_INSTALL_PACKAGES`). That reverses part of 2026-09-11's *install through Android's
+  installer*, so it gets its own entry first.
