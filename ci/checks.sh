@@ -2494,6 +2494,27 @@ if grep -rnE '\.(getDate|getHours|getMinutes|getDay|getFullYear|getMonth|setDate
     fail=1
 fi
 
+echo "[check] the phone's APK carries nothing Play Protect called harmful (no boot, alarms, receivers, installing)..."
+# known-issues.md, *Play Protect calls the APK harmful*, and decisions.md#track-m, 2026-10-31 (three
+# entries): from 0.7.7 every APK drew "Harmful app blocked" until 0.24.5 dropped start-at-boot, the
+# exported receivers, wake-up alarms and page-written notifications (0.24.4 had dropped installing
+# other apps). Switching a receiver off was not enough — a declaration alone counts. The build adds
+# the manifest's permissions and the Kotlin in ci/android-inject-service.sh, so that is where they
+# are refused. A new permission is a decisions.md entry first, then a change to the list below.
+inject=ci/android-inject-service.sh
+allowed='FOREGROUND_SERVICE|FOREGROUND_SERVICE_DATA_SYNC|POST_NOTIFICATIONS|RECORD_AUDIO|MODIFY_AUDIO_SETTINGS'
+if grep -oE 'uses-permission android:name=\\?"android\.permission\.[A-Z_]+' "$inject" \
+    | sed -E 's/.*permission\.//' | grep -vxE "$allowed"; then
+    echo "  FAIL: $inject adds the permission(s) above, outside the list Play Protect has passed."
+    fail=1
+fi
+# Comments and the `sed -i …d` lines that strip these from an older generated manifest are allowed.
+if grep -nE 'AlarmManager|BroadcastReceiver|BOOT_COMPLETED|<receiver|ACTION_INSTALL_PACKAGE|PackageInstaller|REQUEST_INSTALL_PACKAGES' "$inject" \
+    | grep -vE '^[0-9]+:[[:space:]]*(#|//|\*)' | grep -v 'sed -i'; then
+    echo "  FAIL: $inject brings back a receiver, an alarm, start at boot or installing apps — what drew Play Protect's verdict."
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

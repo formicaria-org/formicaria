@@ -73,7 +73,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***Swiping the app away from Recents ends its process*** (2026-10-24; read before changing `AgentService`'s lifecycle, `MainActivity`'s launch mode, or anything that keeps the process alive without a window) · ***The phone's blob route answers a `Range`, and stops lying about
+- **`#track-m`** (mobile/phone): ***Play Protect's verdict cleared in 0.24.5*** (2026-10-31; read before adding any Android permission, receiver, alarm or start-at-boot — `ci/checks.sh` refuses them) · ***Swiping the app away from Recents ends its process*** (2026-10-24; read before changing `AgentService`'s lifecycle, `MainActivity`'s launch mode, or anything that keeps the process alive without a window) · ***The phone's blob route answers a `Range`, and stops lying about
   it*** (read before touching `blob_response` — and note what is *not* verified there) ·
   ***A shell that cannot configure its paths refuses*** · ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** **⟶ + *iOS ships as an unsigned IPA that each user signs with their own Apple ID*** (read the pair before any iOS distribution work — the first carries the App Store / TestFlight / sideloading facts, the second picks free-account sideloading and says what it forbids) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
@@ -14124,3 +14124,34 @@ replaces 2026-10-30 (*the restart receiver is on only while a reminder waits*).
 - **If the scan still says harmful:** the remaining profile is the microphone, the foreground
   service and the two executables run from `nativeLibraryDir`; the next test is test APKs under a
   separate package name, so each part can be scanned without touching the real app's notes.
+
+## 2026-10-31 — Play Protect's verdict cleared in 0.24.5: the phone stays free of boot, alarms and receivers `#track-m`
+
+> Owner, 2026-10-31, after updating to 0.24.5 through F-Droid: *"great, no warning!"*
+
+**Settles** the two entries above and 2026-10-30 (*the restart receiver is on only while a reminder
+waits*).
+
+- **The result, release by release.** 0.24.2 (boot receiver shipped `enabled="false"`): harmful.
+  0.24.4 (no `REQUEST_INSTALL_PACKAGES`): harmful. 0.24.5 (no `RECEIVE_BOOT_COMPLETED`, no
+  `BootReceiver` or `ReminderReceiver`, no `AlarmManager`, no `__fmRemind`): **no warning**. The
+  published 0.24.5 APK was checked with `aapt2` and `apksigner`: version code 24005, none of those
+  entries, the same signer as 0.24.4. Each was scanned by the owner updating through F-Droid.
+- **What it shows.** The trigger was the reminders' Android side from 0.7.7: start at boot with an
+  exported receiver, wake-up alarms, and notifications whose text a web page wrote. A declaration
+  counts on its own: the receiver switched off (0.24.2) did not clear it. It was not a reputation held
+  against the package name or the signing key, since the same package and key now pass. Which of the
+  four parts weighed most is not known; nothing was separated.
+- **The standing rule.** The phone's APK declares no `RECEIVE_BOOT_COMPLETED`, no manifest
+  `<receiver>` of ours, no `AlarmManager` use, nothing that installs apps, and only the permissions
+  it has now: `INTERNET` (Tauri's), `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`. **`ci/checks.sh` enforces it** on
+  `ci/android-inject-service.sh`, where the build adds all of these. Bringing any of it back is a
+  dated reversal here first, and a release whose scan is recorded in `known-issues.md`.
+- **What it does not prove.** One clean scan; small apps have seen a flag return or clear by
+  itself. If it returns, `known-issues.md` (*Play Protect calls the APK harmful*) names the next
+  suspects, and the bisection by a separate test package (entry above) is the method.
+- **What was spent.** Phone reminders that arrive with the app closed. They had never been seen to
+  work on a phone (`known-issues.md`, *Reminders — where they stand*), so nothing working was lost.
+  A future way back would have to avoid every part above, for instance a notification only from the
+  assistant's foreground service while it already runs; it is not planned.

@@ -1163,8 +1163,8 @@ answers:
   the release key and carrying it is uploaded. **That file has to be added by the build** — `gen/` is
   regenerated, so it belongs in `ci/android-inject-service.sh` like everything else the build adds.
 - **Play Protect's scan** (*Unsafe app blocked*): a verdict on each new APK from a developer Google
-  does not know. The app installs other apps (`REQUEST_INSTALL_PACKAGES`, the updater), records
-  audio, starts at boot and runs native programs — the shape a scanner treats as suspect.
+  does not know. Cleared in 0.24.5 by dropping the start-at-boot and alarm side of reminders
+  (*Play Protect calls the APK harmful*); the app no longer installs other apps either (0.24.4).
   Registration gives Google a known developer; this repo has no evidence that it clears this alone.
 
 Which of the two the phone showed was not recorded. Read its exact wording before acting.
@@ -1601,16 +1601,10 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
 Built in 0.7.7 (`reminders.rs`, `ui/src/lib/reminders.svelte.ts`, `Reminders.kt` written by
 `ci/android-inject-service.sh`). `decisions.md#ui`, 2026-10-13.
 
-- **Never run on a phone.** The Kotlin compiles and the manifest merges
-  (`:app:compileArm64ReleaseKotlin`), nothing more: no alarm has been seen to fire, the
-  permission question has not been seen, nor has a restart of the phone.
-- **Inexact on purpose.** `setAndAllowWhileIdle`, so no exact-alarm permission is asked for; in
-  Doze Android may deliver minutes late, and at most about one per nine minutes per app.
-- **Alarms are only as fresh as the last time the app ran.** Fourteen days, fifty slots. A date
-  changed on another device is wrong on the phone until the app is opened there after getting
-  the change. The agent's background service does not re-ask.
-- **A phone maker's battery manager can still stop them** (the known trouble with alarms on some
-  makes). Not looked into.
+- **No Android alarms since 0.24.5.** `Reminders.kt`, its receivers and the boot permission are
+  gone (`decisions.md#track-m`, 2026-10-31): they brought Play Protect's "harmful" verdict
+  (*Play Protect calls the APK harmful*, below). On a phone a due reminder is a line in the open
+  app; nothing arrives with the app closed.
 - **On a computer the program rests for a waiting reminder** (`fm-serve/src/remind.rs`,
   `decisions.md` 2026-10-13, the second entry). Run for real on Linux with a stand-in
   `notify-send`: it rested, answered the assistant `503`, said two reminders and stopped.
@@ -1654,7 +1648,7 @@ conformance harness passes (`logseq-import-plan-2026-10-14.md`). What remains:
 - **Measured on one real graph only** — Logseq, `:file/name-format :triple-lowbar`. An older
   `:legacy` name format or a non-default journal title format is handled in code but unmeasured.
 
-## Play Protect calls the APK harmful (2026-10-30)
+## Play Protect calls the APK harmful (2026-10-30) — cleared in 0.24.5
 
 Since about mid-October, installing or updating the phone app shows Google Play Protect's *"App scan
 recommended"* and, after **Scan app**, *"Harmful app blocked — This app may be harmful. Installing
@@ -1681,10 +1675,20 @@ so Google names no reason.
     depends on the APK at all (a reputation held against the package or the signing key).
   - 0.24.5 (reminders gone from Android: no `RECEIVE_BOOT_COMPLETED`, no boot or alarm receivers,
     no `AlarmManager`, no page-written notifications — `decisions.md#track-m`, 2026-10-31) —
-    *to be scanned*.
-- **Next suspect:** the two executables bundled as `lib*.so` and run from `nativeLibraryDir`
-  (`libllama-server.so`, `libwhisper-server.so`). They predate the verdict (July), so they are
-  tried only after the installer.
+    **no warning** (2026-10-31, updated through F-Droid). The published APK was checked: version
+    code 24005, none of those entries, same signer as 0.24.4.
+- **So the trigger was the reminders' Android side** (start at boot + exported receivers + wake-up
+  alarms + page-written notifications), not the installer, and not a reputation held against the
+  package or key. Disabling the boot receiver (0.24.2) was not enough: the declarations alone
+  counted.
+- **Watch for a return.** One clean scan is a good sign, not proof (see above). Adding back any of
+  `RECEIVE_BOOT_COMPLETED`, a manifest `<receiver>`, `AlarmManager`, installing apps or a bridge
+  that posts notifications is the likely way to bring the verdict back: `ci/checks.sh` refuses them
+  in `ci/android-inject-service.sh`, and `decisions.md#track-m` (2026-10-31, *Play Protect's verdict
+  cleared in 0.24.5*) holds the rule. If the verdict
+  returns anyway, the next suspects are the two executables bundled as `lib*.so` and run from
+  `nativeLibraryDir` (`libllama-server.so`, `libwhisper-server.so`), then the microphone with the
+  foreground service.
 
 ## Search — what it cannot find (2026-10-29)
 
