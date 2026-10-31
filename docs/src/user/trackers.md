@@ -203,9 +203,18 @@ today on; earlier days keep the targets they had.
 A set of targets can have a last day (*Until*). After it, the targets you had before apply again —
 so a few weeks of eating less, then back to normal, is two saves and nothing to remember.
 
-Below the meals, *Also today* lists fibre, calcium, iron and vitamin C. When a value comes from
-only some of the day's entries it says so — *from 3 of 4* — because an entry typed in by hand has
-energy and nothing else, and a total that left it out without saying would look complete.
+**What you follow** is three small rings under the energy ring: until you choose, water, fibre
+and calcium. Each fills towards your own target if you set one, or else towards the European
+reference for you (water's needs your sex, in *About you*; until then it shows the amount alone). A
+limit, such as caffeine's, is written under its ring rather than filled towards. **Choose** lists
+every value — drinks and water, vitamins, minerals and fibre — to tick up to three, in the order
+you want them; **All nutrients** shows them all for the day. When a value comes from only some of
+the day's entries it says so — *from 3 of 4* — because an entry typed in by hand has energy and
+nothing else, and a total that left it out without saying would look complete.
+
+**Each meal is one line**: its name, how many foods, what they come to, and its **＋**. Press the
+line to see its foods, and press it again to fold them away; a meal opens by itself when you add
+to it. An empty meal with yesterday's to offer opens on **Same as yesterday**.
 
 ### Nothing you typed is lost
 
@@ -232,7 +241,7 @@ picture and fill the form for you to check (see below; on a computer and on a ph
 Each of these opens the camera; **or choose one from the gallery**, beside it, uses a picture you
 already took.
 **Type in a label** opens the same form empty: copy the label as it is printed — energy is the
-only line needed.
+only line needed (none for a supplement, below).
 
 Labels differ by country, so the form asks three things instead of assuming them:
 
@@ -246,6 +255,16 @@ A food typed per 100 ml is **measured in millilitres** from then on: you log 250
 shopping list adds its millilitres up apart from grams. formicaria never turns a millilitre into
 a gram, because that depends on the food. Salt is typed as the label states it. You can add the number under the barcode and the
 ingredient list as well.
+
+**Vitamins and minerals**, under the other lines, take as many as the label gives: **+ Add a
+vitamin or mineral** offers each one the app counts, and each line is typed in µg or mg, as the
+label prints it. A label's *folic acid* is kept as folate equivalents, 1.7 for each µg, the way
+the food list keeps folate. A label in IU gives vitamin D as 40 IU to 1 µg.
+
+**A supplement** is a label *per tablet, capsule or drop*: choose that, say what one is (tablet,
+capsule, softgel, drop, sachet or scoop), and type the figures for one. No energy is needed. It
+is then counted in pieces — you log *2 capsules*, never grams — and its vitamins count in **All
+nutrients** and in the rings on the day like any food's.
 
 It is saved as a note of yours and found from then on by its name, or by its barcode number, in
 the same search. Logging some of it works like any other food.
@@ -337,7 +356,7 @@ not advice.
 
 ### All nutrients
 
-**All nutrients**, under *Also today*, lists every vitamin and mineral of the day beside the
+**All nutrients**, under the rings, lists every vitamin and mineral of the day beside the
 European reference value for an adult of your sex. Press one to see which foods it came from,
 and, for each entry without it, why: typed in by hand, its label does not state it, or no table has
 it for that food. A day still to come counts what you have planned for it.
@@ -362,11 +381,10 @@ counted from everything you logged — every food in the list says how much wate
 - **Alcohol**, the amount alone. None of the app's sources gives an amount to aim for, and the app
   gives no advice about drinking.
 
-**Show on Day.** Press a value in the sheet and then **Show on Day**, and it joins *Also today* on
-the day screen; Trends offers it too. **Shown on Day · take it off** takes it away again. Day shows
-six at most, so it stays one screen. Until you choose, Day shows fibre, calcium, iron and
-vitamin C. Your choice is kept in your *About you* note, so your phone and your computer show the
-same values.
+**Show on Day.** Press a value in the sheet and then **Show on Day**, and it becomes one of the
+rings on the day screen; Trends offers it too. **Shown on Day · take it off** takes it away again.
+Day shows three — the same as ticking it under **Choose**. Your choice is kept in your *About you*
+note, so your phone and your computer show the same values.
 
 ## Planning a meal ahead
 

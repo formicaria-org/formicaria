@@ -1712,9 +1712,19 @@ Built from `food-values-plan-2026-10-30.md`; `decisions.md#data`, 2026-10-31; th
   portion first, then USDA's); a food in no group gets none.
 - **Caffeine and alcohol are only as complete as the list.** Many drinks carry them; a coffee typed
   by hand without its caffeine counts as none, and the sheet says *from n of m entries*.
-- **Pinned values live in the profile note** (`day_values`). A vault's own copy of the Day view
-  still has its details replaced by the pins; the Trends view's body-log values (weight, steps)
-  stay. The pins are not checked on a phone.
+- **Pinned values live in the profile note** (`day_values`), three at most, as rings on Day (later
+  the same day). A vault's own copy of the Day view still has its details replaced by the pins;
+  the Trends view's body-log values (weight, steps) stay. A person with more than three pinned
+  before sees the first three. **Water's ring has no figure until the sex is set** in *About you*:
+  EFSA's differs by it, and none is guessed.
+- **A food on Day is one press further**: its meal is folded until pressed (or until something is
+  added to it on the day on screen).
+- **Supplements** (later the same day): a label per piece, counted in pieces. **The upper levels
+  that apply only to supplements** (magnesium, folic acid, preformed vitamin A) are still not on the
+  sheet, though a supplement's entry could now say its form. **No omega-3, biotin, chromium**: the
+  app has no key for them, so a label's line for one cannot be kept. A piece's weight is never
+  assumed, so a *shopping list* adds pieces apart and shows *2 ×* where the piece is unnamed. Seen
+  at phone width in a browser, not on a phone.
 - **Nothing here has been seen on a phone.**
 
 ## Search — what it cannot find (2026-10-29)

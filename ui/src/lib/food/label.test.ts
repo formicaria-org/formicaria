@@ -66,3 +66,38 @@ test('a product looked up fills the form as a European label reads', () => {
     sodium_ug: 0.11,
   });
 });
+
+test('a supplement is per piece, kept per 100 pieces, its vitamins in the unit printed', () => {
+  // Vitamin D3 1,000 IU = 25 µg, 100 mg magnesium, 400 µg folic acid; no energy printed.
+  const f = form({
+    basis: 'each',
+    piece: 'capsule',
+    micros: [
+      { key: 'vitamin_d_ng', unit: 'µg' },
+      { key: 'magnesium_ug', unit: 'mg' },
+      { key: 'folate_dfe_ug', unit: 'µg' },
+    ],
+    values: { vitamin_d_ng: 25, magnesium_ug: 100, folate_dfe_ug: 400 },
+  });
+  expect(unitOf(f)).toBe('each');
+  // 25 µg is 25,000 ng a capsule; folic acid is 1.7 folate equivalents each.
+  expect(per100(f)).toEqual({
+    vitamin_d_ng: 2_500_000,
+    magnesium_ug: 10_000_000,
+    folate_dfe_ug: 68_000,
+  });
+  // Opened again, it reads per capsule, as the label prints it.
+  const back = typedFrom(per100(f)!, 100);
+  expect(back).toEqual({ vitamin_d_ng: 25, magnesium_ug: 100, folate_dfe_ug: 400 });
+});
+
+test('a vitamin typed in another unit than usual is kept the same', () => {
+  const f = form({
+    micros: [{ key: 'vitamin_c_ug', unit: 'µg' }],
+    values: { vitamin_c_ug: 80_000 },
+  });
+  // 80,000 µg per 100 g is 80 mg per 100 g.
+  expect(per100(f)).toEqual({ vitamin_c_ug: 80_000 });
+  // A line taken off the form is not kept, whatever was typed in it.
+  expect(per100(form({ values: { vitamin_c_ug: 80 } }))).toEqual({});
+});

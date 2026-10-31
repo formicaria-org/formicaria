@@ -21,9 +21,11 @@
   interface Props {
     view: string;
     day: string;
+    /** Opened to choose what Day follows: every value as one line to tick, up to Day's most. */
+    choose?: boolean;
     onclose: () => void;
   }
-  let { view, day, onclose }: Props = $props();
+  let { view, day, choose = false, onclose }: Props = $props();
 
   let got = $state<Nutrients | null>(null);
   let failed = $state('');
@@ -178,13 +180,43 @@
   <button type="button" class="scrim" onclick={onclose} aria-label="close" tabindex="-1"></button>
   <div class="sheet" role="dialog" aria-modal="true" aria-label="all nutrients">
     <header>
-      <h2>Nutrients · {dayLabel(day)}</h2>
+      <h2>{choose ? 'Follow on Day' : `Nutrients · ${dayLabel(day)}`}</h2>
       <button type="button" class="x" onclick={onclose} aria-label="close">
         <Icon name="close" size={18} />
       </button>
     </header>
     {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
-    {#if got}
+    {#if got && choose}
+      <!-- **Choosing what Day follows** (2026-10-31, later): every value of the sheet, one line
+           each, ticked when Day shows it; the order ticked is the order on Day. -->
+      <p class="says">
+        Up to {got.most_on_day}, shown as rings on the day, against your target or the European
+        reference for you.
+      </p>
+      {#each [{ head: 'Drinks and water', list: got.drinks }, { head: 'Vitamins, minerals and fibre', list: got.rows }] as part (part.head)}
+        <h3>{part.head}</h3>
+        <ul>
+          {#each part.list as r (r.key)}
+            {@const on = got.on_day.includes(r.key)}
+            <li>
+              <button
+                type="button"
+                class="pick"
+                aria-pressed={on}
+                disabled={pinning || (!on && got.on_day.length >= got.most_on_day)}
+                onclick={() => toggle(r.key)}
+              >
+                <span class="name">{r.label}</span>
+                <span class="tick" aria-hidden="true">{on ? '✓' : ''}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/each}
+      {#if got.on_day.length >= got.most_on_day}
+        <p class="says">Day shows {got.most_on_day}: untick one to choose another.</p>
+      {/if}
+    {:else if got}
       {#if got.of === 0}
         <p class="says">Nothing is logged for this day.</p>
       {:else}
@@ -341,6 +373,29 @@
   }
   .missing {
     color: var(--text-muted);
+  }
+  .pick {
+    width: 100%;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pick[aria-pressed='true'] .name {
+    font-weight: 600;
+  }
+  .pick:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .tick {
+    color: var(--accent);
   }
   .pin {
     min-height: 2.75rem;

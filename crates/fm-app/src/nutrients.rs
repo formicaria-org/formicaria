@@ -164,9 +164,9 @@ const DRINKS: &[Ref] = &[
     },
 ];
 
-/// **At most six values on Day**, so it stays one calm screen (`food-values-plan-2026-10-30.md`,
-/// step 4).
-pub const MOST_ON_DAY: usize = 6;
+/// **At most three values on Day**, drawn as three small rings side by side (owner, 2026-10-31,
+/// later: *"up to a few entries (say 3)"*; it was six, as text at the foot of the day).
+pub const MOST_ON_DAY: usize = 3;
 
 /// **The values a person follows, on Food's own views** (`decisions.md#data`, 2026-10-31): the
 /// keys pinned in their profile (`Profile::day_values`) stand in for the view's own details of the
@@ -269,6 +269,58 @@ pub(crate) fn int_of(o: &Object, key: &str) -> Option<i64> {
     }
 }
 
+/// The reference for one person, in the key's own unit, when there is one figure: by sex where it
+/// differs (none while the sex is unknown), by age for calcium, by the day's energy where the
+/// source gives it per megajoule.
+fn reference_of(r: &Ref, female: Option<bool>, age: Option<i64>, kcal: i64) -> Option<i64> {
+    match (r.adult, r.per_mj) {
+        // kcal × 4.184 kJ, ÷ 1000 to MJ, times the figure per MJ.
+        (_, Some(per)) => (kcal > 0).then(|| per * kcal * 4184 / 1_000_000),
+        (Some((men, women)), _) if men == women => {
+            Some(if r.key == "calcium_ug" && age.is_some_and(|a| (18..25).contains(&a)) {
+                CALCIUM_YOUNG_UG
+            } else {
+                men
+            })
+        }
+        (Some((men, women)), _) => female.map(|f| if f { women } else { men }),
+        _ => None,
+    }
+}
+
+/// What a value on Day is measured against when the person set no target of their own.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct DayReference {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upper: Option<i64>,
+}
+
+/// **The sheet's own figures for the values Day shows** (2026-10-31, later: the values a person
+/// follows are rings, and a ring needs something to fill towards). For each of the view's food
+/// details the sheet knows: its reference for this person, as the sheet gives it, and its limit.
+/// A figure that follows the day's energy (thiamin, niacin) is left out: it differs day by day.
+pub fn day_references(
+    def: &TotalsDef,
+    profile: &Profile,
+    year: i32,
+) -> std::collections::BTreeMap<String, DayReference> {
+    let female = profile.sex.as_deref().map(|s| s == "female");
+    let age = profile.born.map(|b| i64::from(year) - b);
+    def.metrics
+        .iter()
+        .filter(|m| m.role == Role::Detail && m.log.is_none())
+        .filter_map(|m| REFS.iter().chain(DRINKS).find(|r| r.key == m.key))
+        .filter(|r| r.per_mj.is_none())
+        .map(|r| {
+            let got = DayReference { reference: reference_of(r, female, age, 0), upper: r.upper };
+            (r.key.to_string(), got)
+        })
+        .filter(|(_, d)| d.reference.is_some() || d.upper.is_some())
+        .collect()
+}
+
 /// One day's nutrients, each beside its reference.
 pub fn log_nutrients(
     store: &dyn Store,
@@ -301,19 +353,7 @@ pub fn log_nutrients(
 
     let row = |r: &Ref| {
         let got: Vec<i64> = entries.iter().filter_map(|o| int_of(o, r.key)).collect();
-        let reference = match (r.adult, r.per_mj) {
-            // kcal × 4.184 kJ, ÷ 1000 to MJ, times the figure per MJ.
-            (_, Some(per)) => (kcal > 0).then(|| per * kcal * 4184 / 1_000_000),
-            (Some((men, women)), _) if men == women => {
-                Some(if r.key == "calcium_ug" && age.is_some_and(|a| (18..25).contains(&a)) {
-                    CALCIUM_YOUNG_UG
-                } else {
-                    men
-                })
-            }
-            (Some((men, women)), _) => female.map(|f| if f { women } else { men }),
-            _ => None,
-        };
+        let reference = reference_of(r, female, age, kcal);
         NutrientRow {
             key: r.key.into(),
             label: r.label.into(),

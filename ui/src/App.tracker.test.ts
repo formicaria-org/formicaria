@@ -49,6 +49,14 @@ const openFood = async () => {
   await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
   return screen.findByRole('group', { name: 'Food' });
 };
+/// A meal on Day is one line until it is pressed (2026-10-31): open every one that has foods.
+const openMeals = async () => {
+  await waitFor(() => expect(document.querySelector('button.fold')).toBeTruthy());
+  for (const b of document.querySelectorAll<HTMLButtonElement>(
+    'button.fold[aria-expanded="false"]',
+  ))
+    await fireEvent.click(b);
+};
 
 test('the groups that come with the app are shown unless this device hides them', async () => {
   store.set('fm-trackers', '0');
@@ -132,6 +140,7 @@ test('removing an entry takes it out of the day and offers to put it back', asyn
   showTrackers();
   render(App);
   await openFood();
+  await openMeals();
   await fireEvent.click(await screen.findByText('Oats, rolled'));
   await fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
 
@@ -149,6 +158,7 @@ test('one entry comes out on its own from the day, the rest of the meal stays', 
   showTrackers();
   render(App);
   await openFood();
+  await openMeals();
   const oats = await screen.findByText('Oats, rolled');
   const meal = oats.closest('section') as HTMLElement;
   const before = within(meal).getAllByRole('button', { name: /^remove / }).length;
@@ -516,6 +526,7 @@ test('an amount known only roughly is kept as a range, and the day says between 
   showTrackers();
   render(App);
   await openFood();
+  await openMeals();
   await fireEvent.click(await screen.findByText('Oats, rolled'));
   await fireEvent.click(await screen.findByRole('button', { name: 'Not sure of the amount?' }));
   const grams = Number((screen.getByLabelText('amount in grams') as HTMLInputElement).value);
@@ -1017,6 +1028,7 @@ test('a diet followed offers a day to start from, said to be only an indication,
   // It is a planned meal of today, to confirm or change on the Day tab.
   const again = await screen.findByRole('group', { name: 'Food' });
   await fireEvent.click(within(again).getByRole('button', { name: 'Day' }));
+  await openMeals();
   expect(await screen.findByRole('button', { name: 'confirm Vegetable Stew' })).toBeTruthy();
 });
 
@@ -1175,4 +1187,50 @@ test('Back in Health closes the sheet, the page for the doctor, a card and the f
   history.back();
   await waitFor(() => expect(screen.queryByRole('form', { name: 'your own card' })).toBeNull());
   expect(current('Guidance')).toBe('page');
+});
+
+/// **A supplement is a label per piece** (2026-10-31): a user asked to track supplements, and a
+/// food typed in could carry no vitamins. Written once from its label, it is logged by the count.
+test('a supplement is written down per capsule with its vitamins, and logged by the count', async () => {
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(await screen.findByRole('button', { name: 'add to Breakfast' }));
+  const sheet = await screen.findByRole('dialog');
+  await fireEvent.input(within(sheet).getByLabelText('search foods'), {
+    target: { value: 'Vitamin D3' },
+  });
+  await fireEvent.click(
+    await within(sheet).findByRole('button', { name: /Write it down from its label/ }),
+  );
+  const form = await within(sheet).findByRole('region', {
+    name: 'a packaged food, from its label',
+  });
+  await fireEvent.click(within(form).getByLabelText('per tablet, capsule or drop'));
+  await fireEvent.change(within(form).getByLabelText('what one piece is'), {
+    target: { value: 'capsule' },
+  });
+  const save = () => within(form).getByRole('button', { name: 'Save it' }) as HTMLButtonElement;
+  // A name and no figure: nothing to keep yet. No energy is needed for one.
+  expect(save().disabled).toBe(true);
+  await fireEvent.change(within(form).getByLabelText('add a vitamin or mineral'), {
+    target: { value: 'vitamin_d_ng' },
+  });
+  await fireEvent.input(await within(form).findByLabelText('Vitamin D'), {
+    target: { value: '25' },
+  });
+  await waitFor(() => expect(save().disabled).toBe(false));
+  await fireEvent.click(save());
+
+  expect(await within(sheet).findByRole('heading', { name: 'Vitamin D3' })).toBeTruthy();
+  expect(within(sheet).getByLabelText('how many capsules')).toBeTruthy();
+  await fireEvent.click(within(sheet).getByRole('button', { name: '2 capsules' }));
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Add to Breakfast' }));
+  await waitFor(async () => {
+    const days = await handle<{
+      days: { rows?: { title?: string; props: Record<string, unknown> }[] }[];
+    }>('log_days', { view: 'Day', from: todayNow(), to: todayNow(), rows: true });
+    const made = (days.days[0].rows ?? []).find((r) => r.title === 'Vitamin D3');
+    expect(made?.props).toMatchObject({ amount_each: 2, piece: 'capsule', vitamin_d_ng: 50_000 });
+  });
 });

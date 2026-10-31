@@ -7,6 +7,7 @@
   // (`units.ts`). Nothing here knows what is being logged. What a person *does* about an entry —
   // the sheet that adds one, the step that changes an amount — is not this component's business;
   // it reports the gesture and its owner decides (`decisions.md#ui`, 2026-10-11).
+  import { untrack } from 'svelte';
   import { slide } from 'svelte/transition';
   import { Tween } from 'svelte/motion';
   import Ring from '../lib/charts/Ring.svelte';
@@ -17,6 +18,7 @@
   import { dayAgainst, dishesFor, gap, shownAsk, shownValue } from '../lib/plan/measure';
   import type { Dish } from '../lib/plan/measure';
   import ExampleDay from '../lib/plan/ExampleDay.svelte';
+  import { shownAmount } from '../lib/food/amount';
   import type {
     DayTotals,
     ObjectMeta,
@@ -51,6 +53,11 @@
     plan?: PlanProgress | null;
     /** Open every vitamin and mineral of the day. Offered only when its owner can show them. */
     onnutrients?: () => void;
+    /** Choose the values Day follows. Offered only when its owner can keep the choice. */
+    onchoose?: () => void;
+    /** What each followed value fills towards when no target was set: the nutrients sheet's
+     *  reference for the person, or its limit (`log_days`' `references`). */
+    references?: Record<string, { reference?: number; upper?: number }>;
     /** Something was planned from an example day: ask for the day again. */
     onexample?: () => void;
     /** Dishes a serving of which could be had: the person's recipes and the carried ones. */
@@ -74,6 +81,8 @@
     onremove,
     plan = null,
     onnutrients,
+    onchoose,
+    references = {},
     dishes = [],
     onidea,
     onexample,
@@ -104,6 +113,18 @@
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
   const secondary = $derived(def.metrics.filter((m) => m.role === 'secondary'));
   const detail = $derived(def.metrics.filter((m) => m.role === 'detail'));
+  /// **The values the person follows: three small rings under the day's own** (owner, 2026-10-31,
+  /// later: *"up to a few entries (say 3) where a person can select what to track and visualize how
+  /// much they are taking it that day"*). Each fills towards the person's own target, else the
+  /// nutrients sheet's reference for them. A limit is not something to fill: its ring stays empty
+  /// and the limit is written under it.
+  const followed = $derived(detail.slice(0, 3));
+  const aim = (key: string) => {
+    const set = day?.targets[key] ?? 0;
+    if (set > 0) return { to: set, limit: 0 };
+    const r = references[key];
+    return { to: r?.reference ?? 0, limit: r?.reference ? 0 : (r?.upper ?? 0) };
+  };
   const TINTS = ['a', 'b', 'c'] as const;
 
   const sumOf = (d: DayTotals | null, key: string) => d?.sums[key]?.sum ?? 0;
@@ -142,6 +163,28 @@
       .filter((k) => !def.slots.some((s) => s.value === k))
       .map((k) => ({ value: k, label: k || 'Other' })),
   ]);
+  /// **A meal is one line until it is opened** (owner, 2026-10-31, later: *"breakfast, lunch … is
+  /// nice but is there a way to have them in the view but take less space?"*): its name, how many
+  /// foods, what they come to and its ＋; pressed, its foods. Only where the view divides the day
+  /// into slots — a day of training has none and shows its sets as before.
+  const folding = $derived(def.slots.length > 0);
+  let opened_slots = $state<string[]>([]);
+  const isOpen = (v: string) => !folding || opened_slots.includes(v);
+  const flip = (v: string) =>
+    (opened_slots = opened_slots.includes(v)
+      ? opened_slots.filter((x) => x !== v)
+      : [...opened_slots, v]);
+  /// A meal that gains an entry on the day on screen opens, so what was just added is in sight.
+  let seen: { day: string; n: Record<string, number> } | null = null;
+  $effect(() => {
+    if (!day || day.day !== selected) return;
+    const n = Object.fromEntries(slots.map((x) => [x.value, (bySlot.get(x.value) ?? []).length]));
+    const was = seen?.day === day.day ? seen.n : null;
+    seen = { day: day.day, n };
+    if (!was) return;
+    const grew = Object.keys(n).filter((k) => n[k] > (was[k] ?? 0));
+    if (grew.length) untrack(() => (opened_slots = [...new Set([...opened_slots, ...grew])]));
+  });
   const slotSum = (list: ObjectMeta[]) =>
     list.reduce((t, r) => t + (r.props.planned ? 0 : (whole(r.props[primary.key]) ?? 0)), 0);
   /// An entry's amount — and, when it is only known roughly, the least and the most it could be.
@@ -150,6 +193,8 @@
     const v = k ? whole(r.props[k]) : null;
     if (!k || v === null) return '';
     const unit = k.slice('amount_'.length);
+    // A count of pieces says what they are: "2 capsules" (2026-10-31).
+    if (unit === 'each') return shownAmount(r.props);
     const min = whole(r.props[`amount_min_${unit}`]);
     const max = whole(r.props[`amount_max_${unit}`]);
     return min !== null && max !== null && min < max
@@ -277,6 +322,50 @@
     </div>
   </section>
 
+  {#if followed.length || onchoose}
+    <section class="follow" aria-label="what you follow">
+      <ul>
+        {#each followed as m (m.key)}
+          {@const got = day?.sums[m.key]}
+          {@const v = got?.sum ?? 0}
+          {@const a = aim(m.key)}
+          {@const partial = !!day && day.of > 0 && (got?.n ?? 0) < day.of}
+          <li>
+            <Ring
+              value={v}
+              target={a.to}
+              size={64}
+              stroke={7}
+              label={`${m.label}: ${showWith(m.key, v, a.to || v)}${a.to ? ` of ${showWith(m.key, a.to)}` : ''}`}
+            >
+              <span class="mini">{showWith(m.key, v, a.to || a.limit || v)}</span>
+            </Ring>
+            <span class="name">{m.label}</span>
+            <span class="of"
+              >{#if a.to}of {showWith(m.key, a.to)}{:else if a.limit}{v > a.limit
+                  ? 'over the limit of'
+                  : 'limit'}
+                {showWith(m.key, a.limit)}{/if}</span
+            >
+            {#if partial}<span class="partial">from {got?.n ?? 0} of {day?.of}</span>{/if}
+          </li>
+        {/each}
+      </ul>
+      {#if onchoose || onnutrients}
+        <div class="follow-actions">
+          {#if onchoose}
+            <button type="button" class="more" onclick={onchoose}
+              >{followed.length ? 'Choose' : 'Choose what to follow'}</button
+            >
+          {/if}
+          {#if onnutrients}
+            <button type="button" class="more" onclick={onnutrients}>All nutrients</button>
+          {/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
+
   {#if against && plan?.plan}
     <section class="diet" aria-label="today against what you follow">
       <header>
@@ -396,10 +485,28 @@
   {/if}
   {#each slots as s (s.value)}
     {@const list = bySlot.get(s.value) ?? []}
-    <section class="slot">
+    {@const copyable = !list.length && !!oncopy && (yesterday[s.value] ?? 0) > 0}
+    {@const foldable = folding && (list.length > 0 || copyable)}
+    <section class="slot" class:folded={folding && !isOpen(s.value)}>
       <header>
-        <h3>{s.label}</h3>
-        <span class="sum">{list.length ? show(primary.key, slotSum(list)).text : '—'}</span>
+        {#if foldable}
+          <button
+            type="button"
+            class="fold"
+            aria-expanded={isOpen(s.value)}
+            onclick={() => flip(s.value)}
+          >
+            <h3>{s.label}</h3>
+            {#if list.length}<span class="count">{list.length} ·</span>{/if}
+            <span class="sum">{list.length ? show(primary.key, slotSum(list)).text : '—'}</span>
+            <span class="chev" class:down={isOpen(s.value)}
+              ><Icon name="chevronRight" size={16} /></span
+            >
+          </button>
+        {:else}
+          <h3>{s.label}</h3>
+          <span class="sum">{list.length ? show(primary.key, slotSum(list)).text : '—'}</span>
+        {/if}
         <button
           type="button"
           class="add"
@@ -409,8 +516,10 @@
           <Icon name="plus" size={18} />
         </button>
       </header>
-      {#if list.length}
-        <ul>
+      {#if !isOpen(s.value)}
+        <!-- Folded: the line above is the meal. -->
+      {:else if list.length}
+        <ul transition:slide={{ duration: dur(180) }}>
           {#each list as r (r.id)}
             <li in:slide={{ duration: dur(220) }} class:planned={!!r.props.planned}>
               <button type="button" class="entry" onclick={() => onedit(r)}>
@@ -451,41 +560,13 @@
             </li>
           {/each}
         </ul>
-      {:else if oncopy && (yesterday[s.value] ?? 0) > 0}
+      {:else if copyable && oncopy}
         <button type="button" class="again" onclick={() => oncopy(s.value)}>
           Same as yesterday ({yesterday[s.value]})
         </button>
       {/if}
     </section>
   {/each}
-
-  {#if day && detail.length && day.of > 0}
-    <section class="detail">
-      <h3>Also today</h3>
-      <dl>
-        {#each detail as m (m.key)}
-          {@const got = day.sums[m.key]}
-          {@const t = day.targets[m.key] ?? 0}
-          <div>
-            <dt>{m.label}</dt>
-            <dd>
-              {showWith(m.key, got?.sum ?? 0, t || (got?.sum ?? 0))}{#if t > 0}<span class="sub"
-                  >&nbsp;/ {showWith(m.key, t)}</span
-                >{/if}
-              {#if (got?.n ?? 0) < day.of}
-                <span class="partial" title="Some entries have no value for this"
-                  >from {got?.n ?? 0} of {day.of}</span
-                >
-              {/if}
-            </dd>
-          </div>
-        {/each}
-      </dl>
-      {#if onnutrients}
-        <button type="button" class="more" onclick={onnutrients}>All nutrients</button>
-      {/if}
-    </section>
-  {/if}
 </div>
 
 <style>
@@ -658,7 +739,7 @@
   }
 
   .slot,
-  .detail {
+  .follow {
     border-radius: var(--radius-lg);
     background: var(--surface);
     border: 1px solid var(--border);
@@ -679,6 +760,35 @@
   .sum {
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+  }
+  /* A meal's line, pressed to open it: the whole line but its ＋. */
+  .fold {
+    flex: 1;
+    min-width: 0;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .count {
+    color: var(--text-subtle);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .chev {
+    display: grid;
+    color: var(--text-subtle);
+    transition: transform var(--dur-fast, 120ms) ease;
+  }
+  .chev.down {
+    transform: rotate(90deg);
   }
   .add {
     width: 2.75rem;
@@ -784,32 +894,44 @@
     background: var(--accent-subtle);
   }
 
-  .detail {
+  /* The values the person follows: three small rings side by side. */
+  .follow {
     padding: var(--space-3);
   }
-  .detail h3 {
-    margin-bottom: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-  }
-  dl {
+  .follow ul {
+    list-style: none;
     margin: 0;
+    padding: 0;
     display: grid;
-    gap: var(--space-1);
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
   }
-  dl div {
+  .follow li {
+    border-top: 0;
     display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    text-align: center;
+  }
+  .mini {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .follow .name {
     font-size: var(--text-sm);
   }
-  dt {
+  .follow .of {
+    font-size: var(--text-xs);
     color: var(--text-muted);
-  }
-  dd {
-    margin: 0;
-    text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+  .follow-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
   .partial {
     display: block;

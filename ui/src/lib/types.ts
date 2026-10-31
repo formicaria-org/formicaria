@@ -844,6 +844,9 @@ export interface DayTotals {
 }
 export interface LogDays {
   days: DayTotals[];
+  /** For a food view's details, what each is measured against when no target was set: the
+   *  nutrients sheet's reference for the person, and its limit (`nutrients::day_references`). */
+  references?: Record<string, { reference?: number; upper?: number }>;
 }
 /** Something logged before, offered again with the amount last used. */
 export interface RecentItem {
@@ -905,8 +908,11 @@ export interface Product {
   serving_g?: number;
   /** A serving of a food whose label is by volume. */
   serving_ml?: number;
-  /** `ml` when the food is measured in millilitres; absent for grams. */
+  /** `ml` when the food is measured in millilitres, `each` when in pieces (a supplement); absent
+   *  for grams. */
   unit?: string;
+  /** What one piece is, when it is measured in pieces: `tablet`, `capsule`. */
+  piece?: string;
   /** What a hundred of its unit hold, by the keys every food uses. */
   per100: Record<string, number>;
 }

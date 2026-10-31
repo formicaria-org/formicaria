@@ -146,6 +146,11 @@ fn day_times(counted: &[Object]) -> Option<DayTimes> {
 #[derive(Debug, Serialize)]
 pub struct LogDays {
     pub days: Vec<DayTotals>,
+    /// For the values a food view shows as details, what each is measured against when no program
+    /// sets a target: the nutrients sheet's reference for the person, and its limit
+    /// (`nutrients::day_references`). Filled by the caller that knows the person.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub references: BTreeMap<String, crate::nutrients::DayReference>,
 }
 
 /// Every day from `from` to `to`: what its entries come to, how complete that is, the targets in
@@ -279,7 +284,7 @@ pub fn log_days(
         }
         day = day.next_day().ok_or_else(|| StoreError::Parse("the calendar ended".into()))?;
     }
-    Ok(LogDays { days })
+    Ok(LogDays { days, references: BTreeMap::new() })
 }
 
 // The notes that hold a log's targets are ordinary notes — a program is something you plan, so it
@@ -517,9 +522,13 @@ pub struct Product {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_ml: Option<i64>,
     /// `ml` when the label's figures are per 100 ml and the food is measured in millilitres
-    /// (`decisions.md#data`, 2026-10-13); absent for grams. No density is assumed anywhere.
+    /// (`decisions.md#data`, 2026-10-13); `each` when it is counted in pieces — a supplement's
+    /// tablets (2026-10-31); absent for grams. No density or weight is assumed anywhere.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub unit: String,
+    /// What one piece is, for a food counted in pieces: `tablet`, `capsule`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub piece: String,
     /// Every whole-number value the note carries whose key ends in a unit, and `kcal`: per 100
     /// of the food's unit.
     pub per100: BTreeMap<String, i64>,
@@ -560,15 +569,26 @@ pub fn log_products(store: &dyn Store) -> Result<Vec<Product>, StoreError> {
                 PropertyValue::Int(n) if n > 0 => Some(n),
                 _ => None,
             },
-            // Only the one word is a unit; anything else written there is not believed.
+            // Only these words are units; anything else written there is not believed.
             unit: match o.get("unit") {
-                PropertyValue::Text(s) if s == "ml" => s,
+                PropertyValue::Text(s) if s == "ml" || s == "each" => s,
+                _ => String::new(),
+            },
+            piece: match (o.get("unit"), o.get("piece")) {
+                (PropertyValue::Text(u), PropertyValue::Text(p)) if u == "each" => p,
                 _ => String::new(),
             },
             per100: o
                 .extra
                 .iter()
-                .filter(|(k, _)| k.as_str() == "kcal" || k.ends_with("_mg") || k.ends_with("_ug"))
+                // Nanograms too: vitamin D and B12 are kept in them (2026-10-29), and a
+                // supplement's label carries them (2026-10-31).
+                .filter(|(k, _)| {
+                    k.as_str() == "kcal"
+                        || k.ends_with("_mg")
+                        || k.ends_with("_ug")
+                        || k.ends_with("_ng")
+                })
                 .filter_map(|(k, v)| match v {
                     PropertyValue::Int(n) => Some((k.clone(), *n)),
                     _ => None,

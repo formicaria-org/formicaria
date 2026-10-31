@@ -42,10 +42,10 @@ const FOOD: TotalsDef = {
     { key: 'protein_mg', label: 'Protein', role: 'secondary' },
     { key: 'carbs_mg', label: 'Carbs', role: 'secondary' },
     { key: 'fat_mg', label: 'Fat', role: 'secondary' },
+    // As `food-day.view` ships them: what Day follows until the person chooses (2026-10-31).
+    { key: 'water_mg', label: 'Water', role: 'detail' },
     { key: 'fiber_mg', label: 'Fibre', role: 'detail' },
     { key: 'calcium_ug', label: 'Calcium', role: 'detail' },
-    { key: 'iron_ug', label: 'Iron', role: 'detail' },
-    { key: 'vitamin_c_ug', label: 'Vitamin C', role: 'detail' },
   ],
   slots: [
     { value: 'breakfast', label: 'Breakfast' },
@@ -92,8 +92,13 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
     totals: {
       ...FOOD,
       span: 'range',
+      // As `food-trends.view` lists them.
       metrics: [
-        ...FOOD.metrics,
+        ...FOOD.metrics.filter((m) => m.role !== 'detail'),
+        { key: 'fiber_mg', label: 'Fibre', role: 'detail' },
+        { key: 'calcium_ug', label: 'Calcium', role: 'detail' },
+        { key: 'iron_ug', label: 'Iron', role: 'detail' },
+        { key: 'vitamin_c_ug', label: 'Vitamin C', role: 'detail' },
         { key: 'weight_g', label: 'Weight', role: 'detail', agg: 'mean', log: 'body' },
       ],
     },
@@ -134,7 +139,7 @@ export function pinnedDef(notes: ObjectMeta[], def: TotalsDef): TotalsDef {
   const keys = pins.split(/[,\s]+/).filter((k) => k && k !== 'none');
   const at = def.metrics.findIndex(ours);
   const kept = def.metrics.filter((m) => !ours(m));
-  const added = keys.slice(0, 6).map((key) => ({
+  const added = keys.slice(0, 3).map((key) => ({
     key,
     label: def.metrics.find((m) => m.key === key)?.label ?? PIN_LABELS[key] ?? key,
     role: 'detail' as const,
@@ -548,7 +553,20 @@ export function logDays(
       ...(args.rows ? { rows: all.map((x) => JSON.parse(JSON.stringify(x)) as ObjectMeta) } : {}),
     });
   }
-  return { days };
+  // The sheet's figures for what Day follows, for a person whose sex is not known: water's
+  // reference differs by it, so it has none (`nutrients::day_references`).
+  const SHEET: Record<string, { reference?: number; upper?: number }> = {
+    fiber_mg: { reference: 25_000 },
+    calcium_ug: { reference: 950_000 },
+    iron_ug: {},
+    caffeine_ug: { upper: 400_000 },
+  };
+  const references = Object.fromEntries(
+    def.metrics
+      .filter((m) => m.role === 'detail' && !m.log && SHEET[m.key])
+      .map((m) => [m.key, SHEET[m.key]]),
+  );
+  return { days, references };
 }
 
 export function logRecent(
@@ -612,7 +630,7 @@ export function logNutrients(notes: ObjectMeta[], args: { view: string; day: str
       pins === null
         ? def.metrics.filter((m) => m.role === 'detail' && !m.log).map((m) => m.key)
         : pins.split(/[,\s]+/).filter((k) => k && k !== 'none'),
-    most_on_day: 6,
+    most_on_day: 3,
     ...(me ? { profile: me.id } : {}),
     rows: [
       row('fiber_mg', 'Fibre', 25_000, 'AI'),
@@ -620,7 +638,7 @@ export function logNutrients(notes: ObjectMeta[], args: { view: string; day: str
       row('calcium_ug', 'Calcium', 950_000, 'PRI'),
     ],
     drinks: [
-      row('water_mg', 'Water, from food and drinks', undefined, 'AI'),
+      row('water_mg', 'Water', undefined, 'AI'),
       row('caffeine_ug', 'Caffeine', undefined, '', 400_000),
       row('alcohol_mg', 'Alcohol', undefined, ''),
     ],
@@ -635,10 +653,11 @@ export function logProducts(notes: ObjectMeta[]): Product[] {
       barcode: x.props.barcode ? String(x.props.barcode) : undefined,
       serving_g: whole(x.props.serving_g) ?? undefined,
       serving_ml: whole(x.props.serving_ml) ?? undefined,
-      unit: x.props.unit === 'ml' ? 'ml' : undefined,
+      unit: x.props.unit === 'ml' || x.props.unit === 'each' ? String(x.props.unit) : undefined,
+      ...(x.props.unit === 'each' && x.props.piece ? { piece: String(x.props.piece) } : {}),
       per100: Object.fromEntries(
         Object.entries(x.props).flatMap(([k, v]) =>
-          (k === 'kcal' || /_(mg|ug)$/.test(k)) && typeof v === 'number' ? [[k, v]] : [],
+          (k === 'kcal' || /_(mg|ug|ng)$/.test(k)) && typeof v === 'number' ? [[k, v]] : [],
         ),
       ),
     }))

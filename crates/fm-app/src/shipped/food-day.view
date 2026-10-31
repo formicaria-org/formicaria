@@ -9,10 +9,9 @@ metrics:
   - { key: protein_mg, label: Protein, role: secondary }
   - { key: carbs_mg, label: Carbs, role: secondary }
   - { key: fat_mg, label: Fat, role: secondary }
+  - { key: water_mg, label: Water, role: detail }
   - { key: fiber_mg, label: Fibre, role: detail }
   - { key: calcium_ug, label: Calcium, role: detail }
-  - { key: iron_ug, label: Iron, role: detail }
-  - { key: vitamin_c_ug, label: Vitamin C, role: detail }
 slots:
   - { value: breakfast, label: Breakfast }
   - { value: lunch, label: Lunch }

@@ -46,6 +46,8 @@
     shownAmount,
     shownAs,
     type AmountUnit,
+    PIECES,
+    pieces,
   } from './amount';
   import * as label from './label';
   import Resumed from '../Resumed.svelte';
@@ -460,6 +462,7 @@
       l.energyIn = 'kcal';
       l.sodiumAs = 'salt';
       Object.assign(l.values, label.typedFrom(found.per100));
+      l.micros = label.microsOf(found.per100);
       lookedUp =
         found.per100.kcal === undefined
           ? 'Found, but with no energy figure: copy it from the pack.'
@@ -536,18 +539,39 @@
     sodiumAs: 'salt',
     ingredients: '',
     values: {},
+    piece: 'tablet',
+    micros: [],
     page: '',
   });
   /// The figures per 100 of the food's own unit, or nothing while they cannot be worked out.
   const labelValues = $derived((labelling && label.per100(labelling)) ?? {});
   const labelUnit = $derived<AmountUnit>(labelling ? label.unitOf(labelling) : 'g');
   const badCode = $derived(!!labelling?.barcode.trim() && !isBarcode(labelling.barcode));
-  /// A name, and either the energy or a picture to read it from later.
+  /// A name, and either the energy or a picture to read it from later — or, for a supplement's
+  /// label, per piece, any figure at all: it may print no energy (2026-10-31).
   const labelReady = $derived(
     !!labelling?.name.trim() &&
       !badCode &&
-      (labelValues.kcal !== undefined || !!labelling?.pictures.length),
+      (labelValues.kcal !== undefined ||
+        (labelling?.basis === 'each' && label.anyFigure(labelValues)) ||
+        !!labelling?.pictures.length),
   );
+  /// The vitamins and minerals not yet on the form, to add one.
+  const microsLeft = $derived(
+    label.MICROS.filter((m) => !(labelling?.micros ?? []).some((x) => x.key === m.key)),
+  );
+  function addMicro(key: string) {
+    const l = labelling;
+    const m = label.MICROS.find((x) => x.key === key);
+    if (!l || !m) return;
+    l.micros = [...(l.micros ?? []), { key, unit: m.unit }];
+  }
+  function dropMicro(key: string) {
+    const l = labelling;
+    if (!l) return;
+    l.micros = (l.micros ?? []).filter((x) => x.key !== key);
+    l.values[key] = null;
+  }
   const saveLabel = () =>
     write(async () => {
       const l = labelling;
@@ -574,9 +598,13 @@
               product: 'label',
               ...(l.page ? { source_url: l.page } : {}),
               ...(l.barcode.trim() ? { barcode: digitsOf(l.barcode) } : {}),
-              // A food whose label is by volume is measured in millilitres, and its note says so.
+              // A food whose label is by volume is measured in millilitres, and its note says so;
+              // a supplement's, per piece, is counted in pieces, and says what one is.
               ...(unit === 'ml' ? { unit: 'ml' } : {}),
-              ...(serving ? { [unit === 'ml' ? 'serving_ml' : 'serving_g']: serving } : {}),
+              ...(unit === 'each' ? { unit: 'each', piece: l.piece || 'tablet' } : {}),
+              ...(serving && unit !== 'each'
+                ? { [unit === 'ml' ? 'serving_ml' : 'serving_g']: serving }
+                : {}),
               ...labelValues,
             },
           },
@@ -602,7 +630,8 @@
       ...cleared,
       ...labelValues,
       barcode: l.barcode.trim() ? digitsOf(l.barcode) : '',
-      unit: unit === 'ml' ? 'ml' : '',
+      unit: unit === 'g' ? '' : unit,
+      piece: unit === 'each' ? l.piece || 'tablet' : '',
       serving_g: unit === 'g' && serving ? serving : '',
       serving_ml: unit === 'ml' && serving ? serving : '',
     });
@@ -671,18 +700,21 @@
     } catch {
       body = '';
     }
-    const unit = p.unit === 'ml' ? 'ml' : 'g';
+    const unit = p.unit === 'ml' ? 'ml' : p.unit === 'each' ? 'each' : 'g';
     openLabel({
       id: p.id,
       name: p.title,
       barcode: p.barcode ?? '',
-      basis: unit === 'ml' ? '100ml' : '100g',
-      serving: (unit === 'ml' ? p.serving_ml : p.serving_g) ?? null,
-      servingUnit: unit,
+      basis: unit === 'ml' ? '100ml' : unit === 'each' ? 'each' : '100g',
+      serving: (unit === 'ml' ? p.serving_ml : unit === 'g' ? p.serving_g : null) ?? null,
+      servingUnit: unit === 'ml' ? 'ml' : 'g',
       energyIn: 'kcal',
       sodiumAs: 'salt',
       ingredients: '',
-      values: label.typedFrom(p.per100),
+      // Kept per 100 pieces; the form shows them per piece, as the label prints them.
+      values: label.typedFrom(p.per100, unit === 'each' ? 100 : 1),
+      piece: p.piece || 'tablet',
+      micros: label.microsOf(p.per100),
       page: '',
       pictures: [...body.matchAll(/asset:(sha256-[0-9a-f]{64})/g)].map((m) => ({
         ref: `asset:${m[1]}`,
@@ -700,16 +732,23 @@
     failed = '';
     settled = '';
     ofProduct = p;
-    const unit: AmountUnit = p.unit === 'ml' ? 'ml' : 'g';
-    const serving = unit === 'ml' ? p.serving_ml : p.serving_g;
+    const unit: AmountUnit = p.unit === 'ml' ? 'ml' : p.unit === 'each' ? 'each' : 'g';
+    const serving = unit === 'ml' ? p.serving_ml : unit === 'g' ? p.serving_g : undefined;
+    const piece = p.piece || '';
     portion = {
       title: p.title,
-      grams: serving ?? 100,
+      grams: unit === 'each' ? 1 : (serving ?? 100),
       unit,
+      piece,
       per100: p.per100,
       base: {},
       baseGrams: 0,
-      portions: serving ? [{ label: `1 serving (${shownAs(serving, unit)})`, grams: serving }] : [],
+      portions:
+        unit === 'each'
+          ? [1, 2].map((n) => ({ label: pieces(n, piece), grams: n }))
+          : serving
+            ? [{ label: `1 serving (${shownAs(serving, unit)})`, grams: serving }]
+            : [],
       source: `product/${p.id}`,
       borrowed: {},
       estimated: {},
@@ -782,6 +821,8 @@
     /** How much, in `unit`. (Named for the commonest case; a drink's is millilitres.) */
     grams: number;
     unit: AmountUnit;
+    /** What one is, when the amount is a count of pieces: `tablet`. */
+    piece?: string;
     /** Values per 100 g, when the food's source is known. */
     per100: Record<string, number> | null;
     /** Otherwise: the values as they were at `baseGrams`, kept so stepping never compounds. */
@@ -796,11 +837,14 @@
   };
   let portion = $state<Portion | null>(null);
 
+  /// Every value an entry carries — not only the view's: a supplement's vitamin D is in none of
+  /// Day's metrics, and an amount changed must scale it too, not drop it (2026-10-31).
   const numbersOf = (props: Record<string, unknown>) =>
     Object.fromEntries(
-      def.metrics.flatMap((m) => {
-        const v = whole(props[m.key]);
-        return v === null ? [] : [[m.key, v] as const];
+      Object.keys(props).flatMap((k) => {
+        const v = whole(props[k]);
+        const value = k === 'kcal' || /_(mg|ug|ng)$/.test(k);
+        return value && v !== null ? [[k, v] as const] : [];
       }),
     );
   function valuesAt(p: Portion, grams: number): Record<string, number> {
@@ -836,21 +880,30 @@
     const grams = had.n ?? 0;
     const source = typeof props.source === 'string' ? props.source : '';
     let found = null;
-    if (source) {
+    // One of the person's own packets is read from its note, as it is now; a food from the list,
+    // from the list.
+    const own = source.startsWith('product/')
+      ? products.find((p) => `product/${p.id}` === source)
+      : undefined;
+    if (source && !own) {
       try {
         found = await foodGet(source);
       } catch {
         found = null; // the pack is not here: fall back to the entry's own numbers
       }
     }
+    const piece = typeof props.piece === 'string' ? props.piece : (own?.piece ?? '');
     portion = {
       title,
-      grams: grams || found?.portions[0]?.grams || 100,
+      grams: grams || found?.portions[0]?.grams || (had.unit === 'each' ? 1 : 100),
       unit: had.unit,
-      per100: found?.per100 ?? null,
+      piece,
+      per100: found?.per100 ?? (own && own.per100.kcal !== undefined ? own.per100 : null) ?? null,
       base: numbersOf(props),
       baseGrams: grams,
-      portions: found?.portions ?? [],
+      portions:
+        found?.portions ??
+        (had.unit === 'each' ? [1, 2].map((n) => ({ label: pieces(n, piece), grams: n })) : []),
       source,
       borrowed: found?.borrowed ?? borrowedOf(props),
       estimated: found?.estimated ?? {},
@@ -936,7 +989,9 @@
   const stepSize = (g: number) => (g < 50 ? 5 : 10);
   function nudge(dir: 1 | -1) {
     if (!portion) return;
-    portion.grams = Math.max(1, portion.grams + dir * stepSize(portion.grams));
+    // Pieces are counted one at a time.
+    const step = portion.unit === 'each' ? 1 : stepSize(portion.grams);
+    portion.grams = Math.max(1, portion.grams + dir * step);
   }
   /// Press and hold repeats, as a stepper should.
   let holding: ReturnType<typeof setInterval> | null = null;
@@ -1023,6 +1078,7 @@
       }
       const props: Record<string, string | number> = {
         [amountKey(p.unit)]: p.grams,
+        ...(p.unit === 'each' && p.piece ? { piece: p.piece } : {}),
         ...valuesAt(p, p.grams),
         // A range is in grams; an amount in millilitres has none yet.
         ...(p.unit === 'g' ? rangeProps(p.grams) : {}),
@@ -1736,10 +1792,18 @@
               type="number"
               inputmode="numeric"
               min="1"
-              aria-label={portion.unit === 'ml' ? 'amount in millilitres' : 'amount in grams'}
+              aria-label={portion.unit === 'ml'
+                ? 'amount in millilitres'
+                : portion.unit === 'each'
+                  ? `how many ${portion.piece || 'piece'}s`
+                  : 'amount in grams'}
               bind:value={portion.grams}
             />
-            <span class="unit">{portion.unit}</span>
+            <span class="unit"
+              >{portion.unit === 'each'
+                ? `${portion.piece || 'piece'}${portion.grams === 1 ? '' : 's'}`
+                : portion.unit}</span
+            >
           </div>
           <button
             type="button"
@@ -2219,44 +2283,57 @@
         {/if}
         <fieldset class="basis">
           <legend>The label gives its figures</legend>
-          {#each [['100g', 'per 100 g'], ['100ml', 'per 100 ml'], ['serving', 'per serving']] as [v, words] (v)}
+          {#each [['100g', 'per 100 g'], ['100ml', 'per 100 ml'], ['serving', 'per serving'], ['each', 'per tablet, capsule or drop']] as [v, words] (v)}
             <label class="pick">
               <input type="radio" name="label-basis" value={v} bind:group={labelling.basis} />
               <span>{words}</span>
             </label>
           {/each}
         </fieldset>
-        <div class="with-unit">
+        {#if labelling.basis === 'each'}
+          <!-- **A supplement's label, per piece** (2026-10-31): counted in pieces, never in grams;
+               what one is called is what the amount says — "2 capsules". -->
           <label>
-            <span>
-              {labelling.basis === 'serving' ? 'A serving is' : 'A serving is (optional)'}
-            </span>
-            <input
-              class="field"
-              type="number"
-              inputmode="numeric"
-              min="1"
-              bind:value={labelling.serving}
-            />
+            <span>One is a</span>
+            <select class="field" bind:value={labelling.piece} aria-label="what one piece is">
+              {#each PIECES as pc (pc)}<option value={pc}>{pc}</option>{/each}
+            </select>
           </label>
-          {#if labelling.basis === 'serving'}
+        {:else}
+          <div class="with-unit">
             <label>
-              <span>in</span>
-              <select
+              <span>
+                {labelling.basis === 'serving' ? 'A serving is' : 'A serving is (optional)'}
+              </span>
+              <input
                 class="field"
-                bind:value={labelling.servingUnit}
-                aria-label="serving measured in"
-              >
-                <option value="g">g</option>
-                <option value="ml">ml</option>
-              </select>
+                type="number"
+                inputmode="numeric"
+                min="1"
+                bind:value={labelling.serving}
+              />
             </label>
-          {:else}
-            <span class="fixed">{labelUnit}</span>
-          {/if}
-        </div>
+            {#if labelling.basis === 'serving'}
+              <label>
+                <span>in</span>
+                <select
+                  class="field"
+                  bind:value={labelling.servingUnit}
+                  aria-label="serving measured in"
+                >
+                  <option value="g">g</option>
+                  <option value="ml">ml</option>
+                </select>
+              </label>
+            {:else}
+              <span class="fixed">{labelUnit}</span>
+            {/if}
+          </div>
+        {/if}
         <p class="hint">
-          Copy the label as it is printed; energy is needed, the rest as you like.
+          {labelling.basis === 'each'
+            ? 'Copy the label as it is printed, for one; energy only if it gives one.'
+            : 'Copy the label as it is printed; energy is needed, the rest as you like.'}
           {#if labelling.basis === 'serving'}
             It is kept per 100 {labelUnit}, worked out from the serving.
           {/if}
@@ -2320,6 +2397,65 @@
             </select>
           </label>
         </div>
+        <!-- **Vitamins and minerals, as many as the label gives** (2026-10-31): any value the
+             nutrients sheet knows, typed in the unit printed beside it. They count in All
+             nutrients and in the rings like any food's. -->
+        <fieldset class="micros">
+          <legend>Vitamins and minerals</legend>
+          {#each labelling.micros ?? [] as m (m.key)}
+            {@const line = label.MICROS.find((x) => x.key === m.key)}
+            <div class="with-unit">
+              <label>
+                <span>{line?.label ?? m.key}</span>
+                <input
+                  class="field"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="any"
+                  bind:value={labelling.values[m.key]}
+                />
+              </label>
+              <label>
+                <span>in</span>
+                <select class="field" bind:value={m.unit} aria-label={`${line?.label} given in`}>
+                  <option value="µg">µg</option>
+                  <option value="mg">mg</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                class="quiet drop-line"
+                onclick={() => dropMicro(m.key)}
+                aria-label={`take ${line?.label ?? m.key} off`}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+            {#if m.key === 'vitamin_d_ng'}
+              <p class="hint">A label in IU: 40 IU of vitamin D is 1 µg (1,000 IU is 25 µg).</p>
+            {:else if m.key === 'folate_dfe_ug'}
+              <p class="hint">
+                Kept as folate equivalents, 1.7 for each µg of folic acid, as the food list keeps
+                folate.
+              </p>
+            {/if}
+          {/each}
+          {#if microsLeft.length}
+            <select
+              class="field"
+              aria-label="add a vitamin or mineral"
+              value=""
+              onchange={(e) => {
+                addMicro(e.currentTarget.value);
+                e.currentTarget.value = '';
+              }}
+            >
+              <option value="" disabled>+ Add a vitamin or mineral</option>
+              {#each microsLeft as m (m.key)}<option value={m.key}>{m.label}</option>{/each}
+            </select>
+          {/if}
+        </fieldset>
         <label>
           <span>Ingredients, as on the pack (optional)</span>
           <textarea class="field tall" rows="3" bind:value={labelling.ingredients}></textarea>
@@ -2414,11 +2550,17 @@
             <li>
               <button type="button" class="row" onclick={() => openProduct(p)}>
                 <span class="t">{p.title}</span>
-                <span class="a">Your label · per 100 {p.unit === 'ml' ? 'ml' : 'g'}</span>
+                <span class="a"
+                  >Your label · {p.unit === 'each'
+                    ? `per ${p.piece || 'piece'}`
+                    : `per 100 ${p.unit === 'ml' ? 'ml' : 'g'}`}</span
+                >
                 <span class="v">
-                  {p.per100.kcal === undefined
-                    ? 'label not read yet'
-                    : show(primary.key, p.per100[primary.key] ?? 0).text}
+                  {p.unit === 'each' && Object.keys(p.per100).length
+                    ? ''
+                    : p.per100.kcal === undefined
+                      ? 'label not read yet'
+                      : show(primary.key, p.per100[primary.key] ?? 0).text}
                 </span>
               </button>
             </li>
@@ -2901,6 +3043,25 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-4);
+  }
+  .micros {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .micros legend {
+    padding: 0;
+    margin-bottom: var(--space-1);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+  .drop-line {
+    align-self: flex-end;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
   }
   .basis legend {
     padding: 0;

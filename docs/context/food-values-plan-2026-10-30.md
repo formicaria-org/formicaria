@@ -25,7 +25,9 @@
    wine 125 g and beer 250 g among them. This supersedes in part *a USDA portion is never attached
    to a European food* (2026-10-11). **Not built: millilitres** for a food from the list; the
    honest bridge is the Swiss densities, not carried. Water has no glass: no table gives one.
-4. **Pin the values you follow** — built as planned: *Show on Day*, at most six, `day_values` in
+4. **Pin the values you follow** — built as planned (later the same day: three, as rings under the
+   energy ring, and each meal one line — `decisions.md`, *the values a person follows are three
+   rings*): *Show on Day*, at most six, `day_values` in
    the profile note; Trends offers what is pinned in place of the defaults (not "first" — the view
    lists the pinned ones where its own were).
 

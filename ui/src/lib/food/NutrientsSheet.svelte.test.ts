@@ -199,3 +199,30 @@ test('with six on Day, a seventh waits until one is taken off', async () => {
   );
   expect(screen.getByText('Day shows 6 at most: take one off first.')).toBeTruthy();
 });
+
+test('opened to choose, every value is one line to tick, up to Day’s most, even before anything is logged', async () => {
+  logNutrients.mockResolvedValue({
+    ...day([]),
+    drinks: [{ key: 'water_mg', label: 'Water', kind: 'AI', sum: 0, n: 0 }],
+    on_day: ['water_mg', 'fiber_mg', 'calcium_ug'],
+    most_on_day: 3,
+    profile: 'P1',
+  });
+  render(NutrientsSheet, { view: 'Day', day: today(), choose: true, onclose: () => {} });
+  expect(await screen.findByRole('heading', { name: 'Follow on Day' })).toBeTruthy();
+  expect(screen.queryByText(/Nothing is logged/)).toBeNull();
+  const water = screen.getByRole('button', { name: /^Water/ });
+  expect(water.getAttribute('aria-pressed')).toBe('true');
+  // Three already: another waits until one is unticked.
+  const choline = screen.getByRole('button', { name: /^Choline/ }) as HTMLButtonElement;
+  expect(choline.disabled).toBe(true);
+  expect(screen.getByText('Day shows 3: untick one to choose another.')).toBeTruthy();
+  await fireEvent.click(water);
+  await vi.waitFor(() =>
+    expect(setPropertiesUndoable).toHaveBeenCalledWith(
+      'P1',
+      { day_values: 'fiber_mg, calcium_ug' },
+      'took a value off Day',
+    ),
+  );
+});

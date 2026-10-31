@@ -44,6 +44,7 @@
   import type { Feed, Pane } from './panes';
   import type {
     DayTotals,
+    LogDays,
     NoteDraft,
     ObjectMeta,
     RecentItem,
@@ -101,6 +102,8 @@
   let day = $state<DayTotals | null>(null);
   let before = $state<DayTotals | null>(null);
   let strip = $state<DayTotals[]>([]);
+  /// What the values the person follows fill towards when no target was set (`log_days`).
+  let references = $state<NonNullable<LogDays['references']>>({});
   let range = $state<DayTotals[]>([]);
   let last = $state<RecentItem[]>([]);
   let routines = $state<Routine[]>([]);
@@ -222,6 +225,7 @@
       ]);
       if (mine !== asked) return; // a later ask has already answered
       strip = all.days.slice(1);
+      references = all.references ?? {};
       before = all.days.find((d) => d.day === addDays(selected, -1)) ?? null;
       day = all.days.find((d) => d.day === selected) ?? null;
       last = recent;
@@ -297,7 +301,8 @@
   $effect(() => () => nav.closeLayer(`measure-sheet:${pane.id}`));
 
   // ── every nutrient of the day ──────────────────────────────────────────────────────────────────
-  let nutrientsOpen = $state(false);
+  /// The nutrients sheet, open on every value (`all`) or on choosing what Day follows (`choose`).
+  let nutrientsOpen = $state<false | 'all' | 'choose'>(false);
   $effect(() => {
     if (nutrientsOpen) nav.openLayer(`nutrients-sheet:${pane.id}`, () => (nutrientsOpen = false));
     else nav.closeLayer(`nutrients-sheet:${pane.id}`);
@@ -651,7 +656,9 @@
         {dishes}
         onexample={() => void wrote()}
         onidea={(dish) => (sheet = { slot: null, entry: null, open: dish.ref })}
-        onnutrients={def.add === 'food' ? () => (nutrientsOpen = true) : undefined}
+        {references}
+        onnutrients={def.add === 'food' ? () => (nutrientsOpen = 'all') : undefined}
+        onchoose={def.add === 'food' ? () => (nutrientsOpen = 'choose') : undefined}
       />
     {/if}
   </div>
@@ -711,7 +718,12 @@
   {/if}
   {#if nutrientsOpen}
     {#await import('./food/NutrientsSheet.svelte') then { default: NutrientsSheet }}
-      <NutrientsSheet {view} day={selected} onclose={() => (nutrientsOpen = false)} />
+      <NutrientsSheet
+        {view}
+        day={selected}
+        choose={nutrientsOpen === 'choose'}
+        onclose={() => (nutrientsOpen = false)}
+      />
     {/await}
   {/if}
   {#if targetsOpen && def}

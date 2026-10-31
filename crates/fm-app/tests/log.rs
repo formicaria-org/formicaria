@@ -740,7 +740,8 @@ fn the_values_pinned_in_the_profile_are_days_own() {
     )
     .unwrap();
     let before = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
-    assert_eq!(before.on_day, ["fiber_mg", "calcium_ug", "iron_ug", "vitamin_c_ug"]);
+    // Until the person chooses: water, fibre and calcium, as the Day view ships.
+    assert_eq!(before.on_day, ["water_mg", "fiber_mg", "calcium_ug"]);
     assert_eq!(before.profile, None);
 
     create_notes(
@@ -764,6 +765,20 @@ fn the_values_pinned_in_the_profile_are_days_own() {
     let after = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
     assert_eq!(after.on_day, ["water_mg", "iron_ug"]);
     let me = after.profile.expect("the profile note");
+
+    // A ring fills towards the sheet's figure for the person: water by sex, iron too; none
+    // while the sex is unknown, and a limit is a limit.
+    let refs = |s: &MemoryStore| {
+        let p = fm_app::plan::plan_profile(s).unwrap();
+        let mut d = day_view();
+        pin(&mut d, &p);
+        fm_app::nutrients::day_references(&d, &p, 2026)
+    };
+    assert!(!refs(&s).contains_key("water_mg"), "no figure while the sex is unknown");
+    set_properties(&mut s, &me, &BTreeMap::from([("sex".to_string(), json!("female"))])).unwrap();
+    let r = refs(&s);
+    assert_eq!(r["water_mg"].reference, Some(2_000_000));
+    assert_eq!(r["iron_ug"].reference, Some(16_000));
 
     // All taken off: written as "none", so it does not read as never chosen.
     let none = BTreeMap::from([("day_values".to_string(), json!("none"))]);
@@ -853,6 +868,35 @@ fn a_food_labelled_by_volume_is_measured_in_millilitres() {
     assert_eq!((drink.unit.as_str(), drink.serving_ml, drink.serving_g), ("ml", Some(250), None));
     assert_eq!(drink.per100.keys().collect::<Vec<_>>(), ["kcal"], "its serving is not a value");
     assert_eq!(got.iter().find(|p| p.title == "Mystery").unwrap().unit, "");
+}
+
+/// A supplement's label is per piece (2026-10-31): counted in `each`, with what one is, and its
+/// vitamins kept whatever their unit — vitamin D in nanograms too.
+#[test]
+fn a_supplement_is_counted_in_pieces_and_keeps_its_vitamins() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Vitamin D3",
+                "",
+                json!({ "product": "label", "unit": "each", "piece": "capsule",
+                        "vitamin_d_ng": 2_500_000, "magnesium_ug": 10_000_000 }),
+            ),
+            draft("Loose", "", json!({ "product": "label", "piece": "capsule", "kcal": 4 })),
+        ],
+    )
+    .unwrap();
+    let got = log_products(&s).unwrap();
+    let d = got.iter().find(|p| p.title == "Vitamin D3").unwrap();
+    assert_eq!((d.unit.as_str(), d.piece.as_str()), ("each", "capsule"));
+    assert_eq!(d.per100["vitamin_d_ng"], 2_500_000, "nanograms are a value");
+    assert_eq!(d.per100["magnesium_ug"], 10_000_000);
+    assert!(!d.per100.contains_key("kcal"), "no energy was printed, and none is made up");
+    // A piece without the unit that counts in pieces is not believed.
+    assert_eq!(got.iter().find(|p| p.title == "Loose").unwrap().piece, "");
 }
 
 /// What is in the kitchen is a list of names: notes carrying `kitchen`, in no log and no day.

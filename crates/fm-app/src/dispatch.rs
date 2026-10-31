@@ -2606,8 +2606,14 @@ fn dispatch_inner(
             let store = g.store(scope);
             // What the person pinned to Day is totalled too (`nutrients::pin`, 2026-10-31): the
             // view the screen was handed (`run_view`) and the days it asks for name the same values.
-            crate::nutrients::pin(&mut def, &crate::plan::plan_profile(&store).map_err(err)?);
-            json(crate::log::log_days(&store, &def, &s("from"), &s("to"), rows).map_err(err)?)
+            let profile = crate::plan::plan_profile(&store).map_err(err)?;
+            crate::nutrients::pin(&mut def, &profile);
+            let mut days =
+                crate::log::log_days(&store, &def, &s("from"), &s("to"), rows).map_err(err)?;
+            // A ring on Day fills towards the sheet's figure when no target was set (2026-10-31).
+            let year = s("to").get(..4).and_then(|y| y.parse().ok()).unwrap_or(2026);
+            days.references = crate::nutrients::day_references(&def, &profile, year);
+            json(days)
         }
         "log_recent" => {
             let mut g = lock()?;
