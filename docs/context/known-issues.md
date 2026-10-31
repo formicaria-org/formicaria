@@ -1670,7 +1670,14 @@ so Google names no reason.
   goes here. Many small apps saw one-off flags clear by themselves in the next build (Molly,
   Haven), so one clean scan is a good sign, not proof; a flag that stays across releases is the
   pattern.
-- **Results:** 0.24.2 (restart receiver off unless a reminder waits) — *to be scanned*.
+- **Results:**
+  - 0.24.2 (restart receiver off unless a reminder waits) — **still harmful** (2026-10-31, updated
+    through F-Droid). The APK was checked: the receiver ships switched off, so the fix shipped as meant.
+  - 0.24.3 (no `REQUEST_INSTALL_PACKAGES`; Update opens the APK in the browser —
+    `decisions.md#track-m`, 2026-10-31) — *to be scanned*.
+- **Next suspect:** the two executables bundled as `lib*.so` and run from `nativeLibraryDir`
+  (`libllama-server.so`, `libwhisper-server.so`). They predate the verdict (July), so they are
+  tried only after the installer.
 
 ## Search — what it cannot find (2026-10-29)
 

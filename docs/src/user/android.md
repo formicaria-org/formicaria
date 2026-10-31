@@ -17,8 +17,8 @@ Some phones add one more screen of their own — a "Play Protect" or virus check
 are sure. Choose **Install anyway** (on some phones it is under **More details**). It is the phone being
 careful about any app from outside its store, not a sign that something is wrong.
 
-You only do this once. After that, formicaria tells you itself when there is a newer version and
-installs it with one tap and Android's own confirmation — see [Updating](#updating).
+After that, formicaria tells you itself when there is a newer version, and one tap starts its
+download — see [Updating](#updating).
 
 There is no Play Store version yet.
 
@@ -34,16 +34,18 @@ version is newest — nothing about you, the phone or your notes is sent. From 0
 of the app says so; before, only **Settings → About & updates** did. **Check now** in Settings asks
 straight away.
 
-1. Tap **Update**. formicaria downloads the new version and checks that it is exactly what the
-   release published, signed by us. Anything that does not match is refused.
-2. As soon as it is checked, Android's own installer opens on it: confirm there. If you left the app
-   while it was downloading, the installer opens when you come back. (Before 0.22.0: **Get v…**, then
-   **Install v…**.)
-3. The first time, Android asks whether formicaria may install apps. Allow it. Some phones add steps
-   of their own — on a Xiaomi phone the permission screen makes you wait ten seconds before you can
-   confirm, and the phone then scans the app and runs its own virus scan before installing it. That is
-   the phone's caution about apps that did not come from its store, and it is normal. Then come
-   back to formicaria and tap **Install v…** in the same line.
+1. Tap **Update**. Your browser opens and downloads the newest version — the same file as the
+   download link at the top of this page.
+2. When the download finishes, tap **Open**, then **Update** on Android's own screen. If the browser
+   does not offer **Open**, find *formicaria-android.apk* in your Downloads and tap it. Some phones
+   add a "Play Protect" or virus check first, as on the first install.
+
+Android installs it only if it is signed with the same key as the formicaria you have, so nobody can
+slip you a fake update this way.
+
+**Before 0.24.3** formicaria downloaded and installed updates itself, and the first time asked
+whether it may install apps. It no longer needs that permission. If you allowed it once, you can
+switch it off again in Android's **Install unknown apps** setting for formicaria.
 
 Your notes stay where they are: an update keeps the app's storage. **Going back to an earlier version
 is not offered on a phone**, because Android can only do that by uninstalling first, and uninstalling

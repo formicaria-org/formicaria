@@ -1287,24 +1287,24 @@ export const updateCancel = () => invoke<UpdateStatus>('update_cancel');
 /** Desktop: install what was got and restart into it. Answers before it stops. */
 export const updateApply = () => invoke<{ restarting: boolean }>('update_apply');
 
-/** **Android: hand the checked download to the system installer.** A phone cannot restart into a new
- *  version — only Android's installer can replace an app — so the shell's activity exposes a single
- *  method for it, and that method takes **no argument**: it installs only the one file the shell
- *  downloaded and verified, and only if it is signed like the app already installed. Nothing on the
- *  page can name a different file.
+/** **Android: open the newest APK in the browser.** A phone cannot restart into a new version —
+ *  only Android's installer can replace an app — and since 2026-10-31 the app no longer installs
+ *  anything itself (`decisions.md#track-m`, *a phone update opens in the browser*): the shell's
+ *  activity opens one fixed address, the newest release's APK, and the person taps **Open** when
+ *  the browser has it. The method takes **no argument**, so nothing on the page can name another.
  *
- *  Returns `'ok'` when the installer opened, `'permission'` when Android first needs the person to
- *  allow installs from formicaria, or the reason it could not. `null` when this is not the Android
- *  app, which is also how the panel knows which button to offer. */
-export function installOnPhone(): string | null {
-  const bridge = (globalThis as { __fmUpdate?: { install(): string } }).__fmUpdate;
-  return bridge ? bridge.install() : null;
+ *  Returns `'ok'` once the browser was asked, or the reason it could not. `null` when this is not
+ *  the Android app, which is also how the panel knows which words to use. */
+export function downloadOnPhone(): string | null {
+  const bridge = (globalThis as { __fmUpdate?: { download(): string } }).__fmUpdate;
+  return bridge ? bridge.download() : null;
 }
 
-/** Whether the Android installer bridge is present. */
-export function phoneCanInstall(): boolean {
+/** Whether this is the Android app, whose Update opens the browser. */
+export function phoneUpdatesInBrowser(): boolean {
   return (
-    typeof (globalThis as { __fmUpdate?: { install?: unknown } }).__fmUpdate?.install === 'function'
+    typeof (globalThis as { __fmUpdate?: { download?: unknown } }).__fmUpdate?.download ===
+    'function'
   );
 }
 

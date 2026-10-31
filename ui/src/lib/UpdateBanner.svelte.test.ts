@@ -169,34 +169,18 @@ describe('UpdateBanner — a newer version, offered in the main window', () => {
     expect(screen.getByRole('button', { name: 'Update' })).toBeTruthy();
   });
 
-  /// The last step on a phone is Android's installer, which asks for its own confirmation.
-  it('on Android, opens the installer once the download is ready', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const install = vi.fn(() => 'ok');
-    (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { install };
+  /// A phone downloads nothing itself (2026-10-31): Update opens the newest APK in the browser,
+  /// and Android's installer, with its own confirmation, does the rest.
+  it('on Android, opens the download in the browser instead of fetching it', async () => {
+    const download = vi.fn(() => 'ok');
+    (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { download };
     await shown();
     await fireEvent.click(screen.getByRole('button', { name: 'Update' }));
-    updateStatus.mockResolvedValue(status({ progress: ready }));
-    await vi.advanceTimersByTimeAsync(1600);
-    expect(install).toHaveBeenCalledOnce();
+    expect(download).toHaveBeenCalledOnce();
+    expect(updateStart).not.toHaveBeenCalled();
     expect(updateApply).not.toHaveBeenCalled();
-    expect(await screen.findByText(/The installer has opened/)).toBeTruthy();
-  });
-
-  /// Android will not open an installer over another app, so a download that finished while the
-  /// person was elsewhere waits for them to come back.
-  it('on Android, waits until the app is in front before opening the installer', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const install = vi.fn(() => 'ok');
-    (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { install };
-    await shown();
-    await fireEvent.click(screen.getByRole('button', { name: 'Update' }));
-    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
-    updateStatus.mockResolvedValue(status({ progress: ready }));
-    await vi.advanceTimersByTimeAsync(1600);
-    expect(install).not.toHaveBeenCalled();
-    visibility.mockReturnValue('visible');
-    document.dispatchEvent(new Event('visibilitychange'));
-    await vi.waitFor(() => expect(install).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/Your browser is downloading/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Download again' }));
+    expect(download).toHaveBeenCalledTimes(2);
   });
 });

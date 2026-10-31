@@ -59,7 +59,7 @@
     setShare,
     shareCode,
     revokeDevices,
-    phoneCanInstall,
+    phoneUpdatesInBrowser,
     setUpdateCheck,
     updateCheckNow,
   } from './ipc';
@@ -246,7 +246,7 @@
       updater.setStatus(u);
       previousVersion = u.previous;
       canInstall = u.can_install;
-      phoneBridge = phoneCanInstall();
+      phoneBridge = phoneUpdatesInBrowser();
       // A download already under way when the panel opened: keep watching it, the same courtesy the
       // assistant's first-enable download gets.
       updater.follow();
@@ -382,7 +382,7 @@
   /// time the panel sees it — so the button gave no sign of having been pressed, and on the phone the
   /// owner could not tell whether a tap had worked (2026-09-11).
   let looking = $state(false);
-  /// Whether the Android installer bridge is here. Read once: the shell registers it before the page
+  /// Whether the Android update bridge is here. Read once: the shell registers it before the page
   /// loads, and it cannot appear later.
   let phoneBridge = $state(false);
   let updateError = $state<string | null>(null);
@@ -2041,12 +2041,11 @@
                 <span class="k">{upd.available} is available</span>
                 <span class="muted">
                   You have {cfg.version}. {phoneBridge
-                    ? 'Your notes stay as they are; Android asks you to confirm.'
+                    ? 'Your browser downloads it, then Android asks you to confirm. Your notes stay as they are.'
                     : `Your notes stay as they are; formicaria restarts by itself, and you can go back to ${cfg.version} from here.`}
                 </span>
                 <button class="primary" onclick={updater.update}>
-                  {phoneBridge && upd.progress?.stage === 'ready' ? 'Install' : 'Update to'}
-                  {upd.available}
+                  Update to {upd.available}
                 </button>
               {:else if upd.available}
                 <span class="k">{upd.available} is available</span>

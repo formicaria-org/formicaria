@@ -166,7 +166,7 @@ object Reminders {
   /// **The restart is heard only while a reminder waits** (`decisions.md#track-m`, 2026-10-30).
   /// `BootReceiver` ships switched off; it is switched on when an alarm is set and off when none is
   /// left. A phone with no reminders never starts formicaria at boot — and a start-at-boot receiver
-  /// beside the microphone and the update installer is the profile Play Protect called harmful.
+  /// beside the microphone and the update installer was the profile Play Protect called harmful.
   private fun listenForRestart(ctx: Context, on: Boolean) {
     val state =
       if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
@@ -236,18 +236,15 @@ cat > "$pkg_dir/MainActivity.kt" <<'KT'
 package dev.formicaria.notes
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.provider.Settings
 import android.util.Base64
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
-import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewCompat
@@ -504,112 +501,33 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /// **The one thing the page may ask Android to install: formicaria's own, already-checked update.**
+  /// **Updating hands the newest APK to the browser, and Android's installer takes it from there**
+  /// (`decisions.md#track-m`, 2026-10-31, *a phone update opens in the browser*).
   ///
-  /// A phone cannot restart into a new version the way the desktop does — only Android's package
-  /// installer can replace an app — so this is the last step of updating on Android, and it is
-  /// deliberately narrow (`decisions.md#toolchain`, 2026-09-11):
+  /// The app used to download, verify and install its own update, which needs
+  /// `REQUEST_INSTALL_PACKAGES` — a permission scanners read as a red flag, and the next
+  /// suspect once the restart receiver alone did not clear *"Harmful app blocked"*. Now this opens
+  /// one fixed address, the newest release's APK, in the browser; the person taps **Open** when it
+  /// arrives, exactly as on the first install (`docs/src/user/android.md`). Android still refuses an
+  /// update signed by anyone else.
   ///
-  /// - **It takes no argument.** It installs one file: `cacheDir/update/formicaria.apk`, which the Rust
-  ///   side writes only once its sha256 matches a manifest whose Ed25519 signature has been verified.
-  ///   Nothing running in the page can name a different file, so a page that went wrong cannot turn
-  ///   this into "install whatever I point at". `cacheDir` is also exactly what the existing
-  ///   `FileProvider` shares (`cache-path "."`), so no resource needs editing — Tauri's
-  ///   `app_cache_dir()` resolves to `activity.cacheDir`, checked against its `PathPlugin`.
-  /// - **Android asks first, once.** Installing from an app needs the person's permission for that
-  ///   app. Rather than fail, this opens the screen that grants it and says so; the page tells the
-  ///   person to come back and press Install again.
-  /// - **An older version is not handed over.** Android would refuse it with a sentence that reads
-  ///   like a corrupt file; see `olderThanInstalled`.
-  /// - **A download signed by somebody else is not offered.** Android enforces this itself for an
-  ///   update, but only after the person has been shown an install prompt for a stranger's package.
-  ///   The check here blocks only on a *positive* mismatch: a platform quirk that returns no signing
-  ///   information must not block an update Android would accept — that enforcement stays Android's.
-  ///
-  /// Returns `ok`, `permission`, or `error: <reason>`; the page prints the reason as it is.
-  inner class UpdateInstaller {
+  /// **It takes no argument**, as before: nothing running in the page can name another address.
+  /// Returns `ok` once the browser has been asked. A phone with no browser at all is not reported:
+  /// the failure happens on the UI thread, after this has answered.
+  inner class UpdateDownload {
     @JavascriptInterface
-    fun install(): String {
-      val apk = File(cacheDir, "update/formicaria.apk")
-      if (!apk.isFile) return "error: there is no checked download to install yet"
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-        val allow = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
-          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runOnUiThread { startActivity(allow) }
-        return "permission"
-      }
-      if (signedDifferently(apk)) {
-        return "error: the download is not signed like the formicaria already installed, so it was not installed"
-      }
-      if (olderThanInstalled(apk)) {
-        return "error: the download is an older version than the formicaria on this phone. Android only installs the same version or a newer one, so it was not installed. Look for the newest version and get that."
-      }
-      return try {
-        val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", apk)
-        val view = Intent(Intent.ACTION_VIEW)
-          .setDataAndType(uri, "application/vnd.android.package-archive")
-          .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        runOnUiThread { startActivity(view) }
-        "ok"
-      } catch (e: Exception) {
-        "error: ${e.message}"
-      }
-    }
-  }
-
-  /// True only when both version codes were read **and** the download's is lower.
-  ///
-  /// **Android refuses this itself, and says nothing useful when it does.** Handed an older package,
-  /// its installer answers *"App not installed as package appears to be invalid"* — the same words
-  /// it uses for a corrupt file — after the person has confirmed the install. The owner met that on
-  /// 2026-10-11, when a test build was offered an older release. The updater no longer offers one
-  /// (`fm_update::newer_than`), and this is the second line: if an older file ever reaches here,
-  /// the person is told why in the app instead of being shown that sentence. Like the signer check
-  /// it blocks only on a *positive* answer; what cannot be read is left to Android.
-  private fun olderThanInstalled(apk: File): Boolean {
-    return try {
-      val theirs = packageManager.getPackageArchiveInfo(apk.path, 0)
-      val mine = packageManager.getPackageInfo(packageName, 0)
-      theirs != null && versionCodeOf(theirs) < versionCodeOf(mine)
-    } catch (e: Exception) {
-      false
-    }
-  }
-
-  @Suppress("DEPRECATION")
-  private fun versionCodeOf(p: android.content.pm.PackageInfo): Long =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) p.longVersionCode else p.versionCode.toLong()
-
-  /// True only when both signer sets were read **and** they differ. See `UpdateInstaller`.
-  private fun signedDifferently(apk: File): Boolean {
-    return try {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        @Suppress("DEPRECATION")
-        val theirs = packageManager
-          .getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNING_CERTIFICATES)
-          ?.signingInfo?.apkContentsSigners
-        @Suppress("DEPRECATION")
-        val mine = packageManager
-          .getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-          .signingInfo?.apkContentsSigners
-        theirs != null && mine != null && theirs.toSet() != mine.toSet()
-      } else {
-        @Suppress("DEPRECATION")
-        val theirs = packageManager.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)?.signatures
-        @Suppress("DEPRECATION")
-        val mine = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures
-        theirs != null && mine != null && theirs.toSet() != mine.toSet()
-      }
-    } catch (e: Exception) {
-      false
+    fun download(): String {
+      val view = Intent(Intent.ACTION_VIEW, Uri.parse(LATEST_APK)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      runOnUiThread { try { startActivity(view) } catch (e: Exception) { } }
+      return "ok"
     }
   }
 
   override fun onWebViewCreate(webView: WebView) {
     wv = webView
     webView.addJavascriptInterface(Insets(), "__fmInsets")
-    // The installer bridge, re-injected into every document like the insets one. See UpdateInstaller.
-    webView.addJavascriptInterface(UpdateInstaller(), "__fmUpdate")
+    // The update bridge, re-injected into every document like the insets one. See UpdateDownload.
+    webView.addJavascriptInterface(UpdateDownload(), "__fmUpdate")
     // Reminders: the page hands over the moments, Android sets the alarms. See Reminders.kt.
     webView.addJavascriptInterface(Remind(), "__fmRemind")
     // What another app shared: the page asks for it. See `takeShared`.
@@ -653,6 +571,9 @@ class MainActivity : TauriActivity() {
   companion object {
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
+    /// The newest release's APK — the address `docs/src/user/android.md` gives for the first install.
+    private const val LATEST_APK =
+      "https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk"
 
     /// Reads the interface and writes the four properties `app.css` consumes. Defensive because it
     /// also runs at document start, where a hostile-looking absence is simply "not injected yet".
@@ -731,21 +652,11 @@ if ! grep -q 'RECORD_AUDIO' "$manifest"; then
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
-# The update installer: Android lets an app hand an APK to the system installer only if it declares
-# this. **A deliberate widening, recorded in decisions.md** — people and scanners read it as a red
-# flag, and it is what installing an update from inside the app costs. It grants no silent install:
-# Android still asks the person, once for the permission and every time for the install. Idempotent.
-if ! grep -q 'REQUEST_INSTALL_PACKAGES' "$manifest"; then
-    tmpf=$(mktemp)
-    awk '
-        /android.permission.INTERNET/ && !r {
-            print
-            print "    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\" />"
-            r=1; next
-        }
-        { print }
-    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
-fi
+# No update installer (`decisions.md#track-m`, 2026-10-31, *a phone update opens in the browser*):
+# `REQUEST_INSTALL_PACKAGES` is not declared, because Update now opens the newest APK in the
+# browser and Android's own installer takes it from there. A manifest written by an earlier run of
+# this script still carries the line, so it is taken out here.
+sed -i '/android.permission.REQUEST_INSTALL_PACKAGES/d' "$manifest"
 # **The camera must be visible to the app, or "take a photo" opens the gallery** (owner, 2026-10-18:
 # food pictures could only come from the gallery). wry opens the camera only after asking Android
 # whether any app answers `ACTION_IMAGE_CAPTURE` (`RustWebChromeClient.kt`, `resolveActivity`), and
@@ -839,4 +750,4 @@ if ! grep -q 'android.intent.action.SEND"' "$manifest"; then
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
 
-echo "android-inject-service: foreground service, update installer and reminders injected (AgentService + Reminders + MainActivity + manifest)."
+echo "android-inject-service: foreground service, update download and reminders injected (AgentService + Reminders + MainActivity + manifest)."

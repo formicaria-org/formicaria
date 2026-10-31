@@ -5,13 +5,14 @@
 // Settings → About & updates, where nobody goes, and taking it was three presses: *Get*, then
 // *Restart into…*, then *Yes, restart*. Now the main window says so in a line of its own
 // (`UpdateBanner.svelte`), and **Update** does all of it: download, verify, save what is being
-// typed, restart (on Android: open the system installer, whose confirmation is Android's own).
+// typed, restart (on Android: open the newest APK in the browser, and Android's installer takes it
+// from there — `decisions.md#track-m`, 2026-10-31).
 // Settings renders the same state from here, so the two places can never disagree.
 //
 // Still never silent: nothing is downloaded or installed until somebody presses Update.
 import {
-  installOnPhone,
-  phoneCanInstall,
+  downloadOnPhone,
+  phoneUpdatesInBrowser,
   reloadPage,
   updateApply,
   updateCancel,
@@ -108,11 +109,21 @@ export function later(): void {
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 /** **The one press.** Gets the newest version if it is not here yet, and installs it as soon as it
- *  is. Pressed again on a ready download — after Android asked for its permission, or after a
- *  refusal — it goes straight to installing. */
+ *  is. Pressed again on a ready download — after a refusal — it goes straight to installing. On
+ *  Android it opens the newest APK in the browser instead, and Android's installer does the rest. */
 export async function update(): Promise<void> {
   state.error = null;
   state.phoneMessage = null;
+  if (phoneUpdatesInBrowser()) {
+    const r = downloadOnPhone();
+    if (r === 'ok') {
+      state.phoneMessage =
+        'Your browser is downloading the new formicaria. When it finishes, tap Open and confirm: Android updates formicaria, and your notes stay as they are.';
+    } else if (r) {
+      state.error = r.replace(/^error:\s*/, '');
+    }
+    return;
+  }
   state.going = true;
   const p = state.status?.progress;
   if (p?.stage === 'ready') return finish();
@@ -160,26 +171,6 @@ export function follow(): void {
 }
 
 async function finish(): Promise<void> {
-  if (phoneCanInstall()) {
-    // **Android will not open an installer for an app that is not in front**, so a download that
-    // finished while the person was elsewhere waits for them to come back.
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-      document.addEventListener('visibilitychange', () => void finish(), { once: true });
-      return;
-    }
-    state.going = false;
-    const r = installOnPhone();
-    if (r === 'ok') {
-      state.phoneMessage =
-        'The installer has opened. Confirm there, and formicaria restarts as the new version with your notes as they are.';
-    } else if (r === 'permission') {
-      state.phoneMessage =
-        'Android needs your permission first: allow installs from formicaria on the screen that just opened, then come back and press Install again.';
-    } else if (r) {
-      state.error = r.replace(/^error:\s*/, '');
-    }
-    return;
-  }
   // **What is being typed is saved before the program goes.** The editor's debounce lives in the
   // page, so only the page can flush it; the server then commits what is on disk (`settle`).
   await saveTyping();

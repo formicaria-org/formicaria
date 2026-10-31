@@ -222,25 +222,18 @@ describe('SettingsPanel — getting a newer version', () => {
     }
   });
 
-  /// A phone cannot restart into a new version; Android's installer has to. The bridge is what the
-  /// shell offers for that, and its presence is what decides which button appears.
-  it('on Android, hands the checked download to the installer instead of restarting', async () => {
-    const install = vi.fn(() => 'ok');
-    (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { install };
-    updateStatus.mockResolvedValue(status({ progress: ready }));
+  /// A phone cannot restart into a new version; Android's installer has to. Since 2026-10-31 the app
+  /// downloads nothing itself: the bridge opens the newest APK in the browser.
+  it('on Android, opens the download in the browser instead of restarting', async () => {
+    const download = vi.fn(() => 'ok');
+    (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { download };
     panel();
-    await fireEvent.click(await screen.findByRole('button', { name: 'Install v0.6.1' }));
-    expect(install).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/Your browser downloads it/)).toBeTruthy();
+    await fireEvent.click(await screen.findByRole('button', { name: 'Update to v0.6.1' }));
+    expect(download).toHaveBeenCalledOnce();
+    expect(updateStart).not.toHaveBeenCalled();
     expect(screen.queryByText(/Restart into/)).toBeNull();
-    expect(await screen.findByText(/The installer has opened/)).toBeTruthy();
-  });
-
-  it('on Android, explains the one-time permission rather than failing silently', async () => {
-    (globalThis as { __fmUpdate?: unknown }).__fmUpdate = { install: () => 'permission' };
-    updateStatus.mockResolvedValue(status({ progress: ready }));
-    panel();
-    await fireEvent.click(await screen.findByRole('button', { name: 'Install v0.6.1' }));
-    expect(await screen.findByText(/allow installs from formicaria/)).toBeTruthy();
+    expect(await screen.findByText(/Your browser is downloading/)).toBeTruthy();
   });
 
   /// Being told a fix exists is worth having even where this copy cannot install it.

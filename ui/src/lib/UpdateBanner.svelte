@@ -4,12 +4,12 @@
   // days. Progress, a refusal and the restart are said in the same place the press was made.
   import * as updater from './updater.svelte';
   import { humanSize } from './size';
-  import { phoneCanInstall } from './ipc';
+  import { phoneUpdatesInBrowser } from './ipc';
 
   const s = $derived(updater.status());
   const p = $derived(s?.progress ?? null);
   const v = $derived(s?.available ?? '');
-  const phone = phoneCanInstall();
+  const phone = phoneUpdatesInBrowser();
 </script>
 
 {#if s && updater.offered()}
@@ -20,9 +20,7 @@
       </span>
     {:else if updater.phoneMessage()}
       <span class="what">{updater.phoneMessage()}</span>
-      {#if p?.stage === 'ready'}
-        <button type="button" class="primary" onclick={updater.update}>Install {v}</button>
-      {/if}
+      <button type="button" onclick={updater.update}>Download again</button>
       <button type="button" onclick={updater.later}>Later</button>
     {:else if p && updater.inFlight(p)}
       <span class="what">
@@ -46,7 +44,7 @@
       <span class="what">
         <strong>formicaria {v} is out</strong> — you have {s.current ?? 'an earlier version'}.
         {phone
-          ? 'Your notes stay as they are.'
+          ? 'Your browser downloads it; your notes stay as they are.'
           : 'Your notes stay as they are; formicaria restarts by itself.'}
       </span>
       <button type="button" class="primary" onclick={updater.update}>Update</button>

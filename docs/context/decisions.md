@@ -7683,6 +7683,10 @@ DOS-created, with no Unix mode bits at all, which the symlink refusal handles wi
 
 ## 2026-09-11 — a phone installs an update through Android's installer, over a bridge that takes no argument `#track-m` `#toolchain`
 
+> **AMENDED 2026-10-31** (*a phone update opens in the browser*): the app no longer downloads or
+> installs its update, and no longer declares `REQUEST_INSTALL_PACKAGES`; the no-argument bridge now
+> opens the newest APK in the browser. What follows is the design it replaced.
+
 **Decision.** On Android the app checks, downloads and verifies exactly as the desktop does, through
 `fm_update`, writing the APK to `cacheDir/update/formicaria.apk` only once its checksum matches a
 verified manifest. Pressing Install calls `window.__fmUpdate.install()`, a JavaScript interface
@@ -14063,3 +14067,35 @@ already named the phone's silent start as *the failure being avoided* on the des
   opens the release's APK in the browser and Android's installer takes it from there (dropping
   `REQUEST_INSTALL_PACKAGES`). That reverses part of 2026-09-11's *install through Android's
   installer*, so it gets its own entry first.
+
+## 2026-10-31 — a phone update opens in the browser; the app installs nothing itself `#track-m` `#toolchain`
+
+> Owner, 2026-10-31: *"the latest trials did not work. I update through fdroid and still got the
+> warning"* — 0.24.2, with the restart receiver off unless a reminder waits, still drew *"Harmful
+> app blocked"*. The previous entry named this as the next step.
+
+**Amends 2026-09-11** (*a phone installs an update through Android's installer*).
+
+- **What.** `REQUEST_INSTALL_PACKAGES` is no longer declared (`ci/android-inject-service.sh` also
+  removes it from a manifest an earlier run wrote). The `__fmUpdate` bridge keeps its name and its
+  shape — **no argument** — but its one method, `download()`, opens a fixed address in the browser:
+  `releases/latest/download/formicaria-android.apk`, the link `docs/src/user/android.md` gives for
+  the first install. The person taps **Open** and Android's installer takes it. The phone's
+  `update.rs` only looks: `update_start` and `update_apply` refuse with a sentence, the download,
+  progress and cancel machinery is gone, and at launch the old `cacheDir/update/` (up to ~48 MB) is
+  removed. The check, its switch, *Later* and the store-install default are unchanged.
+- **What it costs.** The in-app verification before install — Ed25519 manifest and SHA-256 — no
+  longer stands between the person and the file; the browser fetches it over HTTPS from the release,
+  and **Android's own same-signer rule still refuses an update signed by any other key**, which is
+  the guarantee that mattered for an update. Two taps more (Open, then Android's Update), and no
+  progress line in the app. F-Droid users lose nothing: their check is off by default.
+- **Why this second.** Verified on the released 0.24.2 APK (`aapt2 dump`): `BootReceiver` ships
+  `enabled=false`, so the first fix shipped as meant and did not clear the verdict. Of the profile
+  left — microphone, install other apps, foreground service, two bundled executables run from
+  `nativeLibraryDir` (`libllama-server.so`, `libwhisper-server.so`, since July) — installing other
+  apps is the one a scanner reads as a dropper's, and it costs the least to drop. The bundled
+  executables are the suspect after this one; taking them out costs the assistant and dictation on
+  the phone, so they wait for this result.
+- **Alongside: the Play Protect appeal.** Google takes appeals on a classification
+  (`support.google.com/googleplay/android-developer/contact/protectappeals`); it is the only route
+  that can name a reason, and it runs in parallel with these releases.
