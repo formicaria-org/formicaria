@@ -448,3 +448,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+      # **Asking is not publishing** (2026-10-31): v0.26.0's run was green while the Pages
+      # deployment it asked for failed, and F-Droid users saw no update. So this waits for the
+      # repository to list the release, and fails the run — where it is seen — if it does not.
+      # No repository at all (no repo key) is nothing to wait for.
+      - name: The F-Droid repository lists this release
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          url="https://formicaria-org.github.io/formicaria/fdroid/repo/index-v2.json"
+          if ! curl -fsS -o /dev/null "$url"; then echo "no F-Droid repository published"; exit 0; fi
+          for i in $(seq 1 30); do
+            sleep 60
+            if curl -fsS "$url?at=$(date +%s)" |
+              jq -e --arg v "$want" '[.packages[].versions[].manifest.versionName] | index($v)' >/dev/null; then
+              echo "the F-Droid repository lists $want"; exit 0
+            fi
+          done
+          echo "::error::the F-Droid repository does not list $want after 30 minutes: run pages.yml on main again"
+          exit 1

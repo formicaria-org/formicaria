@@ -121,7 +121,17 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.again.outputs.page_url }}
     steps:
+      # **One retry, after a minute** (2026-10-31): v0.26.0's republish failed here with "Ensure
+      # GITHUB_TOKEN has permission id-token: write" while the permission was set, and the same
+      # workflow had deployed 22 minutes before — a passing fault on GitHub's side, which left the
+      # F-Droid repository a release behind. A second failure fails the job.
       - id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - id: again
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
