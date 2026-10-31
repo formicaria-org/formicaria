@@ -43,7 +43,7 @@ straight away.
 Android installs it only if it is signed with the same key as the formicaria you have, so nobody can
 slip you a fake update this way.
 
-**Before 0.24.3** formicaria downloaded and installed updates itself, and the first time asked
+**Before 0.24.4** formicaria downloaded and installed updates itself, and the first time asked
 whether it may install apps. It no longer needs that permission. If you allowed it once, you can
 switch it off again in Android's **Install unknown apps** setting for formicaria.
 

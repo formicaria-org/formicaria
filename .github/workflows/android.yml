@@ -59,6 +59,17 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
+      # **Room on the runner first.** v0.24.3's build died with "No space left on device" (2026-10-31):
+      # the APK build (Rust for the phone, the NDK, Gradle, the bundled runtimes) outgrew a stock
+      # runner's free disk. This job brings its own SDK and NDK under `.android/` (`ci/android-init.sh`),
+      # so the runner's preinstalled Android SDK, .NET, GHC, Boost and CodeQL are never read here.
+      - name: room on the runner
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@v7
       - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
         with:

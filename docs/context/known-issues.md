@@ -1673,8 +1673,9 @@ so Google names no reason.
 - **Results:**
   - 0.24.2 (restart receiver off unless a reminder waits) — **still harmful** (2026-10-31, updated
     through F-Droid). The APK was checked: the receiver ships switched off, so the fix shipped as meant.
-  - 0.24.3 (no `REQUEST_INSTALL_PACKAGES`; Update opens the APK in the browser —
-    `decisions.md#track-m`, 2026-10-31) — *to be scanned*.
+  - 0.24.4 (no `REQUEST_INSTALL_PACKAGES`; Update opens the APK in the browser —
+    `decisions.md#track-m`, 2026-10-31) — *to be scanned*. 0.24.3 carried the change but has no
+    APK: its runner ran out of disk (`android.yml` now clears room first).
 - **Next suspect:** the two executables bundled as `lib*.so` and run from `nativeLibraryDir`
   (`libllama-server.so`, `libwhisper-server.so`). They predate the verdict (July), so they are
   tried only after the installer.
