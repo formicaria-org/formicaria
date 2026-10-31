@@ -44,6 +44,17 @@ describe('units', () => {
 
 // Vitamin B12 and D are kept in nanograms and read in micrograms, with the decimal whole micrograms
 // lost (2026-10-29: milk's B12, about 0.2 µg per 100 g, had been 0).
+describe('water', () => {
+  it('is read by volume, a gram of it a millilitre', () => {
+    expect(showWith('water_mg', 245_000)).toBe('245 ml');
+    // Against EFSA's 2.5 litres: litres both, never `1,500 g`.
+    expect(showWith('water_mg', 1_500_000, 2_500_000)).toBe('1.5 l');
+    expect(showWith('water_mg', 2_500_000)).toBe('2.5 l');
+    // Every other milligram key is still grams.
+    expect(showWith('alcohol_mg', 13_000)).toBe('13 g');
+  });
+});
+
 describe('nanograms', () => {
   it('are read in micrograms, to the tenth below ten', () => {
     expect(show('vitamin_b12_ng', 200)).toEqual({ text: '0.2', unit: 'µg' });

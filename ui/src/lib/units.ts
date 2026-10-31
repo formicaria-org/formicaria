@@ -42,6 +42,13 @@ const LADDERS: Record<string, Step[]> = {
   ],
 };
 
+/** **Water is read by volume** (2026-10-31): kept like every value in milligrams, read as a
+ *  person drinks it — a gram of water is a millilitre, so `1.5 l`, never `1,500 g`. */
+const WATER: Step[] = [
+  { unit: 'ml', per: 1000 },
+  { unit: 'l', per: 1_000_000 },
+];
+
 function suffix(key: string): string {
   if (key === 'kcal' || key.endsWith('_kcal')) return 'kcal';
   const at = key.lastIndexOf('_');
@@ -51,7 +58,7 @@ function suffix(key: string): string {
 /** The step a value is shown in. `ref` (a target, a day's total) picks it, so `82 / 140 g` never
  *  mixes units; without one the value picks for itself. */
 function stepFor(key: string, ref: number): Step | null {
-  const ladder = LADDERS[suffix(key)];
+  const ladder = key === 'water_mg' ? WATER : LADDERS[suffix(key)];
   if (!ladder) return null;
   let pick = ladder[0];
   for (const s of ladder) if (Math.abs(ref) >= s.per) pick = s;

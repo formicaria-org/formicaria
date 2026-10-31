@@ -1181,7 +1181,7 @@ what each left open is said under it. The rest is neither built nor ruled. In th
 2. **The diet on the Day screen** — built: checks met, the ones that are off, what made each
    up. Left: foods from the list that would close a gap (item 7 answers it with recipes).
 3. **Every nutrient against EFSA's values** — built, as a sheet from the Day screen. Left:
-   sodium's EFSA figure (unread); a nutrient cannot be picked on Trends unless the view names it.
+   sodium's EFSA figure (unread). A nutrient is picked on Trends by pinning it to Day (2026-10-31).
 4. **Feedback as counts** — built on Trends: times eaten a day, usual first and last. Left: days
    the diet was met, over more than the week the Diet tab shows.
 5. **Packaged food** — built both ways: a label typed in, and one look-up at Open Food Facts

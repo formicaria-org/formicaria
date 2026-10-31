@@ -1,8 +1,35 @@
 # Water, drinks and the values a person follows — the plan (2026-10-30)
 
-> **A proposal, not adopted.** Written after a user asked to track water, with the owner's
-> condition: *"definitely we should track it but it should not add more complexity"*. Nothing here
-> is built. Where it disagrees with the code, the code wins; a ruling goes in `decisions.md`.
+> **Adopted and built 2026-10-31** (owner: *"refine the plan and execute it"*; *"yes on water"*) —
+> `decisions.md#data`, 2026-10-31, *the plain food first, the drinks in Food's numbers, portions by
+> group, and the values a person follows on Day*. Steps 1, 2 and 4 are built; step 3 in part. What
+> changed in the building is in **As built** below; the plan as written stays for its reasons. Where
+> it disagrees with the code, the code wins.
+>
+> Written after a user asked to track water, with the owner's condition: *"definitely we should
+> track it but it should not add more complexity"*.
+
+## As built (2026-10-31)
+
+1. **Search finds the plain food first** — built, measured on 66 words (not 60) in four languages:
+   first for 47 (22 before), in the first five for 61 (48); three words one place down
+   (`food-search-ranks-2026-10-31.md`). The two candidate rules became four (`pack.rs` `fit`), and
+   two variants were dropped on the numbers. **The person's own foods first** — built, as rows
+   above the list marked *Logged before*, not mixed into the list's order; not while choosing a
+   recipe's ingredient.
+2. **Water, alcohol and caffeine** — built as planned, under *Drinks and water*. Water is shown in
+   litres everywhere (`units.ts`).
+3. **A drink by the glass** — **in part.** No new portion source was read: the list already carried
+   one, CREA's Italian standard portions (LARN), but only on CREA's own foods. A food with no
+   portion now offers its group's (CREA first, then USDA), named with its table — 488 foods, red
+   wine 125 g and beer 250 g among them. This supersedes in part *a USDA portion is never attached
+   to a European food* (2026-10-11). **Not built: millilitres** for a food from the list; the
+   honest bridge is the Swiss densities, not carried. Water has no glass: no table gives one.
+4. **Pin the values you follow** — built as planned: *Show on Day*, at most six, `day_values` in
+   the profile note; Trends offers what is pinned in place of the defaults (not "first" — the view
+   lists the pinned ones where its own were).
+
+What is left: `known-issues.md`, *Food search, drinks and the values on Day — limits*.
 
 ## What prompted it
 

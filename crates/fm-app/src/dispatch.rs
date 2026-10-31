@@ -2601,9 +2601,12 @@ fn dispatch_inner(
         // entries come to, how complete that is, its targets, and the entries when `rows`.
         "log_days" => {
             let mut g = lock()?;
-            let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
+            let mut def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
             let rows = args.get("rows").and_then(Value::as_bool).unwrap_or(false);
             let store = g.store(scope);
+            // What the person pinned to Day is totalled too (`nutrients::pin`, 2026-10-31): the
+            // view the screen was handed (`run_view`) and the days it asks for name the same values.
+            crate::nutrients::pin(&mut def, &crate::plan::plan_profile(&store).map_err(err)?);
             json(crate::log::log_days(&store, &def, &s("from"), &s("to"), rows).map_err(err)?)
         }
         "log_recent" => {

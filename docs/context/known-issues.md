@@ -1690,6 +1690,33 @@ so Google names no reason.
   `nativeLibraryDir` (`libllama-server.so`, `libwhisper-server.so`), then the microphone with the
   foreground service.
 
+## Food search, drinks and the values on Day — limits (2026-10-31)
+
+Built from `food-values-plan-2026-10-30.md`; `decisions.md#data`, 2026-10-31; the measurement is
+`food-search-ranks-2026-10-31.md`.
+
+- **The plain food first is measured on 66 words, not proven.** 47 come first (22 before), 61 in
+  the first five (48). *café*, *caffè* and *beurre* moved one place down, among kinds of coffee
+  and butter that tie on every rule. The rules know the four languages' words for raw, plain and
+  average (`AS_IT_COMES`); a table naming a plain food some other way gets no lift.
+- **A word inside a longer German word is not found** (*wasser* in *Trinkwasser*, *ei* in
+  *Hühnerei*): the index matches the start of a word. Not an ordering question.
+- **The person's own foods first are matched by the title**, each word typed beginning a word of
+  it. A food logged under a name the person typed (Quick add) is found by that name only. At most
+  three are shown; not while choosing a recipe's ingredient.
+- **No millilitres for a food from the list.** A drink is logged in grams. The honest bridge is
+  the Swiss table's density for 126 foods, not carried yet (*The food list with the Swiss table*
+  above). A packet's label in ml is unaffected.
+- **Water has no glass.** No table gives drinking water a portion, and formicaria makes none up.
+  Portions borrowed from the same food in another table reach 488 foods (CREA's Italian standard
+  portion first, then USDA's); a food in no group gets none.
+- **Caffeine and alcohol are only as complete as the list.** Many drinks carry them; a coffee typed
+  by hand without its caffeine counts as none, and the sheet says *from n of m entries*.
+- **Pinned values live in the profile note** (`day_values`). A vault's own copy of the Day view
+  still has its details replaced by the pins; the Trends view's body-log values (weight, steps)
+  stay. The pins are not checked on a phone.
+- **Nothing here has been seen on a phone.**
+
 ## Search — what it cannot find (2026-10-29)
 
 Measured with the app's own tokenizer on SQLite 3.46.1; the full survey and the plan are in Myrme's

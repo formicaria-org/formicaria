@@ -1,0 +1,70 @@
+# A typed word, a tab, and the foods it means, by code; any member of a food's group counts.
+# The meant food is the plain one: the drink or the unprepared food, raw where a table lists raw,
+# an "(average)" where a table gives one. Chosen 2026-10-31 by reading the list (foods 2026.10.6).
+# English, then French, German and Italian: a word in another language means what its English one does.
+water	ciqual:18066,bls:N110000,swiss:47,ciqual:18044
+beer	ciqual:5001,swiss:816,crea:404010
+wine	ciqual:5210,ciqual:5214,swiss:508,swiss:509,swiss:10477
+red wine	ciqual:5214,bls:P2A3000,bls:P253000,swiss:508,swiss:509,swiss:10477
+coffee	bls:N410100,swiss:994
+tea	ciqual:18154,bls:N630000,swiss:803,ciqual:18020
+milk	swiss:1194,ciqual:19016,ciqual:19033,ciqual:19023,ciqual:19024,ciqual:19041,ciqual:19042,crea:135010,crea:135020,bls:M111300,bls:M113300
+juice	ciqual:2004,ciqual:2072,bls:F603600,ciqual:2070
+orange juice	bls:F603600,ciqual:2070,ciqual:2013
+egg	ciqual:22000
+apple	bls:F110100,swiss:378,ciqual:13039,crea:007120
+bread	ciqual:7000,swiss:10446
+rice	ciqual:9100,swiss:427,crea:000100,ciqual:9104,bls:X820162
+banana	bls:F503100,crea:007510
+tomato	bls:G561100
+potato	ciqual:4008,crea:006500,ciqual:4003,bls:K110100,bls:X6A1010
+chicken	ciqual:36003,ciqual:36016,ciqual:36017,bls:V4A6100,bls:V416100
+cheese	ciqual:12999
+butter	crea:190010,ciqual:16400
+yogurt	swiss:52,crea:150010,ciqual:19600
+pasta	ciqual:9810,swiss:800,bls:E401000,ciqual:9811,bls:E401032
+oats	ciqual:32140,usda:2708489
+salmon	bls:T410100,crea:122400
+beef	ciqual:6250,ciqual:6252,ciqual:6254,ciqual:6201,bls:U284100,ciqual:6001,ciqual:6240,ciqual:6140,ciqual:6270,swiss:639,ciqual:6102,swiss:719,swiss:14237
+onion	bls:G480100
+carrot	bls:G620100,ciqual:20009
+sugar	ciqual:31016
+honey	ciqual:31008
+olive oil	bls:Q120000,ciqual:17270
+lemon	bls:F601100,swiss:398,crea:008030
+orange	bls:F603100,swiss:405
+cola	ciqual:18018,swiss:498,bls:N330000
+sparkling water	ciqual:18046
+almond	swiss:273,ciqual:15000,ciqual:15041,crea:008540
+eau	ciqual:18066,bls:N110000,swiss:47,ciqual:18044
+acqua	ciqual:18066,bls:N110000,swiss:47,ciqual:18044
+wasser	ciqual:18066,bls:N110000,swiss:47,ciqual:18044
+bière	ciqual:5001,swiss:816,crea:404010
+bier	ciqual:5001,swiss:816,crea:404010
+birra	ciqual:5001,swiss:816,crea:404010
+vin	ciqual:5210,ciqual:5214,swiss:508,swiss:509,swiss:10477
+wein	ciqual:5210,ciqual:5214,swiss:508,swiss:509,swiss:10477
+vino	ciqual:5210,ciqual:5214,swiss:508,swiss:509,swiss:10477
+café	bls:N410100,swiss:994
+kaffee	bls:N410100,swiss:994
+caffè	bls:N410100,swiss:994
+thé	ciqual:18154,bls:N630000,swiss:803,ciqual:18020
+lait	swiss:1194,ciqual:19016,ciqual:19033,ciqual:19023,ciqual:19024,ciqual:19041,ciqual:19042,crea:135010,crea:135020,bls:M111300,bls:M113300
+milch	swiss:1194,ciqual:19016,ciqual:19033,ciqual:19023,ciqual:19024,ciqual:19041,ciqual:19042,crea:135010,crea:135020,bls:M111300,bls:M113300
+latte	swiss:1194,ciqual:19016,ciqual:19033,ciqual:19023,ciqual:19024,ciqual:19041,ciqual:19042,crea:135010,crea:135020,bls:M111300,bls:M113300
+pomme	bls:F110100,swiss:378,ciqual:13039,crea:007120
+apfel	bls:F110100,swiss:378,ciqual:13039,crea:007120
+mela	bls:F110100,swiss:378,ciqual:13039,crea:007120
+pain	ciqual:7000,swiss:10446
+brot	ciqual:7000,swiss:10446
+pane	ciqual:7000,swiss:10446
+riz	ciqual:9100,swiss:427,crea:000100,ciqual:9104,bls:X820162
+oeuf	ciqual:22000
+ei	ciqual:22000
+uovo	ciqual:22000
+fromage	ciqual:12999
+käse	ciqual:12999
+formaggio	ciqual:12999
+beurre	crea:190010,ciqual:16400
+kartoffel	ciqual:4008,crea:006500,ciqual:4003,bls:K110100,bls:X6A1010
+pomodoro	bls:G561100

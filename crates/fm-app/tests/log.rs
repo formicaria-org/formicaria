@@ -686,6 +686,91 @@ fn a_days_nutrients_are_set_beside_the_reference_for_the_person() {
     assert_eq!(planned.of, 3);
 }
 
+/// Water, caffeine and alcohol are the day's drinks, apart from the vitamins: water beside EFSA's
+/// total water for the person's sex, caffeine beside its 400 mg, alcohol as an amount alone.
+#[test]
+fn the_days_drinks_are_counted_from_food_beside_healths_figures() {
+    use fm_app::nutrients::log_nutrients;
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Coffee",
+                "2026-10-11",
+                json!({ "log": "food", "kcal": 2, "water_mg": 245_000, "caffeine_ug": 95_000 }),
+            ),
+            draft(
+                "Beer",
+                "2026-10-11",
+                json!({ "log": "food", "kcal": 140, "water_mg": 310_000, "alcohol_mg": 13_000 }),
+            ),
+            draft("Soup", "2026-10-11", json!({ "log": "food", "kcal": 90, "water_mg": 260_000 })),
+        ],
+    )
+    .unwrap();
+    let drink = |n: &fm_app::nutrients::Nutrients, key: &str| {
+        let r = n.drinks.iter().find(|r| r.key == key).unwrap();
+        (r.sum, r.n, r.reference, r.upper)
+    };
+    let before = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
+    // The water in the soup counts, as it does in EFSA's figure; the sex is not known yet.
+    assert_eq!(drink(&before, "water_mg"), (815_000, 3, None, None));
+    assert_eq!(drink(&before, "caffeine_ug"), (95_000, 1, None, Some(400_000)));
+    assert_eq!(drink(&before, "alcohol_mg"), (13_000, 1, None, None), "no target");
+    assert!(before.rows.iter().all(|r| r.key != "water_mg"), "apart from the vitamins");
+
+    create_notes(&mut s, "", &[draft("About me", "", json!({ "profile": "me", "sex": "male" }))])
+        .unwrap();
+    let after = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
+    assert_eq!(drink(&after, "water_mg").2, Some(2_500_000));
+}
+
+/// The values pinned in the profile note are what Day shows and totals, on every device that has
+/// the note: the view the screen is handed and the days it asks for name the same values.
+#[test]
+fn the_values_pinned_in_the_profile_are_days_own() {
+    use fm_app::nutrients::{log_nutrients, pin};
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[draft("Coffee", "2026-10-11", json!({ "log": "food", "kcal": 2, "water_mg": 245_000 }))],
+    )
+    .unwrap();
+    let before = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
+    assert_eq!(before.on_day, ["fiber_mg", "calcium_ug", "iron_ug", "vitamin_c_ug"]);
+    assert_eq!(before.profile, None);
+
+    create_notes(
+        &mut s,
+        "",
+        &[draft("About me", "", json!({ "profile": "me", "day_values": "water_mg, iron_ug" }))],
+    )
+    .unwrap();
+    let shown = run_shipped(&s, "Day").unwrap().unwrap().totals.unwrap();
+    let details: Vec<_> = shown
+        .metrics
+        .iter()
+        .filter(|m| m.role == fm_app::views::Role::Detail)
+        .map(|m| m.key.as_str())
+        .collect();
+    assert_eq!(details, ["water_mg", "iron_ug"], "what the screen is handed");
+    let mut def = day_view();
+    pin(&mut def, &fm_app::plan::plan_profile(&s).unwrap());
+    let day = fm_app::log::log_days(&s, &def, "2026-10-11", "2026-10-11", false).unwrap();
+    assert_eq!(day.days[0].sums["water_mg"].sum, 245_000);
+    let after = log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap();
+    assert_eq!(after.on_day, ["water_mg", "iron_ug"]);
+    let me = after.profile.expect("the profile note");
+
+    // All taken off: written as "none", so it does not read as never chosen.
+    let none = BTreeMap::from([("day_values".to_string(), json!("none"))]);
+    set_properties(&mut s, &me, &none).unwrap();
+    assert!(log_nutrients(&s, &day_view(), "2026-10-11", false).unwrap().on_day.is_empty());
+}
+
 /// An amount known only roughly: the entry keeps its amount and a least and a most, and the day's
 /// total then says the least and the most it could be — every value scaled by the same two.
 #[test]

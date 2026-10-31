@@ -2713,7 +2713,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           group_by: null,
           filters: [],
           rows: [],
-          totals: def.totals,
+          totals: def.totals ? tracker.pinnedDef(notes, def.totals) : def.totals,
           group: def.group,
         };
         return result as T;

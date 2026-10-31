@@ -360,6 +360,12 @@ pub struct Profile {
     pub pal_x10: Option<i64>,
     /// Which of [`FLAGS`] the person has set.
     pub flags: Vec<String>,
+    /// **The values the person follows on Food's Day** (`day_values`, keys like `water_mg`), in
+    /// their order; `Some` of none when they took them all off, `None` when they never chose and
+    /// the view's own stand (`nutrients::pin`, 2026-10-31). Kept in the note, so every device of
+    /// theirs shows the same.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub day_values: Option<Vec<String>>,
 }
 
 impl Profile {
@@ -383,6 +389,16 @@ impl Profile {
                 .filter(|f| matches!(o.get(f), PropertyValue::Bool(true)))
                 .map(|f| f.to_string())
                 .collect(),
+            day_values: match o.get(DAY_VALUES) {
+                PropertyValue::Text(s) => Some(
+                    s.split([',', ' '])
+                        .map(str::trim)
+                        .filter(|k| !k.is_empty() && *k != NONE_ON_DAY)
+                        .map(str::to_string)
+                        .collect(),
+                ),
+                _ => None,
+            },
         }
     }
     fn flagged(&self, flag: &str) -> bool {
@@ -402,6 +418,11 @@ impl Profile {
         self.born.map(|b| i64::from(year) - b)
     }
 }
+
+/// The profile property listing the values pinned to Day, by key, with commas between.
+pub const DAY_VALUES: &str = "day_values";
+/// What `day_values` holds when every value was taken off: an empty text would read as unset.
+pub const NONE_ON_DAY: &str = "none";
 
 /// The person's measurements: the profile note changed most recently, or an empty profile.
 ///

@@ -166,19 +166,47 @@
   // ── search ─────────────────────────────────────────────────────────────────────────────────────
   let q = $state('');
   let hits = $state<FoodHit[]>([]);
+  /// **What the person has logged before, first** (`food-values-plan-2026-10-30.md`, step 1): a
+  /// food of their own that the words typed name leads the results, so the second time is never a
+  /// search through the whole list. Named as the list names it: each word typed begins a word of
+  /// the title (*tea* is not in *Steak*).
+  let logged = $state<RecentItem[]>([]);
+  const wordsOf = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean);
+  const names = (title: string, text: string) => {
+    const words = wordsOf(title);
+    return wordsOf(text).every((t) => words.some((w) => w.startsWith(t)));
+  };
   $effect(() => {
     const text = q.trim();
     if (!text) {
       hits = [];
+      logged = [];
       return;
     }
     const t = setTimeout(() => {
       foodSearch(text)
         .then((r) => (hits = r))
         .catch((e) => (failed = String(e)));
+      // Asked by the first word, which the title holds somewhere; then held to every word.
+      logRecent(view, { q: wordsOf(text)[0] ?? '', limit: 40 })
+        .then((r) => (logged = r.filter((i) => names(i.title, text))))
+        .catch(() => (logged = []));
     }, 120);
     return () => clearTimeout(t);
   });
+  /// At most three, the most used first — and only for a meal: an ingredient of a recipe is a food
+  /// from the list, in the amount its line names, not a meal's entry in the amount last eaten.
+  const loggedFirst = $derived.by(() => (picking ? [] : logged.slice(0, 3)));
+  /// A food from the list that one of them already is is not offered twice.
+  const fromList = (r: RecentItem) =>
+    typeof r.props.source === 'string' ? (r.props.source.split('/').pop() ?? '') : '';
+  const listHits = $derived(hits.filter((h) => !loggedFirst.some((r) => fromList(r) === h.id)));
 
   // ── packaged foods, from their labels ──────────────────────────────────────────────────────────
   // A packet is not in a table of generic foods. It is written down once from its label — per
@@ -2369,10 +2397,19 @@
           {@attach (el) => el.focus()}
           spellcheck="false"
         />
-        {#if q.trim() && hits.length === 0 && mine.length === 0}
+        {#if q.trim() && hits.length === 0 && mine.length === 0 && loggedFirst.length === 0}
           <p class="hint">No food by that name. Quick add takes any name.</p>
         {/if}
         <ul class="rows">
+          {#each loggedFirst as r (r.title + String(r.props.source ?? ''))}
+            <li>
+              <button type="button" class="row" onclick={() => openPortion(r.title, r.props)}>
+                <span class="t">{r.title}</span>
+                <span class="a">Logged before · {shownAmount(r.props)}</span>
+                <span class="v">{show(primary.key, whole(r.props[primary.key]) ?? 0).text}</span>
+              </button>
+            </li>
+          {/each}
           {#each mine as p (p.id)}
             <li>
               <button type="button" class="row" onclick={() => openProduct(p)}>
@@ -2386,7 +2423,7 @@
               </button>
             </li>
           {/each}
-          {#each hits as h (h.id)}
+          {#each listHits as h (h.id)}
             <li>
               <button type="button" class="row" onclick={() => openHit(h)}>
                 <span class="t">

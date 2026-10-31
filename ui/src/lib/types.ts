@@ -885,6 +885,14 @@ export interface Nutrients {
   day: string;
   of: number;
   rows: NutrientRow[];
+  /** Water, caffeine and alcohol, shown apart from the vitamins and minerals. */
+  drinks: NutrientRow[];
+  /** The values Day shows now, by key: the person's pins, or the view's own. */
+  on_day: string[];
+  /** How many Day shows at most. */
+  most_on_day: number;
+  /** The profile note that keeps the pins, once there is one. */
+  profile?: string;
   /** The person's sex is not known, so references that differ by it are left out. */
   needs_sex: boolean;
   entries: ObjectMeta[];
@@ -1371,6 +1379,8 @@ export interface PlanProfile {
   pal_x10?: number;
   /** The opt-in flags the person has set. */
   flags?: PlanFlag[];
+  /** The values pinned to Food's Day, by key; absent when never chosen (`nutrients::pin`). */
+  day_values?: string[];
 }
 export interface PlanBound {
   min?: number;

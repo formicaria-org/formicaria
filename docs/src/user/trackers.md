@@ -49,6 +49,18 @@ four do not have: foods they do not list, and household portions ("1 cup", "1 me
 neither European table gives. A search shows European foods first, and each result says which
 table it is from — two tables may both list a banana, and they are two measurements, not one.
 
+**The plain food comes first.** Type *water* and drinking water leads, not watermelon; *beer* gives
+beer before beer ham, *egg* a raw egg before egg nog, *lait* milk before coconut milk. The word you
+typed as a whole word comes before a word it only begins, the food before a dish named after it,
+and the food as it comes — raw, plain, or a table's average of its kinds — before what was done to
+it. A word typed without its accents (*biere*, *cafe*) finds the same foods. A word hidden inside a longer
+German or Italian one (*wasser* in *Trinkwasser*) is not found by itself.
+
+**What you have logged before comes first**, marked *Logged before* with the amount you had: the
+second time you log a food, it is the first thing the search offers, and the list does not show it
+a second time. Not while choosing an ingredient for a recipe: that is a food from the list, in the
+amount its line names.
+
 **A value a food's table did not measure is borrowed, and says so.** No European table measures
 choline, CREA measures few vitamins, and every table leaves some foods unanalysed. Where a food has
 no value for a nutrient, it is taken from the closest food of another table that has one — the
@@ -90,8 +102,11 @@ From the search or the bar's **＋** you say which meal it belongs to; the app d
 from the time of day.
 
 - **Search** — a food from the list. Choose one, then say how much: the **−** and **＋** change the
-  amount. Where the food's table gives household portions ("1 cup", "1 medium") they are offered
-  as chips; the European tables give none. Under the search are the buttons for a packet: scan
+  amount. Where a table gives portions for the food they are offered as chips: CREA's Italian
+  standard portions (a glass of wine, 125 g; a beer, 250 g; a glass of milk, 125 g) and USDA's
+  household ones ("1 cup", "1 can"). A food whose own table gives none offers the same food's from
+  the table that does, and the chip names it (*1 portion · CREA (Italy)*). formicaria makes up no
+  portion of its own, so a food no table gives one for — water among them — has none. Under the search are the buttons for a packet: scan
   its barcode, photograph its label, or type the label in.
 - **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
   logs it again with the amount it had. Tapping the row lets you change the amount first.
@@ -334,6 +349,24 @@ serving of your recipe and a food you typed in keep the numbers they were given.
 Where the reference differs for men and women and the app does not know which you are, it is
 left out until you say so in *About you*. The references describe what covers a population, not
 what you in particular need.
+
+**Drinks and water**, under the vitamins and minerals, are the day's water, caffeine and alcohol,
+counted from everything you logged — every food in the list says how much water it holds:
+
+- **Water**, in litres, beside the European Food Safety Authority's adequate intake of *total*
+  water: 2.0 litres a day for women, 2.5 for men. Total means what is in food as well as in
+  drinks — the soup and the fruit count — which is what the app adds up. EFSA's figure assumes a
+  moderate climate and moderate activity. Health's *Water* card counts the same.
+- **Caffeine**, beside EFSA's 400 mg a day, the intake that raises no safety concerns for healthy
+  adults (200 mg in pregnancy). It is not a target.
+- **Alcohol**, the amount alone. None of the app's sources gives an amount to aim for, and the app
+  gives no advice about drinking.
+
+**Show on Day.** Press a value in the sheet and then **Show on Day**, and it joins *Also today* on
+the day screen; Trends offers it too. **Shown on Day · take it off** takes it away again. Day shows
+six at most, so it stays one screen. Until you choose, Day shows fibre, calcium, iron and
+vitamin C. Your choice is kept in your *About you* note, so your phone and your computer show the
+same values.
 
 ## Planning a meal ahead
 

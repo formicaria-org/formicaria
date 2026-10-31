@@ -20,8 +20,9 @@
 use crate::dto::ObjectMeta;
 use crate::log::PLANNED;
 use crate::plan::plan_profile;
+use crate::plan::Profile;
 use crate::thread::log_base;
-use crate::views::TotalsDef;
+use crate::views::{Metric, Role, TotalsDef};
 use fm_core::{Store, StoreError};
 use fm_model::{Object, PropertyValue};
 use fm_query::{Query, SortKey};
@@ -119,6 +120,91 @@ const REFS: &[Ref] = &[
     fixed("iodine_ug", "Iodine", 150, 150, AI, Some(600)),
 ];
 
+/// **Water, caffeine and alcohol: the day's drinks, in Food's own numbers** (`food-values-plan-
+/// 2026-10-30.md`, step 2; `decisions.md#data`, 2026-10-31). Every food in the list carries its
+/// water, and many their caffeine and alcohol; Health already adds them up and compares the water
+/// (*Water*, *Caffeine* in `shipped/health-cards.json`). Here they are beside the same figures:
+///
+/// - **water**: EFSA's adequate intake of *total* water, 2.0 L a day for women and 2.5 L for men,
+///   from *"drinking water, beverages of all kind, and from food moisture"* — which is what the
+///   food list measures (EFSA, *Summary report*, 2017);
+/// - **caffeine**: EFSA's 400 mg a day, the intake that *"does not raise safety concerns for healthy
+///   adults"*, and 200 mg in pregnancy (EFSA, *Scientific Opinion on the safety of caffeine*, 2015);
+/// - **alcohol**: the amount alone. None of the app's sources gives an amount to aim for, and the
+///   app does not advise.
+const DRINKS: &[Ref] = &[
+    Ref {
+        key: "water_mg",
+        label: "Water",
+        adult: Some((2_500_000, 2_000_000)),
+        per_mj: None,
+        kind: AI,
+        upper: None,
+        note: "From food and drinks alike: EFSA's figure counts the water in food as well as in \
+               drinks, as this does, and assumes moderate temperatures and activity",
+    },
+    Ref {
+        key: "caffeine_ug",
+        label: "Caffeine",
+        adult: None,
+        per_mj: None,
+        kind: "",
+        upper: Some(400_000),
+        note: "EFSA: up to 400 mg a day raises no safety concerns for healthy adults, and up to \
+               200 mg in pregnancy. Not a target",
+    },
+    Ref {
+        key: "alcohol_mg",
+        label: "Alcohol",
+        adult: None,
+        per_mj: None,
+        kind: "",
+        upper: None,
+        note: "The amount alone: the app's sources give no amount to aim for",
+    },
+];
+
+/// **At most six values on Day**, so it stays one calm screen (`food-values-plan-2026-10-30.md`,
+/// step 4).
+pub const MOST_ON_DAY: usize = 6;
+
+/// **The values a person follows, on Food's own views** (`decisions.md#data`, 2026-10-31): the
+/// keys pinned in their profile (`Profile::day_values`) stand in for the view's own details of the
+/// food log — Day's *Also today*, and what Trends offers. A value from another log (a weight among
+/// the trends) stays. Only a value of the nutrients sheet can be pinned, at most six; nothing
+/// pinned, ever, leaves the view as it is. The same notes give the same view on every device.
+pub fn pin(def: &mut TotalsDef, profile: &Profile) {
+    let Some(keys) = &profile.day_values else { return };
+    if def.log != "food" {
+        return;
+    }
+    let ours = |m: &Metric| m.role == Role::Detail && m.log.is_none();
+    let label = |key: &str, r: &Ref| {
+        def.metrics.iter().find(|m| m.key == key).map_or(r.label.to_string(), |m| m.label.clone())
+    };
+    let mut seen = Vec::new();
+    let pinned: Vec<Metric> = keys
+        .iter()
+        .filter_map(|k| REFS.iter().chain(DRINKS).find(|r| r.key == k))
+        .filter(|r| {
+            let first = !seen.contains(&r.key);
+            seen.push(r.key);
+            first
+        })
+        .take(MOST_ON_DAY)
+        .map(|r| Metric {
+            key: r.key.to_string(),
+            label: label(r.key, r),
+            role: Role::Detail,
+            agg: Default::default(),
+            log: None,
+        })
+        .collect();
+    let at = def.metrics.iter().position(ours).unwrap_or(def.metrics.len());
+    def.metrics.retain(|m| !ours(m));
+    def.metrics.splice(at.min(def.metrics.len())..at.min(def.metrics.len()), pinned);
+}
+
 /// EFSA's calcium PRI is higher from 18 to 24.
 const CALCIUM_YOUNG_UG: i64 = 1_000_000;
 
@@ -147,8 +233,17 @@ pub struct Nutrients {
     /// How many entries the day has, planned ones left out.
     pub of: usize,
     pub rows: Vec<NutrientRow>,
+    /// Water, caffeine and alcohol (`DRINKS`), shown apart from the vitamins and minerals.
+    pub drinks: Vec<NutrientRow>,
     /// The person's sex is not known, so the references that differ by it are left out.
     pub needs_sex: bool,
+    /// The values shown on Day now, by key: the person's pins, or the view's own.
+    pub on_day: Vec<String>,
+    /// How many values Day shows at most (`MOST_ON_DAY`).
+    pub most_on_day: usize,
+    /// The person's profile note, which keeps the pins; `None` before they have one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     /// The entries, for a screen that wants to say which one a value came from.
     pub entries: Vec<ObjectMeta>,
 }
@@ -204,40 +299,50 @@ pub fn log_nutrients(
     let age = profile.born.map(|b| i64::from(date.year()) - b);
     let kcal: i64 = entries.iter().filter_map(|o| int_of(o, "kcal")).sum();
 
-    let rows = REFS
-        .iter()
-        .map(|r| {
-            let got: Vec<i64> = entries.iter().filter_map(|o| int_of(o, r.key)).collect();
-            let reference = match (r.adult, r.per_mj) {
-                // kcal × 4.184 kJ, ÷ 1000 to MJ, times the figure per MJ.
-                (_, Some(per)) => (kcal > 0).then(|| per * kcal * 4184 / 1_000_000),
-                (Some((men, women)), _) if men == women => {
-                    Some(if r.key == "calcium_ug" && age.is_some_and(|a| (18..25).contains(&a)) {
-                        CALCIUM_YOUNG_UG
-                    } else {
-                        men
-                    })
-                }
-                (Some((men, women)), _) => female.map(|f| if f { women } else { men }),
-                _ => None,
-            };
-            NutrientRow {
-                key: r.key.into(),
-                label: r.label.into(),
-                sum: got.iter().sum(),
-                n: got.len(),
-                reference,
-                kind: r.kind.into(),
-                upper: r.upper,
-                note: r.note.into(),
+    let row = |r: &Ref| {
+        let got: Vec<i64> = entries.iter().filter_map(|o| int_of(o, r.key)).collect();
+        let reference = match (r.adult, r.per_mj) {
+            // kcal × 4.184 kJ, ÷ 1000 to MJ, times the figure per MJ.
+            (_, Some(per)) => (kcal > 0).then(|| per * kcal * 4184 / 1_000_000),
+            (Some((men, women)), _) if men == women => {
+                Some(if r.key == "calcium_ug" && age.is_some_and(|a| (18..25).contains(&a)) {
+                    CALCIUM_YOUNG_UG
+                } else {
+                    men
+                })
             }
-        })
-        .collect();
+            (Some((men, women)), _) => female.map(|f| if f { women } else { men }),
+            _ => None,
+        };
+        NutrientRow {
+            key: r.key.into(),
+            label: r.label.into(),
+            sum: got.iter().sum(),
+            n: got.len(),
+            reference,
+            kind: r.kind.into(),
+            upper: r.upper,
+            note: r.note.into(),
+        }
+    };
     Ok(Nutrients {
         day: day.to_string(),
         of: entries.len(),
-        rows,
+        rows: REFS.iter().map(row).collect(),
+        drinks: DRINKS.iter().map(row).collect(),
         needs_sex: female.is_none(),
+        on_day: {
+            let mut shown = def.clone();
+            pin(&mut shown, &profile);
+            shown
+                .metrics
+                .iter()
+                .filter(|m| m.role == Role::Detail && m.log.is_none())
+                .map(|m| m.key.clone())
+                .collect()
+        },
+        most_on_day: MOST_ON_DAY,
+        profile: profile.id.clone(),
         entries: entries.iter().map(ObjectMeta::from).collect(),
     })
 }
@@ -279,5 +384,82 @@ mod tests {
         for r in REFS {
             assert!(["_ug", "_mg", "_ng"].iter().any(|u| r.key.ends_with(u)), "{}", r.key);
         }
+    }
+
+    /// **Pinned values stand in for Food's own details**, in the person's order, at most six, only
+    /// values the sheet has; another log's value (weight on Trends) stays; nothing pinned changes
+    /// nothing, and every value taken off shows none.
+    #[test]
+    fn the_values_a_person_pins_are_the_ones_day_and_trends_show() {
+        let day = crate::views::totals_named(&[], "Day").unwrap();
+        let trends = crate::views::totals_named(&[], "Trends").unwrap();
+        let details = |d: &TotalsDef| -> Vec<String> {
+            d.metrics.iter().filter(|m| m.role == Role::Detail).map(|m| m.key.clone()).collect()
+        };
+        let pinned = |keys: Option<&[&str]>, d: &TotalsDef| {
+            let mut d = d.clone();
+            let profile = Profile {
+                day_values: keys.map(|k| k.iter().map(|s| s.to_string()).collect()),
+                ..Default::default()
+            };
+            pin(&mut d, &profile);
+            d
+        };
+        assert_eq!(details(&pinned(None, &day)), details(&day), "never chosen: the view's own");
+        let mine = pinned(Some(&["water_mg", "iron_ug", "kcal", "nonsense_mg", "water_mg"]), &day);
+        assert_eq!(details(&mine), ["water_mg", "iron_ug"], "known values, once each, in order");
+        assert_eq!(mine.metrics[0].key, "kcal", "energy and the macros stay where they were");
+        let iron = mine.metrics.iter().find(|m| m.key == "iron_ug").unwrap();
+        assert_eq!(iron.label, "Iron", "the view's own name where it has one");
+        let water = mine.metrics.iter().find(|m| m.key == "water_mg").unwrap();
+        assert_eq!(water.label, "Water");
+        let many = [
+            "water_mg",
+            "iron_ug",
+            "zinc_ug",
+            "folate_dfe_ug",
+            "iodine_ug",
+            "caffeine_ug",
+            "alcohol_mg",
+        ];
+        assert_eq!(details(&pinned(Some(&many), &day)).len(), MOST_ON_DAY);
+        assert!(details(&pinned(Some(&[]), &day)).is_empty(), "all taken off: none");
+        // Trends offers the same values, and keeps the body log's.
+        assert_eq!(
+            details(&pinned(Some(&["water_mg"]), &trends)),
+            ["water_mg", "weight_g", "steps"]
+        );
+        // Another log's view is not Food's.
+        let mut body = day.clone();
+        body.log = "body".into();
+        assert_eq!(details(&pinned(Some(&["water_mg"]), &body)), details(&day));
+    }
+
+    /// Food and Health say the same figures for the day's drinks: the Water card's 2.0 and 2.5
+    /// litres (ml there, mg here: a millilitre of water is 1,000 mg), and the Caffeine card's
+    /// 400 mg (mg there, µg here). One source read, so one number.
+    #[test]
+    fn the_drinks_figures_are_healths_own() {
+        let cards: serde_json::Value =
+            serde_json::from_str(include_str!("shipped/health-cards.json")).unwrap();
+        let check = |card: &str| {
+            cards["cards"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"] == card)
+                .map(|c| c["checks"][0].clone())
+                .unwrap()
+        };
+        let of = |key: &str| DRINKS.iter().find(|r| r.key == key).unwrap();
+        let water = check("water");
+        let ml = |k: &str| water[k].as_i64().unwrap() * 1_000;
+        assert_eq!(of("water_mg").adult, Some((ml("min_male"), ml("min_female"))));
+        assert_eq!(
+            of("caffeine_ug").upper,
+            Some(check("caffeine")["value"].as_i64().unwrap() * 1_000)
+        );
+        assert!(of("alcohol_mg").adult.is_none() && of("alcohol_mg").upper.is_none(), "no target");
+        assert!(DRINKS.iter().all(|d| REFS.iter().all(|r| r.key != d.key)), "shown once");
     }
 }

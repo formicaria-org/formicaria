@@ -118,6 +118,31 @@ export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) =>
 
 export const trackerDef = (name: string) => DEFS[name] ?? null;
 
+/** A stand-in for `nutrients::pin`: the values pinned in the profile note stand in for Food's own
+ *  details. The names are the few this demo has. */
+const PIN_LABELS: Record<string, string> = {
+  water_mg: 'Water',
+  caffeine_ug: 'Caffeine',
+  alcohol_mg: 'Alcohol',
+  choline_ug: 'Choline',
+};
+export function pinnedDef(notes: ObjectMeta[], def: TotalsDef): TotalsDef {
+  const me = notes.find((x) => x.props.profile && !x.tags.includes('template'));
+  const pins = me?.props.day_values;
+  if (def.log !== 'food' || typeof pins !== 'string') return def;
+  const ours = (m: TotalsDef['metrics'][number]) => m.role === 'detail' && !m.log;
+  const keys = pins.split(/[,\s]+/).filter((k) => k && k !== 'none');
+  const at = def.metrics.findIndex(ours);
+  const kept = def.metrics.filter((m) => !ours(m));
+  const added = keys.slice(0, 6).map((key) => ({
+    key,
+    label: def.metrics.find((m) => m.key === key)?.label ?? PIN_LABELS[key] ?? key,
+    role: 'detail' as const,
+  }));
+  kept.splice(at === -1 ? kept.length : at, 0, ...added);
+  return { ...def, metrics: kept };
+}
+
 /** The demo's targets, kept the way real ones are: on a note carrying `program: <log>`. */
 const DEMO_TARGETS: Record<string, number> = {
   kcal: 2100,
@@ -452,8 +477,9 @@ export function logDays(
   notes: ObjectMeta[],
   args: { view: string; from: string; to: string; rows?: boolean },
 ): LogDays {
-  const def = trackerDef(args.view)?.totals;
-  if (!def) throw new Error(`no such view: ${args.view}`);
+  const shipped = trackerDef(args.view)?.totals;
+  if (!shipped) throw new Error(`no such view: ${args.view}`);
+  const def = pinnedDef(notes, shipped);
   const slotOrder = new Map(def.slots.map((s, i) => [s.value, i]));
   const days: DayTotals[] = [];
   for (let day = args.from; day <= args.to && days.length < 400; day = addDays(day, 1)) {
@@ -564,19 +590,39 @@ export function logNutrients(notes: ObjectMeta[], args: { view: string; day: str
   const entries = notes.filter(
     (x) => isLog(x, def.log) && (x.start ?? '').slice(0, 10) === args.day && !x.props.planned,
   );
-  const row = (key: string, label: string, reference: number | undefined, kind: string) => {
+  const row = (
+    key: string,
+    label: string,
+    reference: number | undefined,
+    kind: string,
+    upper?: number,
+  ) => {
     const got = entries.map((x) => whole(x.props[key])).filter((v): v is number => v !== null);
-    return { key, label, sum: got.reduce((t, v) => t + v, 0), n: got.length, reference, kind };
+    const sum = got.reduce((t, v) => t + v, 0);
+    return { key, label, sum, n: got.length, reference, kind, ...(upper ? { upper } : {}) };
   };
+  const me = notes.find((x) => x.props.profile && !x.tags.includes('template'));
+  const pins = typeof me?.props.day_values === 'string' ? me.props.day_values : null;
   return {
     day: args.day,
     of: entries.length,
     needs_sex: true,
     entries,
+    on_day:
+      pins === null
+        ? def.metrics.filter((m) => m.role === 'detail' && !m.log).map((m) => m.key)
+        : pins.split(/[,\s]+/).filter((k) => k && k !== 'none'),
+    most_on_day: 6,
+    ...(me ? { profile: me.id } : {}),
     rows: [
       row('fiber_mg', 'Fibre', 25_000, 'AI'),
       row('vitamin_c_ug', 'Vitamin C', undefined, 'PRI'),
       row('calcium_ug', 'Calcium', 950_000, 'PRI'),
+    ],
+    drinks: [
+      row('water_mg', 'Water, from food and drinks', undefined, 'AI'),
+      row('caffeine_ug', 'Caffeine', undefined, '', 400_000),
+      row('alcohol_mg', 'Alcohol', undefined, ''),
     ],
   };
 }

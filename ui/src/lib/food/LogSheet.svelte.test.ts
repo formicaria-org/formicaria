@@ -279,23 +279,38 @@ describe('the food sheet', () => {
     expect(await entriesToday('lunch')).toHaveLength(0);
   });
 
+  it('a food logged before leads the search, and the list does not offer it twice', async () => {
+    open();
+    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'appl' } });
+    const before = await screen.findByText(/^Logged before · /);
+    const row = before.closest('button')!;
+    expect(row.querySelector('.t')?.textContent).toBe('Apple');
+    // The first row of the results, and the list's own Apple is not shown again under it.
+    expect(document.querySelector('.rows button.row')).toBe(row);
+    expect(screen.getAllByText('Apple')).toHaveLength(1);
+    // Each word typed begins a word of the name: "ppl" is inside "Apple", and names nothing.
+    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'ppl' } });
+    await waitFor(() => expect(screen.queryByText(/^Logged before · /)).toBeNull());
+  });
+
   it('a food from the list gets a portion, and the entry records where it came from', async () => {
     const { onwrote } = open();
-    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'banana' } });
-    await fireEvent.click(await screen.findByText('Banana'));
+    // A food never logged here: one logged before leads the search, in the amount last eaten.
+    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'potato' } });
+    await fireEvent.click(await screen.findByText('Potato, boiled'));
 
-    // One medium banana, 118 g, at 89 kcal per 100 g.
-    expect(await screen.findByText('105 kcal')).toBeTruthy();
+    // One medium potato, 173 g, at 87 kcal per 100 g.
+    expect(await screen.findByText('151 kcal')).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: '100 g' }));
-    expect(await screen.findByText('89 kcal')).toBeTruthy();
+    expect(await screen.findByText('87 kcal')).toBeTruthy();
 
     await fireEvent.click(screen.getByRole('button', { name: 'Add to Lunch' }));
     await waitFor(() => expect(onwrote).toHaveBeenCalled());
     const [made] = await entriesToday('lunch');
-    expect(made.title).toBe('Banana');
+    expect(made.title).toBe('Potato, boiled');
     expect(made.props.amount_g).toBe(100);
-    expect(made.props.kcal).toBe(89);
-    expect(String(made.props.source)).toMatch(/f006$/);
+    expect(made.props.kcal).toBe(87);
+    expect(String(made.props.source)).toMatch(/f023$/);
   });
 
   it('a food typed in needs a name and its energy, and nothing else', async () => {

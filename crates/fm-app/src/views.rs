@@ -856,7 +856,9 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
     // A totals view answers what it *is*; its days are asked for by span (`log_days`). Running
     // its query here would hand back every entry ever logged to a screen that shows one day.
     if file.view == Renderer::Totals {
-        let def = totals_def(&file).map_err(StoreError::Io)?;
+        let mut def = totals_def(&file).map_err(StoreError::Io)?;
+        // The values the person pinned stand in for Food's own details (2026-10-31).
+        crate::nutrients::pin(&mut def, &crate::plan::plan_profile(store)?);
         return Ok(ViewResult {
             name: file.name,
             renderer: Renderer::Totals,
