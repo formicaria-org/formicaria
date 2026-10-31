@@ -94,141 +94,11 @@ class AgentService : Service() {
 }
 KT
 
-# 1b) Reminders (`decisions.md#ui`, 2026-10-13, *a reminder is the note's own date, said at its
-#     time*). The page hands over the moments; these set one alarm each, post the notification
-#     when it fires, and set them again after the phone restarts. Overwritten each run.
-cat > "$pkg_dir/Reminders.kt" <<'KT'
-package dev.formicaria.notes
-
-import android.app.AlarmManager
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import org.json.JSONArray
-
-/// The alarms behind formicaria's reminders. **The list is the page's**: every call replaces what
-/// was set before, so a note whose date changed or that was finished loses its alarm.
-object Reminders {
-  private const val PREFS = "fm-reminders"
-  private const val KEY = "list"
-  private const val CHANNEL = "reminders"
-  /// No more than this many alarms are held at once; the next open sets the rest.
-  private const val MOST = 50
-
-  private fun flags(): Int =
-    PendingIntent.FLAG_UPDATE_CURRENT or
-      (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
-
-  private fun intentFor(ctx: Context, slot: Int): PendingIntent =
-    PendingIntent.getBroadcast(ctx, slot, Intent(ctx, ReminderReceiver::class.java), flags())
-
-  /// Set the alarms in `json`: `[{"title": …, "text": …, "at": <ms since 1970>}]`. Returns how
-  /// many were set. Kept, so `again` can set them after a restart.
-  fun set(ctx: Context, json: String): Int {
-    val alarms = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    // Every slot that may hold an old alarm is cleared first: the list is replaced, not added to.
-    for (slot in 0 until MOST) alarms.cancel(intentFor(ctx, slot))
-    val list = try { JSONArray(json) } catch (e: Exception) { JSONArray() }
-    val now = System.currentTimeMillis()
-    var set = 0
-    for (i in 0 until list.length()) {
-      if (set >= MOST) break
-      val r = list.optJSONObject(i) ?: continue
-      val at = r.optLong("at", 0L)
-      if (at <= now) continue
-      val fire = Intent(ctx, ReminderReceiver::class.java)
-        .putExtra("title", r.optString("title", "formicaria"))
-        .putExtra("text", r.optString("text", ""))
-        .putExtra("slot", set)
-      val pending = PendingIntent.getBroadcast(ctx, set, fire, flags())
-      // Inexact on purpose: an exact alarm needs a permission people are right to be wary of, and
-      // a reminder a few minutes late is still a reminder.
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-      } else {
-        alarms.set(AlarmManager.RTC_WAKEUP, at, pending)
-      }
-      set += 1
-    }
-    prefs.edit().putString(KEY, json).apply()
-    listenForRestart(ctx, set > 0)
-    return set
-  }
-
-  /// **The restart is heard only while a reminder waits** (`decisions.md#track-m`, 2026-10-30).
-  /// `BootReceiver` ships switched off; it is switched on when an alarm is set and off when none is
-  /// left. A phone with no reminders never starts formicaria at boot — and a start-at-boot receiver
-  /// beside the microphone and the update installer was the profile Play Protect called harmful.
-  private fun listenForRestart(ctx: Context, on: Boolean) {
-    val state =
-      if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-      else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-    try {
-      ctx.packageManager.setComponentEnabledSetting(
-        ComponentName(ctx, BootReceiver::class.java), state, PackageManager.DONT_KILL_APP
-      )
-    } catch (e: Exception) { }
-  }
-
-  /// After the phone restarts, alarms are gone: set the kept list again.
-  fun again(ctx: Context) {
-    val json = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null) ?: return
-    set(ctx, json)
-  }
-
-  fun show(ctx: Context, slot: Int, title: String, text: String) {
-    val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      manager.createNotificationChannel(
-        NotificationChannel(CHANNEL, "Reminders", NotificationManager.IMPORTANCE_DEFAULT)
-      )
-    }
-    val open = PendingIntent.getActivity(
-      ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), flags()
-    )
-    val builder =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(ctx, CHANNEL)
-      else Notification.Builder(ctx)
-    val notification = builder
-      .setContentTitle(title)
-      .setContentText(text)
-      .setSmallIcon(ctx.applicationInfo.icon)
-      .setContentIntent(open)
-      .setAutoCancel(true)
-      .build()
-    // A notification Android will not show (the person said no) is not an error to raise.
-    try { manager.notify(1000 + slot, notification) } catch (e: Exception) { }
-  }
-}
-
-/// An alarm fired. Not exported: only this app's own pending intents reach it.
-class ReminderReceiver : BroadcastReceiver() {
-  override fun onReceive(context: Context, intent: Intent) {
-    Reminders.show(
-      context,
-      intent.getIntExtra("slot", 0),
-      intent.getStringExtra("title") ?: "formicaria",
-      intent.getStringExtra("text") ?: "",
-    )
-  }
-}
-
-/// The phone restarted. Exported, as a receiver of a system broadcast must be, and so it does
-/// one thing whatever it is sent: set the kept alarms again.
-class BootReceiver : BroadcastReceiver() {
-  override fun onReceive(context: Context, intent: Intent) {
-    if (intent.action == Intent.ACTION_BOOT_COMPLETED) Reminders.again(context)
-  }
-}
-KT
+# 1b) No reminders on Android (`decisions.md#track-m`, 2026-10-31, *the phone sets no alarms and
+#     starts at no boot*). `Reminders.kt` — wake-up alarms, a start-at-boot receiver, notifications
+#     the page wrote — came with 0.7.7, when Play Protect began to call the app harmful. A copy an
+#     earlier run left beside `MainActivity.kt` is removed, or Gradle would still compile it.
+rm -f "$pkg_dir/Reminders.kt"
 
 # 2) MainActivity starts the service on launch. Overwrite the whole file (small, stable, and tauri
 #    does not regenerate it — it is outside generated/).
@@ -480,27 +350,6 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /// **Reminders** (`decisions.md#ui`, 2026-10-13). The page knows the moments; this sets the
-  /// alarms and says whether Android will show a notification at all. `ask` opens Android's own
-  /// question, once; the page asks `allowed` again afterwards.
-  inner class Remind {
-    @JavascriptInterface
-    fun set(json: String): Int = Reminders.set(applicationContext, json)
-
-    @JavascriptInterface
-    fun allowed(): Boolean {
-      val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-      return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) manager.areNotificationsEnabled() else true
-    }
-
-    @JavascriptInterface
-    fun ask() {
-      if (Build.VERSION.SDK_INT >= 33) {
-        runOnUiThread { requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 7) }
-      }
-    }
-  }
-
   /// **Updating hands the newest APK to the browser, and Android's installer takes it from there**
   /// (`decisions.md#track-m`, 2026-10-31, *a phone update opens in the browser*).
   ///
@@ -528,8 +377,6 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(Insets(), "__fmInsets")
     // The update bridge, re-injected into every document like the insets one. See UpdateDownload.
     webView.addJavascriptInterface(UpdateDownload(), "__fmUpdate")
-    // Reminders: the page hands over the moments, Android sets the alarms. See Reminders.kt.
-    webView.addJavascriptInterface(Remind(), "__fmRemind")
     // What another app shared: the page asks for it. See `takeShared`.
     webView.addJavascriptInterface(Share(), "__fmShare")
 
@@ -695,37 +542,10 @@ if ! grep -q 'AgentService' "$manifest"; then
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
 
-# Reminders: the permission to hear that the phone restarted, and the two receivers. Idempotent.
-if ! grep -q 'RECEIVE_BOOT_COMPLETED' "$manifest"; then
-    tmpf=$(mktemp)
-    awk '
-        /android.permission.INTERNET/ && !b {
-            print
-            print "    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\" />"
-            b=1; next
-        }
-        { print }
-    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
-fi
-if ! grep -q 'ReminderReceiver' "$manifest"; then
-    tmpf=$(mktemp)
-    awk '
-        /<\/application>/ && !r {
-            print "        <receiver android:name=\".ReminderReceiver\" android:exported=\"false\" />"
-            print "        <receiver android:name=\".BootReceiver\" android:exported=\"true\" android:enabled=\"false\">"
-            print "            <intent-filter>"
-            print "                <action android:name=\"android.intent.action.BOOT_COMPLETED\" />"
-            print "            </intent-filter>"
-            print "        </receiver>"
-            r=1
-        }
-        { print }
-    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
-fi
-
-# The restart receiver ships **off** (2026-10-30, see `Reminders.listenForRestart`); a manifest written
-# by an earlier run of this script is brought up to date too.
-sed -i 's|<receiver android:name=".BootReceiver" android:exported="true">|<receiver android:name=".BootReceiver" android:exported="true" android:enabled="false">|' "$manifest"
+# No reminders on Android (2026-10-31, see 1b): no `RECEIVE_BOOT_COMPLETED` and no receivers. A
+# manifest written by an earlier run still carries them, so they are taken out here.
+sed -i '/android.permission.RECEIVE_BOOT_COMPLETED/d; /<receiver android:name=".ReminderReceiver"/d' "$manifest"
+sed -i '/<receiver android:name=".BootReceiver"/,/<\/receiver>/d' "$manifest"
 
 # Share: formicaria in Android's share menu for pictures (`decisions.md#ui`, 2026-10-20). One file
 # or several; the activity takes them (`takeShared`). Pictures only: what a screenshot is, and what
@@ -750,4 +570,4 @@ if ! grep -q 'android.intent.action.SEND"' "$manifest"; then
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
 
-echo "android-inject-service: foreground service, update download and reminders injected (AgentService + Reminders + MainActivity + manifest)."
+echo "android-inject-service: foreground service and update download injected (AgentService + MainActivity + manifest)."

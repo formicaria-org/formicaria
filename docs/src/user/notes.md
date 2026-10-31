@@ -154,8 +154,8 @@ From the first screen, Back closes the app, as usual on Android.
 ## Reminders
 
 A note with a date can remind you. Open **Settings** and turn on **Remind me of events and
-deadlines on this device**; the first time, your phone or browser asks whether formicaria may
-show notifications. It is off until you turn it on, and it is a choice for each device.
+deadlines on this device**; the first time, your browser asks whether formicaria may show
+notifications. It is off until you turn it on, and it is a choice for each device.
 
 - A note that has a **start** or a **due** date, and is not finished, is reminded of at its time.
   A date with no time is reminded of at nine in the morning of that day.
@@ -163,11 +163,11 @@ show notifications. It is off until you turn it on, and it is a choice for each 
   tells you half an hour before. `remind: off` leaves that note out.
 - Finishing a note, or changing its date, changes its reminder: nothing else has to be done.
 
-**On an Android phone** a reminder arrives with the app closed, and after the phone has been
-restarted. Android may hold it back a few minutes while the phone is asleep. Reminders are set for
-the next fourteen days, fifty at most, each time the app is opened or something changes — so open
-the app now and then. A date that changed on another device is right once this one has got the
-change.
+**On an Android phone** a reminder shows as a line at the top of the app while it is open. It does
+not arrive when the app is closed: from 0.24.5 the phone app sets no alarms and does not start when
+the phone does. Those came with a Play Protect warning against the app and did not work reliably,
+so they were taken out. Keep a computer's formicaria, or your phone's own calendar, for reminders
+that must reach you.
 
 **On a computer**, while formicaria is open in your browser, a reminder shows as a line at the
 top of the app, and as a notification from the browser if you allowed it. When you close

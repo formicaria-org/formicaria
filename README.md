@@ -70,7 +70,7 @@ The following require only a browser.
 | **Tasks and scheduling** | Any note accepts `start` and `due` properties, each with an optional time, so all-day deadlines and timed meetings use the same field. |
 | **Board** | Kanban grouped by any property, not only status. Dragging a card sets that property and its position in the column. |
 | **Agenda** | Month and week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
-| **Reminders** | A note with a start or a due date reminds you at its time, once you turn it on in Settings. On an Android phone it arrives with the app closed; on a computer formicaria stays running quietly for it after you close the page, with the assistant's model stopped. |
+| **Reminders** | A note with a start or a due date reminds you at its time, once you turn it on in Settings. On an Android phone it shows while the app is open; on a computer formicaria stays running quietly for it after you close the page, with the assistant's model stopped. |
 | **Food and fitness** | A food log and a training log kept as notes, with diets and regimes to follow: see [above](#food-and-fitness). |
 | **Timeline** | Notes ordered as a journal by day. |
 | **Import** | Point at a Logseq or Obsidian folder and it becomes notes, with links between them kept and tags lifted into properties. |

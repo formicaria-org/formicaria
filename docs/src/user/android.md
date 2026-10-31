@@ -99,7 +99,7 @@ behind it.
 
 ## What is on it
 
-Reminders for dated notes arrive on the phone with the app closed: see
+Reminders for dated notes show while the app is open; they do not arrive with it closed: see
 [Reminders](./notes.md#reminders).
 
 Everything the desktop has for writing: notes, search, dates and boards, attachments, whiteboards,

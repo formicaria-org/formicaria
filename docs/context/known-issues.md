@@ -1679,6 +1679,9 @@ so Google names no reason.
     change but has no APK: its runner ran out of disk (`android.yml` now clears room first).
   - So neither start-at-boot alone nor the installer is the trigger, or the verdict no longer
     depends on the APK at all (a reputation held against the package or the signing key).
+  - 0.24.5 (reminders gone from Android: no `RECEIVE_BOOT_COMPLETED`, no boot or alarm receivers,
+    no `AlarmManager`, no page-written notifications — `decisions.md#track-m`, 2026-10-31) —
+    *to be scanned*.
 - **Next suspect:** the two executables bundled as `lib*.so` and run from `nativeLibraryDir`
   (`libllama-server.so`, `libwhisper-server.so`). They predate the verdict (July), so they are
   tried only after the installer.

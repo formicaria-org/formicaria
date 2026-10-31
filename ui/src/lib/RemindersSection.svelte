@@ -33,17 +33,17 @@
   </p>
   <p class="muted">
     {#if isPhone()}
-      On this phone a reminder arrives even when the app is closed; it can be a few minutes late
-      while the phone is asleep.
+      On this phone a reminder shows as a line in the app while it is open; it does not arrive when
+      the app is closed.
     {:else}
       On a computer formicaria stays running quietly after you close it, for as long as a reminder
       is waiting, and tells you through the system’s own notifications. The assistant is stopped
       meanwhile and starts again when you open the app. After the computer restarts, open formicaria
       once to be reminded again.
     {/if}
-    {#if remindersOn() && !can}
+    {#if remindersOn() && !can && !isPhone()}
       The system is not allowing notifications for it yet, so it will show only as a line in the
-      app. Allow them in your {isPhone() ? 'phone’s' : 'browser’s'} settings to change that.
+      app. Allow them in your browser’s settings to change that.
     {/if}
   </p>
 </section>

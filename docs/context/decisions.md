@@ -14099,3 +14099,28 @@ already named the phone's silent start as *the failure being avoided* on the des
 - **Alongside: the Play Protect appeal.** Google takes appeals on a classification
   (`support.google.com/googleplay/android-developer/contact/protectappeals`); it is the only route
   that can name a reason, and it runs in parallel with these releases.
+
+## 2026-10-31 — the phone sets no alarms and starts at no boot: reminders on Android are a line in the open app `#track-m` `#ui`
+
+> Owner, 2026-10-31, after 0.24.4 (no installer permission) was still called *"Harmful app
+> blocked"*: *"I think the notification things we added can be removed anyways and it is not really
+> working, can you actually look at what we did when we added it, could be the trigger."*
+
+**Amends 2026-10-13** (*a reminder is the note's own date, said at its time*) for Android, and
+replaces 2026-10-30 (*the restart receiver is on only while a reminder waits*).
+
+- **What 0.7.7 added** (`8123d81`, 2026-10-13 — the verdict began "about mid-October"):
+  `RECEIVE_BOOT_COMPLETED`; an **exported** `BootReceiver` for `BOOT_COMPLETED`; `ReminderReceiver`;
+  up to 50 `RTC_WAKEUP` alarms through `AlarmManager.setAndAllowWhileIdle`; notifications posted
+  from those alarms with a title and text the **web page** supplied over a `__fmRemind` bridge.
+  0.24.2 only shipped the receiver `enabled="false"`; the permission, the exported boot receiver
+  and the alarm code stayed in the APK, which is all a static scan reads.
+- **What goes.** `Reminders.kt`, both receivers, the permission (removed from an older generated
+  manifest too) and the `__fmRemind` bridge. The page's reminder line still shows on a phone while
+  the app is open; nothing arrives with it closed. `POST_NOTIFICATIONS` stays: the assistant's
+  foreground service shows its notification with it (since July).
+- **Why the whole feature, not another switch.** The owner reports it did not work reliably, so
+  taking it out costs little; and a half-removal (0.24.2) was what failed to test the hypothesis.
+- **If the scan still says harmful:** the remaining profile is the microphone, the foreground
+  service and the two executables run from `nativeLibraryDir`; the next test is test APKs under a
+  separate package name, so each part can be scanned without touching the real app's notes.

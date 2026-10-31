@@ -1,9 +1,12 @@
 // Reminders: the moments the core works out, handed to whatever can show them
 // (`decisions.md#ui`, 2026-10-13, *a reminder is the note's own date, said at its time*).
 //
-// - On the phone, Android sets an alarm for each and shows it with the app closed (`__fmRemind`).
 // - Wherever the app is open, this page shows it: a line in the app, and the system's own
 //   notification where the person has allowed the browser to.
+// - On a computer the program itself says it when no page is open (`remindSet`).
+// - **On a phone, only the line in the open app** (`decisions.md#track-m`, 2026-10-31): the Android
+//   alarms, start-at-boot receiver and notifications came with the Play Protect verdict, did not
+//   work reliably, and were taken out.
 //
 // Nothing is kept here but whether this device wants them: the moments are asked for again
 // whenever the app starts or something changes, so a date changed elsewhere is right at the
@@ -12,9 +15,6 @@ import { remindSet, reminders as ask } from './ipc';
 import { isPhone } from './platform';
 import { today } from './units';
 import type { Reminder } from './types';
-
-type Bridge = { set(json: string): number; allowed(): boolean; ask(): void };
-const bridge = (): Bridge | null => (globalThis as { __fmRemind?: Bridge }).__fmRemind ?? null;
 
 const KEY = 'fm-reminders';
 function stored(): boolean {
@@ -52,16 +52,12 @@ export const msOf = (r: Pick<Reminder, 'at' | 'at_ms'>): number => {
 
 /** Can the system show a notification here at all, and has the person said yes? */
 export function allowed(): boolean {
-  const b = bridge();
-  if (b) return b.allowed();
   return typeof Notification !== 'undefined' && Notification.permission === 'granted';
 }
 
 /** Turn reminders on for this device, asking the system's own permission where there is one. */
 export async function allow(): Promise<void> {
-  const b = bridge();
-  if (b) b.ask();
-  else if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
     try {
       await Notification.requestPermission();
     } catch {
@@ -90,8 +86,7 @@ function fire(r: Reminder) {
   const text = textOf(r);
   if (!state.showing.some((x) => x.id === r.id + r.at))
     state.showing = [...state.showing, { id: r.id + r.at, title: r.title || 'A note', text }];
-  // On the phone Android has shown it already.
-  if (!bridge() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       new Notification(r.title || 'formicaria', { body: text, tag: r.id + r.at });
     } catch {
@@ -108,14 +103,12 @@ export function sync(): Promise<void> {
       asking = null;
       for (const t of timers) clearTimeout(t);
       timers = [];
-      const b = bridge();
       // On a computer the program itself says a reminder when no page is open, and stays
       // running for it; a browser reaching someone else's computer is refused, which is right.
       const program = (items: { title: string; text: string; at: number }[]) => {
-        if (!b && !isPhone()) void remindSet(items).catch(() => {});
+        if (!isPhone()) void remindSet(items).catch(() => {});
       };
       if (!state.on) {
-        b?.set('[]');
         program([]);
         return done();
       }
@@ -127,7 +120,6 @@ export function sync(): Promise<void> {
           text: textOf(r),
           at: msOf(r),
         }));
-        b?.set(JSON.stringify(items));
         program(items.filter((i) => i.at > now));
         for (const r of list) {
           const wait = msOf(r) - now;
