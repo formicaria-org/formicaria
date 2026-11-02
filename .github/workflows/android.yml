@@ -144,7 +144,7 @@ jobs:
           set -euo pipefail
           cp "mobile/formicaria-${VERSION}-android-arm64.apk" unsigned-android-arm64.apk
           ls -la unsigned-android-arm64.apk
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: android-unsigned
           if-no-files-found: error
@@ -239,7 +239,7 @@ jobs:
           shred -u "$d/android-release.keystore" "$d/android-release.properties" 2>/dev/null || \
             rm -f "$d/android-release.keystore" "$d/android-release.properties"
           ls -la "$d" 2>/dev/null || true
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: android-apk
           if-no-files-found: error

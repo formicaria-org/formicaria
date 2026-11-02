@@ -59,7 +59,7 @@ jobs:
         run: pixi run pnpm -C ui install --frozen-lockfile --ignore-scripts
       - name: regenerate the notice
         run: pixi run third-party
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: third-party-notice
           path: THIRD-PARTY.md
