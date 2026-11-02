@@ -104,7 +104,7 @@ jobs:
       # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
       # per iOS triple building exactly the C that rung 2 needs; without this they never see each
       # other's work.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: . -> target
           cache-on-failure: true
@@ -242,7 +242,7 @@ jobs:
       # hit was on the workspace target the iOS build scarcely touches while vendored OpenSSL,
       # libgit2 and SQLite were recompiled for the simulator triple from scratch. A cache can report
       # a perfect hit and save nothing; the thing to check is *which* directory it hit.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             . -> target
@@ -370,7 +370,7 @@ jobs:
             cross
           run-install: true
           cache: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: . -> target
           cache-on-failure: true
