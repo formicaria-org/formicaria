@@ -48,6 +48,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | cc | v1.2.67 | MIT OR Apache-2.0 |
 | cfb | v0.7.3 | MIT |
 | cfg-if | v1.0.4 | MIT OR Apache-2.0 |
+| cfg_aliases | v0.2.2 | MIT |
 | chacha20 | v0.10.2 | MIT OR Apache-2.0 |
 | clap | v4.6.1 | MIT OR Apache-2.0 |
 | clap_builder | v4.6.0 | MIT OR Apache-2.0 |
@@ -75,7 +76,6 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | darling_macro | v0.23.0 | MIT |
 | dary_heap | v0.3.9 | MIT OR Apache-2.0 |
 | deranged | v0.5.8 | MIT OR Apache-2.0 |
-| derive_arbitrary | v1.4.2 | MIT OR Apache-2.0 |
 | derive_builder | v0.20.2 | MIT OR Apache-2.0 |
 | derive_builder_core | v0.20.2 | MIT OR Apache-2.0 |
 | derive_builder_macro | v0.20.2 | MIT OR Apache-2.0 |
@@ -97,8 +97,8 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | filetime | v0.2.29 | MIT/Apache-2.0 |
 | find-msvc-tools | v0.1.9 | MIT OR Apache-2.0 |
 | flate2 | v1.1.9 | MIT OR Apache-2.0 |
-| fm-agent | v0.12.2 | MIT |
-| fm-agent-run | v0.12.2 | MIT |
+| fm-agent | v0.12.3 | MIT |
+| fm-agent-run | v0.12.3 | MIT |
 | fm-app | v0.0.0 | MIT |
 | fm-cli | v0.0.0 | MIT |
 | fm-core | v0.0.0 | MIT |
@@ -183,6 +183,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | nalgebra-macros | v0.3.0 | Apache-2.0 |
 | ndarray | v0.17.2 | MIT OR Apache-2.0 |
 | new_debug_unreachable | v1.0.6 | MIT |
+| nix | v0.31.3 | MIT |
 | no_std_io2 | v0.9.4 | Apache-2.0 OR MIT |
 | nom | v7.1.3 | MIT |
 | nom | v8.0.0 | MIT |
@@ -307,6 +308,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | tracing-subscriber | v0.3.23 | MIT |
 | transpose | v0.2.3 | MIT OR Apache-2.0 |
 | ttf-parser | v0.25.1 | MIT OR Apache-2.0 |
+| typed-path | v0.13.0 | MIT OR Apache-2.0 |
 | typenum | v1.20.1 | MIT OR Apache-2.0 |
 | ulid | v1.2.1 | MIT |
 | unicode-ident | v1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 |
@@ -363,7 +365,8 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | zerotrie | v0.2.4 | Unicode-3.0 |
 | zerovec | v0.11.6 | Unicode-3.0 |
 | zerovec-derive | v0.11.3 | Unicode-3.0 |
-| zip | v2.4.2 | MIT |
+| zip | v9.2.2 | MIT |
+| zlib-rs | v0.6.8 | Zlib |
 | zmij | v1.0.23 | MIT |
 | zopfli | v0.8.3 | Apache-2.0 |
 | zune-core | v0.5.3 | MIT OR Apache-2.0 OR Zlib |
