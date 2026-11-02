@@ -117,7 +117,7 @@ jobs:
           rm -f dist/unsigned-*
           sh ci/release-manifest.sh dist "${GITHUB_REF_NAME}"
           cat "dist/formicaria-${GITHUB_REF_NAME}.manifest.json"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: release-manifest
           path: dist/formicaria-${{ github.ref_name }}.manifest.json
@@ -191,7 +191,7 @@ jobs:
         run: |
           f="$HOME/.config/formicaria/release-signing.pem"
           shred -u "$f" 2>/dev/null || rm -f "$f"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: release-manifest-signature
           path: manifest/formicaria-${{ github.ref_name }}.manifest.json.sig

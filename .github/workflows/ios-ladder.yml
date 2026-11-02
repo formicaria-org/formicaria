@@ -169,7 +169,7 @@ jobs:
           xcodebuild -version 2>&1 || true
           xcrun --sdk iphonesimulator --show-sdk-version 2>&1 || true
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ios-rung1
@@ -325,7 +325,7 @@ jobs:
         env:
           FM_IOS_SEED: ${{ inputs.rung == '3' && '1' || '' }}
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ios-rung${{ inputs.rung }}
@@ -381,7 +381,7 @@ jobs:
       - name: probe an https remote from the simulator
         run: pixi run -e cross ios-https-probe
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ios-rung4

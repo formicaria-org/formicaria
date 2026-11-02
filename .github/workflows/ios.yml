@@ -137,7 +137,7 @@ jobs:
       # a single `arm64` slice, no `_CodeSignature`, no entitlement a free personal team cannot
       # hold, the four `NS*UsageDescription` keys, and a `Payload/` layout a sideloader accepts.
       # An `.ipa` that exists here is one that passed all of them.
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
           if-no-files-found: error
