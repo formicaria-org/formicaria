@@ -11,27 +11,16 @@ trap, add one. Newest concerns first within each section.
 - **The gap shows the next view's name, not the view** (`decisions.md#ui`, 2026-11-04).
 - **The wait for a view is still the whole notebook's refresh** (`changePane` fetches every view), so
   a slow phone may rest on the name for a while. It is honest, and it is the next thing to shorten.
-- **While a Library or Tasks view is held, its old content can still be pressed**: only a tracker's is
-  `inert`, since a pane's tabs live in the same element as its content.
+- **While a Library or Tasks view is held, the keyboard can still reach it**: a press cannot, but only
+  a tracker's is `inert`, since a pane's tabs live in the same element as its content.
 
-## References on screen — what is left (2026-11-03)
+## References on screen — what is left (2026-11-04)
 
-- **Ten links on the diet and health cards are not tested**: they refuse an honest robot, so a
-  person has to open them and run `python3 ci/check-references.py --by-hand URL`. Four DOIs
-  (10.1001/jamanetworkopen.2024.52185, 10.1093/ageing/afac205, 10.1136/bmj-2024-082007,
-  10.6027/nord2023-003), four PubMed pages (17414804, 17605959, 19127177, 33028588), EUR-Lex's
-  Regulation 1169/2011 and mindline.sg. No figure in the nutrients table rests on them.
-- **The sheet does not follow the person's flags**: a woman after the menopause still sees 16 mg of
-  iron (EFSA: 11), and pregnancy and breastfeeding do not change folate, iodine or caffeine. The
-  rows and the manual say so; the plan library already applies them (`FLAGS`).
 - **Vitamin A stays a mismatch, stated in a note**: the list keeps one figure per food, which cannot
   be turned into EFSA's measure.
-- **Vitamin E's upper level is not shown**: EFSA's overview prints 300 mg with *"a review … is
-  on-going"*; it was left out before and was not added here.
-- **A bar still stops at full** when past a reference. **Energy, protein, carbs and fat** have only
-  targets, and a target taken from a diet does not link from the bar on Day; its card has the sources.
-- **The links were seen in a headless browser at 390 px**, on real rows from `fm-serve`. Not on a
-  phone, so a PDF opening at its page on Android is not verified.
+- **A bar stops at full** when past a reference; the figure beside it still says how far past.
+- **A target taken from a diet does not link from the bar on Day**; its card has the sources.
+- **PDF links were not opened on a phone**, so landing on the page is not verified on Android.
 
 ## Shelves, tutorials and the assistant's app — limits (2026-10-18)
 

@@ -398,6 +398,8 @@
   <div
     class="pane-body"
     class:note-body={pane.kind === 'note'}
+    class:leaving={drawn.pane !== pane}
+    aria-busy={drawn.pane !== pane ? 'true' : undefined}
     use:swipe={{
       enabled: spaceTabs.length > 1 && pane.kind !== 'note',
       onnext: () => stepTab(1),
@@ -780,6 +782,10 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+  /* The view being left is only something to look at until the next has come; its tabs are live. */
+  .pane-body.leaving > :global(:not([data-swipe-still])) {
+    pointer-events: none;
   }
   /* A note pane hands its whole body to NotePanel, which scrolls itself (height:100%,
      width:100%). No pane-level scroll, no padding — the note owns the space. */

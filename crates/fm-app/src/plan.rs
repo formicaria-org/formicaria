@@ -401,7 +401,7 @@ impl Profile {
             },
         }
     }
-    fn flagged(&self, flag: &str) -> bool {
+    pub(crate) fn flagged(&self, flag: &str) -> bool {
         self.flags.iter().any(|f| f == flag)
     }
     fn has(&self, field: &str) -> bool {

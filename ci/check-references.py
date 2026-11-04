@@ -26,7 +26,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 FILE = "crates/fm-app/src/shipped/reference-sources.json"
@@ -34,10 +36,28 @@ CARRIERS = ["crates/fm-app/src/shipped/plans.json", "crates/fm-app/src/shipped/h
 AGENT = "formicaria-check-references/1 (+https://github.com/formicaria-org/formicaria)"
 GONE = {404, 410}
 NOT_FOUND_PAGE = re.compile(r"<title[^>]*>[^<]*(page not found|not found|404)[^<]*</title>", re.I)
+# A bot check that answers 200 is the worst case: it looks exactly like a page that opened. PMC does
+# this after a few requests from one client (found 2026-11-04, when it had been counted as opened).
+CHALLENGE = re.compile(
+    r"<title[^>]*>[^<]*(checking your browser|recaptcha|captcha|just a moment|attention required"
+    r"|access denied|are you a robot|verify you are|security check|bot verification)[^<]*</title>",
+    re.I,
+)
+# Between two requests to one site, and before asking again after a bot check.
+PACE_S = 3
+CHALLENGE_WAIT_S = 30
+
+
+LAST_ASKED = {}
 
 
 def fetch(url):
-    """(HTTP status, bytes), or (None, the error) when no answer came."""
+    """(HTTP status, bytes), or (None, the error) when no answer came. Unhurried on any one site."""
+    host = urllib.parse.urlsplit(url).netloc
+    wait = LAST_ASKED.get(host, 0) + PACE_S - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    LAST_ASKED[host] = time.monotonic()
     request = urllib.request.Request(url, headers={"User-Agent": AGENT})
     for attempt in range(2):
         try:
@@ -57,9 +77,12 @@ def verdict(status, body):
         return "gone"
     if status != 200:
         return "refused"
-    if not body.startswith(b"%PDF") and NOT_FOUND_PAGE.search(body.decode("utf-8", "ignore")):
-        return "gone"
-    return "opened"
+    if body.startswith(b"%PDF"):
+        return "opened"
+    text = body.decode("utf-8", "ignore")
+    if CHALLENGE.search(text):
+        return "refused"
+    return "gone" if NOT_FOUND_PAGE.search(text) else "opened"
 
 
 def pages_of(body):
@@ -78,14 +101,20 @@ def pages_of(body):
 
 
 def cell(pages, figure):
-    """What the document prints in the figure's row and column, without a footnote's mark."""
+    """What the document prints in the figure's row and column, without a footnote's mark. `after`
+    is the heading the row is under (*Pregnancy*); `part` a value in a cell the columns ran into."""
+    under = "after" not in figure
     for line in pages[figure["page"] - 1].splitlines():
         line = line.strip()
+        if not under:
+            under = line.startswith(figure["after"])
+            continue
         if line.startswith(figure["row"]):
             cells = re.split(r"\s{2,}", line)
-            if figure["col"] < len(cells):
-                return re.sub(r"\([a-z]\)$", "", cells[figure["col"]])
-            return None
+            if figure["col"] >= len(cells):
+                return None
+            got = re.sub(r"\([a-z]\)$", "", cells[figure["col"]])
+            return got.split()[figure["part"]] if "part" in figure else got
     return None
 
 
@@ -148,6 +177,10 @@ def main():
     for url in sorted(carried_links()):
         status, body = fetch(url)
         result = verdict(status, body)
+        if result == "refused" and status == 200:
+            time.sleep(CHALLENGE_WAIT_S)
+            status, body = fetch(url)
+            result = verdict(status, body)
         print(f"{result:8} {status} {url}")
         if result == "gone":
             failures.append(f"{url}: gone ({status})")

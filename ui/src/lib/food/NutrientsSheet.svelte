@@ -61,6 +61,11 @@
   const refOf = (r: NutrientRow) => (r.reference && r.source ? r.reference : 0);
   const upperOf = (r: NutrientRow) => (r.upper && r.upper_source ? r.upper : 0);
   const share = (r: NutrientRow) => (refOf(r) ? Math.round((r.sum / refOf(r)) * 100) : null);
+  const STAGE: Record<string, string> = {
+    pregnant: 'for pregnancy',
+    breastfeeding: 'for breastfeeding',
+    postmenopausal: 'for after the menopause',
+  };
   const KIND_SHORT: Record<string, string> = {
     PRI: 'Population reference intake',
     AI: 'Adequate intake',
@@ -253,6 +258,12 @@
             Diet, in About you.
           </p>
         {/if}
+        {#if got.stage}
+          <p class="says">
+            References {STAGE[got.stage]}, as you said in About you, wherever EFSA gives a different
+            figure.
+          </p>
+        {/if}
         <ul>
           {#each got.rows as r (r.key)}{@render row(r, got.of)}{/each}
         </ul>
@@ -268,7 +279,8 @@
           levels (2025), for adults; caffeine, its opinion on the safety of caffeine (2015). Sodium:
           World Health Organization. They are published for adults in general, not worked out for
           you, and are not goals: they describe what covers a population, not what you in particular
-          need, and they are not for pregnancy or breastfeeding. Each row links to its source.
+          need. Pregnancy, breastfeeding and the menopause count once you tick them in About you.
+          Each row links to its source.
         </p>
       {/if}
     {:else if !failed}

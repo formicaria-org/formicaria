@@ -288,6 +288,17 @@ test('a limit links to its source too, and the link sits outside the row button'
   expect(screen.getByText(/^limit 2/)).toBeTruthy();
 });
 
+test('says whose figures they are when the person has said so', async () => {
+  logNutrients.mockResolvedValueOnce({
+    ...day([entry('T1', 'Toast', { kcal: 120 })]),
+    stage: 'pregnant',
+  });
+  render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
+  expect(
+    await screen.findByText(/References for pregnancy, as you said in About you/),
+  ).toBeTruthy();
+});
+
 test('a figure that names no source is not shown: no number, no bar, no limit', async () => {
   logNutrients.mockResolvedValueOnce({
     ...day([entry('T1', 'Toast', { kcal: 120 })]),

@@ -100,14 +100,17 @@ pub struct Cited {
 
 /// The source of a figure for this person: the table for their sex where the document has one
 /// each, the first otherwise.
-fn cited(key: &str, what: &str, female: Option<bool>) -> Option<Cited> {
+fn cited(key: &str, what: &str, who: Who) -> Option<Cited> {
     let of_key = || CITED.figures.iter().filter(|f| f.key == key && f.what == what);
-    let wanted = match female {
+    let sex = match who.female {
         Some(true) => "women",
         Some(false) => "men",
         None => "adults",
     };
-    let f = of_key().find(|f| f.who == wanted).or_else(|| of_key().next())?;
+    let f = of_key()
+        .find(|f| f.who == who.stage.word())
+        .or_else(|| of_key().find(|f| f.who == sex))
+        .or_else(|| of_key().next())?;
     let d = CITED.documents.get(&f.doc)?;
     let url = match f.page {
         Some(page) if d.url.ends_with(".pdf") => format!("{}#page={page}", d.url),
@@ -123,8 +126,89 @@ fn cited(key: &str, what: &str, female: Option<bool>) -> Option<Cited> {
 }
 
 /// The source of the reference a row shows: thiamin's and niacin's is per megajoule.
-fn cited_reference(r: &Ref, female: Option<bool>) -> Option<Cited> {
-    cited(r.key, if r.per_mj.is_some() { "per_mj" } else { "reference" }, female)
+fn cited_reference(r: &Ref, who: Who) -> Option<Cited> {
+    cited(r.key, if r.per_mj.is_some() { "per_mj" } else { "reference" }, who)
+}
+
+/// **Where a person's figures differ from an adult's**, if they have said so in *About you*
+/// (`decisions.md#data`, 2026-11-04). Their word for it is the profile's flag, `plan::FLAGS`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Stage {
+    Usual,
+    Pregnant,
+    Breastfeeding,
+    AfterMenopause,
+}
+
+impl Stage {
+    /// As the sources file calls it.
+    fn word(self) -> &'static str {
+        match self {
+            Stage::Usual => "",
+            Stage::Pregnant => "pregnant",
+            Stage::Breastfeeding => "breastfeeding",
+            Stage::AfterMenopause => "postmenopausal",
+        }
+    }
+}
+
+/// Whose figures to read.
+#[derive(Clone, Copy)]
+struct Who {
+    female: Option<bool>,
+    stage: Stage,
+}
+
+impl Who {
+    /// **Pregnancy before breastfeeding**, as the plans have it (`plan.rs`). A person who has ticked
+    /// either has said which figures are theirs, so their sex need not be set as well. The menopause
+    /// counts only for a woman: EFSA gives it in its table for women.
+    fn of(profile: &Profile) -> Who {
+        let female = profile.sex.as_deref().map(|s| s == "female");
+        let stage = if profile.flagged("pregnant") {
+            Stage::Pregnant
+        } else if profile.flagged("breastfeeding") {
+            Stage::Breastfeeding
+        } else if female == Some(true) && profile.flagged("postmenopausal") {
+            Stage::AfterMenopause
+        } else {
+            Stage::Usual
+        };
+        let carrying = matches!(stage, Stage::Pregnant | Stage::Breastfeeding);
+        Who { female: if carrying { Some(true) } else { female }, stage }
+    }
+}
+
+/// EFSA's figures in pregnancy and while breastfeeding, where they differ from a woman's, in the
+/// key's own unit: (pregnant, breastfeeding). Fibre, vitamins D, E and K, calcium, phosphorus,
+/// magnesium, iron before the menopause, manganese, and the two per megajoule are the same.
+const CARRYING: &[(&str, i64, i64)] = &[
+    ("water_mg", 2_300_000, 2_700_000),
+    ("potassium_ug", 3_500_000, 4_000_000),
+    ("vitamin_a_rae_ug", 700, 1_300),
+    ("vitamin_c_ug", 105_000, 155_000),
+    ("riboflavin_ug", 1_900, 2_000),
+    ("pantothenic_acid_ug", 5_000, 7_000),
+    ("vitamin_b6_ug", 1_800, 1_700),
+    ("folate_dfe_ug", 600, 500),
+    ("vitamin_b12_ng", 4_500, 5_000),
+    ("choline_ug", 480_000, 520_000),
+    ("copper_ug", 1_500, 1_500),
+    ("selenium_ug", 70, 85),
+    ("iodine_ug", 200, 200),
+];
+/// EFSA's iron for a woman after the menopause.
+const IRON_AFTER_MENOPAUSE_UG: i64 = 11_000;
+/// EFSA's safe intake of caffeine in pregnancy and while breastfeeding.
+const CAFFEINE_CARRYING_UG: i64 = 200_000;
+
+/// A row's upper level or limit for this person.
+fn upper_of(r: &Ref, stage: Stage) -> Option<i64> {
+    let carrying = matches!(stage, Stage::Pregnant | Stage::Breastfeeding);
+    if carrying && r.key == "caffeine_ug" {
+        return Some(CAFFEINE_CARRYING_UG);
+    }
+    r.upper
 }
 
 /// What kind of figure a reference is, in EFSA's terms.
@@ -180,7 +264,15 @@ const REFS: &[Ref] = &[
                at one twelfth, so vitamin A from plants reads up to half of what EFSA would count",
     },
     fixed("vitamin_d_ng", "Vitamin D", 15_000, 15_000, AI, Some(100_000)),
-    fixed("vitamin_e_ug", "Vitamin E", 13_000, 11_000, AI, None),
+    Ref {
+        key: "vitamin_e_ug",
+        label: "Vitamin E",
+        adult: Some((13_000, 11_000)),
+        per_mj: None,
+        kind: AI,
+        upper: Some(300_000),
+        note: "EFSA says a review of its upper level of 300 mg is under way",
+    },
     fixed("vitamin_k1_ug", "Vitamin K", 70, 70, AI, None),
     fixed("vitamin_c_ug", "Vitamin C", 110_000, 95_000, PRI, None),
     Ref {
@@ -218,7 +310,9 @@ const REFS: &[Ref] = &[
         per_mj: None,
         kind: PRI,
         upper: None,
-        note: "The figure for women is EFSA's before the menopause; after it, EFSA gives 11 mg",
+        note:
+            "For women, 16 mg is EFSA's figure before the menopause and 11 mg after it, which is \
+               used once you say so in About you",
     },
     Ref {
         key: "zinc_ug",
@@ -228,7 +322,8 @@ const REFS: &[Ref] = &[
         kind: PRI,
         upper: Some(25_000),
         note: "EFSA gives 9.4 to 16.3 mg for men and 7.5 to 12.7 mg for women, by how much \
-               phytate is eaten; no single figure",
+               phytate is eaten; no single figure. In pregnancy it adds 1.6 mg, and 2.9 mg while \
+               breastfeeding",
     },
     fixed("copper_ug", "Copper", 1_600, 1_300, AI, Some(5_000)),
     fixed("manganese_ug", "Manganese", 3_000, 3_000, AI, None),
@@ -359,6 +454,9 @@ pub struct Nutrients {
     pub drinks: Vec<NutrientRow>,
     /// The person's sex is not known, so the references that differ by it are left out.
     pub needs_sex: bool,
+    /// Whose figures these are, if not a usual adult's: `pregnant`, `breastfeeding`, `postmenopausal`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub stage: String,
     /// The values shown on Day now, by key: the person's pins, or the view's own.
     pub on_day: Vec<String>,
     /// How many values Day shows at most (`MOST_ON_DAY`).
@@ -393,8 +491,20 @@ pub(crate) fn int_of(o: &Object, key: &str) -> Option<i64> {
 
 /// The reference for one person, in the key's own unit, when there is one figure: by sex where it
 /// differs (none while the sex is unknown), by age for calcium, by the day's energy where the
-/// source gives it per megajoule.
-fn reference_of(r: &Ref, female: Option<bool>, age: Option<i64>, kcal: i64) -> Option<i64> {
+/// source gives it per megajoule, and by pregnancy, breastfeeding or the menopause where the person
+/// has said so.
+fn reference_of(r: &Ref, who: Who, age: Option<i64>, kcal: i64) -> Option<i64> {
+    let female = who.female;
+    if let Some(&(_, pregnant, breastfeeding)) = CARRYING.iter().find(|c| c.0 == r.key) {
+        match who.stage {
+            Stage::Pregnant => return Some(pregnant),
+            Stage::Breastfeeding => return Some(breastfeeding),
+            _ => {}
+        }
+    }
+    if who.stage == Stage::AfterMenopause && r.key == "iron_ug" {
+        return Some(IRON_AFTER_MENOPAUSE_UG);
+    }
     match (r.adult, r.per_mj) {
         // kcal × 4.184 kJ, ÷ 1000 to MJ, times the figure per MJ.
         (_, Some(per)) => (kcal > 0).then(|| per * kcal * 4184 / 1_000_000),
@@ -434,7 +544,7 @@ pub fn day_references(
     profile: &Profile,
     year: i32,
 ) -> std::collections::BTreeMap<String, DayReference> {
-    let female = profile.sex.as_deref().map(|s| s == "female");
+    let who = Who::of(profile);
     let age = profile.born.map(|b| i64::from(year) - b);
     def.metrics
         .iter()
@@ -442,12 +552,13 @@ pub fn day_references(
         .filter_map(|m| REFS.iter().chain(DRINKS).find(|r| r.key == m.key))
         .filter(|r| r.per_mj.is_none())
         .map(|r| {
-            let reference = reference_of(r, female, age, 0);
+            let reference = reference_of(r, who, age, 0);
+            let upper = upper_of(r, who.stage);
             let got = DayReference {
                 reference,
-                upper: r.upper,
-                source: reference.and_then(|_| cited_reference(r, female)),
-                upper_source: r.upper.and_then(|_| cited(r.key, "upper", female)),
+                upper,
+                source: reference.and_then(|_| cited_reference(r, who)),
+                upper_source: upper.and_then(|_| cited(r.key, "upper", who)),
             };
             (r.key.to_string(), got)
         })
@@ -481,13 +592,14 @@ pub fn log_nutrients(
         .collect();
 
     let profile = plan_profile(store)?;
-    let female = profile.sex.as_deref().map(|s| s == "female");
+    let who = Who::of(&profile);
     let age = profile.born.map(|b| i64::from(date.year()) - b);
     let kcal: i64 = entries.iter().filter_map(|o| int_of(o, "kcal")).sum();
 
     let row = |r: &Ref| {
         let got: Vec<i64> = entries.iter().filter_map(|o| int_of(o, r.key)).collect();
-        let reference = reference_of(r, female, age, kcal);
+        let reference = reference_of(r, who, age, kcal);
+        let upper = upper_of(r, who.stage);
         NutrientRow {
             key: r.key.into(),
             label: r.label.into(),
@@ -495,10 +607,10 @@ pub fn log_nutrients(
             n: got.len(),
             reference,
             kind: r.kind.into(),
-            upper: r.upper,
+            upper,
             note: r.note.into(),
-            source: reference.and_then(|_| cited_reference(r, female)),
-            upper_source: r.upper.and_then(|_| cited(r.key, "upper", female)),
+            source: reference.and_then(|_| cited_reference(r, who)),
+            upper_source: upper.and_then(|_| cited(r.key, "upper", who)),
         }
     };
     Ok(Nutrients {
@@ -506,7 +618,8 @@ pub fn log_nutrients(
         of: entries.len(),
         rows: REFS.iter().map(row).collect(),
         drinks: DRINKS.iter().map(row).collect(),
-        needs_sex: female.is_none(),
+        needs_sex: who.female.is_none(),
+        stage: who.stage.word().into(),
         on_day: {
             let mut shown = def.clone();
             pin(&mut shown, &profile);
@@ -605,6 +718,13 @@ mod tests {
             }
         }
         assert_eq!(printed("calcium_ug", "young", "men"), CALCIUM_YOUNG_UG);
+        for &(key, pregnant, breastfeeding) in CARRYING {
+            assert_eq!(printed(key, "reference", "pregnant"), pregnant, "{key} pregnant");
+            assert_eq!(printed(key, "reference", "breastfeeding"), breastfeeding, "{key} feeding");
+        }
+        assert_eq!(printed("iron_ug", "reference", "postmenopausal"), IRON_AFTER_MENOPAUSE_UG);
+        assert_eq!(printed("caffeine_ug", "upper", "pregnant"), CAFFEINE_CARRYING_UG);
+        assert_eq!(printed("caffeine_ug", "upper", "breastfeeding"), CAFFEINE_CARRYING_UG);
         // Nothing in the file that no screen shows: it would read as checked and mean nothing.
         for f in &CITED.figures {
             let r = REFS.iter().chain(DRINKS).find(|r| r.key == f.key);
@@ -616,7 +736,7 @@ mod tests {
                 "young" => assert_eq!(f.key, "calcium_ug"),
                 // A figure written in a row's note, as zinc's range by phytate intake is.
                 "note" => assert!(
-                    r.note.contains(&f.value),
+                    r.note.contains(f.value.trim_start_matches('+')),
                     "{}: its note does not say {}",
                     f.key,
                     f.value
@@ -632,27 +752,85 @@ mod tests {
     fn a_row_with_a_figure_names_its_source_and_links_to_the_page() {
         for r in REFS.iter().chain(DRINKS) {
             for female in [Some(true), Some(false), None] {
-                if reference_of(r, female, Some(40), 2000).is_some() {
-                    let c = cited_reference(r, female).unwrap();
-                    assert!(c.url.starts_with("https://"), "{}", r.key);
-                    assert!(!c.place.is_empty() && !c.label.is_empty(), "{}", r.key);
-                }
-                if r.upper.is_some() {
-                    assert!(cited(r.key, "upper", female).is_some(), "{} upper", r.key);
+                for stage in
+                    [Stage::Usual, Stage::Pregnant, Stage::Breastfeeding, Stage::AfterMenopause]
+                {
+                    let who = Who { female, stage };
+                    if reference_of(r, who, Some(40), 2000).is_some() {
+                        let c = cited_reference(r, who).unwrap();
+                        assert!(c.url.starts_with("https://"), "{}", r.key);
+                        assert!(!c.place.is_empty() && !c.label.is_empty(), "{}", r.key);
+                    }
+                    if upper_of(r, stage).is_some() {
+                        assert!(cited(r.key, "upper", who).is_some(), "{} upper", r.key);
+                    }
                 }
             }
         }
-        let women = cited("iron_ug", "reference", Some(true)).unwrap();
+        let woman = Who { female: Some(true), stage: Stage::Usual };
+        let women = cited("iron_ug", "reference", woman).unwrap();
         assert_eq!(women.place, "Table 7, page 47");
         assert!(women.url.ends_with(".pdf#page=47"));
-        let men = cited("iron_ug", "reference", Some(false)).unwrap();
-        assert_eq!(men.place, "Table 5, page 45");
+        let man = Who { female: Some(false), stage: Stage::Usual };
+        assert_eq!(cited("iron_ug", "reference", man).unwrap().place, "Table 5, page 45");
+    }
+
+    fn profile(sex: Option<&str>, flags: &[&str]) -> Profile {
+        Profile {
+            sex: sex.map(str::to_string),
+            flags: flags.iter().map(|f| f.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    /// **What a person has said in About you changes the figures, and names the same table.**
+    #[test]
+    fn pregnancy_breastfeeding_and_the_menopause_use_efsas_own_figures() {
+        let of = |key: &str| REFS.iter().chain(DRINKS).find(|r| r.key == key).unwrap();
+        let figure = |key: &str, p: &Profile| reference_of(of(key), Who::of(p), Some(40), 0);
+
+        let usual = profile(Some("female"), &[]);
+        assert_eq!(figure("iron_ug", &usual), Some(16_000));
+        assert_eq!(figure("folate_dfe_ug", &usual), Some(330));
+        assert_eq!(upper_of(of("caffeine_ug"), Who::of(&usual).stage), Some(400_000));
+
+        let after = profile(Some("female"), &["postmenopausal"]);
+        assert_eq!(figure("iron_ug", &after), Some(11_000));
+        assert_eq!(figure("folate_dfe_ug", &after), Some(330), "only iron changes");
+        let c = cited_reference(of("iron_ug"), Who::of(&after)).unwrap();
+        assert_eq!(c.place, "Table 7, page 47");
+        // A man cannot be given a woman's figure by a flag left on.
+        assert_eq!(figure("iron_ug", &profile(Some("male"), &["postmenopausal"])), Some(11_000));
+        assert_eq!(Who::of(&profile(Some("male"), &["postmenopausal"])).stage, Stage::Usual);
+
+        // The sex need not be set: saying this says which figures are theirs.
+        let pregnant = profile(None, &["pregnant"]);
+        assert_eq!(figure("folate_dfe_ug", &pregnant), Some(600));
+        assert_eq!(figure("iodine_ug", &pregnant), Some(200));
+        assert_eq!(figure("water_mg", &pregnant), Some(2_300_000));
+        assert_eq!(figure("iron_ug", &pregnant), Some(16_000));
+        assert_eq!(figure("fiber_mg", &pregnant), Some(25_000));
+        let who = Who::of(&pregnant);
+        assert_eq!(upper_of(of("caffeine_ug"), who.stage), Some(200_000));
+        assert_eq!(cited_reference(of("folate_dfe_ug"), who).unwrap().place, "Table 11, page 74");
+        assert_eq!(
+            cited("caffeine_ug", "upper", who).unwrap().place,
+            "What EFSA concluded: pregnant and lactating women"
+        );
+
+        let feeding = profile(Some("female"), &["breastfeeding"]);
+        assert_eq!(figure("folate_dfe_ug", &feeding), Some(500));
+        assert_eq!(figure("vitamin_a_rae_ug", &feeding), Some(1_300));
+        assert_eq!(figure("water_mg", &feeding), Some(2_700_000));
+
+        // Both ticked: pregnancy first, as the plans have it.
+        assert_eq!(Who::of(&profile(None, &["breastfeeding", "pregnant"])).stage, Stage::Pregnant);
     }
 
     /// **A link is on a screen only once it was opened** (owner, 2026-11-03: *"links you have
     /// actually tested only"*). A document a figure rests on must have opened, from a named
-    /// public body. A link on a card must be in the file and not gone; the ones that refuse a
-    /// robot may not grow: each needs a person to open it (`--by-hand`).
+    /// public body. A link on a card must be in the file and have opened; one that refuses the
+    /// checker fails here until a person has opened it (`--by-hand`), or it is replaced.
     #[test]
     fn every_link_shown_was_opened() {
         for (id, d) in &CITED.documents {
@@ -665,7 +843,6 @@ mod tests {
             assert!(CITED.documents.contains_key(&f.doc), "{}: {}", f.key, f.doc);
         }
         let mut carried = 0;
-        let mut untested = vec![];
         for text in [include_str!("shipped/plans.json"), include_str!("shipped/health-cards.json")]
         {
             let mut rest = text;
@@ -685,20 +862,13 @@ mod tests {
                 assert_eq!(link.seen.len(), 10, "{url}");
                 match link.result.as_str() {
                     "opened" | "by hand" => {}
-                    "refused" => untested.push(url),
-                    other => panic!("{url}: {other}"),
+                    other => panic!("{url} is on a card and {other}: pixi run check-references"),
                 }
                 carried += 1;
             }
         }
         assert!(carried > 50, "the cards' links were not read");
-        untested.sort();
-        untested.dedup();
-        assert!(untested.len() <= MOST_UNTESTED, "more links nobody could open: {untested:?}");
     }
-
-    /// The links that refused the checker on 2026-11-03: it may only come down.
-    const MOST_UNTESTED: usize = 10;
 
     /// **Pinned values stand in for Food's own details**, in the person's order, at most six, only
     /// values the sheet has; another log's value (weight on Trends) stays; nothing pinned changes

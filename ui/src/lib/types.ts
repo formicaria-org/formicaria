@@ -920,6 +920,8 @@ export interface Nutrients {
   profile?: string;
   /** The person's sex is not known, so references that differ by it are left out. */
   needs_sex: boolean;
+  /** Whose figures these are, if not a usual adult's. */
+  stage?: 'pregnant' | 'breastfeeding' | 'postmenopausal';
   entries: ObjectMeta[];
 }
 /** A packaged food written down from its label (`log_products`). */

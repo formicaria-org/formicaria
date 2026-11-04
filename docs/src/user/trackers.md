@@ -370,8 +370,9 @@ improves with it — past days and planned ones alike. A packet written down fro
 serving of your recipe and a food you typed in keep the numbers they were given.
 Where the reference differs for men and women and the app does not know which you are, it is
 left out until you say so in *About you*. The references describe what covers a population, not
-what you in particular need: they are not goals, and they are not for pregnancy or breastfeeding.
-The figure for iron for women is EFSA's before the menopause (11 mg after it). EFSA's vitamin A
+what you in particular need: they are not goals. Tick pregnant, breastfeeding or after the menopause
+in *About you*, and EFSA's figures for that are used here and on the rings wherever they differ,
+and caffeine's limit becomes 200 mg in pregnancy and while breastfeeding. EFSA's vitamin A
 counts beta-carotene at one sixth where the food tables count it at one twelfth, so vitamin A from
 plants reads low. A figure the app cannot source is not shown at all.
 
