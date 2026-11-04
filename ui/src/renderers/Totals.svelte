@@ -20,6 +20,7 @@
   import ExampleDay from '../lib/plan/ExampleDay.svelte';
   import { shownAmount } from '../lib/food/amount';
   import type {
+    DayReference,
     DayTotals,
     ObjectMeta,
     PlanCheckProgress,
@@ -57,7 +58,7 @@
     onchoose?: () => void;
     /** What each followed value fills towards when no target was set: the nutrients sheet's
      *  reference for the person, or its limit (`log_days`' `references`). */
-    references?: Record<string, { reference?: number; upper?: number }>;
+    references?: Record<string, DayReference>;
     /** Something was planned from an example day: ask for the day again. */
     onexample?: () => void;
     /** Dishes a serving of which could be had: the person's recipes and the carried ones. */
@@ -117,13 +118,16 @@
   /// later: *"up to a few entries (say 3) where a person can select what to track and visualize how
   /// much they are taking it that day"*). Each fills towards the person's own target, else the
   /// nutrients sheet's reference for them. A limit is not something to fill: its ring stays empty
-  /// and the limit is written under it.
+  /// and the limit is written under it. **A figure the person did not set says so and links to its
+  /// source, or is not shown** (`decisions.md#data`, 2026-11-03).
   const followed = $derived(detail.slice(0, 3));
   const aim = (key: string) => {
     const set = day?.targets[key] ?? 0;
-    if (set > 0) return { to: set, limit: 0 };
+    if (set > 0) return { to: set, limit: 0, own: true, from: undefined };
     const r = references[key];
-    return { to: r?.reference ?? 0, limit: r?.reference ? 0 : (r?.upper ?? 0) };
+    const to = r?.reference && r.source ? r.reference : 0;
+    const limit = !r?.reference && r?.upper && r.upper_source ? r.upper : 0;
+    return { to, limit, own: false, from: to ? r?.source : limit ? r?.upper_source : undefined };
   };
   const TINTS = ['a', 'b', 'c'] as const;
 
@@ -336,21 +340,37 @@
               target={a.to}
               size={64}
               stroke={7}
-              label={`${m.label}: ${showWith(m.key, v, a.to || v)}${a.to ? ` of ${showWith(m.key, a.to)}` : ''}`}
+              label={`${m.label}: ${showWith(m.key, v, a.to || v)}${a.to ? ` ${a.own ? 'of a target of' : 'against a reference of'} ${showWith(m.key, a.to)}` : ''}`}
             >
               <span class="mini">{showWith(m.key, v, a.to || a.limit || v)}</span>
             </Ring>
             <span class="name">{m.label}</span>
             <span class="of"
-              >{#if a.to}of {showWith(m.key, a.to)}{:else if a.limit}{v > a.limit
+              >{#if a.to}{a.own ? 'target' : 'reference'}
+                {showWith(m.key, a.to)}{:else if a.limit}{v > a.limit
                   ? 'over the limit of'
                   : 'limit'}
                 {showWith(m.key, a.limit)}{/if}</span
             >
+            {#if a.from}
+              <a
+                class="cited"
+                href={a.from.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Source of the ${m.label} figure: ${a.from.by}, ${a.from.title}, ${a.from.place}`}
+                >{a.from.label}</a
+              >
+            {/if}
             {#if partial}<span class="partial">from {got?.n ?? 0} of {day?.of}</span>{/if}
           </li>
         {/each}
       </ul>
+      {#if followed.some((m) => aim(m.key).from)}
+        <p class="not-goal">
+          A reference is a published figure for adults in general, not a goal set for you.
+        </p>
+      {/if}
       {#if onchoose || onnutrients}
         <div class="follow-actions">
           {#if onchoose}
@@ -897,6 +917,16 @@
   /* The values the person follows: three small rings side by side. */
   .follow {
     padding: var(--space-3);
+  }
+  .cited {
+    font-size: var(--text-xs);
+    color: var(--accent);
+  }
+  .not-goal {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-align: center;
   }
   .follow ul {
     list-style: none;

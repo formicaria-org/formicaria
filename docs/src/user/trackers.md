@@ -204,9 +204,11 @@ A set of targets can have a last day (*Until*). After it, the targets you had be
 so a few weeks of eating less, then back to normal, is two saves and nothing to remember.
 
 **What you follow** is three small rings under the energy ring: until you choose, water, fibre
-and calcium. Each fills towards your own target if you set one, or else towards the European
-reference for you (water's needs your sex, in *About you*; until then it shows the amount alone). A
-limit, such as caffeine's, is written under its ring rather than filled towards. **Choose** lists
+and calcium. Each fills towards your own target if you set one, and says *target*. Otherwise it
+fills towards a published reference for adults and says *reference*, with a link to the document it
+is printed in (water's needs your sex, in *About you*; until then it shows the amount alone). A
+reference is not a goal set for you. A limit, such as caffeine's, is written under its ring rather
+than filled towards, and links to its source too. **Choose** lists
 every value — drinks and water, vitamins, minerals and fibre — to tick up to three, in the order
 you want them; **All nutrients** shows them all for the day. When a value comes from only some of
 the day's entries it says so — *from 3 of 4* — because an entry typed in by hand has energy and
@@ -357,7 +359,8 @@ not advice.
 ### All nutrients
 
 **All nutrients**, under the rings, lists every vitamin and mineral of the day beside the
-European reference value for an adult of your sex. Press one to see which foods it came from,
+published reference value for an adult of your sex, with a link under the row to the table and page
+it is printed on. Press one to see which foods it came from,
 and, for each entry without it, why: typed in by hand, its label does not state it, or no table has
 it for that food. A day still to come counts what you have planned for it.
 
@@ -367,7 +370,10 @@ improves with it — past days and planned ones alike. A packet written down fro
 serving of your recipe and a food you typed in keep the numbers they were given.
 Where the reference differs for men and women and the app does not know which you are, it is
 left out until you say so in *About you*. The references describe what covers a population, not
-what you in particular need.
+what you in particular need: they are not goals, and they are not for pregnancy or breastfeeding.
+The figure for iron for women is EFSA's before the menopause (11 mg after it). EFSA's vitamin A
+counts beta-carotene at one sixth where the food tables count it at one twelfth, so vitamin A from
+plants reads low. A figure the app cannot source is not shown at all.
 
 **Drinks and water**, under the vitamins and minerals, are the day's water, caffeine and alcohol,
 counted from everything you logged — every food in the list says how much water it holds:

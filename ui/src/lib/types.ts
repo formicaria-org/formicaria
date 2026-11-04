@@ -846,7 +846,25 @@ export interface LogDays {
   days: DayTotals[];
   /** For a food view's details, what each is measured against when no target was set: the
    *  nutrients sheet's reference for the person, and its limit (`nutrients::day_references`). */
-  references?: Record<string, { reference?: number; upper?: number }>;
+  references?: Record<string, DayReference>;
+}
+/** Where a figure on screen comes from (`nutrients::Cited`). A figure without one is not shown. */
+export interface Cited {
+  by: string;
+  /** Short enough to go under a ring: `EFSA 2017`. */
+  label: string;
+  title: string;
+  /** Where in the document: `Table 2, page 23`. */
+  place: string;
+  /** The tested link; for a PDF, opened at the page. */
+  url: string;
+}
+/** What a value on Day is measured against when the person set no target. */
+export interface DayReference {
+  reference?: number;
+  upper?: number;
+  source?: Cited;
+  upper_source?: Cited;
 }
 /** Something logged before, offered again with the amount last used. */
 export interface RecentItem {
@@ -883,6 +901,10 @@ export interface NutrientRow {
   kind: string;
   upper?: number;
   note?: string;
+  /** Where `reference` comes from; a screen shows no reference without it. */
+  source?: Cited;
+  /** Where `upper` comes from; a screen shows no limit without it. */
+  upper_source?: Cited;
 }
 export interface Nutrients {
   day: string;

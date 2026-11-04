@@ -4,6 +4,8 @@
 //
 // Every number here is made up to look plausible. None of it is nutrition data.
 import type {
+  Cited,
+  DayReference,
   ObjectMeta,
   ViewInfo,
   TotalsDef,
@@ -122,6 +124,15 @@ export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) =>
 }));
 
 export const trackerDef = (name: string) => DEFS[name] ?? null;
+
+/** A stand-in for where a figure comes from; the real ones are `nutrients::cited`'s. */
+const MOCK_CITED: Cited = {
+  by: 'European Food Safety Authority',
+  label: 'EFSA 2017',
+  title: 'Dietary Reference Values for nutrients: Summary report (2017)',
+  place: 'Table 2, page 23',
+  url: 'https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf#page=23',
+};
 
 /** A stand-in for `nutrients::pin`: the values pinned in the profile note stand in for Food's own
  *  details. The names are the few this demo has. */
@@ -555,11 +566,11 @@ export function logDays(
   }
   // The sheet's figures for what Day follows, for a person whose sex is not known: water's
   // reference differs by it, so it has none (`nutrients::day_references`).
-  const SHEET: Record<string, { reference?: number; upper?: number }> = {
-    fiber_mg: { reference: 25_000 },
-    calcium_ug: { reference: 950_000 },
+  const SHEET: Record<string, DayReference> = {
+    fiber_mg: { reference: 25_000, source: MOCK_CITED },
+    calcium_ug: { reference: 950_000, source: MOCK_CITED },
     iron_ug: {},
-    caffeine_ug: { upper: 400_000 },
+    caffeine_ug: { upper: 400_000, upper_source: MOCK_CITED },
   };
   const references = Object.fromEntries(
     def.metrics
@@ -617,7 +628,16 @@ export function logNutrients(notes: ObjectMeta[], args: { view: string; day: str
   ) => {
     const got = entries.map((x) => whole(x.props[key])).filter((v): v is number => v !== null);
     const sum = got.reduce((t, v) => t + v, 0);
-    return { key, label, sum, n: got.length, reference, kind, ...(upper ? { upper } : {}) };
+    return {
+      key,
+      label,
+      sum,
+      n: got.length,
+      reference,
+      kind,
+      ...(reference ? { source: MOCK_CITED } : {}),
+      ...(upper ? { upper, upper_source: MOCK_CITED } : {}),
+    };
   };
   const me = notes.find((x) => x.props.profile && !x.tags.includes('template'));
   const pins = typeof me?.props.day_values === 'string' ? me.props.day_values : null;

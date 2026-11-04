@@ -8,6 +8,10 @@
   // it, why (2026-10-29: "No entry of this day carries it" under choline read as the app failing).
   // An entry of the food list is read with the list's values as they are now (the server's
   // `packs::resolve`). A day still to come counts what is planned for it: it is its plan.
+  //
+  // **A figure is shown with where it comes from, or not at all** (`decisions.md#data`, 2026-11-03;
+  // a person read "0 / 25 g" as a goal set for them): each is called a reference or a limit, and its
+  // source is a link under the row. No source, no bar and no number.
   import { onMount } from 'svelte';
   import Icon from '../Icon.svelte';
   import Meter from '../charts/Meter.svelte';
@@ -16,7 +20,7 @@
   import { dayLabel, showWith, today } from '../units';
   import { borrowedOf, estimatedOf, valueOf } from './provenance';
   import { whyNot } from './refresh';
-  import type { NutrientRow, Nutrients, ObjectMeta } from '../types';
+  import type { Cited, NutrientRow, Nutrients, ObjectMeta } from '../types';
 
   interface Props {
     view: string;
@@ -53,7 +57,14 @@
     (got?.entries ?? [])
       .filter((e: ObjectMeta) => valueOf(e.props, r.key) === null)
       .map((e) => ({ e, why: whyNot(e.props, r.key) }));
-  const share = (r: NutrientRow) => (r.reference ? Math.round((r.sum / r.reference) * 100) : null);
+  /// What a row may show: only a figure that names its source.
+  const refOf = (r: NutrientRow) => (r.reference && r.source ? r.reference : 0);
+  const upperOf = (r: NutrientRow) => (r.upper && r.upper_source ? r.upper : 0);
+  const share = (r: NutrientRow) => (refOf(r) ? Math.round((r.sum / refOf(r)) * 100) : null);
+  const KIND_SHORT: Record<string, string> = {
+    PRI: 'Population reference intake',
+    AI: 'Adequate intake',
+  };
 
   // **Show on Day** (`food-values-plan-2026-10-30.md`, step 4; `nutrients.rs` `pin`): a value of
   // this sheet joins Day's *Also today*, and Trends offers it. Kept in the profile note beside the
@@ -89,6 +100,16 @@
   }
 </script>
 
+<!-- Beside the row's button, not in it: a link inside a button is neither. -->
+{#snippet cite(what: string, c: Cited)}
+  <p class="cite">
+    {what} ·
+    <a href={c.url} target="_blank" rel="noopener noreferrer" title={`${c.by}: ${c.title}`}
+      >{c.label}, {c.place}</a
+    >
+  </p>
+{/snippet}
+
 {#snippet row(r: NutrientRow, of: number)}
   {@const pct = share(r)}
   <li>
@@ -100,31 +121,37 @@
     >
       <span class="name">{r.label}</span>
       <span class="val"
-        >{showWith(r.key, r.sum, r.reference ?? r.upper ?? r.sum)}{#if r.reference}<span class="sub"
-            >&nbsp;/ {showWith(r.key, r.reference)}</span
+        >{showWith(r.key, r.sum, refOf(r) || upperOf(r) || r.sum)}{#if refOf(r)}<span class="sub"
+            >&nbsp;/ reference {showWith(r.key, refOf(r))}</span
           >{/if}</span
       >
-      {#if r.reference}
+      {#if refOf(r)}
         <Meter
           value={r.sum}
-          target={r.reference}
+          target={refOf(r)}
           tint="a"
           label={`${r.label}: ${pct}% of the reference`}
         />
       {/if}
-      {#if r.upper && r.sum > r.upper}
+      {#if upperOf(r) && r.sum > upperOf(r)}
         <!-- An upper level is EFSA's and goes with a reference; a limit alone is WHO's for
              sodium, or EFSA's safe intake of caffeine. -->
         <span class="over"
-          >above {r.kind ? 'the upper level' : 'the limit'} of {showWith(r.key, r.upper)}</span
+          >above {r.kind ? 'the upper level' : 'the limit'} of {showWith(r.key, upperOf(r))}</span
         >
-      {:else if r.upper && !r.reference}
-        <span class="sub">limit {showWith(r.key, r.upper)}</span>
+      {:else if upperOf(r) && !refOf(r)}
+        <span class="sub">{r.kind ? 'upper level' : 'limit'} {showWith(r.key, upperOf(r))}</span>
       {/if}
       {#if r.n < of}
         <span class="partial">from {r.n} of {of} entries</span>
       {/if}
     </button>
+    {#if refOf(r) && r.source}
+      {@render cite(KIND_SHORT[r.kind] ?? 'Reference', r.source)}
+    {/if}
+    {#if upperOf(r) && r.upper_source && (r.sum > upperOf(r) || !refOf(r))}
+      {@render cite(r.kind ? 'Upper level' : 'Limit', r.upper_source)}
+    {/if}
     {#if opened === r.key}
       <div class="why">
         {#each from(r) as e (e.id)}
@@ -190,8 +217,8 @@
       <!-- **Choosing what Day follows** (2026-10-31, later): every value of the sheet, one line
            each, ticked when Day shows it; the order ticked is the order on Day. -->
       <p class="says">
-        Up to {got.most_on_day}, shown as rings on the day, against your target or the European
-        reference for you.
+        Up to {got.most_on_day}, shown as rings on the day, against your own target if you set one.
+        Otherwise against a published reference for adults, with its source.
       </p>
       {#each [{ head: 'Drinks and water', list: got.drinks }, { head: 'Vitamins, minerals and fibre', list: got.rows }] as part (part.head)}
         <h3>{part.head}</h3>
@@ -239,8 +266,9 @@
         <p class="says">
           References: European Food Safety Authority, Dietary Reference Values (2017) and upper
           levels (2025), for adults; caffeine, its opinion on the safety of caffeine (2015). Sodium:
-          World Health Organization. They describe what covers a population, not what you in
-          particular need.
+          World Health Organization. They are published for adults in general, not worked out for
+          you, and are not goals: they describe what covers a population, not what you in particular
+          need, and they are not for pregnancy or breastfeeding. Each row links to its source.
         </p>
       {/if}
     {:else if !failed}
@@ -349,6 +377,15 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--text-muted);
+  }
+  .cite {
+    margin: 0;
+    padding: 0 0 var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+  .cite a {
+    color: var(--accent);
   }
   .over {
     font-size: var(--text-sm);

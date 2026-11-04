@@ -85,6 +85,8 @@ afterwards is how a project stops being what it said it was, one reasonable step
   2026-10-24: *"push release tag as well and do not wait for main ci … this should be done whenever
   I want you to release"*; `decisions.md#toolchain`). **Whenever the owner asks for a release**, the
   order is docs → `pixi run myrme-bump` (the newest compatible assistant, `decisions.md#agent`) →
+  `pixi run check-references -- --write` (every figure the app shows, read off its document; a
+  failure stops the release, `decisions.md#data`, 2026-11-03) →
   local gate (`pixi run ci`, through pixi) → version commit → push `main` **and** the annotated tag
   together. Do not wait for, poll or report on `ci.yml` on `main`; `release.yml` on the tag builds
   every platform and a failed build still stops it. A phone test is still there

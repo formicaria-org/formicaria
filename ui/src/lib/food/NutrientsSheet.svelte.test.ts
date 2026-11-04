@@ -35,12 +35,29 @@ const entry = (id: string, title: string, props: Record<string, string | number>
     tags: [],
     props,
   }) as unknown as ObjectMeta;
+const efsa = {
+  by: 'European Food Safety Authority',
+  label: 'EFSA 2017',
+  title: 'Dietary Reference Values for nutrients: Summary report (2017)',
+  place: 'Table 9, page 72',
+  url: 'https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf#page=72',
+};
 const day = (entries: ObjectMeta[]): Nutrients => ({
   day: today(),
   of: entries.length,
   needs_sex: false,
   entries,
-  rows: [{ key: 'choline_ug', label: 'Choline', kind: 'AI', reference: 400000, sum: 0, n: 0 }],
+  rows: [
+    {
+      key: 'choline_ug',
+      label: 'Choline',
+      kind: 'AI',
+      reference: 400000,
+      sum: 0,
+      n: 0,
+      source: efsa,
+    },
+  ],
   drinks: [],
   on_day: [],
   most_on_day: 6,
@@ -106,15 +123,24 @@ test("the day's drinks: water by volume beside EFSA's, caffeine beside its limit
         reference: 2_500_000,
         sum: 1_500_000,
         n: 2,
+        source: efsa,
       },
-      { key: 'caffeine_ug', label: 'Caffeine', kind: '', upper: 400_000, sum: 450_000, n: 1 },
+      {
+        key: 'caffeine_ug',
+        label: 'Caffeine',
+        kind: '',
+        upper: 400_000,
+        sum: 450_000,
+        n: 1,
+        upper_source: efsa,
+      },
       { key: 'alcohol_mg', label: 'Alcohol', kind: '', sum: 13_000, n: 1 },
     ],
   });
   render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
   expect(await screen.findByRole('heading', { name: 'Drinks and water' })).toBeTruthy();
   expect(screen.getByText('1.5 l')).toBeTruthy();
-  expect(screen.getByText(/\/ 2\.5 l/)).toBeTruthy();
+  expect(screen.getByText(/\/ reference 2\.5 l/)).toBeTruthy();
   // A limit alone is not an upper level: caffeine's is EFSA's safe intake.
   expect(screen.getByText('above the limit of 400 mg')).toBeTruthy();
   // Alcohol is an amount: no reference, no limit, no meter.
@@ -225,4 +251,55 @@ test('opened to choose, every value is one line to tick, up to Day’s most, eve
       'took a value off Day',
     ),
   );
+});
+
+// **A figure is shown with where it comes from, or not at all** (`decisions.md#data`, 2026-11-03).
+test('a reference says it is one and links to the page of the document it is printed on', async () => {
+  logNutrients.mockResolvedValueOnce(day([entry('T1', 'Toast', { kcal: 120 })]));
+  render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
+  const link = await screen.findByRole('link', { name: 'EFSA 2017, Table 9, page 72' });
+  expect(link.getAttribute('href')).toBe(efsa.url);
+  expect(link.getAttribute('target')).toBe('_blank');
+  expect(screen.getByText(/reference 400 mg/)).toBeTruthy();
+  expect(screen.getByText(/Adequate intake/)).toBeTruthy();
+  expect(screen.getByRole('img', { name: /Choline: 0% of the reference/ })).toBeTruthy();
+  expect(screen.getByText(/not goals/)).toBeTruthy();
+});
+
+test('a limit links to its source too, and the link sits outside the row button', async () => {
+  const limit = { ...efsa, label: 'WHO', place: 'Recommendations', url: 'https://www.who.int/x' };
+  logNutrients.mockResolvedValueOnce({
+    ...day([entry('T1', 'Toast', { kcal: 120 })]),
+    rows: [
+      {
+        key: 'sodium_ug',
+        label: 'Sodium',
+        kind: '',
+        upper: 2_000_000,
+        sum: 0,
+        n: 0,
+        upper_source: limit,
+      },
+    ],
+  });
+  render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
+  const link = await screen.findByRole('link', { name: 'WHO, Recommendations' });
+  expect(link.closest('button')).toBeNull();
+  expect(screen.getByText(/^limit 2/)).toBeTruthy();
+});
+
+test('a figure that names no source is not shown: no number, no bar, no limit', async () => {
+  logNutrients.mockResolvedValueOnce({
+    ...day([entry('T1', 'Toast', { kcal: 120 })]),
+    rows: [
+      { key: 'choline_ug', label: 'Choline', kind: 'AI', reference: 400000, sum: 0, n: 0 },
+      { key: 'sodium_ug', label: 'Sodium', kind: '', upper: 2_000_000, sum: 0, n: 0 },
+    ],
+  });
+  render(NutrientsSheet, { view: 'Day', day: today(), onclose: () => {} });
+  await screen.findByRole('button', { name: /Choline/ });
+  expect(screen.queryByText(/reference 400/)).toBeNull();
+  expect(screen.queryByText(/limit 2/)).toBeNull();
+  expect(screen.queryByRole('img')).toBeNull();
+  expect(screen.queryByRole('link')).toBeNull();
 });

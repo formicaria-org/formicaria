@@ -45,6 +45,13 @@ const day = (kcal: number, over: Partial<DayTotals> = {}): DayTotals => ({
   ],
   ...over,
 });
+const efsa = {
+  by: 'European Food Safety Authority',
+  label: 'EFSA 2017',
+  title: 'Dietary Reference Values for nutrients: Summary report (2017)',
+  place: 'Table 2, page 23',
+  url: 'https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf#page=23',
+};
 const props = (d: DayTotals | null, more = {}) => ({
   def,
   day: d,
@@ -133,6 +140,19 @@ describe('a day of a log', () => {
     expect(screen.getByText('from 1 of 2')).toBeTruthy();
   });
 
+  // **A figure is shown with where it comes from, or not at all** (2026-11-03).
+  it('a ring has no figure to fill towards unless it names its source', () => {
+    const d = day(328, {
+      targets: {},
+      sums: { kcal: { sum: 328, n: 2 }, iron_ug: { sum: 4000, n: 1 } },
+    });
+    render(Totals, props(d, { references: { iron_ug: { reference: 16_000 } } }));
+    const follow = screen.getByRole('region', { name: 'what you follow' });
+    expect(within(follow).queryByText(/reference/)).toBeNull();
+    expect(within(follow).queryByRole('link')).toBeNull();
+    expect(within(follow).getByRole('img', { name: 'Iron: 4 mg' })).toBeTruthy();
+  });
+
   it('the values followed are rings: towards a target, else the sheet’s figure; a limit stays empty', async () => {
     const onchoose = vi.fn();
     const followDef: TotalsDef = {
@@ -158,7 +178,10 @@ describe('a day of a log', () => {
       props(d, {
         def: followDef,
         onchoose,
-        references: { water_mg: { reference: 2_000_000 }, caffeine_ug: { upper: 400_000 } },
+        references: {
+          water_mg: { reference: 2_000_000, source: efsa },
+          caffeine_ug: { upper: 400_000, upper_source: { ...efsa, label: 'EFSA' } },
+        },
       }),
     );
     const follow = screen.getByRole('region', { name: 'what you follow' });
@@ -166,8 +189,20 @@ describe('a day of a log', () => {
     expect(within(follow).getAllByRole('img')).toHaveLength(3);
     expect(within(follow).queryByText('Zinc')).toBeNull();
     // Water against the sheet's figure, iron against the person's own target.
-    expect(within(follow).getByRole('img', { name: 'Water: 1.1 l of 2 l' })).toBeTruthy();
-    expect(within(follow).getByText('of 8 mg')).toBeTruthy();
+    expect(
+      within(follow).getByRole('img', { name: 'Water: 1.1 l against a reference of 2 l' }),
+    ).toBeTruthy();
+    expect(within(follow).getByText(/reference\s+2 l/)).toBeTruthy();
+    expect(within(follow).getByText(/target\s+8 mg/)).toBeTruthy();
+    // A figure the person did not set says where it comes from; their own target does not.
+    const cited = within(follow).getByRole('link', { name: /Source of the Water figure/ });
+    expect(cited.getAttribute('href')).toBe(efsa.url);
+    expect(cited.textContent).toBe('EFSA 2017');
+    expect(
+      within(follow).getByRole('link', { name: /Source of the Caffeine figure/ }),
+    ).toBeTruthy();
+    expect(within(follow).queryByRole('link', { name: /Source of the Iron figure/ })).toBeNull();
+    expect(within(follow).getByText(/not a goal set for you/)).toBeTruthy();
     // A limit is said, not filled towards.
     expect(within(follow).getByText(/over the limit of\s+400 mg/)).toBeTruthy();
     await fireEvent.click(within(follow).getByRole('button', { name: 'Choose' }));

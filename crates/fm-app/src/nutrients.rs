@@ -16,6 +16,12 @@
 //! niacin are given per megajoule of energy, so their reference follows the energy of the day.
 //! Zinc is given at four levels of phytate intake and gets no single number. The register is
 //! `sources-2026-10-11.md` §6c.
+//!
+//! **A figure is shown with where it comes from, or not at all** (`decisions.md#data`, 2026-11-03).
+//! `shipped/reference-sources.json` says, for every figure here, which document prints it and where;
+//! `cited` hands that to the screens, and a screen shows no bar, ring or limit without it. The tests
+//! below hold that file to this table offline; `ci/check-references.py` reads each figure off the
+//! published document.
 
 use crate::dto::ObjectMeta;
 use crate::log::PLANNED;
@@ -26,8 +32,100 @@ use crate::views::{Metric, Role, TotalsDef};
 use fm_core::{Store, StoreError};
 use fm_model::{Object, PropertyValue};
 use fm_query::{Query, SortKey};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::sync::LazyLock;
 use time::{format_description::well_known::Iso8601, Date};
+
+/// Which document prints each figure, and each link the cards carry and whether it opened.
+const SOURCES: &str = include_str!("shipped/reference-sources.json");
+
+#[derive(Deserialize)]
+struct Document {
+    by: String,
+    label: String,
+    title: String,
+    url: String,
+    #[cfg_attr(not(test), allow(dead_code))]
+    seen: String,
+}
+
+#[derive(Deserialize)]
+struct Figure {
+    key: String,
+    what: String,
+    #[serde(rename = "for")]
+    who: String,
+    doc: String,
+    #[serde(rename = "where")]
+    place: String,
+    #[serde(default)]
+    page: Option<u32>,
+    #[cfg_attr(not(test), allow(dead_code))]
+    value: String,
+    #[cfg_attr(not(test), allow(dead_code))]
+    unit: String,
+}
+
+#[derive(Deserialize)]
+struct Sources {
+    documents: BTreeMap<String, Document>,
+    figures: Vec<Figure>,
+    #[cfg_attr(not(test), allow(dead_code))]
+    links: BTreeMap<String, Link>,
+}
+
+#[derive(Deserialize)]
+#[cfg_attr(not(test), allow(dead_code))]
+struct Link {
+    result: String,
+    seen: String,
+}
+
+static CITED: LazyLock<Sources> =
+    LazyLock::new(|| serde_json::from_str(SOURCES).expect("reference-sources.json parses"));
+
+/// Where a figure on screen comes from: who says it, in which document, and where in it.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct Cited {
+    pub by: String,
+    /// Short enough to go under a ring: `EFSA 2017`.
+    pub label: String,
+    pub title: String,
+    /// Where in the document: `Table 2, page 23`.
+    pub place: String,
+    /// The tested link; for a PDF, opened at the page.
+    pub url: String,
+}
+
+/// The source of a figure for this person: the table for their sex where the document has one
+/// each, the first otherwise.
+fn cited(key: &str, what: &str, female: Option<bool>) -> Option<Cited> {
+    let of_key = || CITED.figures.iter().filter(|f| f.key == key && f.what == what);
+    let wanted = match female {
+        Some(true) => "women",
+        Some(false) => "men",
+        None => "adults",
+    };
+    let f = of_key().find(|f| f.who == wanted).or_else(|| of_key().next())?;
+    let d = CITED.documents.get(&f.doc)?;
+    let url = match f.page {
+        Some(page) if d.url.ends_with(".pdf") => format!("{}#page={page}", d.url),
+        _ => d.url.clone(),
+    };
+    Some(Cited {
+        by: d.by.clone(),
+        label: d.label.clone(),
+        title: d.title.clone(),
+        place: f.place.clone(),
+        url,
+    })
+}
+
+/// The source of the reference a row shows: thiamin's and niacin's is per megajoule.
+fn cited_reference(r: &Ref, female: Option<bool>) -> Option<Cited> {
+    cited(r.key, if r.per_mj.is_some() { "per_mj" } else { "reference" }, female)
+}
 
 /// What kind of figure a reference is, in EFSA's terms.
 const PRI: &str = "PRI";
@@ -70,7 +168,17 @@ const REFS: &[Ref] = &[
         note: "WHO: less than 2 g of sodium a day. EFSA's own figure was not read",
     },
     fixed("potassium_ug", "Potassium", 3_500_000, 3_500_000, AI, None),
-    fixed("vitamin_a_rae_ug", "Vitamin A", 750, 650, PRI, None),
+    Ref {
+        key: "vitamin_a_rae_ug",
+        label: "Vitamin A",
+        adult: Some((750, 650)),
+        per_mj: None,
+        kind: PRI,
+        upper: None,
+        note:
+            "EFSA's figure counts beta-carotene from plants at one sixth; the food tables count it \
+               at one twelfth, so vitamin A from plants reads up to half of what EFSA would count",
+    },
     fixed("vitamin_d_ng", "Vitamin D", 15_000, 15_000, AI, Some(100_000)),
     fixed("vitamin_e_ug", "Vitamin E", 13_000, 11_000, AI, None),
     fixed("vitamin_k1_ug", "Vitamin K", 70, 70, AI, None),
@@ -103,7 +211,15 @@ const REFS: &[Ref] = &[
     fixed("calcium_ug", "Calcium", 950_000, 950_000, PRI, Some(2_500_000)),
     fixed("phosphorus_ug", "Phosphorus", 550_000, 550_000, AI, None),
     fixed("magnesium_ug", "Magnesium", 350_000, 300_000, AI, None),
-    fixed("iron_ug", "Iron", 11_000, 16_000, PRI, None),
+    Ref {
+        key: "iron_ug",
+        label: "Iron",
+        adult: Some((11_000, 16_000)),
+        per_mj: None,
+        kind: PRI,
+        upper: None,
+        note: "The figure for women is EFSA's before the menopause; after it, EFSA gives 11 mg",
+    },
     Ref {
         key: "zinc_ug",
         label: "Zinc",
@@ -225,6 +341,12 @@ pub struct NutrientRow {
     pub upper: Option<i64>,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub note: String,
+    /// Where `reference` comes from. A screen shows no reference without it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Cited>,
+    /// Where `upper` comes from. A screen shows no limit without it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upper_source: Option<Cited>,
 }
 
 #[derive(Debug, Serialize)]
@@ -295,6 +417,12 @@ pub struct DayReference {
     pub reference: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upper: Option<i64>,
+    /// Where `reference` comes from. A screen shows no reference without it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Cited>,
+    /// Where `upper` comes from. A screen shows no limit without it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upper_source: Option<Cited>,
 }
 
 /// **The sheet's own figures for the values Day shows** (2026-10-31, later: the values a person
@@ -314,7 +442,13 @@ pub fn day_references(
         .filter_map(|m| REFS.iter().chain(DRINKS).find(|r| r.key == m.key))
         .filter(|r| r.per_mj.is_none())
         .map(|r| {
-            let got = DayReference { reference: reference_of(r, female, age, 0), upper: r.upper };
+            let reference = reference_of(r, female, age, 0);
+            let got = DayReference {
+                reference,
+                upper: r.upper,
+                source: reference.and_then(|_| cited_reference(r, female)),
+                upper_source: r.upper.and_then(|_| cited(r.key, "upper", female)),
+            };
             (r.key.to_string(), got)
         })
         .filter(|(_, d)| d.reference.is_some() || d.upper.is_some())
@@ -363,6 +497,8 @@ pub fn log_nutrients(
             kind: r.kind.into(),
             upper: r.upper,
             note: r.note.into(),
+            source: reference.and_then(|_| cited_reference(r, female)),
+            upper_source: r.upper.and_then(|_| cited(r.key, "upper", female)),
         }
     };
     Ok(Nutrients {
@@ -425,6 +561,144 @@ mod tests {
             assert!(["_ug", "_mg", "_ng"].iter().any(|u| r.key.ends_with(u)), "{}", r.key);
         }
     }
+
+    /// The figure's own printed text, in the unit of a key (`_mg`, `_ug`, `_ng`).
+    fn in_key_unit(f: &Figure) -> i64 {
+        let scale: f64 = match f.unit.as_str() {
+            "L" => 1e12,
+            "g" => 1e9,
+            "mg" => 1e6,
+            "µg" => 1e3,
+            other => panic!("{}: no such unit {other}", f.key),
+        };
+        let per = match f.key.rsplit('_').next().unwrap() {
+            "mg" => 1e6,
+            "ug" => 1e3,
+            "ng" => 1.0,
+            other => panic!("{}: no such key unit {other}", f.key),
+        };
+        let printed: f64 = f.value.replace(',', "").parse().unwrap();
+        (printed * scale / per).round() as i64
+    }
+
+    /// **Every figure a screen can show is the one its document prints, and names it.** The file
+    /// says what the document prints (`ci/check-references.py` reads it there); this holds the
+    /// table to the file. A figure added without its source, or changed without its source
+    /// agreeing, fails here, offline, in the gate.
+    #[test]
+    fn every_figure_shown_is_the_one_its_source_prints() {
+        let printed = |key: &str, what: &str, who: &str| {
+            let of_key = || CITED.figures.iter().filter(|f| f.key == key && f.what == what);
+            let f = of_key().find(|f| f.who == who).or_else(|| of_key().next());
+            f.map(in_key_unit).unwrap_or_else(|| panic!("{key}: no source for its {what}"))
+        };
+        for r in REFS.iter().chain(DRINKS) {
+            if let Some((men, women)) = r.adult {
+                assert_eq!(printed(r.key, "reference", "men"), men, "{} men", r.key);
+                assert_eq!(printed(r.key, "reference", "women"), women, "{} women", r.key);
+            }
+            if let Some(per) = r.per_mj {
+                assert_eq!(printed(r.key, "per_mj", "men"), per, "{} per MJ", r.key);
+            }
+            if let Some(upper) = r.upper {
+                assert_eq!(printed(r.key, "upper", "adults"), upper, "{} upper", r.key);
+            }
+        }
+        assert_eq!(printed("calcium_ug", "young", "men"), CALCIUM_YOUNG_UG);
+        // Nothing in the file that no screen shows: it would read as checked and mean nothing.
+        for f in &CITED.figures {
+            let r = REFS.iter().chain(DRINKS).find(|r| r.key == f.key);
+            let r = r.unwrap_or_else(|| panic!("{}: no such row", f.key));
+            match f.what.as_str() {
+                "reference" => assert!(r.adult.is_some(), "{}", f.key),
+                "per_mj" => assert!(r.per_mj.is_some(), "{}", f.key),
+                "upper" => assert!(r.upper.is_some(), "{}", f.key),
+                "young" => assert_eq!(f.key, "calcium_ug"),
+                // A figure written in a row's note, as zinc's range by phytate intake is.
+                "note" => assert!(
+                    r.note.contains(&f.value),
+                    "{}: its note does not say {}",
+                    f.key,
+                    f.value
+                ),
+                other => panic!("{}: no such kind of figure {other}", f.key),
+            }
+        }
+    }
+
+    /// **The row a person reads carries the source**, for either sex and neither, and the table
+    /// for their sex.
+    #[test]
+    fn a_row_with_a_figure_names_its_source_and_links_to_the_page() {
+        for r in REFS.iter().chain(DRINKS) {
+            for female in [Some(true), Some(false), None] {
+                if reference_of(r, female, Some(40), 2000).is_some() {
+                    let c = cited_reference(r, female).unwrap();
+                    assert!(c.url.starts_with("https://"), "{}", r.key);
+                    assert!(!c.place.is_empty() && !c.label.is_empty(), "{}", r.key);
+                }
+                if r.upper.is_some() {
+                    assert!(cited(r.key, "upper", female).is_some(), "{} upper", r.key);
+                }
+            }
+        }
+        let women = cited("iron_ug", "reference", Some(true)).unwrap();
+        assert_eq!(women.place, "Table 7, page 47");
+        assert!(women.url.ends_with(".pdf#page=47"));
+        let men = cited("iron_ug", "reference", Some(false)).unwrap();
+        assert_eq!(men.place, "Table 5, page 45");
+    }
+
+    /// **A link is on a screen only once it was opened** (owner, 2026-11-03: *"links you have
+    /// actually tested only"*). A document a figure rests on must have opened, from a named
+    /// public body. A link on a card must be in the file and not gone; the ones that refuse a
+    /// robot may not grow: each needs a person to open it (`--by-hand`).
+    #[test]
+    fn every_link_shown_was_opened() {
+        for (id, d) in &CITED.documents {
+            assert!(d.url.starts_with("https://"), "{id}");
+            let host = d.url.trim_start_matches("https://").split('/').next().unwrap();
+            assert!(["www.efsa.europa.eu", "www.who.int"].contains(&host), "{id}: {host}");
+            assert_eq!(d.seen.len(), 10, "{id}: run `pixi run check-references -- --write`");
+        }
+        for f in &CITED.figures {
+            assert!(CITED.documents.contains_key(&f.doc), "{}: {}", f.key, f.doc);
+        }
+        let mut carried = 0;
+        let mut untested = vec![];
+        for text in [include_str!("shipped/plans.json"), include_str!("shipped/health-cards.json")]
+        {
+            let mut rest = text;
+            while let Some(at) = rest.find("http") {
+                let tail = &rest[at..];
+                let end = tail.find(['"', ' ', '<', '>', '\n']).unwrap_or(tail.len());
+                let found = &tail[..end];
+                rest = &tail[end..];
+                if !found.starts_with("https://") && !found.starts_with("http://") {
+                    continue;
+                }
+                let url = found.to_string();
+                let link = CITED
+                    .links
+                    .get(&url)
+                    .unwrap_or_else(|| panic!("{url} was never tested: pixi run check-references"));
+                assert_eq!(link.seen.len(), 10, "{url}");
+                match link.result.as_str() {
+                    "opened" | "by hand" => {}
+                    "refused" => untested.push(url),
+                    other => panic!("{url}: {other}"),
+                }
+                carried += 1;
+            }
+        }
+        assert!(carried > 50, "the cards' links were not read");
+        untested.sort();
+        untested.dedup();
+        assert!(untested.len() <= MOST_UNTESTED, "more links nobody could open: {untested:?}");
+    }
+
+    /// The links that refused the checker on 2026-11-03: it may only come down.
+    const MOST_UNTESTED: usize = 10;
 
     /// **Pinned values stand in for Food's own details**, in the person's order, at most six, only
     /// values the sheet has; another log's value (weight on Trends) stays; nothing pinned changes

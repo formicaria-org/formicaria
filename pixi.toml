@@ -449,6 +449,9 @@ import-render = { cmd = "sh ci/import-render.sh" }
 # `target/packs/foods.sqlite` and — compressed — into `crates/fm-app/packs/`, which is committed.
 # Run by hand when a new list is wanted; it prints the version, size and checksum
 # `crates/fm-app/src/packs.rs` must then carry.
+# Opens every source the app cites and reads each figure off the document (needs the network, so
+# not in `ci`; run before a release, `decisions.md#data`, 2026-11-03). `-- --write` records the day.
+check-references = "python3 ci/check-references.py"
 pack-foods = "python3 ci/pack-foods.py"
 # The recipes carried in the app: the NHLBI's, word for word. Run by hand; the build reads the file.
 pack-recipes = "python3 ci/pack-recipes.py crates/fm-app/src/shipped/recipes-nhlbi.json"
