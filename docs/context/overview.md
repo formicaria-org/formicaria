@@ -23,6 +23,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | The **study assistant / agent** (`fm-agent*`, models, first enable, per-OS support) | **its own repo since 2026-10-18: github.com/formicaria-org/myrme** (code, plan, contract, evals), pinned by tag; [its router](../../../myrme/docs/context/overview.md) and [release table](../../../myrme/docs/context/releases.md) in a sibling checkout · **`decisions.md#agent`** — every ruling to then, with "read before" guards on `unavailable()`, `SystemMonitor::sample`, `die_with_supervisor`, the launch path and `models.toml`'s runtime keys · `model-selection-research-2026-07-24-grounded.md` (choosing a model) · `agent-simplification-plan-2026-10-09.md` · `phone-image-to-text-alternatives-2026-10-10.md` · `tools-plan-2026-10-11.md` · `groups-plan-2026-10-12.md` · `sources-2026-10-11.md` · *(superseded by its own delivery: `archive/ai-agents-plan-superseded-2026-09-02.md`)* |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
+| **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
 | **Calendars, Gmail, the meeting pass; any time or zone** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail,zone}`, `fm_agent::meetings`) | `time-zones-audit-2026-10-24.md` · `decisions.md#agent` (2026-10-09: read-only, secrets per machine, Rust dates) · `known-issues.md` · `outstanding.md` §2.16 |
 | **Undo, Recently deleted, Back** (`undo.svelte.ts`, `nav.svelte.ts`, `LAYERS` in `App.svelte`) | `decisions.md#ui` (2026-10-09: Back, undo, the menu-entry refinement) — a panel must join `LAYERS`, a write meant to be undoable goes through `undo.svelte.ts` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured, to 2026-07-24) · today's phone model: [Myrme's benchmark summary](../../../myrme/docs/research/2026-10-20-small-model-benchmark-summary.md) |
@@ -201,8 +202,7 @@ There is **no user-facing note "type"** (meeting/task/note): everything is a
 **asset** (a note cataloging an ingested blob); `Kind::from_str` is lenient so
 legacy `type: task`/`meeting` frontmatter migrates silently to `note` on load.
 The standalone **Gallery view was removed** — assets open from the notes that
-reference them (the `gallery` command still exists server-side but is unused by
-the UI).
+reference them.
 
 **Assets appear in no view.** `board`/`agenda`/`recent` filter to
 `Predicate::Kind(vec![Kind::Note])` — an asset is a blob a note *references*, not
