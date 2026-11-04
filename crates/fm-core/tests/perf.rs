@@ -241,10 +241,12 @@ fn a_full_rebuild_stays_linear_in_the_note_count() {
 /// everything else with `load_all()`, so each of those views hydrated — YAML-parsed, then copied
 /// the body twice — every asset note on every switch.
 ///
-/// **The assertion is a ratio, not a millisecond count**, for the reason `known-issues.md` records
-/// after the O(n²) rebuild: a wall-clock budget only catches what someone thought to measure at
-/// the right size, while a shape holds on any machine. Same note count, same query, the only
-/// difference being asset notes the filter excludes — so the honest answer is "about the same".
+/// **What is asserted is what was loaded: a count, which no machine can disturb.** A view that asks
+/// for notes is handed the notes, and not one asset note is read for it. It was a timing ratio until
+/// 2026-11-04, and failed twice on commits that had not touched this crate, both on a shared CI runner
+/// (2.4x on 2026-10-10, 2.04x on 2026-11-04, against 1.4-1.5x here). A ratio stays below, as a backstop
+/// for slowness the count cannot see, and with room for the runner: 3.5x, against ~4.9x without the
+/// pushdown.
 #[test]
 fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
     const NOTES: usize = 300;
@@ -281,6 +283,14 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
             sort: vec![SortKey::desc("updated")],
             ..Default::default()
         };
+        let (loaded, _) = store.candidates(&q.filter).unwrap();
+        assert_eq!(
+            loaded.len(),
+            NOTES,
+            "a Kind(Note) view loaded {} objects for {NOTES} notes: the asset notes it filters out \
+             are being hydrated before the filter runs — see `FileStore::candidates`",
+            loaded.len()
+        );
         // **The fastest of several runs, not one run.** A single sample measures the machine as
         // much as the code: on 2026-10-10 a shared CI runner returned 2.4x from one pair of
         // readings on a commit that had not touched this crate, and failed the gate. Noise only
@@ -304,10 +314,6 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
     assert_eq!(bare_total, NOTES, "the notes-only vault holds only notes");
     assert_eq!(mixed_total, NOTES, "and the mixed vault answers with the same notes");
 
-    // Measured with single readings: ~1.4-1.6x with the pushdown, across seven unloaded and three
-    // CPU-loaded runs on the development machine, and ~4.9x without. (The claim that load only
-    // *compresses* the ratio did not survive a shared runner; see `timed_board`.) 2.0 keeps ~25% headroom over the honest value while still failing a clean 2x
-    // regression, which 3.0 would have waved through.
     let ratio = mixed.as_secs_f64() / bare.as_secs_f64().max(1e-9);
     println!(
         "board over {NOTES} notes: bare {bare:?}, with {ASSETS} asset notes \
@@ -315,7 +321,7 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
         ASSETS * PDF_TEXT / 1_000_000
     );
     assert!(
-        ratio < 2.0,
+        ratio < 3.5,
         "a Kind(Note) view got {ratio:.1}x slower merely because the vault also holds \
          {ASSETS} asset notes it filters out ({bare:?} -> {mixed:?}). The bodies are being \
          hydrated before the filter runs — see `FileStore::candidates`."
