@@ -95,7 +95,7 @@ by its barcode (see *A packaged food* below). Anything else can still be logged 
 
 formicaria opens on **Food → Day** (the very first time, on the Library and its tutorials). On a
 phone or tablet, swipe left or right to go to the group's next or previous view (Day, Menu,
-Trends, Diet).
+Trends, Diet). The view follows your finger; let go early, and it goes back.
 **Search a food to log**, at the top, or the **＋** beside a meal, opens the search with the
 keyboard up: type the first letters of a food straight away. You can also press the bar's **＋**.
 From the search or the bar's **＋** you say which meal it belongs to; the app does not guess one

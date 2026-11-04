@@ -1,7 +1,7 @@
 // A swipe steps between a group's views on a touch screen, and never takes a sideways move from
 // what handles one itself (2026-10-29).
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { claimed, stepped, swipe } from './swipe';
+import { claimed, settleMs, stepped, steps, swipe } from './swipe';
 
 function touch(el: Element, type: string, x: number, y: number) {
   const e = new Event(type, { bubbles: true });
@@ -77,5 +77,36 @@ describe('swipe', () => {
     expect(stepped(views, 'Diet', 1)).toBeNull();
     expect(stepped(views, 'Day', -1)).toBeNull();
     expect(stepped(views, 'Gone', 1)).toBeNull();
+  });
+
+  it('takes a quick move or a long slow one, and not one on its way back', () => {
+    const move = { dy: 0, ms: 200, speed: -1, width: 400, sideways: true };
+    expect(steps({ ...move, dx: -80 })).toBe(true);
+    expect(steps({ ...move, dx: -40 }), 'too short').toBe(false);
+    expect(steps({ ...move, dx: -80, ms: 2000, speed: -0.1 }), 'slow, not far').toBe(false);
+    expect(steps({ ...move, dx: -160, ms: 2000, speed: -0.1 }), 'slow, far').toBe(true);
+    expect(steps({ ...move, dx: -160, speed: 0.8 }), 'coming back').toBe(false);
+    expect(steps({ ...move, dx: -80, dy: 70, sideways: false }), 'a scroll').toBe(false);
+    expect(steps({ ...move, dx: -80, dy: 70 }), 'already sideways').toBe(true);
+  });
+
+  it('settles at about the speed the finger left at, within reason', () => {
+    expect(settleMs(300, 0)).toBe(220);
+    expect(settleMs(300, 2)).toBe(150);
+    expect(settleMs(300, 20)).toBe(120);
+  });
+
+  it('with motion off, moves nothing and steps at once', () => {
+    const screen = document.createElement('div');
+    document.body.append(screen);
+    const onnext = vi.fn();
+    swipe(screen, { onnext, next: 'Menu' });
+    touch(screen, 'touchstart', 200, 300);
+    const e = new Event('touchmove', { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'touches', { value: [{ clientX: 100, clientY: 300 }] });
+    screen.dispatchEvent(e);
+    expect(screen.classList.contains('swipe-moving')).toBe(false);
+    touch(screen, 'touchend', 100, 300);
+    expect(onnext).toHaveBeenCalledOnce();
   });
 });

@@ -180,11 +180,47 @@
     grip.addEventListener('pointerup', up);
   }
 
+  const isTab = (p: Pane, t: SpaceTab) =>
+    t.viewName ? p.kind === 'view' && p.viewName === t.viewName : p.kind === t.kind;
+  /// The name of the tab beside this one, or `null` past either end.
+  function tabBeside(by: 1 | -1) {
+    const at = spaceTabs.findIndex((t) => isTab(pane, t));
+    return (at < 0 ? undefined : spaceTabs[at + by])?.label ?? null;
+  }
+
+  /// **What is drawn stays until what was asked for has come** (the owner, 2026-11-04;
+  /// `decisions.md#ui`). A step to another of a group's views leaves its feed empty until the fetch
+  /// is back, and for that moment this pane drew the timeline, under no tabs, and took the tracker
+  /// down. So within a group the pane keeps drawing the view it has, as a whole (its pane and its
+  /// feed together); a tab says where the person is going meanwhile. Between groups it does not.
+  let kept = $state.raw<{ pane: Pane; feed: Feed } | null>(null);
+  $effect(() => {
+    if (feed) kept = { pane, feed };
+  });
+  const drawn = $derived.by((): { pane: Pane; feed: Feed | undefined } => {
+    if (feed || !kept || kept.pane.id !== pane.id) return { pane, feed };
+    const was = kept.pane;
+    const same = was.kind === pane.kind && was.viewName === pane.viewName;
+    const inTabs = spaceTabs.some((t) => isTab(pane, t)) && spaceTabs.some((t) => isTab(was, t));
+    const inGroup = !!pane.viewName && !!kept.feed.view?.group?.views.includes(pane.viewName);
+    return !same && (inTabs || inGroup) ? kept : { pane, feed };
+  });
+  /// **A hold ending builds the tracker anew**, as losing its feed always did: what it carries
+  /// across a change of view (`carried`) relies on that. Without a hold it goes on as it is.
+  let holding = false;
+  let builds = 0;
+  const trackerBuild = $derived.by(() => {
+    const held = drawn.feed !== feed;
+    if (holding && !held) builds += 1;
+    holding = held;
+    return builds;
+  });
+
   // Cards this pane shows, after the global vault filter.
-  const cards = $derived((feed?.cards ?? []).filter(shown));
+  const cards = $derived((drawn.feed?.cards ?? []).filter(shown));
   // Conflicted notes for the Collaboration surface, vault-filtered like the cards (the filter reads
   // the nested note, since a conflict now carries its kind alongside it).
-  const conflictNotes = $derived((feed?.conflicts ?? []).filter((c) => shown(c.note)));
+  const conflictNotes = $derived((drawn.feed?.conflicts ?? []).filter((c) => shown(c.note)));
   /// Which conflict rows have a resolution in flight, so a double-tap cannot fire two resolutions at
   /// the same path (the second would fail with "not in conflict" and read as a broken button).
   let resolving = $state<Record<string, boolean>>({});
@@ -217,10 +253,10 @@
   );
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
-    feed?.board
+    drawn.feed?.board
       ? {
-          ...feed.board,
-          columns: feed.board.columns.map((c) => ({ ...c, cards: c.cards.filter(shown) })),
+          ...drawn.feed.board,
+          columns: drawn.feed.board.columns.map((c) => ({ ...c, cards: c.cards.filter(shown) })),
         }
       : null,
   );
@@ -230,9 +266,7 @@
   /// The group's next or previous view, as its tab would open it — a swipe on a touch screen
   /// (`swipe.ts`, 2026-10-29).
   function stepTab(by: 1 | -1) {
-    const at = spaceTabs.findIndex((t) =>
-      t.viewName ? pane.kind === 'view' && pane.viewName === t.viewName : pane.kind === t.kind,
-    );
+    const at = spaceTabs.findIndex((t) => isTab(pane, t));
     const t = at < 0 ? undefined : spaceTabs[at + by];
     if (!t) return;
     onchange(
@@ -258,7 +292,7 @@
   /// Which renderer a saved view draws through — read from the *feed*, so it arrives with the
   /// payload it describes rather than depending on a second `list_views` fetch. The words about
   /// what it *hides* moved to `ViewControls`; this is only about which component to mount.
-  const shownView = $derived(pane.kind === 'view' ? feed?.view : undefined);
+  const shownView = $derived(drawn.pane.kind === 'view' ? drawn.feed?.view : undefined);
 
   // **Column order, reconnected.** `boardOrder.ts` is a pure, tested core — and after the
   // pane rewrite nothing imported it: `onreorder` was `() => {}`, so dragging a column
@@ -298,7 +332,7 @@
 
   function ordered(b: BoardT): BoardT {
     void orderVersion;
-    const saved = allOrders()[pane.groupBy];
+    const saved = allOrders()[drawn.pane.groupBy];
     return saved?.length ? { ...b, columns: orderColumns(b.columns, saved) } : b;
   }
 
@@ -310,7 +344,10 @@
     const visible = ordered(board).columns.map((c) => c.value);
     const next = moveValue(visible, fromValue, toValue, before);
     try {
-      localStorage.setItem(ORDER_KEY, JSON.stringify({ ...allOrders(), [pane.groupBy]: next }));
+      localStorage.setItem(
+        ORDER_KEY,
+        JSON.stringify({ ...allOrders(), [drawn.pane.groupBy]: next }),
+      );
       orderVersion++;
     } catch {
       /* private mode — the order just won't persist */
@@ -365,13 +402,18 @@
       enabled: spaceTabs.length > 1 && pane.kind !== 'note',
       onnext: () => stepTab(1),
       onprev: () => stepTab(-1),
+      key: pane.id,
+      next: tabBeside(1),
+      prev: tabBeside(-1),
+      shown: spaceTabs.find((t) => isTab(drawn.pane, t))?.key,
+      order: spaceTabs.map((t) => t.key),
     }}
   >
     <!-- **A group's views, as tabs**, on every width: a phone's bar is the app's own, so this is
          how one steps from the board to the agenda there too. The same strip a group of
          tracker views draws for itself (`decisions.md#ui`, 2026-10-12). -->
     {#if spaceTabs.length > 1}
-      <div class="space-tabs" role="group" aria-label={spaceName}>
+      <div class="space-tabs" data-swipe-still role="group" aria-label={spaceName}>
         {#each spaceTabs as t (t.key)}
           {@const on = t.viewName
             ? pane.kind === 'view' && pane.viewName === t.viewName
@@ -415,18 +457,18 @@
       {:else}
         <p class="pane-empty">No note.</p>
       {/if}
-    {:else if pane.kind === 'view' && shownView?.renderer === 'shelf'}
+    {:else if drawn.pane.kind === 'view' && shownView?.renderer === 'shelf'}
       <!-- The Library's shelves: the notes by their `shelf:` tags, as a bookcase (2026-10-24). -->
       {#if board}
         <Shelf {board} onmove={(id, value) => shelve(board, id, value)} {onopen} />
       {:else}
         <p class="pane-empty">Loading…</p>
       {/if}
-    {:else if pane.kind === 'board' || (pane.kind === 'view' && board)}
+    {:else if drawn.pane.kind === 'board' || (drawn.pane.kind === 'view' && board)}
       {#if board}
         <Board
           board={ordered(board)}
-          onmove={(id, value, beforeId) => onmove(pane.groupBy, id, value, beforeId)}
+          onmove={(id, value, beforeId) => onmove(drawn.pane.groupBy, id, value, beforeId)}
           onreorder={reorderColumns}
           {onopen}
           {statuses}
@@ -440,16 +482,31 @@
            itself, never vanishes" discipline was not applied, because nothing was broken: it just
            silently drew something else. No `query` prop: this is a filter someone wrote, not a
            search someone typed (see the comment in `Search.svelte`). -->
-    {:else if pane.kind === 'view' && shownView?.renderer === 'search'}
+    {:else if drawn.pane.kind === 'view' && shownView?.renderer === 'search'}
       <Search {cards} {onopen} />
-    {:else if pane.kind === 'view' && shownView?.renderer === 'totals'}
+    {:else if drawn.pane.kind === 'view' && shownView?.renderer === 'totals'}
       <!-- A tracker's view asks for its own days; the feed only says which view it is. -->
-      <TrackerPane {pane} {feed} {addSignal} tabs={headed} {onchange} {onsaved} {onopen} />
-    {:else if pane.kind === 'activity'}
+      {#key trackerBuild}
+        <TrackerPane
+          pane={drawn.pane}
+          feed={drawn.feed}
+          going={pane.viewName ?? undefined}
+          {addSignal}
+          tabs={headed}
+          {onchange}
+          {onsaved}
+          {onopen}
+        />
+      {/key}
+    {:else if drawn.pane.kind === 'view' && !drawn.feed}
+      <!-- A view whose feed has not come. Falling through drew the timeline: "No notes yet", or
+           someone's notes, for a moment on every step between views (2026-11-04). -->
+      <p class="pane-empty">Loading…</p>
+    {:else if drawn.pane.kind === 'activity'}
       <Activity {shown} {onopen} />
-    {:else if pane.kind === 'discussions'}
-      <Discussions discussions={feed?.discussions ?? []} {shown} {onopen} />
-    {:else if pane.kind === 'collaboration'}
+    {:else if drawn.pane.kind === 'discussions'}
+      <Discussions discussions={drawn.feed?.discussions ?? []} {shown} {onopen} />
+    {:else if drawn.pane.kind === 'collaboration'}
       <!-- Two things that need a person: conflicts (urgent — an unresolved merge blocks every
            commit) surface first, then proposals through the usual Timeline. -->
       {#if conflictNotes.length}
@@ -567,15 +624,15 @@
           </ul>
         </details>
       {/if}
-    {:else if pane.kind === 'agenda'}
-      {#if pane.agendaMode === 'list'}
+    {:else if drawn.pane.kind === 'agenda'}
+      {#if drawn.pane.agendaMode === 'list'}
         <Agenda {cards} {onopen} />
       {:else}
-        <Calendar {cards} {onopen} range={pane.agendaMode === 'week' ? 'week' : 'month'} />
+        <Calendar {cards} {onopen} range={drawn.pane.agendaMode === 'week' ? 'week' : 'month'} />
       {/if}
     {:else}
       <!-- timeline, or a flat-list saved view -->
-      {#if pane.kind === 'timeline' && spacesShown()}
+      {#if drawn.pane.kind === 'timeline' && spacesShown()}
         <TagChips tags={cards.map((c) => c.tags)} chosen={tag} onpick={(t) => (tag = t)} />
       {/if}
       <Timeline
@@ -583,7 +640,7 @@
         {onopen}
         {statuses}
         {onstatus}
-        mode={pane.timelineMode ?? 'feed'}
+        mode={drawn.pane.timelineMode ?? 'feed'}
         counts={threadCounts}
         {expandedId}
         ontoggle={(id) => (expandedId = expandedId === id ? null : id)}

@@ -2,7 +2,8 @@
 // test never asserts a value half-way through a tween (`decisions.md#ui`, 2026-10-11).
 import { cubicOut } from 'svelte/easing';
 
-function still(): boolean {
+/** Whether motion is off: a person asked for less of it, or this is a test. */
+export function still(): boolean {
   if (import.meta.env.MODE === 'test') return true;
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;

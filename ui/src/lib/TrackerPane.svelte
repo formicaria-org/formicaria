@@ -61,12 +61,23 @@
     addSignal?: number;
     /** Draw the group's views as a control in the pane — wherever the phone's group bar is not. */
     tabs?: boolean;
+    /** The view asked for, while this one stays drawn until it has arrived: its tab is marked. */
+    going?: string;
     onchange: (patch: Partial<Pane>) => void;
     onsaved: () => void;
     /** Open a note in the workspace — a recipe's own note, to write its method and times in. */
     onopen?: (id: string) => void;
   }
-  let { pane, feed, addSignal = 0, tabs = false, onchange, onsaved, onopen }: Props = $props();
+  let {
+    pane,
+    feed,
+    addSignal = 0,
+    tabs = false,
+    going,
+    onchange,
+    onsaved,
+    onopen,
+  }: Props = $props();
 
   /// **What is on screen: a view's name with its own definition, changed together.** Stepping to
   /// another of the group's views leaves the feed empty for a moment; reading the definition
@@ -81,7 +92,10 @@
   const group = $derived(held?.group ?? feed?.view?.group);
   const view = $derived(held?.view ?? '');
   /// The tab to mark: where the person asked to go, even before it has arrived.
-  const wanted = $derived(pane.viewName ?? view);
+  const wanted = $derived(going ?? pane.viewName ?? view);
+  /// **The view being left is only something to look at** until the next has come: a press on it
+  /// would act on a view the person has already left, and a screen reader would read it out.
+  const leaving = $derived(!!going && going !== pane.viewName);
   /// A group with more tabs than a phone is wide scrolls its bar; the tab in front is kept in it.
   let tabsEl = $state<HTMLElement | null>(null);
   $effect(() => {
@@ -514,6 +528,17 @@
     const v = group ? stepped(group.views, wanted, by) : null;
     if (v) onchange({ viewName: v });
   }
+  /// **The screens loaded on first sight are ready before a swipe lands on one** (2026-11-04):
+  /// otherwise the first visit to each waits for its code as well as its data.
+  let readied = false;
+  function ready() {
+    if (readied) return;
+    readied = true;
+    void import('./plan/PlanScreen.svelte');
+    void import('./food/MenuScreen.svelte');
+    void import('./training/ExercisesScreen.svelte');
+    void import('./training/WeekScreen.svelte');
+  }
 </script>
 
 <div class="tracker" class:tabbed={tabs}>
@@ -534,10 +559,18 @@
 
   <div
     class="screen"
+    inert={leaving}
+    aria-hidden={leaving ? 'true' : undefined}
     use:swipe={{
       enabled: !!group && group.views.length > 1,
       onnext: () => step(1),
       onprev: () => step(-1),
+      onbegin: ready,
+      key: pane.id,
+      next: group ? stepped(group.views, wanted, 1) : null,
+      prev: group ? stepped(group.views, wanted, -1) : null,
+      shown: pane.viewName ?? undefined,
+      order: group?.views,
     }}
   >
     {#if !def}
@@ -841,6 +874,9 @@
     color: var(--text-muted);
     font: inherit;
     cursor: pointer;
+    transition:
+      background-color 160ms linear,
+      color 160ms linear;
   }
   .tabs button.on {
     background: var(--surface-elevated);

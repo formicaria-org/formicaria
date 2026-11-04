@@ -4,6 +4,16 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## A swipe between views — what is left (2026-11-04)
+
+- **Not seen on a phone.** Driven with real touch input in a phone-sized Chromium, which says what
+  each frame draws and not how it feels. A slow phone's frame rate is not known.
+- **The gap shows the next view's name, not the view** (`decisions.md#ui`, 2026-11-04).
+- **The wait for a view is still the whole notebook's refresh** (`changePane` fetches every view), so
+  a slow phone may rest on the name for a while. It is honest, and it is the next thing to shorten.
+- **While a Library or Tasks view is held, its old content can still be pressed**: only a tracker's is
+  `inert`, since a pane's tabs live in the same element as its content.
+
 ## References on screen — what is left (2026-11-03)
 
 - **Ten links on the diet and health cards are not tested**: they refuse an honest robot, so a

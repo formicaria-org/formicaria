@@ -1065,6 +1065,27 @@ test('Back undoes one step of the log sheet, and the screen it opened on closes 
 });
 
 /// A day chosen from Trends is a step, not a tab: Back returns to Trends (2026-10-20).
+// 2026-11-04: for a moment on every step the pane had no feed, and drew the timeline under no tabs.
+test('a step between views keeps the view and its tabs until the next has come', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  const group = await openFood();
+  await fireEvent.click(within(group).getByRole('button', { name: 'Trends' }));
+  // The feed has not come: the tab already says where the person is going, nothing else has changed.
+  expect(group.isConnected).toBe(true);
+  expect(within(group).getByRole('button', { name: 'Trends' }).getAttribute('aria-current')).toBe(
+    'page',
+  );
+  expect(screen.queryByText('No notes yet')).toBeNull();
+  const leaving = document.querySelector<HTMLElement>('.tracker .screen');
+  expect(leaving?.inert, 'the view being left cannot be pressed').toBe(true);
+  expect(leaving?.getAttribute('aria-hidden')).toBe('true');
+  await screen.findAllByRole('button', { name: /^\w{3}, \w{3} \d+: / });
+  expect(screen.queryByText('No notes yet')).toBeNull();
+  expect(document.querySelector<HTMLElement>('.tracker .screen')?.inert).toBe(false);
+});
+
 test('Back from a day chosen in Trends returns to Trends', async () => {
   seedTrackerDemo();
   showTrackers();
@@ -1074,10 +1095,13 @@ test('Back from a day chosen in Trends returns to Trends', async () => {
   // A day's bar is named for its day and its figure: "Wed, Oct 14: 1,852 kcal".
   const bars = await screen.findAllByRole('button', { name: /^\w{3}, \w{3} \d+: / });
   await fireEvent.click(bars[bars.length - 1]);
+  // Asked afresh: the window is built anew once the view it steps to has come.
   await waitFor(() =>
-    expect(within(group).getByRole('button', { name: 'Day' }).getAttribute('aria-current')).toBe(
-      'page',
-    ),
+    expect(
+      within(screen.getByRole('group', { name: 'Food' }))
+        .getByRole('button', { name: 'Day' })
+        .getAttribute('aria-current'),
+    ).toBe('page'),
   );
   await nav.idle();
   history.back();
@@ -1110,10 +1134,13 @@ test('Back from a day opened in Health’s month returns to Over time', async ()
   await fireEvent.click(within(group).getByRole('button', { name: 'Over time' }));
   const day1 = await screen.findByRole('button', { name: /\b1\b.*Moderate/ });
   await fireEvent.click(day1);
+  // Asked afresh: the window is built anew once the view it steps to has come.
   await waitFor(() =>
-    expect(within(group).getByRole('button', { name: 'Diary' }).getAttribute('aria-current')).toBe(
-      'page',
-    ),
+    expect(
+      within(screen.getByRole('group', { name: 'Health' }))
+        .getByRole('button', { name: 'Diary' })
+        .getAttribute('aria-current'),
+    ).toBe('page'),
   );
   // The Diary is on that day, with its value.
   const headache = await screen.findByRole('group', { name: 'Headache' });
