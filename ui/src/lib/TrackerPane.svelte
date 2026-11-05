@@ -128,11 +128,17 @@
   /// exercises and the regime*): the week is the view; pressing one of its days shows that day's
   /// session in its place, and Back returns to the week. Closing it puts today in front again.
   let dayOpen = $state(false);
+  /// Only a day that was open is closed: this also runs as the screen is built, and putting today in
+  /// front then undid a day handed across from Trends (`carried`; 2026-11-05).
+  let wasOpen = false;
   $effect(() => {
-    if (dayOpen) nav.openLayer(`fitness-day:${pane.id}`, () => (dayOpen = false));
-    else {
+    if (dayOpen) {
+      nav.openLayer(`fitness-day:${pane.id}`, () => (dayOpen = false));
+      wasOpen = true;
+    } else {
       nav.closeLayer(`fitness-day:${pane.id}`);
-      if (untrack(() => selected) !== today) selected = today;
+      if (wasOpen && untrack(() => selected) !== today) selected = today;
+      wasOpen = false;
     }
   });
   $effect(() => () => nav.closeLayer(`fitness-day:${pane.id}`));

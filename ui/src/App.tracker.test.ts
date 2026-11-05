@@ -880,6 +880,42 @@ test('fitness is the week: what is meant for each day, and a day opens in its pl
   expect(await screen.findByRole('heading', { name: 'This week' })).toBeTruthy();
 });
 
+// Closing a day puts today in front again: what is added next goes on today, not on the day just
+// looked at. Only a day that was open does that (2026-11-05, *a day chosen in Trends*).
+test('after a day of an earlier week is closed, what is added goes on today', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'the week before' }));
+  await screen.findByRole('button', { name: 'Back to this week' });
+  const days = /^open (today|[A-Z][a-z]{2}, )/;
+  await waitFor(() => expect(screen.getAllByRole('button', { name: days }).length).toBe(7));
+  await fireEvent.click(screen.getAllByRole('button', { name: days })[6]);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Back to the week' }));
+  await screen.findByRole('heading', { name: 'This week' });
+
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Fitness' }));
+  const sheet = await screen.findByRole('dialog', { name: 'add to the session' });
+  await fireEvent.click(
+    within(sheet).getByRole('button', { name: 'Not in the list: type a name' }),
+  );
+  await fireEvent.input(within(sheet).getByLabelText('Exercise'), { target: { value: 'Lunge' } });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'more Sets' }));
+  await fireEvent.input(within(sheet).getByLabelText('Reps'), { target: { value: '8' } });
+  await fireEvent.input(within(sheet).getByLabelText('Load (kg)'), { target: { value: '30' } });
+  await fireEvent.click(within(sheet).getByRole('button', { name: /^Add \d+ × 8$/ }));
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: 'add to the session' })).toBeNull(),
+  );
+
+  const back = screen.queryByRole('button', { name: 'Back to the week' });
+  if (back) await fireEvent.click(back);
+  await fireEvent.click(await screen.findByRole('button', { name: 'open today' }));
+  expect(await screen.findByText('Lunge')).toBeTruthy();
+});
+
 test('an exercise card shows how it is done in its source’s words, credited, and adds to the session', async () => {
   showTrackers();
   render(App);
@@ -1084,6 +1120,30 @@ test('a step between views keeps the view and its tabs until the next has come',
   await screen.findAllByRole('button', { name: /^\w{3}, \w{3} \d+: / });
   expect(screen.queryByText('No notes yet')).toBeNull();
   expect(document.querySelector<HTMLElement>('.tracker .screen')?.inert).toBe(false);
+});
+
+// 2026-11-05: the day came across, and was then put back to today as the Day screen was built.
+test('a day chosen in Trends is the day that opens', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  const group = await openFood();
+  await fireEvent.click(within(group).getByRole('button', { name: 'Trends' }));
+  const bars = await screen.findAllByRole('button', { name: /^\w{3}, \w{3} \d+: / });
+  // The day before today, so that it is not what Day opens on anyway.
+  const bar = bars[bars.length - 2];
+  const day = bar.getAttribute('aria-label')?.split(':')[0] ?? 'a bar with no day';
+  await fireEvent.click(bar);
+  await waitFor(() =>
+    expect(
+      document.querySelector('.tracker .screen [aria-current]')?.getAttribute('aria-label'),
+    ).toMatch(new RegExp(`^${day}:`)),
+  );
+  expect(
+    within(screen.getByRole('group', { name: 'Food' }))
+      .getByRole('button', { name: 'Day' })
+      .getAttribute('aria-current'),
+  ).toBe('page');
 });
 
 test('Back from a day chosen in Trends returns to Trends', async () => {

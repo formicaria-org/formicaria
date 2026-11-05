@@ -17,10 +17,6 @@ trap, add one. Newest concerns first within each section.
   touch: up to 180 ms still in a quick flick at 6x slower with 600 ms per answer.
 - **A view's own data still arrives after the view does.** Diet says *Loading…* for a moment, as it did
   before; Day and Trends fill in.
-- **A day pressed in Trends opens Day on today, not on that day** (found 2026-11-05, in the shipped
-  build too; seen in the test suite's app, not on a device). `carried` hands the day across correctly,
-  then the effect beside `dayOpen` in `TrackerPane.svelte` sees no day open and sets `selected` back to
-  today, on every build. Not fixed: it is not part of the swipe.
 - **While a Library or Tasks view is held, the keyboard can still reach it**: a press cannot, but only
   a tracker's is `inert`, since a pane's tabs live in the same element as its content.
 
