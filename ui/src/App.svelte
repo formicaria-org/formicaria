@@ -14,6 +14,7 @@
     newPane,
     distinctFeeds,
     feedKey,
+    feedsAfter,
     reorder,
     rendererKind,
     autoCols,
@@ -1102,6 +1103,33 @@
         threadCounts = Object.fromEntries(rs.map((r) => [r.id, r.count]));
       })
       .catch(() => {});
+    await loadFeeds(false);
+  }
+
+  /// **The feeds of the views just left are kept** (the owner, 2026-11-05; `decisions.md#ui`), or a
+  /// step between a group's views waits for a fetch every time, even back to where it just was.
+  /// Reading one is safe because whatever is on screen is fetched again as it arrives; and a feed
+  /// kept this way lasts only until something may have changed (`feedsAfter`).
+  /// What is being fetched ahead of a swipe, so a second touch does not ask again.
+  const askedAhead = new Set<string>();
+  /** The feeds a swipe may land on in a moment, those not already here. */
+  function loadAhead(keys: string[]) {
+    for (const k of keys) {
+      if (k in feeds || askedAhead.has(k)) continue;
+      askedAhead.add(k);
+      void loadFeed(k)
+        .then((f) => {
+          if (k in feeds) return;
+          rawFeeds[k] = f;
+          feeds = { ...feeds, [k]: f };
+        })
+        // Nothing asked for it yet, so nothing to report: arriving there asks again.
+        .catch(() => {})
+        .finally(() => askedAhead.delete(k));
+    }
+  }
+
+  async function loadFeeds(keepLeft: boolean) {
     const keys = distinctFeeds(workspace.panes);
     try {
       // **A feed that failed is not a feed that is empty.** This swallowed every error to `{}`, so
@@ -1124,13 +1152,12 @@
       );
       // A feed whose every part is the very object it was last time (`parseReply`: the same
       // answer is the same object) keeps the value already on screen, so its view draws nothing.
-      feeds = Object.fromEntries(
-        entries.map(([k, f]) => {
-          const was = rawFeeds[k];
-          rawFeeds[k] = f;
-          return [k, was && sameFeed(was, f) && k in feeds ? feeds[k] : f] as const;
-        }),
-      );
+      const fresh = entries.map(([k, f]) => {
+        const was = rawFeeds[k];
+        rawFeeds[k] = f;
+        return [k, was && sameFeed(was, f) && k in feeds ? feeds[k] : f] as const;
+      });
+      feeds = feedsAfter(feeds, fresh, distinctFeeds(workspace.panes), keepLeft);
       // Clear only what *this* function put there. It used to clear unconditionally, which
       // meant a sync failure the user had not read yet was wiped by unrelated background
       // activity — and `refresh()` runs on every pane change and every `changed` beat, so
@@ -1180,10 +1207,19 @@
   // where they can be read, and `untrack` keeps everything else `refresh()` happens to touch —
   // `errorIsTransient`, `feeds` — from silently becoming a trigger too.
   let feedKeys = $derived(distinctFeeds(workspace.panes).join('|'));
+  let fedVaults: typeof vaults | undefined;
   $effect(() => {
     void feedKeys; // the set of feeds the workspace needs
     void vaults; // …and the vault list they are read from
-    untrack(() => void refresh());
+    untrack(() => {
+      // **A step to another view changed nothing but what is looked at**, so it reads that view and
+      // no more (2026-11-05). `activity` and `thread_roots` went first behind the one vault lock,
+      // the view's own feed after them, and a phone waited for it with the name in mid-screen.
+      // Activity reads its module, which only `refresh` fills, so a pane of it still goes round.
+      const stepped = vaults === fedVaults && !workspace.panes.some((p) => p.kind === 'activity');
+      fedVaults = vaults;
+      void (stepped ? loadFeeds(true) : refresh());
+    });
   });
 
   // Automatic "someone pushed" awareness. `backup_status` computes `remote_moved` per vault (a
@@ -3387,6 +3423,7 @@
               headed={workspace.layout === 'tiled'}
               addSignal={i === focused ? groupAdd : 0}
               spaceTabs={tabsOf(pane)}
+              onahead={loadAhead}
               spaceName={spaces.find((x) => x.tabs.some((t) => showsTab(pane, t)))?.name ?? ''}
             />
           </div>

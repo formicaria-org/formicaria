@@ -9,9 +9,16 @@
 //
 // **The view follows the finger** (the owner, 2026-11-04: *"it is almost as if we are suddenly on the
 // new one"*; `decisions.md#ui`). A pane draws one view and each screen fetches its own data, so no
-// neighbour is drawn to drag in: its name comes in beside the view, as a page would, and the view
-// fades in where the name stopped once its data has come. Past either end the view gives a little and
-// comes back. A view that arrives some other way (its tab, Back) slides in from the side it lies on.
+// neighbour is drawn to drag in: its name comes in beside the view, as a page would.
+//
+// **Nothing stops on the way** (the owner, 2026-11-05: *"an awkward pause with the name of the next
+// subview in the center before reaching it, it should be fluid"*). On release the view leaves at an
+// even speed instead of slowing into a stop; the next view then comes on in the same direction, and
+// the name carries on through the centre and fades as it comes. Its data is asked for at the first
+// touch, so it is normally there; only when it is not does the name wait.
+//
+// Past either end the view gives a little and comes back. A view that arrives some other way (its
+// tab, Back) slides in from the side it lies on.
 // Everything moved is the direct children of the element, but for those marked `data-swipe-still`
 // (its tabs), and only while it moves: a transform left on would break anything `position: fixed`
 // inside. With motion off there is none of this, and the step is taken at once.
@@ -29,6 +36,9 @@ const CLAIM = 10;
 const GIVE = 0.25;
 /** The longest a view waits off to the side for what comes next, before it comes back. */
 const WAIT_MS = 2500;
+/** How long a view swiped to takes to come on, and how: quick at first, slowing into place. */
+const ARRIVE_MS = 220;
+const ARRIVE_EASE = 'cubic-bezier(0.2, 0.6, 0.2, 1)';
 
 export type SwipeOptions = {
   /** A swipe to the left: the next view. */
@@ -95,8 +105,8 @@ export function settleMs(left: number, speed: number): number {
 
 /** What each pane showed last, kept here because its element may not outlive the change. */
 const lastShown = new Map<string, string>();
-/** The panes whose next view was swiped to: its name already came in, so it needs only to appear. */
-const swipedTo = new Set<string>();
+/** The panes whose next view was swiped to: which way it is moving, and the name in the gap. */
+const swipedTo = new Map<string, { dir: 1 | -1; name: string }>();
 
 export function swipe(node: HTMLElement, options: SwipeOptions = {}) {
   let opts = options;
@@ -114,20 +124,28 @@ export function swipe(node: HTMLElement, options: SwipeOptions = {}) {
     clearTimeout(timer);
     timer = undefined;
     node.classList.remove('swipe-moving', 'swipe-settling', 'swipe-arriving');
-    for (const name of ['--swipe-x', '--swipe-fade', '--swipe-ms', '--swipe-dir', '--swipe-from'])
+    for (const name of [
+      '--swipe-x',
+      '--swipe-fade',
+      '--swipe-ms',
+      '--swipe-dir',
+      '--swipe-from',
+      '--swipe-ease',
+    ])
       node.style.removeProperty(name);
     peek?.remove();
     peek = null;
   };
-  /** Move to `x` over `ms`, then do `then`. */
-  const settle = (x: number, fade: number, ms: number, then: () => void) => {
+  /** Move to `x` over `ms`, then do `then`. `ease` for a move that must not slow down at its end. */
+  const settle = (x: number, fade: number, ms: number, then: () => void, ease?: string) => {
     node.style.setProperty('--swipe-ms', `${ms}ms`);
+    if (ease) node.style.setProperty('--swipe-ease', ease);
     node.classList.add('swipe-settling');
     set(x, fade);
     clearTimeout(timer);
     timer = setTimeout(then, ms);
   };
-  /** The next view's name, one page to the side of this one. */
+  /** The next view's name, as an element of this view. */
   const showName = (name: string, dir: 1 | -1) => {
     node.style.setProperty('--swipe-dir', String(dir));
     if (peek) return;
@@ -155,7 +173,8 @@ export function swipe(node: HTMLElement, options: SwipeOptions = {}) {
     const before = lastShown.get(key);
     lastShown.set(key, shown);
     if (!before || before === shown) return;
-    const swiped = swipedTo.delete(key);
+    const swiped = swipedTo.get(key);
+    swipedTo.delete(key);
     if (still()) return;
     const from = opts.order.indexOf(before);
     const to = opts.order.indexOf(shown);
@@ -164,10 +183,21 @@ export function swipe(node: HTMLElement, options: SwipeOptions = {}) {
     rest();
     // An animation and not a transition: what arrives is often new elements, and a transition does
     // not run on an element that has only just been made.
-    const ms = dur(swiped ? 140 : 200);
-    const side = swiped ? 0 : Math.sign(to - from) * Math.min(56, node.clientWidth * 0.15);
+    const ms = dur(swiped ? ARRIVE_MS : 200);
+    const side = swiped
+      ? swiped.dir * Math.min(72, node.clientWidth * 0.2)
+      : Math.sign(to - from) * Math.min(56, node.clientWidth * 0.15);
     node.style.setProperty('--swipe-from', `${side}px`);
     node.style.setProperty('--swipe-ms', `${ms}ms`);
+    if (swiped) {
+      // Starts quickly, so it takes over from the view that left rather than starting from rest.
+      node.style.setProperty('--swipe-ease', ARRIVE_EASE);
+      // The name was in the middle of the screen and moving: it goes on, and goes.
+      if (swiped.name) {
+        showName(swiped.name, swiped.dir);
+        peek?.classList.add('swipe-peek-going');
+      }
+    }
     node.classList.add('swipe-arriving');
     timer = setTimeout(rest, ms);
   };
@@ -211,14 +241,20 @@ export function swipe(node: HTMLElement, options: SwipeOptions = {}) {
     }
     if (!step) return settle(0, 1, settleMs(dx, last.speed), rest);
     const width = node.clientWidth;
-    settle(-dir * width, 1, settleMs(width - Math.abs(dx), last.speed), () => {
-      if (opts.key) swipedTo.add(opts.key);
-      timer = setTimeout(() => {
-        if (opts.key) swipedTo.delete(opts.key);
-        settle(0, 1, dur(200), rest);
-      }, WAIT_MS);
-      take();
-    });
+    settle(
+      -dir * width,
+      1,
+      settleMs(width - Math.abs(dx), last.speed),
+      () => {
+        if (opts.key) swipedTo.set(opts.key, { dir, name: go ?? '' });
+        timer = setTimeout(() => {
+          if (opts.key) swipedTo.delete(opts.key);
+          settle(0, 1, dur(200), rest);
+        }, WAIT_MS);
+        take();
+      },
+      'linear',
+    );
   };
   const cancel = () => {
     start = null;

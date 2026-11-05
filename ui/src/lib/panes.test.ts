@@ -19,6 +19,9 @@ import {
   setStartView,
   START_VIEW,
   type Pane,
+  type Feed,
+  feedsAfter,
+  KEPT_FEEDS,
 } from './panes';
 
 describe('newPane', () => {
@@ -363,5 +366,31 @@ describe('opening', () => {
     setStartView(null);
     const ws = defaultWorkspace();
     expect(opening(ws)).toBe(ws);
+  });
+});
+
+// A step between views keeps what it left, so coming back waits for nothing (2026-11-05).
+describe('feedsAfter', () => {
+  const day: Feed = { cards: [] };
+  const menu: Feed = { board: undefined, cards: [] };
+  it('keeps the view just left when only what is looked at changed', () => {
+    expect(Object.keys(feedsAfter({ a: day }, [['b', menu]], ['b'], true))).toEqual(['a', 'b']);
+  });
+  it('lets it go when something may have changed', () => {
+    expect(Object.keys(feedsAfter({ a: day }, [['b', menu]], ['b'], false))).toEqual(['b']);
+  });
+  it('never takes away what the workspace has moved on to while this was asked', () => {
+    expect(Object.keys(feedsAfter({ c: day }, [['b', menu]], ['c'], false))).toEqual(['c', 'b']);
+  });
+  it('does not keep a feed that failed to come back to', () => {
+    expect(Object.keys(feedsAfter({ a: {} }, [['b', menu]], ['b'], true))).toEqual(['b']);
+  });
+  it('holds so many at most, and the newest and those just read are the ones it holds', () => {
+    const many = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, day]));
+    const after = Object.keys(feedsAfter(many, [['now', menu]], ['now'], true));
+    expect(after).toHaveLength(KEPT_FEEDS);
+    expect(after.at(-1)).toBe('now');
+    expect(after).toContain('k19');
+    expect(after).not.toContain('k0');
   });
 });

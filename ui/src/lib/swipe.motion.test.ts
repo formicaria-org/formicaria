@@ -109,7 +109,49 @@ describe('a swipe, moving', () => {
     const built = screenOf();
     swipe(built, { key, order, shown: 'Menu' });
     expect(built.classList.contains('swipe-arriving')).toBe(true);
-    expect(built.style.getPropertyValue('--swipe-from')).toBe('0px');
+    expect(built.style.getPropertyValue('--swipe-from')).toBe('72px');
+  });
+
+  // The owner, 2026-11-05: "an awkward pause with the name of the next subview in the center".
+  it('leaves at an even speed, and the next view takes over the same way with the name going', () => {
+    const key = fresh();
+    const order = ['Day', 'Menu'];
+    const el = screenOf();
+    const onnext = vi.fn();
+    const action = swipe(el, { key, order, shown: 'Day', next: 'Menu', prev: null, onnext });
+    fire(el, 'touchstart', 300);
+    fire(el, 'touchmove', 100);
+    fire(el, 'touchend', 100);
+    expect(el.style.getPropertyValue('--swipe-ease'), 'no slowing into a stop').toBe('linear');
+    vi.advanceTimersByTime(220);
+    expect(onnext).toHaveBeenCalledOnce();
+
+    action.update({ key, order, shown: 'Menu', next: null, prev: 'Day', onnext });
+    expect(el.style.getPropertyValue('--swipe-from'), 'from the side it was moving from').toBe(
+      '72px',
+    );
+    expect(el.style.getPropertyValue('--swipe-ease')).not.toBe('linear');
+    const going = el.querySelector('.swipe-peek');
+    expect(going?.textContent).toBe('Menu');
+    expect(going?.classList.contains('swipe-peek-going')).toBe(true);
+    vi.advanceTimersByTime(220);
+    expect(el.querySelector('.swipe-peek'), 'and leaves nothing behind').toBeNull();
+    expect(el.classList.contains('swipe-arriving')).toBe(false);
+  });
+
+  it('a swipe to the previous view comes on from the other side', () => {
+    const key = fresh();
+    const order = ['Day', 'Menu'];
+    const el = screenOf();
+    const onprev = vi.fn();
+    const action = swipe(el, { key, order, shown: 'Menu', prev: 'Day', next: null, onprev });
+    fire(el, 'touchstart', 100);
+    fire(el, 'touchmove', 300);
+    fire(el, 'touchend', 300);
+    vi.advanceTimersByTime(220);
+    expect(onprev).toHaveBeenCalledOnce();
+    action.update({ key, order, shown: 'Day', prev: null, next: 'Menu', onprev });
+    expect(el.style.getPropertyValue('--swipe-from')).toBe('-72px');
   });
 
   it('a view of another group has no side to come from', () => {

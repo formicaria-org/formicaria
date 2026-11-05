@@ -337,6 +337,29 @@ export interface Feed {
   };
 }
 
+/** How many feeds are held at most, those of the views left included. */
+export const KEPT_FEEDS = 12;
+
+/**
+ * The feeds to hold once `fresh` has come. **What the workspace now wants is never taken away**,
+ * even if it moved on while this was asked. A view it has left stays to come back to if `keepLeft`
+ * (nothing can have changed, only what is looked at); otherwise it goes, because something may have
+ * changed and only what is on screen was read again. A feed that failed is `{}`, which says nothing
+ * about its view, so it is not kept to come back to.
+ */
+export function feedsAfter(
+  held: Record<string, Feed>,
+  fresh: readonly (readonly [string, Feed])[],
+  wanted: string[],
+  keepLeft: boolean,
+): Record<string, Feed> {
+  const read = new Set(fresh.map(([k]) => k));
+  const others = Object.entries(held).filter(
+    ([k, f]) => !read.has(k) && Object.keys(f).length > 0 && (keepLeft || wanted.includes(k)),
+  );
+  return Object.fromEntries([...others, ...fresh].slice(-KEPT_FEEDS));
+}
+
 /** Move the pane at `from` to `to`, returning a new array (drag-to-reorder). Out-of-range or
  *  no-op moves return the list unchanged. */
 export function reorder(panes: Pane[], from: number, to: number): Pane[] {

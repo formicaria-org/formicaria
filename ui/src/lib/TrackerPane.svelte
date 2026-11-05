@@ -67,6 +67,8 @@
     onsaved: () => void;
     /** Open a note in the workspace — a recipe's own note, to write its method and times in. */
     onopen?: (id: string) => void;
+    /** A touch has begun that may become a swipe: these feeds may be wanted in a moment. */
+    onahead?: (keys: string[]) => void;
   }
   let {
     pane,
@@ -77,6 +79,7 @@
     onchange,
     onsaved,
     onopen,
+    onahead,
   }: Props = $props();
 
   /// **What is on screen: a view's name with its own definition, changed together.** Stepping to
@@ -529,9 +532,14 @@
     if (v) onchange({ viewName: v });
   }
   /// **The screens loaded on first sight are ready before a swipe lands on one** (2026-11-04):
-  /// otherwise the first visit to each waits for its code as well as its data.
+  /// otherwise the first visit to each waits for its code as well as its data. Its neighbours'
+  /// feeds too (2026-11-05): it is the wait for those that left the name in the middle of the screen.
   let readied = false;
   function ready() {
+    if (group) {
+      const beside = [stepped(group.views, wanted, -1), stepped(group.views, wanted, 1)];
+      onahead?.(beside.flatMap((v) => (v ? [`view:${v}`] : [])));
+    }
     if (readied) return;
     readied = true;
     void import('./plan/PlanScreen.svelte');

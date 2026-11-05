@@ -4,13 +4,23 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-## A swipe between views — what is left (2026-11-04)
+## A swipe between views — what is left (2026-11-05)
 
-- **Not seen on a phone.** Driven with real touch input in a phone-sized Chromium, which says what
-  each frame draws and not how it feels. A slow phone's frame rate is not known.
+- **Not seen on a phone.** Driven with real touch input in a phone-sized Chromium, slowed, which says
+  what each frame draws and not how it feels. A slow phone's frame rate is not known.
 - **The gap shows the next view's name, not the view** (`decisions.md#ui`, 2026-11-04).
-- **The wait for a view is still the whole notebook's refresh** (`changePane` fetches every view), so
-  a slow phone may rest on the name for a while. It is honest, and it is the next thing to shorten.
+- **A heavy view's first draw still stops everything, the name in mid-screen.** Agenda to a Board of
+  1,500 cards froze for about 0.7 s at normal CPU and 2.4 s at 4x slower, before and after the
+  2026-11-05 fix: it is the drawing, not a wait for data. Smaller boards cost in proportion, presumably;
+  only this size was measured. Drawing a board's cards as they come into view is what would fix it.
+- **The very first swipe to a view on a slow phone can still wait for its feed**, read from the first
+  touch: up to 180 ms still in a quick flick at 6x slower with 600 ms per answer.
+- **A view's own data still arrives after the view does.** Diet says *Loading…* for a moment, as it did
+  before; Day and Trends fill in.
+- **A day pressed in Trends opens Day on today, not on that day** (found 2026-11-05, in the shipped
+  build too; seen in the test suite's app, not on a device). `carried` hands the day across correctly,
+  then the effect beside `dayOpen` in `TrackerPane.svelte` sees no day open and sets `selected` back to
+  today, on every build. Not fixed: it is not part of the swipe.
 - **While a Library or Tasks view is held, the keyboard can still reach it**: a press cannot, but only
   a tracker's is `inert`, since a pane's tabs live in the same element as its content.
 
