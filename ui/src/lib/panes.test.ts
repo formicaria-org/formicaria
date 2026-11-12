@@ -17,7 +17,7 @@ import {
   reorder,
   opening,
   setStartView,
-  START_VIEW,
+  START_KIND,
   type Pane,
   type Feed,
   feedsAfter,
@@ -340,11 +340,11 @@ describe('icons', () => {
 });
 
 describe('opening', () => {
-  // Every launch after the first opens on Food's Day (2026-10-29): the view in front is replaced,
-  // the open notes are kept.
+  // Every launch after the first opens on the Library's Timeline (2026-11-12; Food's Day before):
+  // the view in front is replaced, the open notes are kept.
   afterEach(() => setStartView(null));
   it('puts the start view in front and keeps the open notes', () => {
-    setStartView(START_VIEW);
+    setStartView(START_KIND);
     const ws = migrateWorkspace({
       v: 3,
       cols: 1,
@@ -357,7 +357,7 @@ describe('opening', () => {
     }).workspace;
     const opened = opening(ws);
     expect(opened.panes.map((p) => [p.kind, p.viewName ?? p.noteId])).toEqual([
-      ['view', START_VIEW],
+      [START_KIND, null],
       ['note', 'N1'],
     ]);
     expect(opened.active).toBe(0);

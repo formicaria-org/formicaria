@@ -148,23 +148,23 @@ export function setFirstView(kind: PaneKind | 'home') {
   firstPane = kind === 'home' ? homePane : () => newPane(kind);
 }
 
-/** **Every launch after the first opens on Food's Day** (the owner, 2026-10-29: *"the search food
- *  should also be the default first thing a person sees, it is the most used feature"*;
- *  `decisions.md#ui`). A first launch still opens on the shelves and their tutorials. Pinned to the
- *  shipped file's `name:` on the Rust side (`views.rs`), like `HOME_VIEW`. */
-export const START_VIEW = 'Day';
-let startView: string | null = START_VIEW;
+/** **Every launch after the first opens on the Library's Timeline** (the owner, 2026-11-12: *"the
+ *  food view is the default one, it should be the timeline of the library"*; `decisions.md#ui`).
+ *  Before that it was Food's Day (2026-10-29). A first launch still opens on the shelves and their
+ *  tutorials. The Timeline is a built-in window, not a shipped `.view`, so it is named by its kind. */
+export const START_KIND: PaneKind = 'timeline';
+let startKind: PaneKind | null = START_KIND;
 /** The suite, written against a workspace that reopens as it was left, turns this off once
  *  (`test-setup.ts`); the tests about opening turn it back on. */
-export function setStartView(name: string | null) {
-  startView = name;
+export function setStartView(kind: PaneKind | null) {
+  startKind = kind;
 }
 
 /** A saved workspace as a launch opens it: its open notes kept, and the view replaced by
- *  `START_VIEW`, in front. Unchanged when the suite has turned it off. */
+ *  `START_KIND`, in front. Unchanged when the suite has turned it off. */
 export function opening(ws: Workspace): Workspace {
-  if (!startView) return ws;
-  const start = newPane('view', { viewName: startView });
+  if (!startKind) return ws;
+  const start = newPane(startKind);
   const panes = ws.panes.map((p) => (isView(p) ? start : p));
   if (!panes.includes(start)) panes.unshift(start);
   return {

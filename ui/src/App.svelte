@@ -153,7 +153,7 @@
       /* fall through to the default */
     }
     const loaded = migrateWorkspace(raw);
-    // A first launch opens on the shelves; every later one on Food's Day (`opening`, 2026-10-29).
+    // A first launch opens on the shelves; every later one on the Library's Timeline (`opening`, 2026-11-12).
     return raw ? { workspace: opening(loaded.workspace), migrated: true } : loaded;
   }
   const loaded = loadWorkspace();
