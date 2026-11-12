@@ -19,7 +19,7 @@ time = { workspace = true }
 # clock is moved onto the person's, on its own day, and the computer's own zone is read safely in a
 # threaded process. Reads the system's tzdata; carries one only on Windows, which has none.
 jiff = "0.2"
-rusqlite = { version = "0.40.1", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 sha2 = "0.11"      # sha256 content addressing — verifiable with `sha256sum` forever
 infer = "0.19"     # pure-Rust MIME sniff by magic bytes (never trust the extension)
 

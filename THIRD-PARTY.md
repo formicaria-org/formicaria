@@ -160,7 +160,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | libgit2-sys | v0.18.5+1.9.4 | (MIT OR Apache-2.0) AND (GPL-2.0-only WITH linking exception) — vendors libgit2 |
 | libloading | v0.9.0 | ISC |
 | libm | v0.2.16 | MIT |
-| libsqlite3-sys | v0.38.1 | MIT |
+| libsqlite3-sys | v0.39.1 | MIT |
 | libz-sys | v1.1.31 | MIT OR Apache-2.0 |
 | linux-raw-sys | v0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | v0.8.2 | Unicode-3.0 |
@@ -257,7 +257,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | rgb | v0.8.53 | MIT |
 | ring | v0.17.14 | Apache-2.0 AND ISC |
 | rsqlite-vfs | v0.1.1 | MIT |
-| rusqlite | v0.40.1 | MIT |
+| rusqlite | v0.41.1 | MIT |
 | rustdct | v0.7.1 | MIT OR Apache-2.0 |
 | rustfft | v6.4.1 | MIT OR Apache-2.0 |
 | rustix | v1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
