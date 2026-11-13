@@ -93,8 +93,10 @@ by its barcode (see *A packaged food* below). Anything else can still be logged 
 
 ## Logging a food
 
-formicaria opens on **Food → Day** (the very first time, on the Library and its tutorials). On a
-phone or tablet, swipe left or right to go to the group's next or previous view (Day, Menu,
+Open **Food** among the views: it starts on **Day**, today. The strip of days under the date runs
+from six days back to a week ahead; **‹** and **›** step one day, and **‹** keeps going back past
+the strip's first day, as far as you like. Press the date to come back to today. On a phone or
+tablet, swipe left or right to go to the group's next or previous view (Day, Menu,
 Trends, Diet). The view follows your finger; let go early, and it goes back.
 **Search a food to log**, at the top, or the **＋** beside a meal, opens the search with the
 keyboard up: type the first letters of a food straight away. You can also press the bar's **＋**.
