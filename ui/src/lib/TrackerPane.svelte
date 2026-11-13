@@ -214,9 +214,12 @@
 
   /// The strip is a fortnight ending today, or around the chosen day once that is further back.
   /// …and it runs a week past today, so a meal can be planned ahead.
+  /// **The strip's oldest day moves it back** (2026-11-13): it holds six days behind today, and the
+  /// day before steps only within the strip, so its first day must already re-centre it — else the
+  /// day before did nothing there, and no day further back could be reached.
   const AHEAD = 7;
   const stripEnd = $derived(
-    selected >= addDays(today, -13 + AHEAD) ? addDays(today, AHEAD) : addDays(selected, 6),
+    selected > addDays(today, AHEAD - 13) ? addDays(today, AHEAD) : addDays(selected, 6),
   );
 
   let asked = 0;

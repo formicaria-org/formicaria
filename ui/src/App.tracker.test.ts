@@ -7,7 +7,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/sve
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
 import { clearFaults, handle, reset, seedTrackerDemo, setLabelReader } from './lib/mock';
-import { today as todayNow } from './lib/units';
+import { addDays, dayLabel, today as todayNow } from './lib/units';
 import * as nav from './lib/nav.svelte';
 import { clear as clearUndo } from './lib/undo.svelte';
 import * as trackers from './lib/trackers.svelte';
@@ -1320,4 +1320,23 @@ test('a supplement is written down per capsule with its vitamins, and logged by 
     const made = (days.days[0].rows ?? []).find((r) => r.title === 'Vitamin D3');
     expect(made?.props).toMatchObject({ amount_each: 2, piece: 'capsule', vitamin_d_ng: 50_000 });
   });
+});
+
+// **Every day is reachable from Day** (2026-11-13): the strip once ran a week ahead of today and kept
+// only six days behind it, and the day before did nothing on the oldest — a person could not see
+// further back than six days, though every day was kept.
+test('the day before steps back past the strip, as far as one likes', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  await openFood();
+  await screen.findByText('left');
+  const today = todayNow();
+  for (let back = 1; back <= 20; back++) {
+    await fireEvent.click(screen.getByRole('button', { name: 'the day before' }));
+    const want = dayLabel(addDays(today, -back));
+    await waitFor(() =>
+      expect(document.querySelector('.when .date')?.getAttribute('aria-label')).toBe(want),
+    );
+  }
 });

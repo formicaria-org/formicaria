@@ -1504,7 +1504,10 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   exercise would need a grouping `log_days` does not have (`decisions.md#data`, 2026-10-11).
 - **A weight, once written down, cannot be changed or removed from its screen.** The line shows
   it; nothing lists the entries. Undo removes the last one; after that it is a note with no way in.
-- **A plan reaches seven days ahead.** The day screen's strip ends a week after today.
+- **A plan reaches seven days ahead.** The day screen's strip ends a week after today, so it shows
+  only six days behind it; older days are reached with *the day before*, which re-centres the strip
+  from its oldest day. Until 2026-11-13 it did nothing there and no day older than six days back
+  could be opened (`App.tracker.test.ts`, *the day before steps back past the strip*).
 - **A `totals` view's own keys are documented only in `views.rs`** (`log`, `add`, `span`,
   `metrics` with `role` and `agg`, `slots`, `group`). The user manual describes the screens, not
   the file.
