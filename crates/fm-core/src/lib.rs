@@ -19,6 +19,7 @@ pub use multi::{ColdStart, MultiStore, Scoped};
 pub mod edit;
 pub mod pack;
 pub use edit::apply_property;
+pub mod audio; // an audio file's own tags, read at upload
 pub mod blob;
 pub mod chunked;
 pub mod ingest;

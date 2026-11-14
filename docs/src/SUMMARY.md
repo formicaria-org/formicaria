@@ -23,6 +23,7 @@
 - [Layout and the keyboard](./user/workspace.md)
 - [Food and training](./user/trackers.md)
 - [Health](./user/health.md)
+- [Music](./user/music.md)
 - [Meetings from your calendar](./user/calendars.md)
 - [Mail (Gmail)](./user/mail.md)
 - [Appearance](./user/appearance.md)

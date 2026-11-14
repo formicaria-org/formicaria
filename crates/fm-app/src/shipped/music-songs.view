@@ -1,0 +1,6 @@
+name: Songs
+view: totals
+group: Music
+log: music
+add: song
+span: library

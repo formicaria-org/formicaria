@@ -75,6 +75,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | darling_macro | v0.20.11 | MIT |
 | darling_macro | v0.23.0 | MIT |
 | dary_heap | v0.3.9 | MIT OR Apache-2.0 |
+| data-encoding | v2.11.1 | MIT |
 | deranged | v0.5.8 | MIT OR Apache-2.0 |
 | derive_builder | v0.20.2 | MIT OR Apache-2.0 |
 | derive_builder_core | v0.20.2 | MIT OR Apache-2.0 |
@@ -96,7 +97,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | fdeflate | v0.3.7 | MIT OR Apache-2.0 |
 | filetime | v0.2.29 | MIT/Apache-2.0 |
 | find-msvc-tools | v0.1.9 | MIT OR Apache-2.0 |
-| flate2 | v1.1.9 | MIT OR Apache-2.0 |
+| flate2 | v1.1.11 | MIT OR Apache-2.0 |
 | fm-agent | v0.12.3 | MIT |
 | fm-agent-run | v0.12.3 | MIT |
 | fm-app | v0.0.0 | MIT |
@@ -164,7 +165,9 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | libz-sys | v1.1.31 | MIT OR Apache-2.0 |
 | linux-raw-sys | v0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | v0.8.2 | Unicode-3.0 |
-| log | v0.4.33 | MIT OR Apache-2.0 |
+| lofty | v0.25.5 | MIT OR Apache-2.0 |
+| lofty_attr | v0.13.0 | MIT OR Apache-2.0 |
+| log | v0.4.35 | MIT OR Apache-2.0 |
 | loop9 | v0.1.5 | MIT |
 | macro_rules_attribute | v0.2.3 | Apache-2.0 OR MIT OR Zlib |
 | macro_rules_attribute-proc_macro | v0.2.3 | Apache-2.0 OR MIT OR Zlib |
@@ -174,6 +177,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | memchr | v2.8.3 | Unlicense OR MIT |
 | minimal-lexical | v0.2.1 | MIT/Apache-2.0 |
 | miniz_oxide | v0.8.9 | MIT OR Zlib OR Apache-2.0 |
+| miniz_oxide | v0.9.1 | MIT OR Zlib OR Apache-2.0 |
 | monostate | v0.1.18 | MIT OR Apache-2.0 |
 | monostate-impl | v0.1.18 | MIT OR Apache-2.0 |
 | moxcms | v0.8.1 | BSD-3-Clause OR Apache-2.0 |
@@ -201,6 +205,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | oar-ocr | v0.8.1 | Apache-2.0 |
 | oar-ocr-core | v0.8.1 | Apache-2.0 |
 | oar-ocr-derive | v0.8.1 | Apache-2.0 |
+| ogg_pager | v0.8.0 | MIT OR Apache-2.0 |
 | once_cell | v1.21.4 | MIT OR Apache-2.0 |
 | once_cell_polyfill | v1.70.2 | MIT OR Apache-2.0 |
 | onig | v6.5.3 | MIT |
@@ -288,6 +293,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | strsim | v0.11.1 | MIT |
 | subtle | v2.6.1 | BSD-3-Clause |
 | syn | v2.0.118 | MIT OR Apache-2.0 |
+| syn | v3.0.9 | MIT OR Apache-2.0 |
 | synstructure | v0.13.2 | MIT |
 | tar | v0.4.46 | MIT OR Apache-2.0 |
 | target-features | v0.1.6 | MIT OR Apache-2.0 |

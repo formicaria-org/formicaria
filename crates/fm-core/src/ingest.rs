@@ -24,6 +24,30 @@ pub struct Ingested {
     /// Extracted searchable text (PDF via pdftotext, or the file itself when it
     /// is text). `None` for binary media with no text to extract.
     pub text: Option<String>,
+    /// An audio file's own tags (`audio.rs`), and the hash of its cover once stored as a blob of
+    /// its own. `None` for anything that is not audio, or audio `lofty` could not read.
+    pub audio: Option<Audio>,
+}
+
+/// What an audio file said about itself, with its cover already in the blob store.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Audio {
+    pub tags: crate::audio::AudioTags,
+    /// `sha256` hex of the embedded cover, stored as its own blob. The bytes are dropped from
+    /// `tags.cover` once stored, so an `Ingested` never carries a picture around.
+    pub cover: Option<String>,
+}
+
+/// Read an audio blob's tags and store its cover. Best-effort like every step past hashing: a
+/// cover that will not store loses the cover, never the song.
+fn audio_of(store: &BlobStore, blob: &Path, mime: Option<&str>) -> Option<Audio> {
+    if !mime.is_some_and(|m| m.starts_with("audio/")) {
+        return None;
+    }
+    let mut tags = crate::audio::read_tags(blob)?;
+    let cover =
+        tags.cover.take().and_then(|(bytes, _)| store.put_bytes(&bytes).ok()).map(|s| s.hash);
+    Some(Audio { tags, cover })
 }
 
 /// Store `src` in the vault's blob store and extract what is searchable.
@@ -63,6 +87,7 @@ fn describe(
         .and_then(|b| sniff_svg(&b).map(str::to_string))
         .or_else(|| infer::get_from_path(src).ok().flatten().map(|t| t.mime_type().to_string()));
     let text = extract_text(&blob, sniffed.as_deref());
+    let audio = audio_of(store, &blob, sniffed.as_deref());
     let mime = sniffed.unwrap_or_else(|| {
         // No known signature: call it text if it parsed as UTF-8, else opaque.
         if text.is_some() {
@@ -71,7 +96,7 @@ fn describe(
             "application/octet-stream".into()
         }
     });
-    Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
+    Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text, audio })
 }
 
 /// Store `bytes` in the vault's blob store and extract what is searchable — the
@@ -89,6 +114,7 @@ pub fn ingest_bytes(vault: &Path, filename: &str, bytes: &[u8]) -> Result<Ingest
         .map(str::to_string)
         .or_else(|| infer::get(bytes).map(|t| t.mime_type().to_string()));
     let text = extract_text(&blob, sniffed.as_deref());
+    let audio = audio_of(&store, &blob, sniffed.as_deref());
     let mime = sniffed.unwrap_or_else(|| {
         if text.is_some() {
             "text/plain".into()
@@ -96,7 +122,7 @@ pub fn ingest_bytes(vault: &Path, filename: &str, bytes: &[u8]) -> Result<Ingest
             "application/octet-stream".into()
         }
     });
-    Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
+    Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text, audio })
 }
 
 /// `infer` is magic-byte only, so it misses SVG — a prologue-less SVG signatures

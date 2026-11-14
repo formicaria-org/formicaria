@@ -24,7 +24,7 @@ it writes go out (to Wikipedia, arXiv and GitHub), never your notes.
 **Health** is one of the app's [groups](./views.md#the-groups), beside Food and Fitness. It has three tabs: **Diary** to
 write in, **Over time** to look back, and **Guidance** for the cards. It is shown unless you hide it, with the same switch:
 
-**Settings → Food & reminders → Food and training → Show Food, Fitness and Health on this device.**
+**Settings → Food & reminders → Food and training → Show Food, Fitness, Health and Music on this device.**
 
 ## What you track
 

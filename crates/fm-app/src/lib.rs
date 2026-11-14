@@ -59,6 +59,7 @@ pub mod dto;
 pub mod guidance;
 pub mod health;
 pub mod log;
+pub mod music;
 pub mod nutrients;
 pub mod packs;
 pub mod paper;

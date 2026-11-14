@@ -775,6 +775,22 @@ export function setLabelReader(why: string): void {
   mockLabelWhy = why;
 }
 
+/** **What an audio file's tags say**, by filename, for `ingest` to put on its asset note the way
+ *  `fm-core::audio` does (2026-11-13). A file not named here is audio with no tags: its MIME only.
+ *  Tests set it; `reset()` clears it. */
+const mockAudioTags = new Map<string, Record<string, string | number>>();
+export function setAudioTags(name: string, tags: Record<string, string | number>): void {
+  mockAudioTags.set(name, tags);
+}
+const AUDIO_MIME: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/m4a',
+  flac: 'audio/x-flac',
+  ogg: 'audio/ogg',
+  opus: 'audio/opus',
+  wav: 'audio/x-wav',
+};
+
 let mockFaults: Fault[] = [];
 export function faults(list: Fault[]): void {
   mockFaults = list.map((f) => ({ ...f }));
@@ -833,6 +849,7 @@ export function reset(): void {
   bodyOverrides.clear();
   mockRecoverable = [];
   blobs.clear();
+  mockAudioTags.clear();
   acceptedProposals.clear();
   seq = FIXTURE_SEQ;
   recordRefused = false;
@@ -1867,11 +1884,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const bytes = args.bytes as Uint8Array | undefined;
       const hash = bytes ? fakeHashBytes(bytes) : fakeHash(name);
       if (bytes) blobs.set(`sha256:${hash}`, bytes.length);
+      const audio = AUDIO_MIME[name.split('.').pop()?.toLowerCase() ?? ''];
       const n = makeNote({
         preview: name,
         type: 'asset',
         title: name,
         assets: [`sha256:${hash}`],
+        props: audio ? { mime: audio, ...(mockAudioTags.get(name) ?? {}) } : {},
         vault,
       });
       notes.unshift(n);
@@ -2380,6 +2399,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return healthGuidance(notes, String(args.day)) as T;
     case 'health_days':
       return tracker.healthDays(notes, args as { from: string; to: string; weeks?: boolean }) as T;
+    case 'music_library':
+      return notes
+        .filter((n) => n.props.log === 'music')
+        .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''))
+        .map((n) => JSON.parse(JSON.stringify(n))) as T;
     case 'log_recent': {
       const a = args as { view: string; slot?: string; q?: string; limit?: number };
       return tracker.logRecent(notes, a) as T;

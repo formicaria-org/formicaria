@@ -81,6 +81,9 @@ const BODY: TotalsDef = {
   slots: [],
 };
 const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Menu', 'Trends', 'Diet'] };
+/** As `music-songs.view`: a library of songs, filled by *Add a song* (2026-11-13). */
+const MUSIC: TotalsDef = { log: 'music', add: 'song', span: 'library', metrics: [], slots: [] };
+const MUSIC_GROUP: ViewGroup = { name: 'Music', views: ['Songs'] };
 const FITNESS_GROUP: ViewGroup = {
   name: 'Fitness',
   views: ['Week', 'Exercises', 'Regime'],
@@ -113,6 +116,7 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Diary: { totals: HEALTH, group: HEALTH_GROUP },
   'Over time': { totals: { ...HEALTH, span: 'range' }, group: HEALTH_GROUP },
   Guidance: { totals: { ...HEALTH, span: 'plan' }, group: HEALTH_GROUP },
+  Songs: { totals: MUSIC, group: MUSIC_GROUP },
 };
 
 export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) => ({

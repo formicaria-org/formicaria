@@ -157,6 +157,9 @@ pub enum AddAction {
     /// **Track something**: a tracker added to the person's Health template, since a Health day is
     /// one note the diary writes as it is filled in (`decisions.md#ui`, 2026-10-22).
     Health,
+    /// **Add a song**: an audio file uploaded like any attachment, its tags filling a song note
+    /// (`log: music`; `decisions.md#ui`, 2026-11-13, *a sixth group, Music*).
+    Song,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,6 +187,9 @@ pub enum Span {
     /// (`decisions.md#ui`, 2026-10-22, *a fifth group, Health*). Its other views are `range`
     /// (Over time: a month's grid or a bar a week) and `plan` (Guidance).
     Diary,
+    /// Not days at all: every entry of the log at once, to search, sort and open — Music's songs
+    /// (`decisions.md#ui`, 2026-11-13). Its rows come from `music_library`, asked for once.
+    Library,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -214,7 +220,8 @@ fn totals_def(file: &ViewFile) -> Result<TotalsDef, String> {
     }
     // A Health view's values are the person's own trackers, read from their Health template
     // (`health::trackers`), so it names none; every other totals view must.
-    if file.metrics.is_empty() && file.add != Some(AddAction::Health) {
+    // Nor does a song: a library lists entries, it sums nothing.
+    if file.metrics.is_empty() && !matches!(file.add, Some(AddAction::Health | AddAction::Song)) {
         return Err("a totals view needs at least one entry under `metrics:`".to_string());
     }
     for m in &file.metrics {
@@ -222,7 +229,7 @@ fn totals_def(file: &ViewFile) -> Result<TotalsDef, String> {
             return Err(format!("`{}` cannot be a metric", m.key));
         }
     }
-    let add = file.add.ok_or("a totals view needs `add:` — food, workout, body or health")?;
+    let add = file.add.ok_or("a totals view needs `add:` — food, workout, body, health or song")?;
     Ok(TotalsDef {
         log: log.to_string(),
         add,
@@ -1002,6 +1009,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("health-diary", include_str!("shipped/health-diary.view")),
     ("health-over-time", include_str!("shipped/health-over-time.view")),
     ("health-guidance", include_str!("shipped/health-guidance.view")),
+    ("music-songs", include_str!("shipped/music-songs.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

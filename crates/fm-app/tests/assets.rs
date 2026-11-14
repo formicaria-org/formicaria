@@ -178,3 +178,85 @@ fn resolve_asset_bytes_refuses_a_thumb_when_the_blob_itself_is_absent() {
         "a derived file must not stand in for a blob the caller cannot have"
     );
 }
+
+/// Two seconds of 8 kHz mono silence as a WAV file, tagged as an invented song with a one-pixel
+/// cover — written by the test, so no recording is committed.
+fn tagged_song() -> Vec<u8> {
+    use lofty::config::WriteOptions;
+    use lofty::picture::{MimeType, Picture, PictureType};
+    use lofty::prelude::*;
+    use lofty::tag::{Tag, TagType};
+    let rate = 8000u32;
+    let data_len = rate * 2 * 2;
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes()); // fmt chunk size
+    wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    wav.extend_from_slice(&1u16.to_le_bytes()); // mono
+    wav.extend_from_slice(&rate.to_le_bytes());
+    wav.extend_from_slice(&(rate * 2).to_le_bytes()); // byte rate
+    wav.extend_from_slice(&2u16.to_le_bytes()); // block align
+    wav.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.resize(44 + data_len as usize, 0);
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("song.wav");
+    fs::write(&path, wav).unwrap();
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.set_title("Night Train".into());
+    tag.set_artist("The Example Band".into());
+    tag.set_album("Invented Songs".into());
+    tag.set_track(4);
+    tag.insert_text(ItemKey::RecordingDate, "2019".into());
+    let png: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F,
+        0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    tag.push_picture(
+        Picture::unchecked(png.to_vec())
+            .pic_type(PictureType::CoverFront)
+            .mime_type(MimeType::Png)
+            .build(),
+    );
+    tag.save_to_path(&path, WriteOptions::default()).unwrap();
+    fs::read(&path).unwrap()
+}
+
+/// **A song fills itself from its file** (`decisions.md#data`, 2026-11-13, *a sixth group, Music*):
+/// an uploaded audio file's asset note carries what its tags said, and its cover as a second blob.
+#[test]
+fn an_uploaded_song_carries_its_tags_and_its_cover() {
+    let vault = tempdir().unwrap();
+    let mut store = MemoryStore::default();
+    let meta =
+        commands::ingest(&mut store, vault.path(), "personal", "night train.wav", &tagged_song())
+            .unwrap();
+    assert_eq!(meta.title.as_deref(), Some("night train.wav"), "an asset note is its filename");
+    let prop = |k: &str| {
+        meta.props.get(k).map(|v| v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))
+    };
+    assert_eq!(prop("tag_title").as_deref(), Some("Night Train"));
+    assert_eq!(prop("artist").as_deref(), Some("The Example Band"));
+    assert_eq!(prop("album").as_deref(), Some("Invented Songs"));
+    assert_eq!(prop("track").as_deref(), Some("4"));
+    assert_eq!(prop("year").as_deref(), Some("2019"));
+    assert_eq!(prop("duration_s").as_deref(), Some("2"));
+    assert_eq!(prop("genre"), None, "a tag the file did not carry is left unset");
+
+    // The audio stays the first asset; the cover is the second, and is a stored picture.
+    assert_eq!(meta.assets.len(), 2);
+    let cover = prop("cover").expect("the cover is named");
+    assert_eq!(meta.assets[1], cover);
+    let status = commands::asset_status(vault.path(), &cover).unwrap();
+    assert!(status.has_blob);
+    assert_eq!(status.mime.as_deref(), Some("image/png"));
+    let audio = commands::asset_status(vault.path(), &meta.assets[0]).unwrap();
+    assert!(audio.mime.as_deref().is_some_and(|m| m.starts_with("audio/")), "{audio:?}");
+}

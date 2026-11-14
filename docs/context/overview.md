@@ -6,8 +6,7 @@ the code, the code wins — fix this file. This file plus [features.md](./featur
 are the **always-read** layer; everything else is pulled on demand via the router below.
 
 _Last verified 2026-07-24 (crates and router: v0.11.0, 2026-10-21). The running "what shipped when" narrative that used to live here has
-moved to [archive/overview-last-verified-narrative-through-2026-07-24.md](./archive/overview-last-verified-narrative-through-2026-07-24.md);
-current per-feature status is [features.md](./features.md), the dated log is [sessions/](./sessions/) (snapshots, never updated)._
+moved to [archive/overview-last-verified-narrative-through-2026-07-24.md](./archive/overview-last-verified-narrative-through-2026-07-24.md)._
 
 ## Router — read this BEFORE you touch a hot area
 
@@ -24,6 +23,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
 | **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
+| **Music** | `music-plan-2026-11-13.md` (rulings M1–M5 first) |
 | **Calendars, Gmail, the meeting pass; any time or zone** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail,zone}`, `fm_agent::meetings`) | `time-zones-audit-2026-10-24.md` · `decisions.md#agent` (2026-10-09: read-only, secrets per machine, Rust dates) · `known-issues.md` · `outstanding.md` §2.16 |
 | **Undo, Recently deleted, Back** (`undo.svelte.ts`, `nav.svelte.ts`, `LAYERS` in `App.svelte`) | `decisions.md#ui` (2026-10-09: Back, undo, the menu-entry refinement) — a panel must join `LAYERS`, a write meant to be undoable goes through `undo.svelte.ts` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured, to 2026-07-24) · today's phone model: [Myrme's benchmark summary](../../../myrme/docs/research/2026-10-20-small-model-benchmark-summary.md) |
@@ -173,8 +173,7 @@ surface:
 ## Views (all generic renderers over the same query layer)
 
 - **Board** — kanban, group-by-*any*-property, drag a card to another column to
-  set that property (status) **and to a chosen position within it** (the drop
-  index is self-measured from the card rects in `Board.svelte`); drag column
+  set that property (status) **and to a chosen position within it**; drag column
   headers to reorder. Both orders persist per group-by in `localStorage`
   (`fm-board-order` / `fm-card-order`) — view preferences, not vault data.
 - **Agenda** — Calendar (month/week) + a List grouped under urgency bands. A note

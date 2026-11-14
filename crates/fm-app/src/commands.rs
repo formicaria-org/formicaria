@@ -2172,6 +2172,43 @@ pub fn ingest_finish(
     Ok(meta)
 }
 
+/// An audio file's tags as properties of its asset note. A tag the file did not carry is left
+/// unset, never written empty. The cover is a blob of its own, so it joins `assets` after the
+/// audio (which stays first: a reference to this note means the audio) and is named in `cover`.
+fn audio_properties(obj: &mut Object, audio: &fm_core::ingest::Audio) {
+    let t = &audio.tags;
+    let texts = [
+        ("tag_title", &t.title),
+        ("artist", &t.artist),
+        ("album", &t.album),
+        ("album_artist", &t.album_artist),
+        ("genre", &t.genre),
+    ];
+    for (key, value) in texts {
+        if let Some(v) = value {
+            obj.extra.insert(key.into(), PropertyValue::Text(v.clone()));
+        }
+    }
+    let numbers = [
+        ("track", t.track.map(i64::from)),
+        ("disc", t.disc.map(i64::from)),
+        ("year", t.year.map(i64::from)),
+        ("duration_s", t.duration_s.and_then(|s| i64::try_from(s).ok())),
+    ];
+    for (key, value) in numbers {
+        if let Some(n) = value {
+            obj.extra.insert(key.into(), PropertyValue::Int(n));
+        }
+    }
+    if let Some(hash) = &audio.cover {
+        let r = format!("sha256:{hash}");
+        obj.extra.insert("cover".into(), PropertyValue::Text(r.clone()));
+        if !obj.assets.contains(&r) {
+            obj.assets.push(r);
+        }
+    }
+}
+
 /// Turn an ingested blob into its asset note, and store it.
 ///
 /// **Shared on purpose.** This is the shape of an asset note — filename as the title, the
@@ -2204,6 +2241,14 @@ pub fn asset_note(
         if let Some(id) = crate::paper::identifier_in_text(text) {
             obj.extra.insert(id.key().to_string(), PropertyValue::Text(id.value().to_string()));
         }
+    }
+    // **What a song says about itself, for free** (`decisions.md#data`, 2026-11-13, *a sixth group,
+    // Music*): an audio file's tags, read at upload, kept here as flat properties the way the DOI
+    // above is. The *Add a song* sheet copies them into the song's note, where they are corrected;
+    // this note keeps what the file said. The title is `tag_title` because this note's own title is
+    // the filename, as every asset note's is.
+    if let Some(audio) = &ing.audio {
+        audio_properties(&mut obj, audio);
     }
     obj.vault = vault_name.to_string();
     store.put(&obj)?;

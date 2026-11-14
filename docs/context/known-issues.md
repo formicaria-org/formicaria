@@ -2798,3 +2798,21 @@ desktop icon and the running assistant execute. The next `pixi run ci` is a cold
 Under ~15 GB free, run `free-space` first. A clean clone also installs a second ~2.5 GB pixi
 environment; build from a `git worktree` with this checkout's environment instead.
 
+
+## Music — what phase 2 does not do yet (2026-11-13)
+
+`music-plan-2026-11-13.md`, Part 5, is the queue; these are the gaps a person meets today.
+- **No player.** A song plays only inside its note's own player, which stops when the note closes.
+  No queue, no next song, no media keys (phase 3).
+- **Songs is the only view.** No Albums, Artists or Playlists, no multi-select, no sort control; the
+  list is drawn whole, not virtualised, and has not been measured with thousands of songs (phase 3,
+  `perf.rs`).
+- **A file already in the library still gets a second asset note.** The sheet uploads first and
+  compares the audio's hash after, so the duplicate song is refused but the upload made its asset
+  note, as any re-uploaded attachment does (`assets.rs`, *a second ingest still makes its own asset
+  note*). One blob, two cards behind it.
+- **A song whose file is not on this device** (added on another one, over the git size limit) is
+  listed like any other, and its note says the file is not available only when opened.
+- **No cover is shown** anywhere yet, though it is read and stored (`cover` on the song note).
+- **Not tried on a phone.** The sheet and the list are laid out for a narrow window; a phone upload
+  of a large file goes through the chunked path, untested with audio on a device.

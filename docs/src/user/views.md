@@ -13,7 +13,7 @@ away.
 
 ## The groups
 
-The views are gathered into five groups, and they are all ways of looking at the same notes:
+The views are gathered into six groups, and they are all ways of looking at the same notes:
 
 | Group | What it is for | Its views |
 |---|---|---|
@@ -22,6 +22,7 @@ The views are gathered into five groups, and they are all ways of looking at the
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |
 | **Health** | a diary of what you track, looking back with a page for a doctor, cards to follow ([Health](./health.md)) | Diary, Over time, Guidance |
+| **Music** | your songs, each filled in from its own file ([Music](./music.md)) | Songs |
 
 - **A group's views are tabs** across the top of its window: in Tasks, *Board* and *Agenda*; in
   Food, *Day*, *Menu*, *Trends* and *Diet*. On a touch screen, a swipe left or right steps to the

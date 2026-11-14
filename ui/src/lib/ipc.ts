@@ -1383,6 +1383,9 @@ export const healthDays = (from: string, to: string, weeks = false) =>
 /** What was logged before, most used in this slot first. */
 export const logRecent = (view: string, opts: { slot?: string; q?: string; limit?: number } = {}) =>
   invoke<RecentItem[]>('log_recent', { view, ...opts });
+/** **Every song**, as its note (`log: music`), sorted by title — asked once by the Songs screen,
+ *  which filters and sorts in memory while the person types (`decisions.md#ui`, 2026-11-13). */
+export const musicLibrary = () => invoke<ObjectMeta[]>('music_library');
 /** The recipes saved in a log, each with the sum of its ingredients. */
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
 /** One day's nutrients; `planned` counts what is planned too (a day still to come). */

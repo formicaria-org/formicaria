@@ -295,8 +295,9 @@ fn every_shipped_view_parses_and_can_be_drawn() {
     // Day, Menu, Trends and Diet for food; Week, Exercises and Regime for training. A day's
     // session is opened from the week and the volume is a line of it: neither is a view. Diary,
     // Over time and Guidance for health (2026-10-22): one to write in, one to look back, one of
-    // cards. Their trackers are the person's own, so they name no metric.
-    assert_eq!(shipped.len(), 10);
+    // cards. Their trackers are the person's own, so they name no metric. Songs for music
+    // (2026-11-13): a library of entries, summing nothing, so it names no metric either.
+    assert_eq!(shipped.len(), 11);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));

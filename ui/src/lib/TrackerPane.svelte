@@ -228,7 +228,12 @@
     // These screens ask for what they show themselves.
     // …and so does the week, until one of its days is opened: then it is a day like any other.
     // The Health diary asks for its own days (`health_days`); it has no metrics to total.
-    if (!def || !view || ['plan', 'menu', 'cards'].includes(def.span) || def.add === 'health')
+    if (
+      !def ||
+      !view ||
+      ['plan', 'menu', 'cards', 'library'].includes(def.span) ||
+      def.add === 'health'
+    )
       return;
     if (def.span === 'week' && !dayOpen) return;
     const mine = ++asked;
@@ -315,7 +320,16 @@
     if (def?.add === 'food') sheet = { slot: null, entry: null };
     else if (def?.add === 'body') measuring = def;
     else if (def?.add === 'workout') workout = { set: null };
+    else if (def?.add === 'song') addingSong = true;
   });
+
+  // ── adding a song (`music/AddSong.svelte`; `decisions.md#ui`, 2026-11-13) ──────────────────────
+  let addingSong = $state(false);
+  $effect(() => {
+    if (addingSong) nav.openLayer(`song-sheet:${pane.id}`, () => (addingSong = false));
+    else nav.closeLayer(`song-sheet:${pane.id}`);
+  });
+  $effect(() => () => nav.closeLayer(`song-sheet:${pane.id}`));
 
   // ── writing down a measurement ─────────────────────────────────────────────────────────────────
   /// The values to write down, as a definition: the view's own, or one value kept in another log.
@@ -625,6 +639,10 @@
           {onsaved}
         />
       {/await}
+    {:else if def.span === 'library'}
+      {#await import('./music/SongsScreen.svelte') then { default: SongsScreen }}
+        <SongsScreen signal={[feed, wrotes]} {onopen} onadd={() => (addingSong = true)} />
+      {/await}
     {:else if def.span === 'cards'}
       {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}
         <ExercisesScreen onadd={(card) => (workout = { set: null, preset: card })} />
@@ -746,6 +764,11 @@
         onclose={() => (routineSheet = null)}
         onwrote={wrote}
       />
+    {/await}
+  {/if}
+  {#if addingSong}
+    {#await import('./music/AddSong.svelte') then { default: AddSong }}
+      <AddSong onclose={() => (addingSong = false)} onsaved={wrote} />
     {/await}
   {/if}
   {#if measuring}

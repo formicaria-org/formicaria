@@ -17,7 +17,7 @@ kept as notes in your own notebook — plain files, like everything else.
 **Food** and **Fitness** are two of the app's [groups](./views.md#the-groups) and are
 shown unless you hide them:
 
-**Settings → Food & reminders → Food and training → Show Food, Fitness and Health on this device.**
+**Settings → Food & reminders → Food and training → Show Food, Fitness, Health and Music on this device.**
 
 The choice is this device's own, like the theme that is on: hiding them at your desk does not
 hide them on your phone. Nothing you logged is touched either way.

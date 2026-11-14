@@ -22,6 +22,11 @@ jiff = "0.2"
 rusqlite = { version = "0.41", features = ["bundled"] }
 sha2 = "0.11"      # sha256 content addressing — verifiable with `sha256sum` forever
 infer = "0.19"     # pure-Rust MIME sniff by magic bytes (never trust the extension)
+# An audio file's own tags — title, artist, album, track, duration, cover — read at upload
+# (`audio.rs`; `decisions.md#data`, 2026-11-13, *a sixth group, Music*). Pure Rust. Its default
+# feature (compressed ID3v2 frames) stays on: 0.25 does not build without it, and the `flate2` it
+# brings is already in both builds through `fm-app`.
+lofty = "0.25"
 
 # In-process git, for platforms that have no `git` binary to shell out to — Android has
 # none, and iOS forbids executing one at all. **Never on by default**: the desktop keeps
