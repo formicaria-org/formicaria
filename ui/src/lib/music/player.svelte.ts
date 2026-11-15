@@ -48,6 +48,18 @@ export function trackOf(s: ObjectMeta): Track | null {
 
 export type Repeat = 'off' | 'all' | 'one';
 
+/**
+ * How the deck looks: the green display it started with, or one of two original skins in the
+ * spirit of old games (owner, 2026-11-15) — an 8-bit platformer's and an arcade fighter's. Drawn
+ * by CSS alone: no font, picture or sound of any game.
+ */
+export type Skin = 'lcd' | 'pixel' | 'arcade';
+export const SKINS: [Skin, string][] = [
+  ['lcd', 'Classic LCD'],
+  ['pixel', '8-bit'],
+  ['arcade', 'Arcade'],
+];
+
 /** The equaliser's bands, in hertz: the classic five of a pocket player. */
 export const BANDS = [60, 230, 910, 3600, 14000] as const;
 /** How far a band moves, either way, in decibels. */
@@ -85,6 +97,7 @@ const state = $state({
   eq: [0, 0, 0, 0, 0] as number[],
   /** −1 all left, 1 all right. */
   balance: 0,
+  skin: 'lcd' as Skin,
   /** A sentence to show when a song cannot be played — usually its file is not on this device. */
   failed: '',
   /** How many full-size players are on screen: while one is, the slim bar is not needed. */
@@ -103,6 +116,8 @@ export const shuffle = () => state.shuffle;
 export const repeat = () => state.repeat;
 export const eq = () => state.eq;
 export const balance = () => state.balance;
+export const skin = () => state.skin;
+export const skinName = () => SKINS.find(([k]) => k === state.skin)?.[1] ?? 'Classic LCD';
 export const failed = () => state.failed;
 export const deckShown = () => state.decks > 0;
 
@@ -343,6 +358,13 @@ export function toggleShuffle() {
   saveSettings();
 }
 
+/** The next look: Classic LCD → 8-bit → Arcade → Classic LCD. */
+export function cycleSkin() {
+  const i = SKINS.findIndex(([k]) => k === state.skin);
+  state.skin = SKINS[(i + 1) % SKINS.length][0];
+  saveSettings();
+}
+
 /** Off → all → one → off. */
 export function cycleRepeat() {
   state.repeat = state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off';
@@ -515,6 +537,7 @@ function saveSettings() {
         repeat: state.repeat,
         eq: state.eq,
         balance: state.balance,
+        skin: state.skin,
       }),
     );
   } catch {
@@ -541,6 +564,7 @@ export function restore() {
   state.repeat = 'off';
   state.eq = [0, 0, 0, 0, 0];
   state.balance = 0;
+  state.skin = 'lcd';
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS) ?? 'null') as Partial<{
       volume: number;
@@ -549,6 +573,7 @@ export function restore() {
       repeat: Repeat;
       eq: number[];
       balance: number;
+      skin: Skin;
     }> | null;
     if (s) {
       if (typeof s.volume === 'number') state.volume = Math.min(1, Math.max(0, s.volume));
@@ -562,6 +587,7 @@ export function restore() {
       )
         state.eq = s.eq.map((v) => Math.max(-GAIN_MAX, Math.min(GAIN_MAX, v)));
       if (typeof s.balance === 'number') state.balance = Math.max(-1, Math.min(1, s.balance));
+      if (SKINS.some(([k]) => k === s.skin)) state.skin = s.skin!;
     }
   } catch {
     /* nothing kept: the defaults */

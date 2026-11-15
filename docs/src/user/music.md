@@ -47,7 +47,12 @@ plays; press a song below to start.
   ▶/❚❚, ⏭, and repeat — press it again for *all*, *one*, *off*. Where there is room (a computer, a
   tablet) also back and forward ten seconds and ■ stop.
 - **Under the keys**: mute and the volume; **Sound**; **Queue** (what plays next: press one to play
-  it, × to take it out); and the song's **note**.
+  it, × to take it out); the **look**; and the song's **note** (on a narrow phone, the note is in
+  the song's ⋯ instead).
+- **Three looks**, changed in turn with the palette button: **Classic LCD** (the green display),
+  **8-bit** (bricks, a blue sky and a little note running along as the song plays) and **Arcade**
+  (a night stage: the artist and the song face each other across the clock, the song's bar wears
+  down as it plays, the other bar is the volume). Only the look changes; every key is where it was.
 - **Sound**, on a computer: a five-band equaliser with presets (*Flat*, *Bass boost*, *Rock*, *Pop*,
   *Jazz*, *Classical*, *Vocal*, *Treble boost*) or your own setting, and the balance between left and
   right. Not on a phone yet.

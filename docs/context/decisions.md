@@ -14597,3 +14597,24 @@ collections and songs"*.
 shared filter and one add action*; *leave working views alone* (`#ui`, 2026-10-12) — no other view
 changes. Verdict: **permitted**, inside M3. It widens what ships by one read-only command and no
 dependency.
+
+## 2026-11-15 (later) — the deck has three looks; game styles in spirit, never a game's own art `#ui`
+
+> **Extends** *the Music view is a player you see* (2026-11-15). Reverses nothing.
+
+**The owner**: *"it would be nice to have a super mario or a street fighter aesthetics"*; offered
+original skins in their spirit, chose *both, switchable*.
+
+**Decision.** The deck carries a `skin` — `lcd` (as before), `pixel` (an 8-bit platformer's feel:
+bricks, sky and clouds, hard pixel edges, an eighth note that hops along the progress bar) and
+`arcade` (an arcade fighter's feel: a neon night stage, artist *VS* song across a clock, the song's
+position as a bar worn down in red, the volume as the other bar, *ROUND n / m*, round cabinet
+buttons). A palette button cycles them; the choice is device state with the other player settings.
+**Every skin is CSS only** — gradients, an inline SVG brick tile, box-shadow pixel art — and system
+fonts: **no character, logo, sprite, font, sound or colour scheme taken from any game**, and no
+new file, font or dependency ships. The keys, their order, their labels and every control stay the
+same in each skin; only the arcade display rearranges its readout. Reduced motion stops the clouds
+and the hop as it stops the marquee.
+
+**The four questions.** `#ui`. Read: *the Music view is a player you see*. Verdict: **permitted**;
+widens nothing that ships beyond CSS in one component.

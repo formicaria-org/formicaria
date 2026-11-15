@@ -259,6 +259,33 @@ test('shuffle, repeat, mute and the volume are kept on this device', async () =>
   expect(player.muted()).toBe(true);
 });
 
+test('the deck has three looks, switched in turn and kept on this device', async () => {
+  render(App);
+  await openMusic();
+  const deck = screen.getByRole('region', { name: 'music player' });
+  const list = await addSongs([{ file: 'a.mp3', title: 'Arrival', artist: 'The Example Band' }]);
+  await fireEvent.click(within(list).getByRole('button', { name: 'play Arrival' }));
+  expect(within(deck).getByText('TRK 01/01')).toBeTruthy();
+
+  await fireEvent.click(within(deck).getByRole('button', { name: 'skin: Classic LCD' }));
+  expect(deck.classList.contains('skin-pixel')).toBe(true);
+  // The same display and keys under the 8-bit look.
+  expect(within(deck).getByText('TRK 01/01')).toBeTruthy();
+
+  await fireEvent.click(within(deck).getByRole('button', { name: 'skin: 8-bit' }));
+  expect(deck.classList.contains('skin-arcade')).toBe(true);
+  // The arcade look names the round, and still has the song's position to drag.
+  expect(within(deck).getByText(/ROUND 01/)).toBeTruthy();
+  expect(within(deck).getByLabelText('position in the song')).toBeTruthy();
+  expect(within(deck).getByText('now playing: Arrival')).toBeTruthy();
+
+  expect(JSON.parse(store.get('fm-player') ?? '{}').skin).toBe('arcade');
+  player.restore();
+  expect(player.skin()).toBe('arcade');
+  await fireEvent.click(within(deck).getByRole('button', { name: 'skin: Arcade' }));
+  expect(player.skin()).toBe('lcd');
+});
+
 test('albums and artists group the songs, in track order, and play from there', async () => {
   for (const [file, title, track, album] of [
     ['1.mp3', 'Zebra', 1, 'Invented Songs'],

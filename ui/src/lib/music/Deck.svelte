@@ -124,84 +124,144 @@
   );
 </script>
 
+{#snippet clockButton()}
+  <button
+    type="button"
+    class="clock"
+    onclick={() => (left = !left)}
+    disabled={!t}
+    aria-label={left ? 'time left — show time played' : 'time played — show time left'}
+    title="Time played / time left">{t ? shownTime : '--:--'}</button
+  >
+{/snippet}
+
+{#snippet position()}
+  {@const done = player.length() ? (player.time() / player.length()) * 100 : 0}
+  <span class="pos-wrap">
+    <input
+      class="pos"
+      type="range"
+      min="0"
+      max={Math.max(1, Math.round(player.length()))}
+      step="1"
+      value={Math.round(player.time())}
+      disabled={!t}
+      style:--done="{done}%"
+      oninput={(e) => player.seek(Number((e.currentTarget as HTMLInputElement).value))}
+      aria-label="position in the song"
+    />
+    {#if player.skin() === 'pixel'}
+      <!-- A note that runs along the ground as the song goes, hopping while it plays. -->
+      <i class="runner" class:hop={player.playing()} style:left="{done}%" aria-hidden="true"></i>
+    {/if}
+  </span>
+{/snippet}
+
 <div class="deck-box">
-  <section class="deck" aria-label="music player" bind:this={root}>
+  <section class="deck skin-{player.skin()}" aria-label="music player" bind:this={root}>
     <div class="screen" class:dim={!t}>
-      <div class="lcd-row top">
-        <span class="state" aria-hidden="true"
-          >{player.playing() ? '▶' : t && player.time() > 0 ? '❚❚' : '■'}</span
-        >
-        <span class="trk">
-          {#if t}TRK {String(player.at() + 1).padStart(2, '0')}/{String(
-              player.queue().length,
-            ).padStart(2, '0')}{:else}NO SONG{/if}
-        </span>
-        <span class="flags">
-          <span class:lit={player.shuffle()}>SHUF</span>
+      {#if t}<span class="sr" aria-live="polite">now playing: {t.title}</span>{/if}
+      {#if player.skin() === 'arcade'}
+        <!-- An arcade fighter's top line: who, the time on the clock, and two bars. -->
+        <div class="fight">
+          <div class="side">
+            <span class="who" aria-hidden="true">{t ? t.artist || 'Unknown' : 'Player 1'}</span>
+            {@render position()}
+          </div>
+          <div class="mid">
+            {@render clockButton()}
+            <span class="vs" aria-hidden="true">VS</span>
+          </div>
+          <div class="side right">
+            <span class="who" aria-hidden="true">{t ? t.title : 'Insert song'}</span>
+            <span class="hp" aria-hidden="true"
+              ><i style:width="{player.muted() ? 0 : player.volume() * 100}%"></i></span
+            >
+          </div>
+        </div>
+        <div class="round" aria-hidden="true">
+          {#if t}ROUND {String(player.at() + 1).padStart(2, '0')}<small>
+              / {String(player.queue().length).padStart(2, '0')}</small
+            >{:else}PICK A SONG BELOW{/if}
+        </div>
+        <div class="arcade-flags" aria-hidden="true">
+          <span class:lit={player.shuffle()}>SHUFFLE</span>
           <span class:lit={player.repeat() !== 'off'}
-            >{player.repeat() === 'one' ? 'REP1' : 'REP'}</span
+            >{player.repeat() === 'one' ? 'REPEAT 1' : 'REPEAT'}</span
           >
           {#if canShape}<span class:lit={player.preset() !== 'Flat'}>EQ</span>{/if}
-        </span>
-        <span class="vol-ind" aria-hidden="true" title="Volume">
-          {#each { length: volSteps } as _, i (i)}<i class:on={i < volLevel}></i>{/each}
-        </span>
-      </div>
-
-      <div class="lcd-main">
-        {#if t?.cover}
-          <img class="art" src={assetUrl(t.cover, 'thumb')} alt="" />
-        {/if}
-        <div class="words">
-          {#if t}<span class="sr" aria-live="polite">now playing: {t.title}</span>{/if}
-          <div class="marquee" aria-hidden={t ? 'true' : undefined} bind:this={strip}>
-            {#if t}
-              <span class:roll={long}
-                >{scroller}{#if long}<span aria-hidden="true"
-                    >&nbsp;&nbsp;★&nbsp;&nbsp;{scroller}&nbsp;&nbsp;★&nbsp;&nbsp;</span
-                  >{/if}</span
-              >
-            {:else}
-              <span>READY — PICK A SONG BELOW</span>
-            {/if}
+        </div>
+        {#if bars}
+          <div class="meter" aria-hidden="true">
+            {#each bars as b, i (i)}<i style:height="{Math.max(6, Math.round(b * 100))}%"
+              ></i>{/each}
           </div>
-          <div class="sub">
-            {#if t}{t.album || ' '}{#if player.preset() !== 'Flat' && canShape}<span class="eqname">
-                  {player.preset().toUpperCase()}</span
-                >{/if}{/if}
+        {/if}
+      {:else}
+        {#if player.skin() === 'pixel'}
+          <!-- Sky and two clouds of the 8-bit skin, behind the words. -->
+          <span class="sky" aria-hidden="true"><i class="cloud a"></i><i class="cloud b"></i></span>
+        {/if}
+        <div class="lcd-row top">
+          <span class="state" aria-hidden="true"
+            >{player.playing() ? '▶' : t && player.time() > 0 ? '❚❚' : '■'}</span
+          >
+          <span class="trk">
+            {#if t}TRK {String(player.at() + 1).padStart(2, '0')}/{String(
+                player.queue().length,
+              ).padStart(2, '0')}{:else}NO SONG{/if}
+          </span>
+          <span class="flags">
+            <span class:lit={player.shuffle()}>SHUF</span>
+            <span class:lit={player.repeat() !== 'off'}
+              >{player.repeat() === 'one' ? 'REP1' : 'REP'}</span
+            >
+            {#if canShape}<span class:lit={player.preset() !== 'Flat'}>EQ</span>{/if}
+          </span>
+          <span class="vol-ind" aria-hidden="true" title="Volume">
+            {#each { length: volSteps } as _, i (i)}<i class:on={i < volLevel}></i>{/each}
+          </span>
+        </div>
+
+        <div class="lcd-main">
+          {#if t?.cover}
+            <img class="art" src={assetUrl(t.cover, 'thumb')} alt="" />
+          {/if}
+          <div class="words">
+            <div class="marquee" aria-hidden={t ? 'true' : undefined} bind:this={strip}>
+              {#if t}
+                <span class:roll={long}
+                  >{scroller}{#if long}<span aria-hidden="true"
+                      >&nbsp;&nbsp;★&nbsp;&nbsp;{scroller}&nbsp;&nbsp;★&nbsp;&nbsp;</span
+                    >{/if}</span
+                >
+              {:else}
+                <span>READY — PICK A SONG BELOW</span>
+              {/if}
+            </div>
+            <div class="sub">
+              {#if t}{t.album || ' '}{#if player.preset() !== 'Flat' && canShape}<span
+                    class="eqname"
+                  >
+                    {player.preset().toUpperCase()}</span
+                  >{/if}{/if}
+            </div>
           </div>
         </div>
-      </div>
 
-      {#if bars}
-        <div class="meter" aria-hidden="true">
-          {#each bars as b, i (i)}<i style:height="{Math.max(6, Math.round(b * 100))}%"></i>{/each}
+        {#if bars}
+          <div class="meter" aria-hidden="true">
+            {#each bars as b, i (i)}<i style:height="{Math.max(6, Math.round(b * 100))}%"
+              ></i>{/each}
+          </div>
+        {/if}
+
+        <div class="lcd-row time">
+          {@render clockButton()}
+          {@render position()}
+          <span class="total">{t && player.length() ? clock(player.length()) : '--:--'}</span>
         </div>
       {/if}
-
-      <div class="lcd-row time">
-        <button
-          type="button"
-          class="clock"
-          onclick={() => (left = !left)}
-          disabled={!t}
-          aria-label={left ? 'time left — show time played' : 'time played — show time left'}
-          title="Time played / time left">{t ? shownTime : '--:--'}</button
-        >
-        <input
-          class="pos"
-          type="range"
-          min="0"
-          max={Math.max(1, Math.round(player.length()))}
-          step="1"
-          value={Math.round(player.time())}
-          disabled={!t}
-          style:--done="{player.length() ? (player.time() / player.length()) * 100 : 0}%"
-          oninput={(e) => player.seek(Number((e.currentTarget as HTMLInputElement).value))}
-          aria-label="position in the song"
-        />
-        <span class="total">{t && player.length() ? clock(player.length()) : '--:--'}</span>
-      </div>
     </div>
 
     {#if player.failed()}<p class="failed" role="alert">{player.failed()}</p>{/if}
@@ -322,10 +382,18 @@
         ><Icon name="list" size={16} /><span class="lbl">Queue</span
         >{#if player.queue().length}<span class="badge">{player.queue().length}</span>{/if}</button
       >
+      <button
+        type="button"
+        class="pill"
+        onclick={player.cycleSkin}
+        aria-label={`skin: ${player.skinName()}`}
+        title="Change the look: Classic LCD, 8-bit, Arcade"
+        ><Icon name="palette" size={16} /><span class="lbl">{player.skinName()}</span></button
+      >
       {#if t && onopen}
         <button
           type="button"
-          class="pill"
+          class="pill note-pill"
           onclick={() => onopen(t.id)}
           aria-label="open the song's note"
           ><Icon name="pen" size={16} /><span class="lbl">Note</span></button
@@ -622,9 +690,16 @@
   .total {
     font-size: 0.75rem;
   }
-  .pos {
+  .pos-wrap {
+    position: relative;
     flex: 1;
     min-width: 4rem;
+    display: flex;
+    align-items: center;
+  }
+  .pos {
+    flex: 1;
+    min-width: 0;
   }
 
   /* ranges: a thin groove with what is done filled in */
@@ -795,6 +870,13 @@
     font-weight: 700;
     line-height: 1.2rem;
     text-align: center;
+  }
+
+  /* A narrow phone: the note is one ⋯ away in the list, so the row of dials stays one row. */
+  @container deck (max-width: 22rem) {
+    .note-pill {
+      display: none;
+    }
   }
 
   /* Room to spare (a wide pane, a tablet): the rest of the keys, the words, a larger display. */
@@ -1036,5 +1118,442 @@
     margin: 0;
     font-size: var(--text-sm);
     color: #ff9b8a;
+  }
+  /* ══ Skins (owner, 2026-11-15: an old game's look). Original, CSS only: no font, picture or sound
+     of any game. The keys, the order and every label stay the same in each. ══════════════════ */
+
+  /* ── 8-bit: bricks, a sky with clouds, hard pixel edges, a note running along the ground ─── */
+  .skin-pixel {
+    --lcd-ink: #fff;
+    --lcd-ghost: rgb(255 255 255 / 0.35);
+    --glow: #ffd23f;
+    border-radius: 0;
+    background-color: #b4521e;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' shape-rendering='crispEdges'%3E%3Crect width='32' height='32' fill='%23b4521e'/%3E%3Cpath d='M0 0h32v2H0zM0 16h32v2H0zM0 0h2v16H0zM16 16h2v16h-2z' fill='%235e2a0c'/%3E%3Cpath d='M2 2h14v2H2zM18 18h14v2H18zM2 18h14v2H2z' fill='%23d9733a'/%3E%3C/svg%3E");
+    background-size: 32px 32px;
+    border: 4px solid #000;
+    box-shadow: none;
+    clip-path: polygon(
+      0 4px,
+      4px 4px,
+      4px 0,
+      calc(100% - 4px) 0,
+      calc(100% - 4px) 4px,
+      100% 4px,
+      100% calc(100% - 4px),
+      calc(100% - 4px) calc(100% - 4px),
+      calc(100% - 4px) 100%,
+      4px 100%,
+      4px calc(100% - 4px),
+      0 calc(100% - 4px)
+    );
+    image-rendering: pixelated;
+  }
+  .skin-pixel .screen {
+    position: relative;
+    border-radius: 0;
+    background: linear-gradient(
+      180deg,
+      #64b4ff 0 calc(100% - 14px),
+      #3cb043 0 calc(100% - 10px),
+      #8a4b1f 0
+    );
+    box-shadow: 0 0 0 4px #000;
+    text-shadow: 2px 2px 0 #000;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    overflow: hidden;
+  }
+  .skin-pixel .screen > :not(.sky) {
+    position: relative;
+  }
+  .skin-pixel .screen.dim {
+    background: linear-gradient(
+      180deg,
+      #4a8fd1 0 calc(100% - 14px),
+      #2f8a35 0 calc(100% - 10px),
+      #6e3b18 0
+    );
+  }
+  .skin-pixel .lcd-row.time {
+    padding-bottom: 10px;
+  }
+  .sky {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  /* A cloud: one 4px block, drawn out to a cloud by its shadows. */
+  .cloud {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #fff;
+    box-shadow:
+      4px 0 #fff,
+      8px 0 #fff,
+      12px 0 #fff,
+      -4px 4px #fff,
+      0 4px #fff,
+      4px 4px #fff,
+      8px 4px #fff,
+      12px 4px #fff,
+      16px 4px #fff,
+      -8px 8px #fff,
+      -4px 8px #fff,
+      0 8px #fff,
+      4px 8px #fff,
+      8px 8px #fff,
+      12px 8px #fff,
+      16px 8px #fff,
+      20px 8px #fff;
+    opacity: 0.85;
+    animation: drift 40s linear infinite;
+  }
+  .cloud.a {
+    top: 6px;
+    left: 55%;
+  }
+  .cloud.b {
+    top: 22px;
+    left: 20%;
+    animation-duration: 60s;
+    animation-delay: -20s;
+    opacity: 0.6;
+  }
+  @keyframes drift {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-120vw);
+    }
+  }
+  .skin-pixel .flags span.lit {
+    outline: 2px solid #fff;
+    border-radius: 0;
+    color: #fff;
+  }
+  .skin-pixel .art {
+    border-radius: 0;
+    filter: contrast(1.2) saturate(1.3);
+    mix-blend-mode: normal;
+    box-shadow: 0 0 0 2px #000;
+  }
+  .skin-pixel .meter i {
+    background: repeating-linear-gradient(0deg, #ffd23f 0 4px, transparent 4px 6px);
+    box-shadow: 1px 1px 0 #000;
+  }
+  .skin-pixel .vol-ind i {
+    width: 4px;
+  }
+  .skin-pixel .vol-ind i.on {
+    background: #ffd23f;
+    box-shadow: 1px 1px 0 #000;
+  }
+  .skin-pixel .pos {
+    --fill: #ffd23f;
+    --thumb: #fff;
+    --groove: rgb(0 0 0 / 0.35);
+  }
+  .skin-pixel input[type='range']::-webkit-slider-runnable-track {
+    border-radius: 0;
+  }
+  .skin-pixel input[type='range']::-webkit-slider-thumb {
+    border-radius: 0;
+    box-shadow: 0 0 0 2px #000;
+  }
+  .skin-pixel input[type='range']::-moz-range-thumb {
+    border-radius: 0;
+    box-shadow: 0 0 0 2px #000;
+  }
+  /* The runner: an eighth note in 3px blocks, drawn by its shadows; it hops while the song plays. */
+  .runner {
+    position: absolute;
+    bottom: calc(50% + 2px);
+    width: 3px;
+    height: 3px;
+    margin-left: -6px;
+    background: #000;
+    box-shadow:
+      3px 0 #000,
+      0 3px #000,
+      3px 3px #000,
+      6px -3px #000,
+      6px -6px #000,
+      6px -9px #000,
+      6px -12px #000,
+      9px -12px #000,
+      12px -9px #000,
+      12px -6px #000,
+      -3px 3px #000;
+    pointer-events: none;
+    transition: left 0.25s steps(4);
+  }
+  .runner.hop {
+    animation: hop 0.5s steps(2) infinite;
+  }
+  @keyframes hop {
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+  .skin-pixel .key,
+  .skin-pixel .pill {
+    border-radius: 0;
+    border: 3px solid #000;
+    background: #ffd23f;
+    color: #000;
+    box-shadow:
+      inset -3px -3px 0 #c98f00,
+      inset 3px 3px 0 #fff2a8,
+      0 4px 0 #000;
+  }
+  .skin-pixel .key.main {
+    background: #e83b2e;
+    color: #fff;
+    box-shadow:
+      inset -4px -4px 0 #9c1d14,
+      inset 4px 4px 0 #ff8a7f,
+      0 5px 0 #000;
+  }
+  .skin-pixel .key:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow:
+      inset -3px -3px 0 #c98f00,
+      inset 3px 3px 0 #fff2a8,
+      0 0 0 #000;
+  }
+  .skin-pixel .key.lit,
+  .skin-pixel .pill.lit {
+    background: #5cd65c;
+    color: #000;
+    box-shadow:
+      inset -3px -3px 0 #2e8b2e,
+      inset 3px 3px 0 #c8ffc8,
+      0 4px 0 #000;
+  }
+  .skin-pixel .vol {
+    --fill: #ffd23f;
+    --thumb: #fff;
+    --groove: rgb(0 0 0 / 0.4);
+  }
+  .skin-pixel .panel {
+    border-radius: 0;
+    background: rgb(0 0 0 / 0.65);
+    box-shadow: 0 0 0 3px #000;
+  }
+  .skin-pixel .badge {
+    border-radius: 0;
+    background: #e83b2e;
+    color: #fff;
+  }
+
+  /* ── Arcade: a night stage, two bars and a clock, neon, round cabinet buttons ─────────────── */
+  .skin-arcade {
+    --glow: #ffe14d;
+    background:
+      linear-gradient(transparent 55%, rgb(255 43 214 / 0.18)),
+      repeating-linear-gradient(90deg, rgb(255 43 214 / 0.14) 0 1px, transparent 1px 28px),
+      radial-gradient(ellipse at 50% 0%, #3b1170 0%, transparent 70%),
+      linear-gradient(180deg, #170a2e, #0b0614);
+    box-shadow:
+      0 0 0 2px #ff2bd6,
+      0 0 18px rgb(255 43 214 / 0.45),
+      0 6px 14px rgb(0 0 0 / 0.4);
+    color: #f4f0ff;
+  }
+  .skin-arcade .screen {
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem 0.6rem;
+    background: linear-gradient(180deg, rgb(0 0 0 / 0.55), rgb(20 0 40 / 0.55));
+    box-shadow:
+      0 0 0 2px #22e5ff,
+      0 0 12px rgb(34 229 255 / 0.5) inset;
+    color: #fff;
+    font-family: Impact, 'Arial Black', 'Helvetica Neue', system-ui, sans-serif;
+    font-style: italic;
+    letter-spacing: 0.04em;
+  }
+  .fight {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 0.5rem;
+  }
+  .side {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .side.right {
+    align-items: flex-end;
+    text-align: right;
+  }
+  .who {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.8rem;
+    color: #ffe14d;
+    text-shadow: 0 0 6px rgb(255 225 77 / 0.6);
+  }
+  .side .pos-wrap {
+    width: 100%;
+  }
+  /* The song's bar: what is left of it, yellow, worn down in red as it plays. */
+  .skin-arcade .pos {
+    --fill: #e8213b;
+    --groove: #ffe14d;
+    --thumb: #fff;
+    height: 1.1rem;
+  }
+  .skin-arcade .pos::-webkit-slider-runnable-track {
+    height: 0.7rem;
+    border-radius: 0;
+    box-shadow: 0 0 0 2px #fff;
+  }
+  .skin-arcade .pos::-moz-range-track {
+    height: 0.7rem;
+    border-radius: 0;
+  }
+  .skin-arcade .pos::-moz-range-progress {
+    height: 0.7rem;
+    border-radius: 0;
+  }
+  .skin-arcade .pos::-webkit-slider-thumb {
+    width: 0.35rem;
+    height: 0.9rem;
+    margin-top: -0.1rem;
+    border-radius: 0;
+  }
+  .skin-arcade .pos::-moz-range-thumb {
+    width: 0.35rem;
+    height: 0.9rem;
+    border-radius: 0;
+  }
+  /* The other bar is the volume, filled from the right as a second player's would be. */
+  .hp {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    height: 0.7rem;
+    margin: 0.2rem 0;
+    background: #e8213b;
+    box-shadow: 0 0 0 2px #fff;
+  }
+  .hp i {
+    display: block;
+    height: 100%;
+    background: #ffe14d;
+  }
+  .mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .skin-arcade .clock {
+    min-width: 0;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #fff;
+    text-align: center;
+    -webkit-text-stroke: 1px #e8213b;
+    text-shadow: 0 0 8px rgb(255 43 214 / 0.8);
+  }
+  .vs {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: #22e5ff;
+  }
+  .round {
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 900;
+    background: linear-gradient(180deg, #fff6b0, #ffb300 55%, #ff5a00);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(2px 2px 0 #3a0a52);
+  }
+  .round small {
+    font-size: 0.75em;
+  }
+  .arcade-flags {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+  }
+  .arcade-flags span {
+    color: rgb(255 255 255 / 0.25);
+  }
+  .arcade-flags span.lit {
+    color: #22e5ff;
+    text-shadow: 0 0 6px #22e5ff;
+  }
+  .skin-arcade .meter i {
+    background: linear-gradient(0deg, #22e5ff, #ff2bd6);
+    border-radius: 1px;
+  }
+  /* Cabinet buttons: round, domed, each its own colour, set in a dark ring. */
+  .skin-arcade .key {
+    color: #fff;
+    background: radial-gradient(circle at 50% 35%, #6aa8ff, #1f5fd6 60%, #123a85);
+    box-shadow:
+      0 0 0 3px #0d0d12,
+      0 0 0 5px #6b6b78,
+      0 4px 8px rgb(0 0 0 / 0.6);
+  }
+  .skin-arcade .keys .key:nth-child(odd) {
+    background: radial-gradient(circle at 50% 35%, #ff9de8, #d61fb0 60%, #7a0f63);
+  }
+  .skin-arcade .key.small {
+    background: radial-gradient(circle at 50% 35%, #fff59a, #f2c200 60%, #8a6d00);
+    color: #2a1d00;
+  }
+  .skin-arcade .key.main {
+    background: radial-gradient(circle at 50% 35%, #ff8a8a, #e8213b 60%, #7a0a1a);
+    box-shadow:
+      0 0 0 3px #0d0d12,
+      0 0 0 6px #b9b9c6,
+      0 0 16px rgb(232 33 59 / 0.6);
+  }
+  .skin-arcade .key:active:not(:disabled) {
+    transform: translateY(2px) scale(0.97);
+  }
+  .skin-arcade .key.lit {
+    box-shadow:
+      0 0 0 3px #0d0d12,
+      0 0 0 5px #22e5ff,
+      0 0 14px #22e5ff;
+  }
+  .skin-arcade .pill {
+    border-color: #22e5ff;
+    background: rgb(34 229 255 / 0.08);
+    color: #c9f8ff;
+  }
+  .skin-arcade .pill.lit {
+    border-color: #ffe14d;
+    color: #ffe14d;
+  }
+  .skin-arcade .vol {
+    --fill: #ff2bd6;
+    --thumb: #fff;
+    --groove: rgb(255 255 255 / 0.15);
+  }
+  .skin-arcade .badge {
+    background: #ff2bd6;
+    color: #fff;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cloud,
+    .runner.hop {
+      animation: none;
+    }
   }
 </style>
