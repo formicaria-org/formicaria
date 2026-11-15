@@ -1237,7 +1237,7 @@ export const updateStatus = () => invoke<UpdateStatus>('update_status');
  *  note. Transport routes of the desktop server, like the updater's; a computer only. */
 export const browserStatus = () => invoke<BrowserStatus>('browser_status');
 export const browserSetup = () => invoke<BrowserStatus>('browser_setup');
-export const browserSet = (p: { open_in_it?: boolean; block_ads?: boolean }) =>
+export const browserSet = (p: { open_in_it?: boolean; block_ads?: boolean; web_push?: boolean }) =>
   invoke<BrowserStatus>('browser_set', p);
 export const browserOpen = () => invoke<BrowserStatus>('browser_open');
 

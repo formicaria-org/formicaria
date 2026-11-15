@@ -1,0 +1,11 @@
+/* formicaria's touches on the browser's own window. Colours come from formicaria's add-on theme;
+   this only marks the formicaria tab. Kept small on purpose: every rule here is a hook into Firefox's
+   window that a new ESR major may move (browser-check looks). */
+.tabbrowser-tab[formicaria] .tab-background {
+  border-inline-start: 3px solid #dc2626 !important;
+}
+
+/* The formicaria button in the toolbar (formicaria.cfg). */
+#formicaria-home {
+  list-style-image: url("chrome://branding/content/icon32.png");
+}

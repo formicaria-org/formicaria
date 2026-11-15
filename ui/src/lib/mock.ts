@@ -597,7 +597,10 @@ let mockBrowser = {
   installed: false,
   version: null as string | null,
   open_in_it: true,
-  block_ads: true,
+  block_ads: false,
+  web_push: false,
+  pinned: '153.7.0esr',
+  update_ready: false,
   busy: false,
   phase: '',
   done: 0,
@@ -950,6 +953,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       if (cmd === 'browser_set') {
         if (typeof args.open_in_it === 'boolean') mockBrowser.open_in_it = args.open_in_it;
         if (typeof args.block_ads === 'boolean') mockBrowser.block_ads = args.block_ads;
+        if (typeof args.web_push === 'boolean') mockBrowser.web_push = args.web_push;
       }
       return { ...mockBrowser } as T;
     case 'browser_setup':

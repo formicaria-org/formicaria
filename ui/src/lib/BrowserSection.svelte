@@ -39,7 +39,7 @@
       said = e instanceof Error ? e.message : String(e);
     }
   }
-  async function set(p: { open_in_it?: boolean; block_ads?: boolean }) {
+  async function set(p: { open_in_it?: boolean; block_ads?: boolean; web_push?: boolean }) {
     st = await browserSet(p);
   }
   async function openNow() {
@@ -68,11 +68,13 @@
       </p>
     {:else if !st.installed}
       <p class="muted">
-        It is <strong>Firefox ESR</strong>, the long-term-support Firefox, downloaded from Mozilla
-        and checked against Mozilla’s published checksum — about <strong>90 MB</strong> to download
-        and <strong>320 MB</strong> on this computer, in formicaria’s settings folder. Firefox add-ons
-        work in it. It starts with strict tracking protection, HTTPS-Only, DuckDuckGo as its search engine
-        and nothing sent to Mozilla; your history stays on this computer.
+        It is built on <strong>Firefox ESR</strong>, Mozilla's long-term-support engine, downloaded
+        from Mozilla and checked against Mozilla's signature, then made formicaria's: its name, its
+        look, and formicaria always one tab away. About <strong>90 MB</strong> to download and
+        <strong>320 MB</strong> on this computer, in formicaria's settings folder. Firefox add-ons work
+        in it, and you can sign in to your Mozilla account to bring your bookmarks and passwords. Mozilla's
+        telemetry, studies, Pocket, sponsored content and AI chatbot are off; your history stays on this
+        computer.
       </p>
       {#if st.busy}
         <p>
@@ -104,6 +106,14 @@
           </label>
         </li>
         <li>
+          <span class="k">updates</span>
+          <span class="muted"
+            >security releases arrive by themselves{st.update_ready
+              ? ' — one is ready and goes in when the browser next starts'
+              : ''}; tested with Firefox {st.pinned}</span
+          >
+        </li>
+        <li>
           <label class="switch-line">
             <input
               type="checkbox"
@@ -111,13 +121,28 @@
               checked={st.block_ads}
               onchange={(e) => set({ block_ads: (e.currentTarget as HTMLInputElement).checked })}
             />
-            <span>Block ads with uBlock Origin, from Firefox’s add-on site</span>
+            <span
+              >Install uBlock Origin to block ads (Firefox’s own tracking protection is on either
+              way)</span
+            >
+          </label>
+        </li>
+        <li>
+          <label class="switch-line">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={st.web_push ?? false}
+              onchange={(e) => set({ web_push: (e.currentTarget as HTMLInputElement).checked })}
+            />
+            <span>Let sites send notifications while their tab is closed</span>
           </label>
         </li>
       </ul>
       <p class="muted small">
-        In the browser, press the formicaria button in the toolbar, or right-click a page and choose
-        <em>Keep in formicaria</em>. Changes take effect the next time the browser starts.
+        formicaria is the pinned first tab; the formicaria button (or Alt+Shift+F) brings it
+        forward. Right-click a page to <em>Keep</em> or <em>Bookmark</em> it in formicaria. Changes take
+        effect the next time the browser starts.
       </p>
     {/if}
     {#if st.error}<p class="none">{st.error}</p>{/if}

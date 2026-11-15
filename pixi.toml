@@ -307,6 +307,11 @@ catalogue = { cmd = "cargo run -q -p fm-agent-serve -- --print-catalogue > agent
 # Move to the newest Myrme release this app can link (same contract major, enough minor): tries the
 # release tags newest first and keeps the first that builds. Then `pixi run ci`. Nothing committed.
 myrme-bump = "sh ci/myrme-bump.sh"
+# formicaria's browser (`decisions.md` 2026-11-15, evening): pin the newest Firefox ESR (Mozilla's
+# signature on its sums checked), and the release gate that applies the kit and measures it against the
+# same ESR unmodified. Both are release steps; neither touches the person's own Firefox.
+browser-bump = "python3 ci/browser-bump.py"
+browser-check = "python3 ci/browser-check.py"
 # Delete regenerable build output (debug targets, the phone's builds) in this checkout and the
 # sibling Myrme one; keeps target/release, which the running app is. `known-issues.md`, *The disk fills*.
 free-space = "sh ci/free-space.sh"

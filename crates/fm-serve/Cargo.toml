@@ -48,7 +48,7 @@ products = ["dep:fm-fetch"]
 # formicaria's own browser (`decisions.md` 2026-11-15): Firefox ESR downloaded from Mozilla and checked
 # against its published SHA-512 sums, a profile, and the add-on's key. Carries `fm-fetch`, already in
 # the binary for the updater, so it adds no crate.
-browser = ["dep:fm-fetch"]
+browser = ["dep:fm-fetch", "dep:zip"]
 # Gmail, read-only (`decisions.md` 2026-10-09). Rides on `calendar`: an invite in a message is read
 # exactly as a calendar is, and the person's stated offset lives there.
 mail = ["calendar"]
@@ -78,6 +78,9 @@ fm-update = { path = "../fm-update", optional = true }
 # through the agent crate would link the whole study-agent pipeline into a notes-only build and
 # quietly retire the property `ci/checks.sh` guards. Hence `fm-fetch` exists.
 fm-fetch = { path = "../fm-fetch", optional = true }
+# formicaria's browser rewrites Firefox's packed interface with one file swapped and every other entry
+# copied raw (`browser_kit::swap_entry`). Already in the tree through `fm-fetch`: no new crate.
+zip = { version = "9", default-features = false, features = ["deflate"], optional = true }
 
 # **Both of these MUST pin the `ring` backend.** Left to their defaults they pull `aws-lc-rs`,
 # whose licence is `ISC AND (Apache-2.0 OR ISC) AND OpenSSL` — and `OpenSSL` is not in

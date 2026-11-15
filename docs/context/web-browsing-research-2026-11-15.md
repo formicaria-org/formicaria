@@ -831,3 +831,98 @@ itself when a tab finishes loading (never shipped).
 | Reading the page | first run, some tabs answered *"Receiving end does not exist"*: the background messaged the page reader before it listened. Fixed: the background injects the reader and calls it directly |
 
 Every kept note ended with a link to its copy, stored as an asset.
+
+---
+
+## 15. Making formicaria's browser fully its own, without a fork (2026-11-15)
+
+**The ask.** The owner: *"we should be able to completely customise the visual interface. Adding
+custom features … full UI customisability, and the ability to fully integrate into fm"*, keeping the
+system Firefox untouched (*"do not change my local firefox, let it be and not break it"*), and
+Firefox as the foundation (*"formicaria should not give me again what firefox gives"*).
+
+**Four levels.**
+
+| Level | What formicaria controls | Precedent | Cost |
+|---|---|---|---|
+| A. add-on + policies (0.31/0.32) | buttons, sidebar, new tab, colours, defaults | Zotero, Obsidian clipper | built |
+| B. the browser's own interface restyled and scripted (`userChrome.css`; autoconfig scripts with the browser's privileges) | everything visible: tab strip, toolbars, menus, panels; features hidden; formicaria built into the window | fx-autoconfig and the userChrome community **[not verified in this pass]** | no compiling; scripts touch Firefox's interface internals, which change between ESR majors: one adaptation a year |
+| C. renamed: "formicaria", its icons | the name everywhere the interface names itself; icons | what forks change; done here *after* Mozilla's build | small; see the spike |
+| D. a fork compiled from source | the engine too | Tor Browser, Mullvad, Zen, Floorp, LibreWolf | high; not needed for anything asked |
+
+**C is not a fork.** A fork keeps Firefox's *source* with its patches, merges each release and compiles
+every platform (Tor reviewed 250+ upstream changes for one ESR rebase **[secondary]**). C takes
+Mozilla's **finished, checksum-verified** ESR and, on the person's computer, swaps the branding files
+inside it, then packs it again: an automated step at setup and at every ESR update, done by formicaria
+instead of Firefox's own updater (which would put the original files back). If a check after an
+update fails, the previous working copy stays (the app's own G2 guarantee).
+
+### The C spike, measured (scratch copy in `spikes/`, headless; the system Firefox and the owner's formicaria browser untouched)
+
+| Step | Result **[measured]** |
+|---|---|
+| Fetch | ESR 153.7.0, SHA-512 matched |
+| Unpack `browser/omni.ja` | Mozilla's "optimised jar" is refused by Python's zip reader; **`unzip` reads it** ("compensating") |
+| Where the name lives | three files: `localization/en-US/branding/brand.ftl` (`-brand-short-name`, `-brand-full-name`…), `chrome/en-US/locale/branding/brand.properties`, `defaults/preferences/firefox-branding.js`; icons in `chrome/browser/content/branding/` and `browser/chrome/icons/default/` |
+| Renamed + formicaria's icon, repacked with `zip` | starts; package 17 MB (compressed) against Mozilla's 54 MB (stored): startup speed to measure before shipping |
+| What the interface says | **659 places use the brand variable and now say formicaria** (Settings: *About formicaria*, *More from formicaria*, *"Psst, formicaria isn't your default"*, *"everywhere you use formicaria"*; the troubleshooting page); formicaria's icon in Settings |
+| Firefox's foundation | **Account and Sync present and unchanged** (*Sign in*); Settings, add-ons, privacy intact |
+| Still "Firefox" | **41 literal mentions in 12 files**: mostly policy names, "Firefox for Android", theme names; visible ones include *Firefox Labs* and the fox illustration on the default-browser card (an image). Each is a file to swap |
+| `--version` | still "Mozilla Firefox 153.7.0esr": **the program's built-in name ignores `application.ini`**. The window's label for the desktop is set by `--name formicaria` instead (already prepared, uncommitted) |
+
+**Not yet tried:** a visible window (title, dock name and icon on Wayland); Firefox's updater turned off
+by policy and formicaria re-applying C to a newer ESR; B (restyle and scripts); other languages (the
+spike changed en-US only, where each locale has its own `brand.ftl`); macOS and Windows packages.
+
+**Legal shape.** A modified Firefox must not be called Firefox (Mozilla's trademark policy), which is
+what C does; a factual "built on the Firefox engine by Mozilla" line is kept. Changed files stay public
+(MPL); formicaria's are.
+
+**Next, if the owner says so:** the visible-window check; B on the same scratch copy (restyle the
+window with formicaria's look and add one built-in formicaria control); the update round trip; the
+remaining visible strings; then a plan for shipping C+B through Settings → Browser.
+
+### 15b. S0: the kit without a fork, measured (2026-11-15) **[measured]**
+
+Scratch ESR 153.6.0 (signature-verified with `gpgv` against Mozilla's key), headless; the system
+Firefox and the owner's formicaria browser untouched.
+
+**What works with a startup script beside Firefox (autoconfig, a plain `formicaria.cfg` +
+`defaults/pref/autoconfig.js`)**:
+- it runs with the browser's privileges (`Services`, `ChromeUtils`); `IOUtils`, `L10nRegistry` and
+  timers come from the shared module global (`Cu.getGlobalForObject(Services)`, `Timer.sys.mjs`),
+  since the script runs before any window exists;
+- `chrome://branding/` overrides from a `chrome.manifest` beside it (icons, `brand.properties`):
+  **works**, so the icon and the older name strings become formicaria's;
+- a style sheet for the window (`nsIStyleSheetService`): **works** (the toolbar took formicaria's
+  colour);
+- a formicaria control in the window's toolbar (the window's own `CustomizableUI`): **works**;
+- split view is on by default in ESR 153 (`browser.tabs.splitView.enabled`).
+
+**What did not**: renaming the *modern* (Fluent) text from the script. `L10nRegistry` lists its
+sources as `0-toolkit`, `5-browser` and orders them itself. A source of formicaria's resolves when it
+is the only one holding a file (a probe returned "formicaria"), but Firefox's `5-browser` source is
+always preferred for the window's texts, however formicaria's is registered. Time-boxed.
+
+**So the one modern brand file is swapped in Firefox's package**, by formicaria itself:
+- the `zip` crate already in formicaria's dependencies **reads Mozilla's packed `omni.ja`** (5,162
+  entries), where Python's reader had refused;
+- rewriting it with every entry **copied raw** (stored stays stored) and `brand.ftl` replaced gives
+  **the same size (54.18 MB)**, so no startup cost, unlike the C spike's compressed repack;
+- result: **window title "formicaria"**, Settings *About formicaria*, *More from formicaria*,
+  *"formicaria isn't your default"*, Account and Sync present.
+
+**A real churn example, as §14.7 warned**: `CustomizableUI` moved from
+`resource:///modules/CustomizableUI.sys.mjs` to `moz-src:///browser/components/customizableui/…`; the
+script now uses the window's own `CustomizableUI` object instead of importing it by path.
+
+**Budgets (§16), stock ESR against the kit**, formicaria + Wikipedia + arXiv + a recipe page, fresh
+profile, headless, three runs each:
+
+| | Stock | Kit |
+|---|---|---|
+| Memory, all processes (PSS) | 914, 870, 896 MB → **893 MB** | 899, 918, 883 MB → **900 MB (+0.8 %)** |
+| Start to session restored | 713, 771, 739 ms → **741 ms** | 727, 740, 738 ms → **735 ms** |
+
+Within noise on both; the budgets (≤ +10 % memory, start ≤ today) hold. Headless reports no first
+paint; the session-restored mark is the comparable start measure.

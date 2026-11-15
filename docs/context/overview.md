@@ -24,7 +24,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
 | **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
 | **Music** | `music-plan-2026-11-13.md` (rulings M1–M5 first) |
-| **Own browser** | `browser-plan-2026-11-15.md` · `web-browsing-research-2026-11-15.md` |
+| **Own browser**, the workspace | `browser-plan-2026-11-15.md` · `web-browsing-research-2026-11-15.md` · `workspace-design-2026-11-15.md` |
 | **Calendars, Gmail, the meeting pass; any time or zone** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail,zone}`, `fm_agent::meetings`) | `time-zones-audit-2026-10-24.md` · `decisions.md#agent` (2026-10-09: read-only, secrets per machine, Rust dates) · `known-issues.md` · `outstanding.md` §2.16 |
 | **Undo, Recently deleted, Back** (`undo.svelte.ts`, `nav.svelte.ts`, `LAYERS` in `App.svelte`) | `decisions.md#ui` (2026-10-09: Back, undo, the menu-entry refinement) — a panel must join `LAYERS`, a write meant to be undoable goes through `undo.svelte.ts` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured, to 2026-07-24) · today's phone model: [Myrme's benchmark summary](../../../myrme/docs/research/2026-10-20-small-model-benchmark-summary.md) |

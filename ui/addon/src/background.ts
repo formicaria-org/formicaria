@@ -68,6 +68,7 @@ const KIND_WORDS: Record<string, string> = {
   video: 'a video',
   song: 'a song',
   article: 'an article',
+  bookmark: 'a bookmark, on the Bookmarks shelf',
 };
 
 const today = () => {
@@ -143,6 +144,57 @@ export async function keep(tab: number): Promise<Kept> {
   }
 }
 
+/** **One formicaria** (`browser-plan` §16): bring its tab forward, or open it pinned when closed. */
+export async function bringForward(server: string) {
+  const open = await browser.tabs.query({ url: `${server}/*` });
+  const t = open[0];
+  if (t?.id != null) {
+    await browser.tabs.update(t.id, { active: true });
+    if (t.windowId != null) await browser.windows.update(t.windowId, { focused: true });
+  } else {
+    await (
+      browser.tabs.create as (d: {
+        url: string;
+        pinned?: boolean;
+        index?: number;
+      }) => Promise<unknown>
+    )({
+      url: server,
+      pinned: true,
+      index: 0,
+    });
+  }
+}
+
+/** **A bookmark is a note** (`browser-plan` §13.3): the page's title and link, on the Bookmarks shelf,
+ *  without a copy of the page, so it is light. Synced by git like every note. */
+export async function bookmark(tab: { url?: string; title?: string }): Promise<Kept> {
+  try {
+    const c = await config();
+    const url = tab.url ?? '';
+    if (!/^https?:/.test(url)) throw new Error('Only a web page can be bookmarked.');
+    const title = (tab.title || url).trim();
+    const made = await call(
+      c.server,
+      c.key,
+      'clip_save',
+      JSON.stringify({
+        url,
+        title,
+        body: `[${title.replace(/[[\]]/g, '')}](${url})\n\n---\n\nBookmarked on ${today()}.\n`,
+        tags: ['web', 'shelf:Bookmarks'],
+        props: { source_url: url, saved: today() },
+        bibtex: '',
+        snapshot: '',
+      }),
+      true,
+    );
+    return { ok: true, id: made?.id, title, kind: 'bookmark', server: c.server };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** Show the kept note in formicaria: the tab it is already open in, or a new one. */
 export async function show(server: string, id: string) {
   const url = `${server}/#note=${id}`;
@@ -171,10 +223,20 @@ browser.runtime.onInstalled.addListener(() => {
     title: 'Keep in formicaria',
     contexts: ['page', 'selection', 'link', 'image'],
   });
+  browser.contextMenus.create({
+    id: 'formicaria-bookmark',
+    title: 'Bookmark in formicaria',
+    contexts: ['page'],
+  });
 });
-browser.contextMenus.onClicked.addListener((_info, tab) => {
+browser.contextMenus.onClicked.addListener((info, tab) => {
   if (tab?.id == null) return;
-  void keep(tab.id).then((k) =>
+  const which = (info as { menuItemId?: string }).menuItemId;
+  const run =
+    which === 'formicaria-bookmark'
+      ? bookmark(tab as { url?: string; title?: string })
+      : keep(tab.id);
+  void run.then((k) =>
     browser.notifications.create({
       type: 'basic',
       title: k.ok ? 'Kept in formicaria' : 'Not kept',
@@ -200,6 +262,12 @@ const more = browser as unknown as {
 
 /** **Alt+Shift+K keeps the page** (the sidebar's Alt+Shift+F is Firefox's own, from the manifest). */
 more.commands.onCommand.addListener((c) => {
+  if (c === 'show-formicaria') {
+    void config()
+      .then((cfg) => bringForward(cfg.server))
+      .catch(() => {});
+    return;
+  }
   if (c !== 'keep-page') return;
   void browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
     if (t?.id == null) return;

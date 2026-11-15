@@ -27,6 +27,8 @@ mod agent_registry;
 mod blob;
 #[cfg(feature = "browser")]
 mod browser;
+#[cfg(feature = "browser")]
+mod browser_kit;
 mod remind;
 mod share;
 #[cfg(feature = "tls")]

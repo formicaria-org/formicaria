@@ -4,41 +4,33 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-## formicaria's browser (R1, desktop) — what is not yet known or done (2026-11-15)
+## formicaria's browser — what is not yet known or done (2026-11-15, 0.33.0)
 
-- **Never run in a person's own window by the agent.** Setup, the key gate and the add-on were run
-  end to end on Linux, headless, against four real sites (a recipe, an arXiv paper, Wikipedia,
-  YouTube; research §14 and `browser-plan` R1) — with a test copy of the add-on that presses *Keep*
-  itself. The toolbar button, the right-click menu, the popup and *Open in formicaria* were not
-  pressed by a person yet.
-- **A second launch while formicaria's browser is open** relies on Firefox's own remoting (D-Bus on
-  Wayland) to hand the address to the running window. Headless Firefox has no remoting, so the run
-  above could not show it; it was answered *"already running"* there. Check it in a person's session.
-- **Linux only.** Windows (an `.exe` installer, `/ExtractDir=`) and macOS (a `.dmg`) are not
-  written; Settings says *not available yet* there.
-- **Firefox's own updater in our folder is untried.** It should update itself (the folder is the
-  person's own and writable); not yet observed across an ESR point release.
-- **A GET carrying no `Origin` is still accepted on loopback**, so any add-on that already knows a
-  blob's content address could read that blob (`/api/blob/<sha256>`). True of any browser on this
-  machine before this feature; not widened by it. Commands are POSTs and are refused to every add-on
-  but ours.
-- **uBlock Origin is installed from addons.mozilla.org at first start** (`normal_installed`); turning
-  it off blocks it (`blocked`). Whether a later turn-on re-installs it cleanly is untried.
-- **Firefox's built-in `adblock-rust`** (Firefox 149+, off by default) is not used; uBlock Origin is.
-- **The copy of a page is the page as the browser had it, without its scripts** (JSON-LD kept). Some
-  pages draw their text with script and their copy reads emptier than the page did.
-- **0.32.0's sidebar, new tab, colours and shortcuts are unseen.** Headless, the new tab proved
-  itself and the app's policy then named exactly our add-on as the one frame-ancestor; whether
-  formicaria draws inside the sidebar and the new tab, how the colours look, and the shortcuts were
-  not seen. **One risk to check**: Firefox's per-site storage isolation may give formicaria-in-a-frame
-  its own copy of the per-device settings kept in the page's storage (light/dark, the board's order,
-  the player's queue), apart from formicaria in a tab.
-- **Downloads → formicaria (0.32.0)** ran headless on invented files: a song, a two-track album zip
-  and a PDF became two kinds of note, one copy each, nothing left in Downloads. A file is fetched a
-  second time to be kept; a download a site serves only once (a one-time link, a form post) fails
-  over to Downloads, with a notification. Whole files are held in memory while kept (an album of a
-  few hundred MB is fine on a computer).
-- **The phone (R2)** is not started: GeckoView in the APK, measured against the 100 MB ceiling.
+- **Measured, headless, by `pixi run browser-check`** (the release gate), against the same ESR
+  unmodified: memory **+6.4 %**, start unchanged, the window titled formicaria, the formicaria tab
+  pinned, policies in force, Sync available. **Not yet looked at by a person in a window**: the colours,
+  the pinned tab's mark, the formicaria button's icon, split view with the formicaria tab.
+- **A security point release swapped in at a start** (`browser_kit::prepare` → `swap_in_prepared`)
+  is unit-tested and uses the same `acquire` as setup, but no real 153.x → 153.(x+1) update has
+  happened yet. The first one will.
+- **Applying a new kit to an existing browser** (0.31–0.32 users, or any formicaria update) happens in
+  the background after a start and goes in at the next start, so the first start after updating still
+  shows the old one.
+- **Without `gpgv`** on the computer, only the ESR this release pinned can be installed (by its pinned
+  sum); security point releases wait for the next formicaria release.
+- **Disk**: the live copy, a prepared one and the previous one can coexist briefly (~3 × 320 MB).
+- **Linux only.** Windows and macOS (an installer to unpack; a Mac re-sign after changing the app)
+  are not written.
+- **English only**: the kit renames `en-US`; formicaria downloads the en-US ESR.
+- **The modern name strings are swapped inside Firefox's packed interface** (one file; every other
+  entry copied raw), because Firefox's text registry would not let a startup script put formicaria's
+  first (research §15b). A future ESR that moves `localization/en-US/branding/brand.ftl` fails the
+  kit loudly (the swap refuses) and the previous copy stays.
+- **A GET carrying no `Origin` is still accepted on loopback** (blob reads by content address); as
+  before, not widened.
+- **The app's shell mode is not built**: formicaria is the pinned first tab, but its notes are not yet
+  entries of the window's own list (`browser-plan` §14.4).
+- **The phone (G0/R2)** needs a device to measure; not started.
 
 ## A swipe between views — what is left (2026-11-05)
 

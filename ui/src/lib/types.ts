@@ -1487,4 +1487,10 @@ export interface BrowserStatus {
   total: number | null;
   error: string | null;
   folder: string | null;
+  /** The Firefox ESR this formicaria release tested (`browser/esr.toml`). */
+  pinned?: string;
+  /** A newer copy (a security release, or a newer kit) is ready and goes in at the next start. */
+  update_ready?: boolean;
+  /** Sites may notify while their tab is closed (off by default). */
+  web_push?: boolean;
 }

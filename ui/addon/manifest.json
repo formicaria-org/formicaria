@@ -1,10 +1,13 @@
 {
   "manifest_version": 2,
   "name": "formicaria",
-  "description": "Keep the page you are on in your formicaria notebook, with formicaria beside every page and on every new tab.",
-  "version": "1.1.0",
+  "description": "formicaria's browser actions: keep the page you are on, bookmark it, and keep downloads, in your formicaria notebook.",
+  "version": "1.2.0",
   "browser_specific_settings": {
-    "gecko": { "id": "browser@formicaria-org.github.io", "strict_min_version": "128.0" }
+    "gecko": {
+      "id": "browser@formicaria-org.github.io",
+      "strict_min_version": "128.0"
+    }
   },
   "permissions": [
     "activeTab",
@@ -16,28 +19,33 @@
     "theme",
     "<all_urls>"
   ],
-  "background": { "scripts": ["background.js"], "persistent": false },
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": false
+  },
   "browser_action": {
     "default_title": "Keep this page in formicaria (Alt+Shift+K)",
     "default_popup": "popup.html",
     "default_icon": "icon.svg"
   },
-  "sidebar_action": {
-    "default_title": "formicaria",
-    "default_panel": "frame.html?in=sidebar",
-    "default_icon": "icon.svg",
-    "open_at_install": false
-  },
-  "chrome_url_overrides": { "newtab": "frame.html?in=newtab" },
   "commands": {
     "keep-page": {
-      "suggested_key": { "default": "Alt+Shift+K" },
+      "suggested_key": {
+        "default": "Alt+Shift+K"
+      },
       "description": "Keep this page in formicaria"
     },
-    "_execute_sidebar_action": {
-      "suggested_key": { "default": "Alt+Shift+F" },
-      "description": "Show or hide formicaria beside the page"
+    "show-formicaria": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "Bring formicaria forward"
     }
   },
-  "icons": { "48": "icon.svg", "96": "icon.svg" }
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
+  }
 }

@@ -34,6 +34,9 @@ Name=formicaria
 GenericName=Research notebook
 Comment=Local-first notes — opens in your browser
 Exec=$HERE/formicaria.sh
+# formicaria's own browser names its window `formicaria` (`fm-serve`, browser.rs `launch_args`):
+# this line is how the dock and Alt+Tab show it as formicaria, with this icon, and not as Firefox.
+StartupWMClass=formicaria
 Icon=formicaria
 Terminal=false
 Categories=Office;

@@ -303,3 +303,513 @@ the desktop add-on key carried by Firefox's managed storage for extensions, writ
 A browser engine or fork of our own · Chrome Web Store add-ons · downloading YouTube or ripping
 streams · App Tracking Protection (device VPN) · syncing browsing history or cookies through the
 vault · iOS changes.
+
+---
+
+## 13. formicaria's browser, fully its own: rebuilt automatically, stripped to its foundation (plan, 2026-11-15)
+
+_Plan only, no code (owner: *"plan and research only until I say so"*). Evidence:
+`web-browsing-research-2026-11-15.md` §15 (the C spike)._
+
+**The owner's requirements.** *"We need to have an automated process that does this every time we
+bump releases and use a new firefox. I would strip away all the Firefox Sync and other stuff, we can
+have dedicated fm options for that based on our own infra."* Earlier: full control of the interface,
+Firefox as the engine and foundation, the system Firefox untouched.
+
+### 13.1 The pipeline (recommended: a signed kit applied to Mozilla's own build)
+
+Three ways to get Mozilla's ESR plus formicaria's layer onto a computer:
+
+| Way | What a release carries | For | Against |
+|---|---|---|---|
+| **K: a kit** (recommended) | formicaria's layer only: branding files, icons, policies, the interface layer (B), the add-on, and the **pinned ESR version with Mozilla's SHA-512 per platform**, all signed with formicaria's release key | Mozilla's binaries come from Mozilla (nothing of theirs redistributed); small release assets; exactly the ESR the release tested | the layer is applied on each computer, so it needs a self-check there |
+| P: a prebuilt package | the whole modified browser per platform (~90 MB each), signed by formicaria | the computer only unpacks | formicaria redistributes a modified Firefox; heavy assets each release |
+| L: local live (today's R1) | nothing pinned; the app follows Mozilla's latest ESR | security fixes at once | an untested combination can reach users |
+
+**K, step by step:**
+1. **In the repo**: `browser/` holds the kit's sources. That is branding templates (every locale's
+   name terms, generated, not hand-edited), icons generated from `packaging/formicaria.svg`, the
+   policy template (§13.2), the interface layer (B), and `browser/esr.toml` pinning the ESR version
+   and SHA-512 per platform.
+2. **`pixi run browser-bump`** (like `myrme-bump`): asks Mozilla for the newest ESR and verifies
+   Mozilla's `SHA512SUMS` signature against Mozilla's pinned release key. It writes the pin, and says
+   loudly when the **major** changed (the once-a-year adaptation).
+3. **`pixi run browser-check`** downloads the pinned ESR, applies the kit, launches it headless and
+   checks:
+   - no visible "Firefox" left (an allowlist keeps the attribution line);
+   - no account or Sync anywhere;
+   - formicaria's add-on and interface present;
+   - startup time against stock ESR;
+   - screenshots kept as evidence.
+
+   Linux runs in the local gate; Windows and macOS run in `release.yml`'s matrix on the tag (where
+   every platform is already built).
+4. **Release order** gains two steps: docs → `myrme-bump` → **`browser-bump`** → `check-references` →
+   **`browser-check`** → `pixi run ci` → version commit → push `main` and the tag. Still agent-driven,
+   nothing waits for a person.
+5. **On the person's computer**, Settings → Browser and every formicaria update:
+   - download the pinned ESR from Mozilla and check it against the pin inside the signed kit
+     (stronger than reading Mozilla's sums live);
+   - apply the kit, self-check, swap;
+   - keep the previous copy if anything fails (the updater's G2).
+
+   Firefox's own updater is off (`DisableAppUpdate`); formicaria is the updater.
+6. **Security point releases between formicaria releases**: §13.5 Q1.
+
+### 13.2 Stripped to the foundation: what goes, by Firefox's own enterprise policies
+
+Policies are Mozilla's supported, release-stable switches, so stripping by policy survives updates
+where interface hacks would not ([policy reference](https://firefox-admin-docs.mozilla.org/reference/policies/)).
+
+| Goes | Policy |
+|---|---|
+| Telemetry, studies, feedback | `DisableTelemetry`, `DisableFirefoxStudies`, `DisableFeedbackCommands` |
+| Pocket, sponsored tiles, Firefox Suggest | `DisablePocket`, `FirefoxHome`, `FirefoxSuggest` |
+| Mozilla's messages, Labs, "More from Mozilla", recommendations | `UserMessaging` (incl. `FirefoxLabs`, `MoreFromMozilla`) |
+| The AI chatbot and AI features | `GenerativeAI` (since Firefox 148; not every AI control is covered by it **[secondary]**) |
+| Firefox's own updater | `DisableAppUpdate` |
+| Firefox's default bookmarks, first-run and what's-new pages | `NoDefaultBookmarks`, `OverrideFirstRunPage`, `OverridePostUpdatePage` |
+
+**Kept, by the owner's choice: Firefox's Sync and Mozilla account** (*"maybe we can leave also the sync from firefox, to allow users to smoothly start with formicaria"*): signing in brings a person's bookmarks, passwords, history and add-ons over. formicaria's own options (§13.3) sit beside it, not instead of it.
+
+**Kept** (the engine and the local foundation): browsing, Firefox's settings and
+privacy controls, add-ons from addons.mozilla.org (the owner wants popular add-ons; AMO is the one
+Mozilla service kept, Q3), Safe Browsing (owner: on), history on the device (owner's ruling).
+
+What policies cannot remove (visible leftovers such as the fox picture) is the interface layer's job (B).
+
+### 13.2b What formicaria maintains, and what it keeps for free
+
+**The owner:** *"We should also understand what we want to maintain. I do like the extension infra of
+firefox, but need nothing else."* So formicaria maintains **one thing: its layer** (the add-on, the kit,
+the interface). Everything Mozilla maintains is free to keep. Removing costs nothing when a policy
+does it, and costs upkeep when the interface has to hide it. **The rule: keep what runs on the
+device, strip Mozilla's cloud services and promotions, except the three that are security.**
+
+| Keep (Mozilla services, because they are security) | Why |
+|---|---|
+| **Remote Settings** | carries the blocklist of malicious add-ons, certificate revocation (CRLite) and tracking-protection lists; stripping it quietly weakens the browser **[not verified: exact contents for ESR 153]** |
+| **Safe Browsing** | owner: on |
+| **Add-on updates from addons.mozilla.org** | the extension infrastructure the owner wants |
+
+| Keep (on the device, free, and useful to formicaria) | formicaria could build on it |
+|---|---|
+| **PDF reader with highlights and notes** (pdf.js) | an annotated paper kept in the vault (the papers plan's reader, for free) |
+| **Reader View** | clean articles; *Keep* already uses the same Readability |
+| **Local translation** (on-device models, downloaded once) | a translated copy kept beside the original |
+| **Picture-in-picture** | a fitness video on screen while writing the note |
+| **Screenshots, Save as PDF** | more things *Keep* can take |
+| **Containers, private windows, vertical tabs, tab groups** | the interface layer (B) builds on them instead of rebuilding them |
+| **Developer tools** | for development |
+| **Local password manager and autofill** (no sync) | Q2 |
+
+| Keep only if wanted (services some sites need) | |
+|---|---|
+| **DRM playback (Widevine)** | Spotify, Netflix and similar web players need it; Bandcamp does not |
+| **Web push** | notifications from sites whose tab is closed (web chat, mail) |
+
+### 13.3 formicaria's own replacements, on formicaria's own infrastructure
+
+formicaria's infrastructure is the vault, its git sync and the LAN share; there is no cloud.
+
+| Firefox had | formicaria offers | How |
+|---|---|---|
+| Bookmarks synced | **bookmarks are notes**: *Keep* already makes them; a "bookmark" button that keeps the link without the page copy; a Bookmarks view | vault notes, synced by git like every note |
+| Open tabs on other devices, reading list | a **reading list** shelf; "open on my other device" | notes on a shelf; git sync |
+| Add-ons on every device | **formicaria's add-on list**: the add-ons you install are written to the vault and installed by policy on each of your computers | a vault file read into `policies.json` at launch |
+| Settings on every device | the browser's formicaria-side choices in the vault; Firefox's own settings stay per device | a vault file |
+| Passwords synced | **not rebuilt by formicaria**: Firefox's password manager stays, and Firefox's own Sync carries it for whoever signs in (owner, Q2) | security-critical; formicaria should not become a password manager |
+| History synced | **nothing**: history stays on the device (owner, 2026-11-15) | n/a |
+
+### 13.4 Costs and risks
+
+- **Once a year**, the new ESR major moves things the layer depends on. `browser-check` turns red at
+  `browser-bump`; that release carries the adaptation.
+- **macOS**: changing files inside the app breaks Apple's seal. An **ad-hoc re-sign** after the kit
+  is applied makes it run on that Mac (it is not valid on other Macs, which does not matter here,
+  since it is applied on each Mac) **[secondary: Mozilla's signing docs]**. To test on `release.yml`.
+- **Windows**: the program files are signed; the packed interface is not, so it is expected to work.
+  Untested.
+- **Languages**: the spike renamed en-US only. Each locale has its own branding terms, so the kit
+  generates them for all locales the ESR carries. Language packs: unknown, to check.
+- **Startup speed**: the spike's repacked interface was compressed (17 MB against 54 MB); repack the
+  way Mozilla does (stored) unless measured fine.
+- **The add-on catalogue (AMO)** remains a Mozilla service; removing it removes popular add-ons.
+
+### 13.5 The owner's answers (2026-11-15)
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Security fixes between formicaria releases | **Point releases arrive by themselves**: the app takes Mozilla's newer point release of the same ESR major, checks Mozilla's signature, applies the kit, self-checks, falls back on failure. A new major comes only with a formicaria release |
+| 2 | Passwords | **Firefox's Sync stays available** (the strip list keeps it) so a person can start smoothly; the password manager stays |
+| 3 | Add-ons from addons.mozilla.org | kept (the extension infrastructure the owner wants) |
+| 4 | Firefox's own Settings pages | open: keep reachable, hide what the policies removed (recommended) |
+| 5 | DRM, web push, translation | **DRM playback kept**; **web push a switch, off by default**; translation: see below |
+
+**Translation (owner: *"we should have myrme doing translations, no? How big are Mozilla models?"*).**
+Mozilla's translation models are small, dedicated neural translators: **about 17–35 MB per language
+direction** (tiny models; Japanese, Korean, Chinese the largest). They translate through English
+between two other languages, so two models for, say, Italian to French. A distilled 17 MB model
+scored BLEU 50.7 against its 798 MB teacher's 52.5, about 35× faster on one CPU core. Engine and
+models are MPL-2.0 ([Mozilla Hacks](https://hacks.mozilla.org/2022/06/neural-machine-translation-engine-for-firefox-translations-add-on/),
+[models repo](https://github.com/mozilla/firefox-translations-models)) **[secondary for sizes; to
+measure]**. Recommendation, consistent with Myrme's own "a small dedicated tool per task" rule:
+- **pages in the browser** use Firefox's built-in translation (free, maintained by Mozilla, on the
+  device);
+- **notes, kept pages and mail** use a **Myrme translation tool on the same engine and models**
+  (`bergamot-translator`), so a language fetched once serves both, on the computer and the phone;
+- **the language model** only for rewording or explaining.
+
+That is a plan item for **Myrme's repository**, not this one.
+
+### 13.6 Phases (when the owner says go)
+
+| Phase | What |
+|---|---|
+| K0 (spike) | B on the scratch copy: restyle the window and add one built-in formicaria control; an ESR point-update round trip with the kit re-applied; a visible window checked by the owner |
+| K1 | the kit in `browser/`; `browser-bump`, `browser-check` (Linux), the release-order change |
+| K2 | the app applies the signed kit at setup and on updates; Firefox's updater off; fallback |
+| K3 | §13.2's policies; §13.3's replacements (bookmarks, reading list, add-on list) |
+| K4 | `browser-check` on Windows and macOS in `release.yml`; ad-hoc re-sign on macOS |
+
+**Decision entry to write first** (K1): *formicaria's browser is a kit applied to Mozilla's ESR,
+stripped of Mozilla's services by policy* (`#toolchain` `#ui` `#vault`). It extends the 2026-11-15
+entries and reverses 0.31.0's "follow Mozilla's latest ESR live".
+
+### 13.7 Refined, and what 0.33.0 carries (owner: *"refine plan and execute it till new release"*)
+
+**Measured before refining** (2026-11-15):
+- `gpgv` verifies Mozilla's signature on an ESR's `SHA512SUMS`. Mozilla's release key is
+  `14F2 6682 D091 6CDD 81E3 7B6D 61B7 B526 D98F 0353` ("Mozilla Software Releases"); it signs with
+  a subkey rotated every two years, the current one valid to 2028.
+- Point releases 153.5.0–153.7.0 are on Mozilla's archive, so an update round trip can be tried.
+
+**Refinement: the kit is files beside Firefox, not a repacked Firefox.** Firefox's *autoconfig*
+(`defaults/pref/autoconfig.js` pointing at a `.cfg` in the install folder) runs a privileged script at
+every start, from plain files **outside** the packed `omni.ja`. If that script can rename (override
+`chrome://branding/` and register formicaria's branding strings), restyle (a chrome style sheet) and
+add formicaria's own controls, then:
+- the kit is a folder copied beside Firefox, and re-copied after an update;
+- no packed-file format to handle and no `zip` tool needed on the person's computer;
+- no startup cost.
+
+K0 proves or refutes this. **The fallback is the C spike's repack**, which already worked
+(research §15).
+
+**0.33.0 (desktop, Linux), in order:**
+1. **K0, the spike**: on a scratch ESR, the autoconfig kit renames, restyles and adds one formicaria
+   control; then an update 153.6.0 → 153.7.0 with the kit re-applied; and the policy strip list
+   checked (§13.2).
+2. **The decision entry** (§13.6) is written before code.
+3. **K1, the kit in the repo**: `browser/kit/` (branding, icons, styles, the startup script), the policy
+   template, `browser/esr.toml` (pinned ESR, SHA-512 per platform, Mozilla's key fingerprint),
+   `browser/mozilla-release-key.asc`. The kit is **compiled into `fm-serve`**, so it is signed with the
+   app itself (no separate asset).
+4. **K1, the tools**: `pixi run browser-bump` (newest ESR, its signed sums, the pin) and
+   `pixi run browser-check` (download the pin, apply the kit, launch headless, check names, Sync
+   still present, the strip list absent, the add-on loaded; screenshots). Both go into the release
+   order.
+5. **K2, on the person's computer**:
+   - setup and every start check for a newer **point** release of the pinned major (owner Q1),
+     verified with `gpgv` against the pinned key;
+   - apply the kit, self-check with a headless start, swap, keep the previous copy;
+   - Firefox's updater off.
+6. **K3**: the strip list by policy (Sync kept); **settings that stick** (the privacy defaults
+   become policy defaults, so the person's changes win; only the add-on's own line stays forced);
+   the window named formicaria (already prepared); a **Bookmark in formicaria** entry (a note with
+   the link, no copy, on a *Bookmarks* shelf); DRM kept; web push behind a switch, off.
+7. **Release 0.33.0**: docs → `myrme-bump` → `browser-bump` → `check-references` →
+   `browser-check` → `pixi run ci` → version commit → push `main` and the tag.
+
+**Later, not in 0.33.0:** the add-on list kept in the vault; Windows and macOS (`release.yml`
+matrix, macOS re-sign); other languages; a fuller formicaria interface built on the K0 control;
+Myrme's translation tool (its own repository).
+
+---
+
+## 14. formicaria is the app; web pages are its tabs (owner, 2026-11-15; plan, supersedes the "formicaria in a tab" shape)
+
+> **The owner**, stopping K0: *"fm is not something in one tab, it is the entire ecosystem. So we
+> need not anymore open tabs inside a fm tab in a browser, we can actually open other tabs in the
+> overall app."* Back to plan mode; nothing of K0 ran.
+
+### 14.1 What changes
+
+Until now the shape was **a browser with formicaria inside it**: formicaria in a tab, in a sidebar, on
+the new tab. The new shape: **formicaria is the window**. Its own navigation (Library, Tasks, Food,
+Fitness, Health, Music, and now Web) is the frame, and **everything opens as a tab of formicaria**:
+- a note;
+- a view (a board, a day of food);
+- a web page.
+
+A note can sit beside the page it is about. There is no "formicaria tab" in a browser any more.
+
+### 14.2 How (recommended: formicaria's shell built into Firefox's own window)
+
+| Option | | Verdict |
+|---|---|---|
+| **S1. A formicaria shell in the browser's own window** (§13's B layer, privileged startup scripts and styles on ESR) | formicaria draws the window's frame: its navigation panel, its look, its actions. **Firefox's tab machinery is reused**: vertical tabs, tab groups and **split view**, all in Firefox since 149, so in ESR 153 **[secondary]**; session restore; add-ons. formicaria items are tabs showing the formicaria app in *shell mode*; web pages are ordinary tabs | **recommended** |
+| S2. web pages inside the formicaria page, in frames | the add-on would strip sites' "do not frame me" headers | **rejected**: many sites still break (sign-ins refuse frames, sign-in pop-ups fail), and framed sites get separate, partitioned storage, so you are signed out of everything inside formicaria; it also weakens a protection |
+| S3. a native shell (Electron, CEF, Tauri, Servo) | | rejected (§2): a second engine to keep secure |
+| S4. a compiled fork (Zen, Floorp) | the same UI, built in | not needed now. Zen and Floorp show this kind of interface is buildable on Firefox, and **Floorp moved its scripted components into its own build** **[secondary]**, a warning to keep the shell small and its hooks few |
+
+### 14.3 The window, concretely (desktop)
+
+- **The left panel is formicaria's**: the places (Library, Tasks, Food, Fitness, Health, Music, Web)
+  on top, and below them **everything open**, notes, views and web pages in one list. It is built on
+  Firefox's vertical tabs and tab groups, restyled: a tab group per place.
+- **The content area shows the chosen tab.** **Split view** puts a note beside a page (Firefox's,
+  two tabs at a time).
+- **The address bar** goes to an address, or searches the web (DuckDuckGo) and your notes in one
+  list (to try).
+- **The actions are the window's own**: *Keep*, *Bookmark*, *Add to note beside*, downloads into
+  formicaria, all in the frame and no longer only behind an add-on button.
+- **Opening**: pressing a note in a formicaria view opens it as a tab (or beside the page); a link
+  in a note opens a web tab. formicaria's own app pages are top-level tabs on `127.0.0.1`, so they keep
+  their normal storage (none of the frame-partitioning problem of 0.32.0's sidebar).
+
+### 14.4 What the formicaria app (the Svelte UI) needs: a *shell mode*
+
+- **Every place, view and note has an address** (`/#view=…`, `/#note=…`), so each can be a tab, be
+  restored, and be opened beside.
+- **In shell mode the app hides its own chrome** (side panel, top bar): the window's frame replaces
+  them. In any ordinary browser, and on a paired tablet, the app is unchanged.
+- **The app asks the shell** to open a tab, open beside, or switch place, over one narrow channel:
+  only formicaria's own top-level tabs may send, and the shell never acts on anything a web page
+  says.
+
+### 14.5 The phone
+
+The same shape: formicaria's Android app is the shell, and web pages are tabs among formicaria's
+screens. GeckoView sessions sit beside the formicaria screens in one tab list, not in a separate
+*Browser* place (§12.10 changes accordingly when R2 is planned in detail).
+
+### 14.6 What formicaria maintains
+
+The shell script and styles, the app's shell mode, the kit (§13), and the add-on's page-reading part.
+Everything else is Firefox's. **Yearly** (ESR major) the shell's hooks into Firefox's window are
+re-checked; `browser-check` exercises them.
+
+### 14.7 Risks
+
+- **Privileged code**: the shell runs with the browser's own rights. It must never take input from a
+  web page; its only input is formicaria's own tabs and the person.
+- **Firefox's window internals change between majors**: keep the shell's hooks few and named, and
+  test them in `browser-check`.
+- **Accessibility and keyboard**: Firefox's own tab list is accessible; a restyle must keep it so.
+
+### 14.8 Revised order
+
+1. **S0, spike** (scratch ESR, the owner's Firefox untouched):
+   - the autoconfig kit renames without repacking;
+   - a formicaria panel with places and the tab list, built on vertical tabs and groups;
+   - a note opened as a tab, and a note beside a page in split view;
+   - an update round trip.
+2. **The decision entry**: *formicaria is the window; web pages are its tabs*, superseding the
+   sidebar/new-tab shape of 0.32.0 for the shell.
+3. **S1**: the app's addresses and shell mode.
+4. **S2**: the shell (panel, actions, opening rules) and the kit pipeline (§13.7, K1–K3).
+5. **Release.**
+
+### 14.9 Questions for the owner
+
+1. **The tab list**: Firefox's own vertical tabs, restyled as formicaria's panel (recommended: less to
+   maintain, accessible, sessions restored), or a list formicaria draws itself?
+2. **Places as tab groups**: one group per formicaria place, with web pages in *Web* or in the place
+   they were opened from (a recipe page in Food)? Recommended: in the place opened from.
+3. **The address bar searching notes too**: yes (recommended, to try in S0), or web only?
+4. **0.32.0's sidebar and new tab**: retire them once the shell exists (recommended), or keep them for
+   formicaria in a plain Firefox?
+
+---
+
+## 15. Exploit the dependency: what formicaria hands to the engine (owner, 2026-11-15; plan)
+
+> **The owner:** *"My idea is to exploit this dependency to offload things that were necessary before.
+> Obviously, different devices will have to do it slightly differently since screen and inputs are
+> different … The dependency is strong and can be helpful also on the mobile apps."*
+
+Until now Gecko was a **cost**: a download and a pin. Committed to, it is also a **platform**. Much of
+what formicaria built, or worked around because of an engine it did not control, can be handed to it,
+**differently per device**:
+- desktop: Firefox ESR plus formicaria's shell (§14);
+- Android: GeckoView in formicaria's app;
+- iOS: WebKit, which Apple requires outside the EU, so it gains none of this.
+
+### 15.1 The inventory: formicaria's own work → the engine's
+
+| formicaria does today | The engine gives | Desktop | Android | Effect |
+|---|---|---|---|---|
+| Tabs, panes, session restore, side-by-side | vertical tabs, tab groups, **split view**, session restore | ✅ (§14) | Android Components' tabs | the shell, not the Svelte app, owns windows |
+| **PDFs**: an iframe on desktop; on Android **never rendered**, only `open_external` (`known-issues`) | **pdf.js**, with highlights and notes | ✅ | **to confirm** in GeckoView **[not verified]** | the papers plan's reader (Phase C) largely given; a long-standing Android gap closed |
+| **Music in the background on a phone**: needs a Media3 service because Android's WebView has no Media Session (`music-plan` M4) | GeckoView's **MediaSession** API (wired to Android's media controls by the app, as Firefox does) **[doc]** | browser media keys | ✅ with wiring | M4 shrinks to wiring, not a player of our own |
+| Translation (planned in Myrme) | **on-device translation**: Bergamot, `TranslationsController` in GeckoView since 121 **[doc]** | ✅ | ✅ | pages and the app's own text translated by the engine; Myrme's tool only for notes or mail outside a page (§13.5, revised) |
+| Article extraction (Readability bundled in the add-on) | Reader View, the same Readability | ✅ | Android Components' reader | the add-on can call the engine's |
+| Snapshot of a page (the add-on serialises the DOM) | **Save as PDF / page**, screenshots | ✅ | GeckoView print/PDF **[to check]** | richer copies for *Keep* |
+| Export a note to PDF (not offered) | **print to PDF** with the app's print styles | ✅ | ✅ **[to check]** | a feature for free |
+| Spelling in the editor | the engine's spell checker and dictionaries | ✅ | ✅ | for free |
+| Android WebView workarounds: insets bridge (`--safe-*`), the keyboard, a WebView that forwards no console, base64-over-IPC blobs, a ranged `fmblob:` scheme | GeckoView's own handling of insets and the keyboard, its console, and loading from the same local server as the desktop | – | **if the app itself runs on GeckoView** (15.2) | Android-only code deleted; one transport on both |
+| Ad and tracker blocking, add-ons | Firefox's protections, the add-on catalogue | ✅ | ✅ (GeckoView add-ons) | for free |
+| UI tests in jsdom, which applies no CSP and no layout (`decisions.md`: a broken PDF and layouts hid there for weeks) | **the real engine headless**, the same Gecko the person runs | ✅ | ✅ | tests that see what people see |
+
+### 15.2 The structural question: formicaria's own screens on GeckoView on Android?
+
+Today the Android app is **Tauri over Android's System WebView** (Chromium), and §12 planned GeckoView
+only for *web pages*. Exploiting the dependency fully means **formicaria's own screens run on
+GeckoView too**, with one engine on desktop and Android:
+- the same rendering, the same tests, the same add-ons;
+- the WebView workarounds deleted.
+
+**What it costs:**
+- Tauri cannot drive GeckoView, so the Android shell becomes a **native Android app** (Kotlin with
+  Android Components) hosting GeckoView and the Rust core, as it already hosts `AgentService` and the
+  share bridge.
+- The command channel moves from Tauri's IPC to either the desktop's local HTTP server, guarded by a
+  per-launch token because other apps on the phone can reach loopback, or a built-in add-on's
+  native-messaging port.
+- **iOS keeps Tauri and WebKit**.
+
+**This is the largest decision in the plan.** It makes the R2 phone release a rebuild of the Android
+shell rather than a screen added to it. Recommended: decide after a spike that runs formicaria's
+built UI in a bare GeckoView app and measures:
+- start time against today's app;
+- the 100 MB ceiling;
+- memory beside the assistant;
+- the keyboard and insets.
+
+### 15.3 Per device: the same idea, shaped by screen and input
+
+| | Desktop | Android | iOS |
+|---|---|---|---|
+| Engine | Firefox ESR (kit, §13) | GeckoView (in the APK) | WebKit (Apple's rule) |
+| Shell | formicaria's frame in Firefox's window (§14) | a native formicaria app: tabs of notes, views and pages (15.2) | today's Tauri app |
+| Tabs | vertical list, split view | a tab switcher sized for a thumb; one at a time, *beside* as a sheet | as today |
+| Input | keyboard shortcuts, right-click | long-press, share sheet, a bottom bar | as today |
+| Offloaded | §15.1, all | §15.1, all on GeckoView | none |
+
+### 15.4 Revised order (replaces §14.8's steps 1–2)
+
+1. **S0 (desktop spike)**: the autoconfig kit, the formicaria panel over vertical tabs, note beside page.
+2. **G0 (Android spike)**: formicaria's built UI in a bare GeckoView app, the four measurements
+   (15.2); pdf.js and print in GeckoView checked.
+3. **Decision entries**: *formicaria is the window* (§14); *Gecko is formicaria's engine on desktop
+   and Android* (with the measurements, and the Tauri question on Android).
+4. Then §14.8 S1–S2 on desktop, and the Android shell plan from G0's results.
+
+---
+
+## 16. Lean and quick: the budgets the dependency must meet (owner, 2026-11-15; governs §13–§15)
+
+> **The owner, final refinement:** *"make sure we keep minimal the memory usage and maximal the
+> responsiveness of the app. Adding this dependency should not add lags and difficulty accessing the
+> current features."*
+
+This section **overrides** anything above that conflicts with it. Nothing is adopted until it meets
+the budgets in 16.3, measured.
+
+### 16.1 Design consequences
+
+1. **formicaria runs once, not once per tab.** Each formicaria tab running its own copy of the app
+   would multiply memory by the number of open notes. So the panel's formicaria items (notes,
+   views) are **entries inside the one formicaria tab**: choosing one switches to that tab and tells
+   the app which note to show (the shell channel, §14.4). Only **web pages** are real browser tabs.
+   *Beside* = the formicaria tab and a web tab in split view. This revises §14.3; it also retires
+   0.32.0's sidebar and new tab, which are each a further copy of the app.
+2. **The formicaria tab is never unloaded and never waits**: pinned, excluded from Firefox's
+   tab unloading, loaded first at start.
+3. **Web tabs cost nothing until looked at**: restored on demand (Firefox's default), unloaded under
+   memory pressure (Firefox's tab unloading).
+4. **The shell's code is small and never busy.** It runs on the browser's main thread, so anything
+   slow there slows every tab. Event handlers do no more than route; work goes to the add-on's
+   background script or to `fm-serve`.
+5. **The phone keeps formicaria's screens on Android's System WebView, and starts GeckoView only
+   when a web page, a PDF or a translation needs it** (lazy, as §12.10 already planned).
+   - System WebView is shared and preloaded by Android, so it is cheap to start.
+   - GeckoView loads its whole engine on the first use.
+   - §15.2's "formicaria's screens on GeckoView" is adopted **only if** G0 measures it within the
+     phone budgets below; otherwise the hybrid stands.
+6. **Built-in before add-on, where equal.** Firefox's own protections (and its built-in Rust blocker,
+   if it can be switched on) before uBlock Origin, if they block comparably: one less process of
+   work and memory. uBlock stays an offer.
+7. **No feature moves behind the browser.**
+   - Every place and action the app has today is reachable in the shell in the same number of
+     presses or fewer.
+   - The keyboard shortcuts stay.
+   - The app keeps working in any browser and on a paired tablet.
+   - If formicaria's browser is not set up or fails to start, the app opens in the default browser,
+     as today.
+   - In shell mode the app hides a control of its own **only** where the shell shows the same one (a
+     check lists them).
+
+### 16.2 What is measured, and how
+
+- **Desktop memory**: total resident memory (PSS) of every process of the browser, with formicaria
+  open and 0, 3 and 10 web tabs. Compared with **today**: formicaria in a tab of the person's own
+  Firefox, the same tabs.
+- **Desktop start**: from the double-click to formicaria drawn, cold (nothing running) and warm.
+  Compared with today's launcher opening the default browser.
+- **Responsiveness**: the app's own measures stay where they are: view switch, note open, typing
+  latency (`gui-smoothness-plan-2026-10-18.md`, `crates/fm-app/tests/perf.rs`). Shell actions (*Keep*,
+  *Beside*, switching place) acknowledge within one frame budget.
+- **Phone**: §12's measures (APK, cold start, `dumpsys meminfo` with the model), plus the first web
+  page's delay (GeckoView's lazy start).
+
+### 16.3 Budgets **[proposed; the owner confirms]**
+
+| Measure | Budget |
+|---|---|
+| Desktop memory, formicaria + 3 web tabs | **no more than** formicaria + the same 3 tabs in the person's own Firefox today (+10 % tolerance for the shell) |
+| Desktop cold start to formicaria drawn | ≤ today's cold start of formicaria in the default browser |
+| Desktop warm start (browser already open) | formicaria in front in ≤ 300 ms |
+| View switch, note open, typing | **unchanged** (within measurement noise of today) |
+| A shell action's first visible response | ≤ 100 ms |
+| Phone cold start of the app | **unchanged** (GeckoView not started) |
+| Phone memory, no web page open | **unchanged** |
+| Phone first web page | ≤ opening another browser on the device (owner, §8) |
+| Phone APK | ≤ 100 MB (owner) |
+
+**Any budget missed blocks adoption** of the piece that misses it, not the whole plan. The piece
+waits, or takes the cheaper route: the hybrid on the phone, uBlock instead of the built-in blocker,
+fewer shell features.
+
+### 16.4 Where the budgets are enforced
+
+- **S0 and G0** (the spikes) report every measure against today's baseline before any decision entry.
+- **`browser-check`** (the release gate, §13.1) records desktop start and memory, and fails a release
+  that regresses them by more than the tolerance.
+- **The existing perf tests** stay the guard for the app's own responsiveness.
+
+### 16.5 Revised order (final)
+
+1. **S0 (desktop spike)**, with §16.2's measures:
+   - the autoconfig kit;
+   - one formicaria tab plus the panel over vertical tabs;
+   - note beside page;
+   - **today's baseline measured first**.
+2. **G0 (Android spike)**, with §16.2's measures:
+   - the hybrid (System WebView screens, lazy GeckoView) against GeckoView for everything;
+   - pdf.js, print and media session checked.
+3. **Decision entries**, with the measurements.
+4. **Build** what passed: the kit pipeline (§13), the shell and the app's shell mode (§14), the
+   offloads that met the budgets (§15). Then the release.
+
+### 16.6 Status (2026-11-15, 0.33.0)
+
+**Built and gated** (`pixi run browser-check` green):
+- the kit (`browser/kit/`, compiled into `fm-serve`): renaming, look, the formicaria button, the
+  pinned formicaria tab, the privacy defaults as defaults;
+- the pinned ESR (`browser/esr.toml`, `pixi run browser-bump`) and Mozilla's signature (`gpgv`);
+- point releases prepared in the background and swapped in at a start; Firefox's updater off;
+- Mozilla's services stripped by policy, Sync kept; web push behind a switch; uBlock Origin an
+  offer, off (measured: +66 % memory);
+- 0.32.0's sidebar and new tab retired (one formicaria);
+- *Bookmark in formicaria*.
+
+**Budgets**: memory +6.4 %, start unchanged (§16.3 holds).
+
+**Next**:
+- the app's shell mode and the window's own list (§14.4);
+- G0 on a phone (§15.4);
+- Windows and macOS;
+- other languages.
+

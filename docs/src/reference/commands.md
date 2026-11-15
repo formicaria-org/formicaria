@@ -279,7 +279,7 @@ using answers `409`. Both are host-only, and neither is a command: they are abou
 ### `POST /api/browser_status`, `browser_setup`, `browser_set`, `browser_open`
 
 formicaria's own browser on a computer (Linux for now): its state, setting it up (Firefox ESR
-downloaded from Mozilla and checked against Mozilla's SHA-512 sums, into
+downloaded from Mozilla, checked against Mozilla's signature and the pinned SHA-512, made formicaria's by the kit, into
 `<config>/formicaria/browser/`), the person's two choices (`open_in_it`, `block_ads`), and opening
 formicaria in it. Host-only, like the updater's routes: they are about this computer, not a vault.
 

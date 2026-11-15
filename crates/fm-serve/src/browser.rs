@@ -67,20 +67,9 @@ pub fn our_origin() -> Option<String> {
     OUR_ORIGIN.lock().ok().and_then(|o| o.clone())
 }
 
-/// Where Mozilla answers "which is the newest ESR" — with a redirect to the file itself.
-fn latest_url() -> Option<&'static str> {
-    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        Some("https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=linux64&lang=en-US")
-    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        Some("https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=linux64-aarch64&lang=en-US")
-    } else {
-        None
-    }
-}
-
 /// Can this machine have formicaria's browser? R1: Linux only.
 pub fn supported() -> bool {
-    latest_url().is_some()
+    crate::browser_kit::platform().is_some()
 }
 
 /// `<config>/formicaria/browser`.
@@ -100,16 +89,23 @@ pub struct Prefs {
     /// Open formicaria in its own browser at launch (on once it is set up).
     #[serde(default = "yes")]
     pub open_in_it: bool,
-    /// Block ads with uBlock Origin, from addons.mozilla.org.
-    #[serde(default = "yes")]
+    /// Install uBlock Origin from addons.mozilla.org. **Off by default** (2026-11-15, `browser-plan`
+    /// §16 rule 6: built-in before add-on): measured, a fresh profile with it compiled its filter lists
+    /// to +66 % memory over the same ESR without it (`ci/browser-check.py`); Firefox's own strict
+    /// tracking protection stays on either way. An offer, a switch in Settings.
+    #[serde(default)]
     pub block_ads: bool,
+    /// Let sites send notifications while their tab is closed (Mozilla's push service). Off
+    /// (owner, 2026-11-15: "web push, a switch, off").
+    #[serde(default)]
+    pub web_push: bool,
 }
 fn yes() -> bool {
     true
 }
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { open_in_it: true, block_ads: true }
+        Prefs { open_in_it: true, block_ads: false, web_push: false }
     }
 }
 fn read_prefs(d: &Path) -> Prefs {
@@ -201,31 +197,14 @@ pub fn authorize_extension(
 // The profile and the policy file.
 // ---------------------------------------------------------------------------------------------
 
-/// The profile's own preferences (`user.js`), the privacy defaults the owner chose (plan §6):
-/// strict tracking protection, HTTPS-Only, Global Privacy Control, cookie banners refused, Safe
-/// Browsing on (Firefox's default, left as it is), nothing sent to Mozilla, history on this device.
-/// And the one that makes the add-on possible: ESR accepts an add-on Mozilla has not signed
-/// (measured, research §14).
+/// The profile's `user.js`. **It no longer sets anything** (`decisions.md` 2026-11-15, evening): Firefox
+/// applies `user.js` over the person's own choices at every start, so 0.31–0.32's privacy defaults could
+/// not be changed for good. They are now *defaults* set by formicaria's startup script
+/// (`browser/kit/formicaria.cfg`), which the person's settings override; this file is written empty so
+/// an older one stops forcing them.
 pub fn user_js() -> String {
-    [
-        ("xpinstall.signatures.required", "false"),
-        ("browser.contentblocking.category", "\"strict\""),
-        ("dom.security.https_only_mode", "true"),
-        ("privacy.globalprivacycontrol.enabled", "true"),
-        ("cookiebanners.service.mode", "1"),
-        ("cookiebanners.service.mode.privateBrowsing", "1"),
-        ("browser.shell.checkDefaultBrowser", "false"),
-        ("browser.aboutwelcome.enabled", "false"),
-        ("datareporting.healthreport.uploadEnabled", "false"),
-        ("datareporting.policy.dataSubmissionEnabled", "false"),
-        ("toolkit.telemetry.enabled", "false"),
-        ("app.shield.optoutstudies.enabled", "false"),
-        ("browser.newtabpage.activity-stream.showSponsored", "false"),
-        ("browser.newtabpage.activity-stream.showSponsoredTopSites", "false"),
-    ]
-    .iter()
-    .map(|(k, v)| format!("user_pref(\"{k}\", {v});\n"))
-    .collect()
+    "// formicaria sets its defaults in formicaria.cfg (beside the program); your settings win.\n"
+        .to_string()
 }
 
 /// The policy file: our add-on with its key, uBlock Origin if wanted, DuckDuckGo, and formicaria's
@@ -246,21 +225,47 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
             "default_area": "navbar",
         }),
     );
-    ext.insert(
-        UBLOCK_ID.into(),
-        if prefs.block_ads {
-            json!({ "installation_mode": "normal_installed", "install_url": UBLOCK_URL })
-        } else {
-            json!({ "installation_mode": "blocked" })
-        },
-    );
+    // Offered, never forbidden: off means formicaria does not install it, and the person may still
+    // add or remove it from Firefox's add-ons like any other.
+    if prefs.block_ads {
+        ext.insert(
+            UBLOCK_ID.into(),
+            json!({ "installation_mode": "normal_installed", "install_url": UBLOCK_URL }),
+        );
+    }
     json!({ "policies": {
         "ExtensionSettings": Value::Object(ext),
         "3rdparty": { "Extensions": { ADDON_ID: { "key": key, "server": server } } },
         "SearchEngines": { "Default": "DuckDuckGo" },
+        // **Stripped by policy** (decision 3, 2026-11-15 evening): Mozilla's telemetry, studies,
+        // feedback, Pocket, sponsored content, Suggest, its messages and Labs, the AI chatbot, and
+        // Firefox's own updater (formicaria updates it). **Kept**: the Mozilla account and Sync
+        // (owner: to start smoothly), add-ons, Remote Settings, Safe Browsing, DRM.
         "DisableTelemetry": true,
         "DisableFirefoxStudies": true,
+        "DisableFeedbackCommands": true,
         "DisablePocket": true,
+        "DisableAppUpdate": true,
+        "NoDefaultBookmarks": true,
+        "FirefoxHome": {
+            "Search": true, "TopSites": true, "SponsoredTopSites": false, "Highlights": false,
+            "Pocket": false, "SponsoredPocket": false, "Stories": false, "SponsoredStories": false,
+            "Snippets": false, "Locked": false
+        },
+        "FirefoxSuggest": {
+            "WebSuggestions": false, "SponsoredSuggestions": false, "ImproveSuggest": false,
+            "Locked": false
+        },
+        "UserMessaging": {
+            "ExtensionRecommendations": false, "FeatureRecommendations": false,
+            "UrlbarInterventions": false, "SkipOnboarding": true, "MoreFromMozilla": false,
+            "FirefoxLabs": false, "Locked": false
+        },
+        "GenerativeAI": { "Enabled": false },
+        "EncryptedMediaExtensions": { "Enabled": true },
+        "Preferences": {
+            "dom.push.enabled": { "Value": prefs.web_push, "Status": "default" }
+        },
         "DontCheckDefaultBrowser": true,
         "OverrideFirstRunPage": "",
         "OverridePostUpdatePage": "",
@@ -339,75 +344,39 @@ fn set_phase(st: &BrowserState, s: &str) {
     }
 }
 
-/// Download, check and unpack Firefox ESR, then write the profile. Runs on its own thread.
+/// Set formicaria's browser up: the pinned ESR, or a newer point release of the same major, from
+/// Mozilla, checked, made formicaria's (`browser_kit::acquire`), then put in place, keeping any previous
+/// copy. Runs on its own thread.
 fn setup(st: &BrowserState, xpi: &[u8], server: &str) -> Result<(), String> {
     let d = dir().ok_or("There is no folder for settings on this computer.")?;
-    let latest =
-        latest_url().ok_or("formicaria's browser is not available on this computer yet.")?;
-    set_phase(st, "Asking Mozilla for the newest Firefox ESR…");
-    let target = fm_fetch::redirect_target(latest)
-        .map_err(|e| format!("Mozilla could not be reached: {e}"))?
-        .ok_or("Mozilla did not say where Firefox is.")?;
-    let (version, file) =
-        parse_release(&target).ok_or_else(|| format!("Unexpected download address: {target}"))?;
-    let sums_url = format!("https://archive.mozilla.org/pub/firefox/releases/{version}/SHA512SUMS");
-    let sums = fm_fetch::get(&sums_url, 8 * 1024 * 1024)
-        .map_err(|e| format!("Mozilla's checksums could not be read: {e}"))?;
-    let want = sum_for(&String::from_utf8_lossy(&sums), &file)
-        .ok_or("Mozilla's checksums do not list this file, so it was not downloaded.")?;
-
     std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
-    let archive = d.join(format!("firefox-{version}.tar.xz"));
-    set_phase(st, &format!("Downloading Firefox {version} from Mozilla…"));
+    let pin = crate::browser_kit::pin();
+    set_phase(st, "Asking Mozilla for its newest security release…");
+    let version = crate::browser_kit::latest_esr()
+        .filter(|v| crate::browser_kit::is_newer_point(&pin.version, v, pin.major))
+        .unwrap_or_else(|| pin.version.clone());
+    let work = d.join("work");
     let progress = |done: u64, total: Option<u64>| {
         if let Ok(mut p) = st.progress.lock() {
             *p = (done, total);
         }
     };
-    fm_fetch::fetch(
-        &fm_fetch::Download { url: &target, dest: &archive, sha256: None },
-        &progress,
-        &|| false,
-    )
-    .map_err(|e| format!("The download stopped: {e}"))?;
-    set_phase(st, "Checking it against Mozilla's published sum…");
-    if !fm_fetch::verify_sha512(&archive, &want)? {
-        let _ = std::fs::remove_file(&archive);
-        return Err(
-            "The download did not match Mozilla's published sum, so it was discarded.".into()
-        );
+    let ff = crate::browser_kit::acquire(&work, &version, &|m| set_phase(st, m), &progress)?;
+    if crate::browser_kit::running(&d) {
+        // In use: the ready copy is swapped in at the next start.
+        let _ = std::fs::remove_dir_all(d.join("firefox.next"));
+        std::fs::rename(&ff, d.join("firefox.next")).map_err(|e| e.to_string())?;
+    } else {
+        let live = d.join("firefox");
+        let prev = d.join("firefox.prev");
+        let _ = std::fs::remove_dir_all(&prev);
+        if live.exists() {
+            std::fs::rename(&live, &prev).map_err(|e| e.to_string())?;
+        }
+        std::fs::rename(&ff, &live).map_err(|e| e.to_string())?;
+        std::fs::write(d.join("version"), &version).map_err(|e| e.to_string())?;
     }
-
-    set_phase(st, "Unpacking…");
-    let staging = d.join("firefox.new");
-    let _ = std::fs::remove_dir_all(&staging);
-    std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
-    let out = std::process::Command::new("tar")
-        .arg("-xJf")
-        .arg(&archive)
-        .arg("-C")
-        .arg(&staging)
-        .output()
-        .map_err(|e| format!("`tar` could not be run to unpack Firefox: {e}"))?;
-    if !out.status.success() {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err(format!(
-            "Firefox could not be unpacked: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
-    }
-    let unpacked = staging.join("firefox");
-    if !firefox_bin(&staging).is_file() {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err("The download held no Firefox program.".into());
-    }
-    let live = d.join("firefox");
-    let _ = std::fs::remove_dir_all(&live);
-    std::fs::rename(&unpacked, &live).map_err(|e| e.to_string())?;
-    let _ = std::fs::remove_dir_all(&staging);
-    let _ = std::fs::remove_file(&archive);
-    std::fs::write(d.join("version"), &version).map_err(|e| e.to_string())?;
-
+    let _ = std::fs::remove_dir_all(&work);
     set_phase(st, "Setting up the profile…");
     if !d.join("browser.json").exists() {
         write_prefs(&d, &Prefs::default()).map_err(|e| e.to_string())?;
@@ -446,6 +415,24 @@ pub fn opens_in_it() -> bool {
     dir().is_some_and(|d| installed(&d) && read_prefs(&d).open_in_it)
 }
 
+/// **The window is formicaria's, by name** (owner, 2026-11-15: *"when double clicking on fm, it would
+/// be nice to see fm, not firefox … I mean the names"*). The dock, Alt+Tab and the top bar name a window
+/// after the desktop entry its label matches: `--name` sets that label (the app id on Wayland, the
+/// window class on X11, with `--class`), so the window is shown as **formicaria** with formicaria's
+/// icon (`formicaria.desktop`, `StartupWMClass=formicaria`), apart from any other Firefox. Firefox
+/// hands a second launch to the running one by the same name.
+pub fn launch_args(profile: &Path, url: &str) -> Vec<std::ffi::OsString> {
+    vec![
+        "--name".into(),
+        "formicaria".into(),
+        "--class".into(),
+        "formicaria".into(),
+        "--profile".into(),
+        profile.as_os_str().to_owned(),
+        url.into(),
+    ]
+}
+
 /// Open `url` in formicaria's browser. Refreshes the profile and the policies first, so the add-on
 /// has this run's address and the person's current choices. A second call while Firefox is running
 /// hands the address to the running Firefox (Firefox's own remoting, by profile).
@@ -454,17 +441,21 @@ pub fn launch(url: &str, xpi: &[u8], server: &str) -> Result<(), String> {
     if !installed(&d) {
         return Err("formicaria's browser is not set up".into());
     }
+    // A copy prepared in the background (a newer kit, a security point release) goes in now, while
+    // nothing runs: two renames, no wait (`browser-plan` §16).
+    crate::browser_kit::swap_in_prepared(&d);
     prepare(&d, xpi, server)?;
-    std::process::Command::new(firefox_bin(&d))
-        .arg("--profile")
-        .arg(d.join("profile"))
-        .arg(url)
+    let started = std::process::Command::new(firefox_bin(&d))
+        .args(launch_args(&d.join("profile"), url))
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    // And the next one is prepared in the background, after the browser is up.
+    crate::browser_kit::prepare_in_background(d);
+    started
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -492,6 +483,9 @@ pub fn status(st: &BrowserState) -> Value {
         "done": done,
         "total": total,
         "error": st.error.lock().ok().and_then(|e| e.clone()),
+        "pinned": crate::browser_kit::pin().version,
+        "update_ready": d.as_deref().is_some_and(|d| d.join("firefox.next").join("firefox").is_file()),
+        "web_push": prefs.web_push,
         "folder": d.map(|p| p.display().to_string()),
     })
 }
@@ -531,6 +525,9 @@ pub fn route(
             }
             if let Some(b) = v.get("block_ads").and_then(Value::as_bool) {
                 p.block_ads = b;
+            }
+            if let Some(b) = v.get("web_push").and_then(Value::as_bool) {
+                p.web_push = b;
             }
             let _ = write_prefs(&d, &p);
             if installed(&d) {
@@ -622,30 +619,62 @@ mod tests {
         );
         assert_eq!(pol["SearchEngines"]["Default"], "DuckDuckGo");
         assert_eq!(pol["DisableTelemetry"], true);
-        assert_eq!(pol["ExtensionSettings"][UBLOCK_ID]["installation_mode"], "normal_installed");
+        // uBlock Origin is an offer, off by default, and never forbidden.
+        assert!(pol["ExtensionSettings"].get(UBLOCK_ID).is_none());
         let off = policies(
             Path::new("/x"),
             "K",
             "http://127.0.0.1:8765",
-            &Prefs { open_in_it: true, block_ads: false },
+            &Prefs { open_in_it: true, block_ads: true, web_push: false },
         );
-        assert_eq!(off["policies"]["ExtensionSettings"][UBLOCK_ID]["installation_mode"], "blocked");
+        assert_eq!(
+            off["policies"]["ExtensionSettings"][UBLOCK_ID]["installation_mode"],
+            "normal_installed"
+        );
     }
 
     #[test]
-    fn the_profile_keeps_the_owners_privacy_defaults() {
-        let u = user_js();
+    fn the_privacy_defaults_are_defaults_and_only_the_add_on_line_is_locked() {
+        // user.js forces nothing any more: Firefox would apply it over the person's own choices.
+        assert!(!user_js().contains("user_pref"));
+        let cfg = include_str!("../../../browser/kit/formicaria.cfg");
         for want in [
-            "\"xpinstall.signatures.required\", false",
-            "\"browser.contentblocking.category\", \"strict\"",
-            "\"dom.security.https_only_mode\", true",
-            "\"privacy.globalprivacycontrol.enabled\", true",
-            "\"datareporting.healthreport.uploadEnabled\", false",
+            "defaultPref(\"browser.contentblocking.category\", \"strict\")",
+            "defaultPref(\"dom.security.https_only_mode\", true)",
+            "defaultPref(\"privacy.globalprivacycontrol.enabled\", true)",
+            "lockPref(\"xpinstall.signatures.required\", false)",
         ] {
-            assert!(u.contains(want), "missing {want}");
+            assert!(cfg.contains(want), "missing {want}");
         }
+        assert_eq!(cfg.matches("lockPref(").count(), 1, "only the add-on line is locked");
         // Safe Browsing stays as Firefox ships it: on (owner, 2026-11-15).
-        assert!(!u.contains("safebrowsing"));
+        assert!(!cfg.contains("safebrowsing"));
+    }
+
+    #[test]
+    fn mozillas_services_are_stripped_but_sync_and_add_ons_kept() {
+        let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default());
+        let pol = &p["policies"];
+        for off in
+            ["DisableTelemetry", "DisableFirefoxStudies", "DisablePocket", "DisableAppUpdate"]
+        {
+            assert_eq!(pol[off], true, "{off}");
+        }
+        assert_eq!(pol["UserMessaging"]["FirefoxLabs"], false);
+        assert_eq!(pol["GenerativeAI"]["Enabled"], false);
+        assert_eq!(pol["EncryptedMediaExtensions"]["Enabled"], true);
+        // Kept, by the owner's choice: the Mozilla account and Sync.
+        assert!(pol.get("DisableFirefoxAccounts").is_none());
+        // Web push: a switch, off by default, and only a default.
+        assert_eq!(pol["Preferences"]["dom.push.enabled"]["Value"], false);
+        assert_eq!(pol["Preferences"]["dom.push.enabled"]["Status"], "default");
+        let on = policies(
+            Path::new("/x"),
+            "K",
+            "http://127.0.0.1:8765",
+            &Prefs { web_push: true, ..Prefs::default() },
+        );
+        assert_eq!(on["policies"]["Preferences"]["dom.push.enabled"]["Value"], true);
     }
 
     #[test]
@@ -661,6 +690,24 @@ mod tests {
     fn our_button_is_pinned_to_the_toolbar() {
         let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default());
         assert_eq!(p["policies"]["ExtensionSettings"][ADDON_ID]["default_area"], "navbar");
+    }
+
+    #[test]
+    fn the_window_is_named_formicaria() {
+        let a = launch_args(Path::new("/p"), "http://127.0.0.1:8765");
+        let a: Vec<String> = a.iter().map(|x| x.to_string_lossy().into_owned()).collect();
+        assert_eq!(
+            a,
+            [
+                "--name",
+                "formicaria",
+                "--class",
+                "formicaria",
+                "--profile",
+                "/p",
+                "http://127.0.0.1:8765"
+            ]
+        );
     }
 
     #[test]
