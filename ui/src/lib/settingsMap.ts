@@ -15,6 +15,7 @@ export const CATEGORIES = [
   { id: 'vaults', label: 'Vaults & backup' },
   { id: 'notes', label: 'Food & reminders' },
   { id: 'assistant', label: 'Assistant' },
+  { id: 'browser', label: 'Browser' },
   { id: 'connections', label: 'Connections' },
   { id: 'about', label: 'About & updates' },
 ] as const;

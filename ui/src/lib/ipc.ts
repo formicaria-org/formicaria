@@ -57,6 +57,7 @@ import type {
   FoodHit,
   FoodDetail,
   PackStatus,
+  BrowserStatus,
 } from './types';
 import * as mock from './mock';
 import { blobBase } from './blobBase';
@@ -1230,6 +1231,15 @@ export const restoreVault = (name: string, path: string, repo: string) =>
  *  `previous` is the version sitting in the folder ready to be restored, read from disk rather than
  *  remembered, so it stays true across a restart. Null when there is nothing to go back to. */
 export const updateStatus = () => invoke<UpdateStatus>('update_status');
+
+/** **formicaria's own browser** (`decisions.md` 2026-11-15): Firefox ESR downloaded from Mozilla
+ *  into formicaria's settings folder, with formicaria's add-on, which keeps the page you are on as a
+ *  note. Transport routes of the desktop server, like the updater's; a computer only. */
+export const browserStatus = () => invoke<BrowserStatus>('browser_status');
+export const browserSetup = () => invoke<BrowserStatus>('browser_setup');
+export const browserSet = (p: { open_in_it?: boolean; block_ads?: boolean }) =>
+  invoke<BrowserStatus>('browser_set', p);
+export const browserOpen = () => invoke<BrowserStatus>('browser_open');
 
 /** Load the page again, from the program that is running now. After an update the tab still holds
  *  the previous version's interface; this is how it becomes the new one. A function of its own so a

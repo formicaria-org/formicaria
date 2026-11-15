@@ -423,6 +423,8 @@ ship inside the binary. Generated from the production dependency closure
 | @lezer/markdown | 1.8.0 | MIT |
 | @marijn/find-cluster-break | 1.0.4 | MIT |
 | @mermaid-js/parser | 0.6.3, 1.2.1 | MIT |
+| @mixmark-io/domino | 2.2.0 | BSD-2-Clause |
+| @mozilla/readability | 0.6.0 | Apache-2.0 |
 | @radix-ui/primitive | 1.0.0, 1.1.1 | MIT |
 | @radix-ui/react-arrow | 1.1.2 | MIT |
 | @radix-ui/react-collection | 1.0.1 | MIT |
@@ -623,6 +625,7 @@ ship inside the binary. Generated from the production dependency closure
 | ts-dedent | 2.3.0 | MIT |
 | tslib | 2.8.1 | 0BSD |
 | tunnel-rat | 0.1.2 | MIT |
+| turndown | 7.2.5 | MIT |
 | type-fest | 5.10.0 | (MIT OR CC0-1.0) |
 | use-callback-ref | 1.3.3 | MIT |
 | use-sidecar | 1.1.3 | MIT |

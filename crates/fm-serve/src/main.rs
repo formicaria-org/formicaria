@@ -25,6 +25,8 @@ mod agent;
 #[cfg(feature = "agent")]
 mod agent_registry;
 mod blob;
+#[cfg(feature = "browser")]
+mod browser;
 mod remind;
 mod share;
 #[cfg(feature = "tls")]
@@ -97,6 +99,12 @@ struct AppState {
     /// Pairing codes, device tokens, and what the listener actually managed to do. See
     /// [`share`] — in particular why the *setting* and the *capability* are separate fields.
     share: share::ShareState,
+    /// formicaria's own browser: a setup in progress (`browser.rs`).
+    #[cfg(feature = "browser")]
+    browser: std::sync::Arc<browser::BrowserState>,
+    /// The address this server answers on, for the browser's start page and the add-on.
+    #[cfg_attr(not(feature = "browser"), allow(dead_code))]
+    port: u16,
     /// The reminders the page handed over, and whether the program is resting for them.
     remind: remind::RemindState,
 }
@@ -106,8 +114,6 @@ impl AppState {
     /// the three call sites (serve, and two test harnesses) can't drift in what they default. `port`
     /// is only the agent's (it watches this port); without that feature it is unused.
     fn new(app: App, dist: Option<PathBuf>, origins: Vec<String>, port: u16) -> Self {
-        #[cfg(not(feature = "agent"))]
-        let _ = port;
         AppState {
             app,
             dist,
@@ -121,6 +127,9 @@ impl AppState {
             #[cfg(feature = "update")]
             update: std::sync::Arc::new(update::UpdateState::default()),
             share: share::ShareState::load(),
+            #[cfg(feature = "browser")]
+            browser: std::sync::Arc::new(browser::BrowserState::default()),
+            port,
             remind: remind::RemindState::load(),
         }
     }
@@ -307,7 +316,7 @@ fn main() {
                         // so the double-click case lands the user in the running app, which is what
                         // they were trying to do.
                         if env_flag("FM_OPEN", true) {
-                            let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
+                            open_formicaria(&format!("http://{addr}"), None);
                         }
                         return;
                     }
@@ -380,8 +389,9 @@ fn main() {
     // 400ms of every single launch — measured while looking for exactly this kind of leftover.
     if env_flag("FM_OPEN", true) {
         let url = format!("http://{addr}");
+        let dist = state.dist.clone();
         std::thread::spawn(move || {
-            let _ = open_native(std::ffi::OsStr::new(&url));
+            open_formicaria(&url, dist.as_deref());
         });
     }
 
@@ -481,6 +491,12 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/calendar_pull",
     // **The time zone is this computer's** (2026-10-24): a guest reads the host's clock, never sets it.
     "/api/set_clock",
+    // **formicaria's own browser is this computer's** (2026-11-15): a guest neither downloads a
+    // browser onto the host, changes its choices, nor opens a window on its screen.
+    "/api/browser_status",
+    "/api/browser_setup",
+    "/api/browser_set",
+    "/api/browser_open",
     // **A guest does not make the host fetch an address of its choosing** (2026-10-18). The link is
     // checked to be a public `https` page, but a name can still be made to point inside this
     // network; a recipe is saved from a link on the computer itself, or on a phone.
@@ -906,6 +922,8 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     let mut cookie: Option<String> = None;
     let mut agent_client = false;
     let mut tab: Option<String> = None;
+    #[cfg_attr(not(feature = "browser"), allow(unused_mut, unused_variables))]
+    let mut ext_key: Option<String> = None;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -935,6 +953,10 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
             // "I am the assistant, not a person." Read here, acted on at the liveness refresh
             // below; it changes nothing else about how the request is treated.
             agent_client = v.trim() == "1";
+        } else if lower.starts_with("x-formicaria-key:") {
+            // formicaria's browser add-on proving it is ours (`browser::authorize_extension`). Off
+            // `line`, not `lower`, like the cookie: it is a credential.
+            ext_key = line.split_once(':').map(|(_, v)| v.trim().to_string());
         } else if lower.starts_with("x-formicaria-tab:") {
             // Which tab is asking. Only used to tell "every tab has gone" from "nobody has said
             // anything for a while", which are very different things to a watchdog.
@@ -1118,8 +1140,23 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // Loopback keeps the carve-out untouched, which is why `fm-cli`, curl and the study agent
     // (`fm-agent-run` sends no `Origin` — that is exactly why it passes today) need no changes.
     if method == "POST" && path.starts_with("/api/") {
+        // **The one exception, and it is narrow** (`decisions.md` 2026-11-15): formicaria's own
+        // browser add-on — a `moz-extension://` page with this machine's key, on loopback — may
+        // call the capture routes and nothing else. Any other add-on is refused here as before.
+        #[cfg(feature = "browser")]
+        let ours = origin.as_deref().is_some_and(|o| {
+            browser::authorize_extension(
+                o,
+                peer.loopback,
+                &path,
+                ext_key.as_deref(),
+                browser::key().as_deref(),
+            )
+        });
+        #[cfg(not(feature = "browser"))]
+        let ours = false;
         match &origin {
-            Some(o) if !allowed_origin(o, peer, state) => {
+            Some(o) if !ours && !allowed_origin(o, peer, state) => {
                 return write_response(
                     reader.get_mut(),
                     "403 Forbidden",
@@ -1258,6 +1295,19 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
 
     // Reminders the program says itself. Both routes are in `REMOTE_DENIED`.
     if let Some(done) = remind::route(reader.get_mut(), &path, &body, state) {
+        return done;
+    }
+
+    // formicaria's own browser: Settings' routes. Every one is in `REMOTE_DENIED`.
+    #[cfg(feature = "browser")]
+    if let Some(done) = browser::route(
+        reader.get_mut(),
+        &path,
+        &body,
+        &state.browser,
+        &|| read_asset(state, ADDON_ASSET).unwrap_or_default(),
+        &format!("http://127.0.0.1:{}", state.port),
+    ) {
         return done;
     }
 
@@ -1418,6 +1468,32 @@ fn probe(addr: &str) -> Running {
         .ok()
         .and_then(|v| v.get("build").and_then(|b| b.as_str()).map(str::to_string));
     Running::Ours(id)
+}
+
+/// Where the browser add-on sits among the built UI's files (`ui/addon/build.mjs` writes it).
+#[cfg_attr(not(feature = "browser"), allow(dead_code))]
+const ADDON_ASSET: &str = "addon/formicaria.xpi";
+
+/// **Open formicaria where the person reads it**: in formicaria's own browser when it is set up and
+/// not turned off (`browser.rs`), otherwise in the system's default browser, as always. A failure
+/// to start our browser falls back to the default one: the notebook opening matters more.
+fn open_formicaria(url: &str, dist: Option<&Path>) {
+    #[cfg(feature = "browser")]
+    if browser::opens_in_it() {
+        let xpi = match dist {
+            Some(d) => std::fs::read(d.join(ADDON_ASSET)).unwrap_or_default(),
+            None => UI_ASSETS
+                .iter()
+                .find(|(n, _)| *n == ADDON_ASSET)
+                .map(|(_, b)| b.to_vec())
+                .unwrap_or_default(),
+        };
+        if browser::launch(url, &xpi, url).is_ok() {
+            return;
+        }
+    }
+    let _ = dist;
+    let _ = open_native(std::ffi::OsStr::new(url));
 }
 
 /// Hand a file or URL to the OS to open with whatever it thinks owns it — the one place

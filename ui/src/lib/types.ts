@@ -1470,3 +1470,21 @@ export interface PlanProgress {
   /** Every card followed in the group, one per question; the fields above are the first. */
   followed?: PlanFollowed[];
 }
+
+/** formicaria's own browser on this computer (`browser_status`; `decisions.md` 2026-11-15). */
+export interface BrowserStatus {
+  /** Whether this computer can have it (Linux only, for now). */
+  supported: boolean;
+  installed: boolean;
+  /** The Firefox ESR version set up, e.g. `153.7.0esr`. */
+  version: string | null;
+  open_in_it: boolean;
+  block_ads: boolean;
+  busy: boolean;
+  /** What a setup in progress is doing, in words. */
+  phase: string;
+  done: number;
+  total: number | null;
+  error: string | null;
+  folder: string | null;
+}

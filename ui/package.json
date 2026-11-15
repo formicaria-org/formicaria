@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node addon/build.mjs",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
@@ -19,6 +19,7 @@
     "@tsconfig/svelte": "^5.0.8",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/turndown": "^5.0.6",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.6",
     "prettier-plugin-svelte": "^4.1.1",
@@ -35,6 +36,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@lezer/common": "^1.5.3",
     "@lezer/markdown": "^1.8.0",
+    "@mozilla/readability": "0.6.0",
     "@tauri-apps/api": "^2.11.1",
     "dompurify": "^3.4.17",
     "katex": "^0.18.10",
@@ -43,6 +45,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "svelte": "^5.57.2",
+    "turndown": "7.2.5",
     "zxing-wasm": "3.1.5"
   }
 }

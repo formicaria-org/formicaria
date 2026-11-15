@@ -592,6 +592,19 @@ function mockCalendars(): import('./ipc').Calendars {
     feeds: mockCalendarFeeds,
   };
 }
+let mockBrowser = {
+  supported: true,
+  installed: false,
+  version: null as string | null,
+  open_in_it: true,
+  block_ads: true,
+  busy: false,
+  phase: '',
+  done: 0,
+  total: null as number | null,
+  error: null as string | null,
+  folder: '~/.config/formicaria/browser',
+};
 let mockUpdateProgress: {
   stage: 'manifest' | 'download' | 'unpack' | 'ready' | 'failed';
   done: number;
@@ -930,6 +943,20 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     await new Promise((r) => setTimeout(r, fault.ms ?? 5000));
   }
   switch (cmd) {
+    // formicaria's own browser: never set up in the mock, and setting it up "finishes" at once, so
+    // `pnpm dev` can walk the section without a download.
+    case 'browser_status':
+    case 'browser_set':
+      if (cmd === 'browser_set') {
+        if (typeof args.open_in_it === 'boolean') mockBrowser.open_in_it = args.open_in_it;
+        if (typeof args.block_ads === 'boolean') mockBrowser.block_ads = args.block_ads;
+      }
+      return { ...mockBrowser } as T;
+    case 'browser_setup':
+      mockBrowser = { ...mockBrowser, installed: true, version: '153.7.0esr' };
+      return { ...mockBrowser } as T;
+    case 'browser_open':
+      return { ...mockBrowser } as T;
     // **A folder that has been updated once**, which is the only state where Go back means
     // anything — a fresh download has nothing to go back to, and a mock that started there would
     // hide the whole control.
@@ -2481,6 +2508,23 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         prep_minutes: 10,
         cook_minutes: 15,
       } as T;
+    }
+    // A page read from what the browser already has (`recipe_from_page`): the same answer as a link.
+    case 'recipe_from_page': {
+      const url = String(args.url ?? '');
+      if (!/^https?:\/\//.test(url))
+        throw new Error('Only a web page can be kept from the browser.');
+      return handle<T>('recipe_from_link', { link: url.replace(/^http:/, 'https:') });
+    }
+    // A page kept from formicaria's browser (`clip_save`): the note, with the link to its copy at
+    // the end, as `fm_app::clip` writes it. The copy itself is not stored in the mock.
+    case 'clip_save': {
+      const url = String(args.url ?? '');
+      if (!/^https?:\/\//.test(url))
+        throw new Error('Only a web page can be kept from the browser.');
+      const title = String(args.title ?? '');
+      const body = `${String(args.body ?? '').trimEnd()}\n\n[A copy of the page as it was saved](asset:sha256-0000)\n`;
+      return captureNote(`# ${title}\n\n${body}`, String(args.vault ?? '')) as T;
     }
     case 'recipe_libraries':
       // Every carried collection, each naming itself — as `fm_app::log::recipe_libraries`.

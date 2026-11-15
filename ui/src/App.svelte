@@ -2022,6 +2022,21 @@
     openNoteInPane(id);
   }
 
+  // **A note named in the address, `#note=<id>`** (`decisions.md` 2026-11-15): where formicaria's
+  // browser add-on sends the person after it keeps a page — to the note it just wrote. Read at start
+  // and on every change, then cleared, so Back and a reload do not reopen it.
+  function openFromHash() {
+    const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(history.state, '', location.pathname + location.search);
+    openNoteInPane(m[1].toUpperCase());
+  }
+  $effect(() => {
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+    return () => window.removeEventListener('hashchange', openFromHash);
+  });
+
   // The drag write-back: set the property THIS pane groups by to the target column's value.
   // `groupBy` is passed by the pane, not read from a global — so a drag in one board pane
   // writes its own property, never another pane's. (Within-column ordering is dropped in the

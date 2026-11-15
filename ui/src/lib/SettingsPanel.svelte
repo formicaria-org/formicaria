@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BrowserSection from './BrowserSection.svelte';
   // Settings: what this installation is *actually* configured as.
   //
   // **A mirror, not a form.** Nothing here is editable, and that stays true now that a vault's
@@ -1850,6 +1851,18 @@
           data-words="food meals calories nutrition diet training workout exercise tracker"
         >
           <TrackersSection />
+        </div>
+      {/if}
+
+      <!-- formicaria's own browser (2026-11-15): a computer only; the section hides itself where the
+           server has no browser routes. -->
+      {#if !isPhone()}
+        <div
+          class="cat"
+          data-cat="browser"
+          data-words="browser firefox web page save keep clip extension add-on"
+        >
+          <BrowserSection />
         </div>
       {/if}
 

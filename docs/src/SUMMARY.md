@@ -24,6 +24,7 @@
 - [Food and training](./user/trackers.md)
 - [Health](./user/health.md)
 - [Music](./user/music.md)
+- [formicaria's browser](./user/browser.md)
 - [Meetings from your calendar](./user/calendars.md)
 - [Mail (Gmail)](./user/mail.md)
 - [Appearance](./user/appearance.md)

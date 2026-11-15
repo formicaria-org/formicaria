@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 131 of them are below**, grouped by what they are for. If you add an arm to
+**All 133 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -56,6 +56,8 @@ dispatch no longer has fails too.)
 | `deleted_notes`  | `days` (default 30)          | `DeletedRow[]`         | read-only: notes deleted in the last `days`, read from each notebook's own history (git, or libgit2 on the phone), skipping ones that exist again |
 | `restore_deleted` | `vault`, `id`, `days`       | `ObjectMeta`           | bring back a note listed by `deleted_notes`, exactly as it was before it was deleted |
 | `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — parsed locally, never looked up online |
+| `clip_save`      | `url`, `title`, `body`, `tags`, `props`, `bibtex`, `snapshot`, `vault` | `ObjectMeta` | keeps a page from formicaria's browser: the note the add-on built, and the page's copy as an asset linked at its end; with `bibtex`, the note is made as `create_paper` makes one. Fetches nothing; only `http(s)` pages |
+| `recipe_from_page` | `url` (query); body = the page | `WebRecipe`        | reads a recipe out of a page the browser already has — `recipe_from_link`'s reader with no fetch |
 | `paper_bibtex`   | `id`                         | `String`               | that note's frontmatter rendered back as a BibTeX entry |
 
 ### Discussions
@@ -273,6 +275,18 @@ moment comes and no page is open. While one is still waiting, the program **rest
 stopping when its last page closes: it answers `503` to the assistant, which then stops its
 model. `rest_end` is how a newer copy asks a resting one to make way; a program somebody is
 using answers `409`. Both are host-only, and neither is a command: they are about this process.
+
+### `POST /api/browser_status`, `browser_setup`, `browser_set`, `browser_open`
+
+formicaria's own browser on a computer (Linux for now): its state, setting it up (Firefox ESR
+downloaded from Mozilla and checked against Mozilla's SHA-512 sums, into
+`<config>/formicaria/browser/`), the person's two choices (`open_in_it`, `block_ads`), and opening
+formicaria in it. Host-only, like the updater's routes: they are about this computer, not a vault.
+
+**The browser's add-on reaches three routes and no others** — `clip_save`, `recipe_from_page` and
+`list_vaults` — and only from a `moz-extension://` origin carrying this computer's key
+(`X-Formicaria-Key`, kept `0600` in that folder). Any other extension is refused by the same
+cross-origin guard that refuses a web page.
 
 ### `GET /api/blob/<reference>`
 

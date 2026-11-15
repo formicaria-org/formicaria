@@ -686,6 +686,7 @@ fn takes_history(cmd: &str) -> bool {
         "put_back_tutorials",
         "ingest",
         "ingest_chunk",
+        "clip_save",
         // A per-device file, no vault and no git: it must not wait on the history lock.
         "set_clock",
     ];
@@ -1311,6 +1312,63 @@ fn dispatch_inner(
                 commands::create_paper(&mut g.store(scope), &s("input"), &into.name)
                     .map_err(err)?,
             )
+        }
+        // **A recipe read from a page the browser already has** — `recipe_from_link`'s reader with
+        // no fetch: the page's bytes are the body, its address the `url` argument. Pure.
+        "recipe_from_page" => {
+            let url = crate::clip::address(&s("url"))?;
+            json(crate::web_recipe::read(body, &url)?)
+        }
+        // **A page kept from formicaria's own browser** (`decisions.md` 2026-11-15). Fetches
+        // nothing: the add-on sends the address, the note it built and a copy of the page. The copy
+        // becomes an asset (so it is ingested first, with the guard dropped, as `ingest` does),
+        // and the note is written once — through `paper_object` for a paper.
+        "clip_save" => {
+            let req: crate::clip::ClipRequest =
+                serde_json::from_value(args.clone()).map_err(|e| format!("clip: {e}"))?;
+            crate::clip::check(&req)?;
+            let url = crate::clip::address(&req.url)?;
+            let vault = lock()?.config(scope, &req.vault)?.name;
+            let hash = if req.snapshot.is_empty() {
+                None
+            } else {
+                let name = crate::clip::snapshot_name(&req.title, &url);
+                let meta = ingest_unlocked(
+                    app,
+                    scope,
+                    &vault,
+                    &name,
+                    IngestSource::Bytes(req.snapshot.as_bytes()),
+                )?;
+                meta.assets.first().map(|a| a.trim_start_matches("sha256:").to_string())
+            };
+            let text = crate::clip::with_snapshot(&req.body, hash.as_deref());
+            let mut g = lock()?;
+            if req.bibtex.trim().is_empty() {
+                let draft = crate::log::NoteDraft {
+                    title: req.title,
+                    body: text,
+                    tags: req.tags,
+                    start: String::new(),
+                    props: req.props,
+                };
+                let mut made =
+                    crate::log::create_notes(&mut g.store(scope), &vault, &[draft]).map_err(err)?;
+                json(made.remove(0))
+            } else {
+                let mut obj = commands::paper_object(&req.bibtex, &vault).map_err(err)?;
+                obj.body = text;
+                for t in req.tags {
+                    if !obj.tags.contains(&t) {
+                        obj.tags.push(t);
+                    }
+                }
+                for (k, v) in &req.props {
+                    fm_core::apply_property(&mut obj, k, &crate::clip::written(v)).map_err(err)?;
+                }
+                g.store(scope).put(&obj).map_err(err)?;
+                json(crate::dto::ObjectMeta::from(&obj))
+            }
         }
         "paper_bibtex" => {
             json(commands::paper_bibtex(&lock()?.store(scope), &s("id")).map_err(err)?)

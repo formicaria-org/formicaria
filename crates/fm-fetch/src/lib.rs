@@ -563,6 +563,24 @@ pub fn ensure_parent(p: &Path) -> Result<(), FetchError> {
     Ok(())
 }
 
+/// Stream `path` through SHA-512 and compare to `want` (case-insensitive hex) — what Mozilla
+/// publishes for its releases (`SHA512SUMS`), which formicaria's browser is checked against.
+pub fn verify_sha512(path: &Path, want: &str) -> Result<bool, String> {
+    use sha2::Sha512;
+    let mut f = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
+    let mut hasher = Sha512::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = f.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let got: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    Ok(got.eq_ignore_ascii_case(want.trim()))
+}
+
 /// Stream `path` through SHA-256 and compare to `want` (case-insensitive hex).
 pub fn verify(path: &Path, want: &str) -> Result<bool, String> {
     let mut f = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;

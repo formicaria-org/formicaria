@@ -24,6 +24,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
 | **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
 | **Music** | `music-plan-2026-11-13.md` (rulings M1–M5 first) |
+| **Own browser** | `browser-plan-2026-11-15.md` · `web-browsing-research-2026-11-15.md` |
 | **Calendars, Gmail, the meeting pass; any time or zone** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail,zone}`, `fm_agent::meetings`) | `time-zones-audit-2026-10-24.md` · `decisions.md#agent` (2026-10-09: read-only, secrets per machine, Rust dates) · `known-issues.md` · `outstanding.md` §2.16 |
 | **Undo, Recently deleted, Back** (`undo.svelte.ts`, `nav.svelte.ts`, `LAYERS` in `App.svelte`) | `decisions.md#ui` (2026-10-09: Back, undo, the menu-entry refinement) — a panel must join `LAYERS`, a write meant to be undoable goes through `undo.svelte.ts` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured, to 2026-07-24) · today's phone model: [Myrme's benchmark summary](../../../myrme/docs/research/2026-10-20-small-model-benchmark-summary.md) |
@@ -70,17 +71,15 @@ paired for** (`fm_app::Scope` → `fm_core::Scoped`), and host-bound commands ar
 Loopback keeps exactly its old behaviour, which is why `fm-cli`, curl and the study agent needed
 no changes. See `decisions.md#vault`.
 
-There is **no native window** and no cloud/account. The browser is the product
-(see [decisions.md](./decisions.md) for why the Tauri window was removed).
+No native window, no cloud: the browser is the product, optionally formicaria's own Firefox
+(`browser.rs`).
 
 The **desktop icon** (`packaging/`) runs `pixi run app` — the prebuilt release
 binary, no rebuild, so it starts instantly and reflects your last `pixi run
 build`. The launcher sets `FM_OPEN` (open the browser) and `FM_AUTO_SHUTDOWN`
 (the UI heartbeats `POST /api/alive` every 15s; when the last tab closes, the
-server's watchdog exits after a ~90s idle window. The window is sized against a
-*throttled* beat, not a nominal one: browsers throttle a hidden tab's timers to about
-once a minute, and the old 3s-beat/10s-window pairing killed the app out from under
-anyone who left it in a background tab).
+server's watchdog exits after a ~90s idle window, sized for a hidden tab's throttled
+timers, about once a minute).
 So **closing the tab closes the app** — no lingering daemon. A terminal `pixi run
 serve` sets neither, so it stays up until Ctrl-C.
 

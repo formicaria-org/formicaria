@@ -134,6 +134,14 @@ pub fn create_paper(
     input: &str,
     vault: &str,
 ) -> Result<ObjectMeta, StoreError> {
+    let obj = paper_object(input, vault)?;
+    store.put(&obj)?;
+    Ok(ObjectMeta::from(&obj))
+}
+
+/// The paper note `create_paper` writes, built and not yet written — so a caller that has more to
+/// put in it (a page kept from the browser: its text and its copy, `clip_save`) still writes once.
+pub fn paper_object(input: &str, vault: &str) -> Result<Object, StoreError> {
     use crate::paper::{parse_bibtex, parse_identifier, PaperFields};
 
     let input = input.trim();
@@ -161,8 +169,7 @@ pub fn create_paper(
     for (key, value) in fields.properties() {
         apply_property(&mut obj, key, &value)?;
     }
-    store.put(&obj)?;
-    Ok(ObjectMeta::from(&obj))
+    Ok(obj)
 }
 
 /// Capture a note; the text becomes the body. `vault` is the audience it joins —

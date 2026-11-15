@@ -51,6 +51,7 @@ macro_rules! check_myrme_contract {
 
 // A CA trust store for the vendored OpenSSL, which has none on Android.
 pub mod ca_bundle;
+pub mod clip;
 pub mod clock;
 pub mod commands;
 pub mod cycle;

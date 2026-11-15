@@ -19,7 +19,7 @@ path = "src/main.rs"
 # `cargo build --no-default-features` compiles a provably agent-free core: "rm -rf agents/ is
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
-default = ["agent", "tls", "update", "calendar", "mail", "products"]
+default = ["agent", "tls", "update", "calendar", "mail", "products", "browser"]
 agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #
@@ -45,6 +45,10 @@ calendar = ["dep:fm-fetch"]
 # Looking a packaged food up by its barcode (`decisions.md` 2026-10-12). `fm-fetch` again, and a
 # feature for the same reason.
 products = ["dep:fm-fetch"]
+# formicaria's own browser (`decisions.md` 2026-11-15): Firefox ESR downloaded from Mozilla and checked
+# against its published SHA-512 sums, a profile, and the add-on's key. Carries `fm-fetch`, already in
+# the binary for the updater, so it adds no crate.
+browser = ["dep:fm-fetch"]
 # Gmail, read-only (`decisions.md` 2026-10-09). Rides on `calendar`: an invite in a message is read
 # exactly as a calendar is, and the person's stated offset lives there.
 mail = ["calendar"]
