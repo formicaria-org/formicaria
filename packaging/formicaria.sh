@@ -63,8 +63,23 @@ PIXI="$(command -v pixi || true)"
 [ -z "$PIXI" ] && PIXI="$HOME/.pixi/bin/pixi"
 
 # First run / after a clean: no release artifacts yet → build them once.
+#
+# **Say so, and build once** (2026-11-15). A build takes minutes and used to happen in silence: a
+# double-click seemed to do nothing, and every further click started a second build that queued
+# behind the first. Now the desktop is told, and a second click waits for the build already running
+# (a lock beside the build) instead of starting its own.
 if [ ! -x "$REPO/target/release/fm-serve" ] || [ ! -d "$REPO/ui/dist" ]; then
-    "$PIXI" run build
+    say() { command -v notify-send >/dev/null 2>&1 && notify-send -a formicaria "formicaria" "$1" || true; echo "formicaria: $1" >&2; }
+    mkdir -p "$REPO/target"
+    exec 9>"$REPO/target/.fm-launcher-build.lock"
+    if ! flock -n 9; then
+        say "Still getting formicaria ready — it opens by itself when it is done."
+        flock 9
+    elif [ ! -x "$REPO/target/release/fm-serve" ] || [ ! -d "$REPO/ui/dist" ]; then
+        say "Getting formicaria ready for its first start. This takes a few minutes; it opens by itself when it is done."
+        "$PIXI" run build || { say "formicaria could not be built. Run 'pixi run build' in a terminal to see why."; exit 1; }
+    fi
+    exec 9>&-
 fi
 
 export FM_OPEN=1          # open the browser once the server is up

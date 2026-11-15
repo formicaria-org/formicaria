@@ -225,6 +225,12 @@ Linux, headless: setup from Mozilla (153.7.0esr), the gate with forged requests 
 and the real add-on keeping four real sites correctly (research §14). Not yet pressed by a person;
 what to check is in `known-issues.md`.
 
+**R1.1 (0.32.0), after the owner tried R1:** the button pinned to the toolbar; a sidebar and the new
+tab showing formicaria (the app framed by exactly our add-on); formicaria's colours; Alt+Shift+K /
+Alt+Shift+F; every download asks where it goes, formicaria by default, one copy (a song or an album
+zip → Music, any other file → a note); the launcher says when it is building. `decisions.md`
+2026-11-15 (later).
+
 **R2, the phone release**: P0.1–0.8 → P2, then a release with the browser built in and on by
 default, tried on the phone after R1 has been tried on the desktop. Built by `release.yml`
 (this machine has no Android SDK or device attached), tried by the owner on the phone.

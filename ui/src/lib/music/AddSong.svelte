@@ -11,6 +11,7 @@
   import { ingestFile, musicLibrary } from '../ipc';
   import { createNotesUndoable } from '../undo.svelte';
   import type { NoteDraft, ObjectMeta } from '../types';
+  import { formOf, fromName, NUMBER, songDraft, TEXT, type Form } from './songDraft';
 
   interface Props {
     onclose: () => void;
@@ -18,17 +19,6 @@
   }
   let { onclose, onsaved }: Props = $props();
 
-  /** The fields of a song, as typed: text, even for a number, until it is saved. */
-  interface Form {
-    title: string;
-    artist: string;
-    album: string;
-    album_artist: string;
-    track: string;
-    disc: string;
-    year: string;
-    genre: string;
-  }
   interface Item {
     key: number;
     name: string;
@@ -38,8 +28,6 @@
     form: Form;
     open: boolean;
   }
-  const TEXT: (keyof Form)[] = ['title', 'artist', 'album', 'album_artist', 'genre'];
-  const NUMBER: (keyof Form)[] = ['track', 'disc', 'year'];
   const LABEL: Record<keyof Form, string> = {
     title: 'Title',
     artist: 'Artist',
@@ -66,32 +54,6 @@
       return m;
     })
     .catch(() => new Map());
-
-  /** "03 - Artist - Title.mp3" → its artist and title, for a file with no tags. */
-  function fromName(name: string): Pick<Form, 'artist' | 'title'> {
-    const bare = name.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/^\s*\d{1,3}\s*[-.)_ ]\s*/, '');
-    const parts = bare.split(/\s+-\s+/);
-    return parts.length >= 2
-      ? { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() }
-      : { artist: '', title: bare.trim() };
-  }
-
-  function formOf(asset: ObjectMeta, name: string): Form {
-    const p = asset.props;
-    const t = (k: string) => (typeof p[k] === 'string' ? (p[k] as string) : '');
-    const n = (k: string) => (typeof p[k] === 'number' ? String(p[k]) : '');
-    const guess = fromName(name);
-    return {
-      title: t('tag_title') || guess.title,
-      artist: t('artist') || guess.artist,
-      album: t('album'),
-      album_artist: t('album_artist'),
-      track: n('track'),
-      disc: n('disc'),
-      year: n('year'),
-      genre: t('genre'),
-    };
-  }
 
   async function read(item: Item, file: File) {
     try {
@@ -152,28 +114,7 @@
   const reading = $derived(items.some((i) => i.state === 'reading'));
   const single = $derived(items.length === 1);
 
-  /** Escape the label half of a Markdown link, as a note's own attachments are. */
-  const label = (t: string) => t.replace(/\\/g, '\\\\').replace(/[[\]]/g, '\\$&');
-
-  function draftOf(item: Item): NoteDraft {
-    const audio = item.asset!.assets[0];
-    const title = item.form.title.trim();
-    const props: Record<string, string | number> = { log: 'music', audio };
-    for (const k of TEXT) if (k !== 'title' && item.form[k].trim()) props[k] = item.form[k].trim();
-    for (const k of NUMBER) {
-      const n = Number(item.form[k]);
-      if (item.form[k].trim() && Number.isInteger(n) && n > 0) props[k] = n;
-    }
-    const length = item.asset!.props.duration_s;
-    if (typeof length === 'number') props.duration_s = length;
-    const cover = item.asset!.props.cover;
-    if (typeof cover === 'string') props.cover = cover;
-    return {
-      title,
-      props,
-      body: `![${label(title)}](asset:${audio.replace(/^sha256:/, 'sha256-')})\n`,
-    };
-  }
+  const draftOf = (item: Item): NoteDraft => songDraft(item.asset!, item.form);
 
   async function save() {
     if (busy || !ready.length || reading) return;

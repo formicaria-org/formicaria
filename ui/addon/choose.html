@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Where should this download go?</title>
+    <style>
+      body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 16px; background: #f7f6f3; color: #1d1d22; }
+      @media (prefers-color-scheme: dark) { body { background: #16161d; color: #e9e9f1; } }
+      h1 { font-size: 15px; margin: 0 0 4px; }
+      .name { font-weight: 600; word-break: break-all; }
+      .muted { opacity: 0.7; font-size: 12px; margin: 4px 0 14px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+      button { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid #8884; background: transparent; color: inherit; cursor: pointer; }
+      button.main { background: #dc2626; border-color: #dc2626; color: #fff; }
+    </style>
+  </head>
+  <body>
+    <h1>Where should this download go?</h1>
+    <p class="name" id="name"></p>
+    <p class="muted" id="what"></p>
+    <div class="row">
+      <button class="main" id="vault" autofocus>Keep in formicaria</button>
+      <button id="downloads">Downloads folder</button>
+      <button id="folder">Choose a folder…</button>
+    </div>
+    <script src="choose.js"></script>
+  </body>
+</html>

@@ -28,9 +28,44 @@ pub const ADDON_ID: &str = "browser@formicaria-org.github.io";
 const UBLOCK_ID: &str = "uBlock0@raymondhill.net";
 const UBLOCK_URL: &str =
     "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi";
-/// The routes the add-on may call, and nothing else (`authorize_extension`).
-pub const EXTENSION_ROUTES: &[&str] =
-    &["/api/clip_save", "/api/recipe_from_page", "/api/list_vaults"];
+/// The routes the add-on may call, and nothing else (`authorize_extension`): keeping a page, reading
+/// a recipe from it, knowing the vaults, and — for a download the person chose to keep in formicaria
+/// (0.32.0) — uploading the file and making its note (a song from a bought album).
+pub const EXTENSION_ROUTES: &[&str] = &[
+    "/api/clip_save",
+    "/api/recipe_from_page",
+    "/api/list_vaults",
+    "/api/ingest",
+    "/api/create_notes",
+    "/api/music_library",
+];
+
+/// The origin of formicaria's own add-on in this browser (`moz-extension://<uuid>`), learnt the first
+/// time it proves itself with the key. Firefox picks the uuid per profile, so it cannot be written in
+/// advance; it is what the app's policy lets frame it (`main.rs`, `app_csp`).
+static OUR_ORIGIN: Mutex<Option<String>> = Mutex::new(None);
+
+/// Is `origin` the shape of an add-on's own origin, `moz-extension://<uuid>`? Pure, so it is tested
+/// without touching the one remembered origin (tests run in one process, in parallel).
+pub fn is_extension_origin(origin: &str) -> bool {
+    origin
+        .strip_prefix("moz-extension://")
+        .is_some_and(|u| !u.is_empty() && u.chars().all(|c| c.is_ascii_hexdigit() || c == '-'))
+}
+
+/// Remember the add-on's origin. Only ever called after `authorize_extension` said yes.
+pub fn remember_origin(origin: &str) {
+    if is_extension_origin(origin) {
+        if let Ok(mut o) = OUR_ORIGIN.lock() {
+            *o = Some(origin.to_string());
+        }
+    }
+}
+
+/// The add-on's origin, if it has proven itself during this run.
+pub fn our_origin() -> Option<String> {
+    OUR_ORIGIN.lock().ok().and_then(|o| o.clone())
+}
 
 /// Where Mozilla answers "which is the newest ESR" — with a redirect to the file itself.
 fn latest_url() -> Option<&'static str> {
@@ -207,6 +242,8 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
             "installation_mode": "force_installed",
             "install_url": xpi_url,
             "runtime_allowed_hosts": ["*://127.0.0.1"],
+            // On the toolbar, not inside the Extensions menu (owner, 2026-11-15).
+            "default_area": "navbar",
         }),
     );
     ext.insert(
@@ -609,6 +646,21 @@ mod tests {
         }
         // Safe Browsing stays as Firefox ships it: on (owner, 2026-11-15).
         assert!(!u.contains("safebrowsing"));
+    }
+
+    #[test]
+    fn only_an_extension_origin_is_remembered() {
+        assert!(!is_extension_origin("https://evil.example"));
+        assert!(!is_extension_origin("moz-extension://"));
+        assert!(!is_extension_origin("moz-extension://x y"));
+        assert!(!is_extension_origin("moz-extension://a.b"));
+        assert!(is_extension_origin("moz-extension://3f2a-09bc"));
+    }
+
+    #[test]
+    fn our_button_is_pinned_to_the_toolbar() {
+        let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default());
+        assert_eq!(p["policies"]["ExtensionSettings"][ADDON_ID]["default_area"], "navbar");
     }
 
     #[test]

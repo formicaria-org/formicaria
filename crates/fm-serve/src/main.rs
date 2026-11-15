@@ -1145,13 +1145,17 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
         // call the capture routes and nothing else. Any other add-on is refused here as before.
         #[cfg(feature = "browser")]
         let ours = origin.as_deref().is_some_and(|o| {
-            browser::authorize_extension(
+            let ok = browser::authorize_extension(
                 o,
                 peer.loopback,
                 &path,
                 ext_key.as_deref(),
                 browser::key().as_deref(),
-            )
+            );
+            if ok {
+                browser::remember_origin(o);
+            }
+            ok
         });
         #[cfg(not(feature = "browser"))]
         let ours = false;
@@ -1803,7 +1807,19 @@ pub(crate) fn write_response_with(
     extra: &str,
     body: &[u8],
 ) -> std::io::Result<()> {
-    write_response_full(stream, status, ctype, extra, CSP, body)
+    write_response_full(stream, status, ctype, extra, &app_csp(), body)
+}
+
+/// The app's policy, with one thing that can change at run time: **who may frame it.** Nothing, as
+/// [`CSP`] says — until formicaria's own browser add-on has proven itself with this computer's key
+/// (`browser::authorize_extension`), after which exactly that add-on's origin may, so its sidebar and
+/// new-tab page can show formicaria (2026-11-15). No other page or add-on gains anything.
+fn app_csp() -> String {
+    #[cfg(feature = "browser")]
+    if let Some(o) = browser::our_origin() {
+        return CSP.replace("frame-ancestors 'none'", &format!("frame-ancestors {o}"));
+    }
+    CSP.to_string()
 }
 
 /// The one place a response is written. `csp` is a parameter rather than a constant for exactly

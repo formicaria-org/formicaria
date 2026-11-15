@@ -283,10 +283,13 @@ downloaded from Mozilla and checked against Mozilla's SHA-512 sums, into
 `<config>/formicaria/browser/`), the person's two choices (`open_in_it`, `block_ads`), and opening
 formicaria in it. Host-only, like the updater's routes: they are about this computer, not a vault.
 
-**The browser's add-on reaches three routes and no others** — `clip_save`, `recipe_from_page` and
-`list_vaults` — and only from a `moz-extension://` origin carrying this computer's key
+**The browser's add-on reaches six routes and no others** — `clip_save`, `recipe_from_page`,
+`list_vaults`, and for a download kept in formicaria `ingest`, `create_notes` and `music_library` —
+and only from a `moz-extension://` origin carrying this computer's key
 (`X-Formicaria-Key`, kept `0600` in that folder). Any other extension is refused by the same
 cross-origin guard that refuses a web page.
+Once it has, and until the program stops, the app's pages may be framed by that add-on and nothing
+else (`frame-ancestors moz-extension://<its id>`, otherwise `'none'`): its sidebar and new-tab page.
 
 ### `GET /api/blob/<reference>`
 

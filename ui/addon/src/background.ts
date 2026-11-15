@@ -7,6 +7,9 @@
 // formicaria writes into its browser's policies; no other add-on can read them.
 import type { WebRecipe } from '../../src/lib/types';
 import { buildClip, kindOf, type PageFacts } from '../../src/lib/web/clip';
+import { choose, onCreated, type Pending, type Where } from './downloads';
+// Exported for the end-to-end test's copy of the add-on, which answers the question itself.
+export { choose };
 
 /* The slice of the WebExtension API this uses. */
 declare const browser: {
@@ -154,6 +157,8 @@ export async function show(server: string, id: string) {
 }
 
 browser.runtime.onMessage.addListener((m) => {
+  const d = m as { type?: string; where?: Where; p?: Pending };
+  if (d?.type === 'download-choice' && d.where && d.p) return choose(d.where, d.p);
   if (m?.type === 'keep' && typeof m.tab === 'number') return keep(m.tab);
   if (m?.type === 'show' && m.server && m.id) return show(m.server, m.id);
   return undefined;
@@ -180,3 +185,99 @@ browser.contextMenus.onClicked.addListener((_info, tab) => {
     }),
   );
 });
+
+// --- 0.32.0: the shortcut, downloads, and formicaria's colours -------------------------------
+
+/* The rest of the WebExtension API this uses, typed where it is used. */
+const more = browser as unknown as {
+  commands: { onCommand: { addListener(f: (c: string) => void): void } };
+  downloads: {
+    onCreated: { addListener(f: (item: Parameters<typeof onCreated>[0]) => void): void };
+  };
+  theme: { update(t: { colors: Record<string, string> }): Promise<void> };
+  runtime: { onStartup: { addListener(f: () => void): void } };
+};
+
+/** **Alt+Shift+K keeps the page** (the sidebar's Alt+Shift+F is Firefox's own, from the manifest). */
+more.commands.onCommand.addListener((c) => {
+  if (c !== 'keep-page') return;
+  void browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
+    if (t?.id == null) return;
+    const k = await keep(t.id);
+    void browser.notifications.create({
+      type: 'basic',
+      title: k.ok ? 'Kept in formicaria' : 'Not kept',
+      message: k.ok
+        ? `${k.title} — kept as ${KIND_WORDS[k.kind ?? ''] ?? 'a note'}.`
+        : (k.error ?? ''),
+      iconUrl: 'icon.svg',
+    });
+  });
+});
+
+/** Every download asks where it goes; formicaria is the default (`downloads.ts`). */
+more.downloads.onCreated.addListener((item) => void onCreated(item));
+
+/** **formicaria's colours** — its own palette (`ui/src/app.css`), dark or light as the system is,
+ *  so the window reads as formicaria's and not as a stock Firefox. */
+const DARK = {
+  frame: '#16161d',
+  frame_inactive: '#16161d',
+  tab_background_text: '#a2a2b5',
+  tab_selected: '#23232e',
+  tab_text: '#e9e9f1',
+  tab_line: '#dc2626',
+  toolbar: '#1c1c25',
+  toolbar_text: '#e9e9f1',
+  toolbar_field: '#23232e',
+  toolbar_field_text: '#e9e9f1',
+  toolbar_field_border_focus: '#dc2626',
+  toolbar_top_separator: '#2c2c39',
+  toolbar_bottom_separator: '#2c2c39',
+  icons: '#e9e9f1',
+  icons_attention: '#dc2626',
+  popup: '#1c1c25',
+  popup_text: '#e9e9f1',
+  popup_border: '#2c2c39',
+  sidebar: '#1c1c25',
+  sidebar_text: '#e9e9f1',
+  sidebar_border: '#2c2c39',
+  ntp_background: '#16161d',
+  ntp_text: '#e9e9f1',
+  button_background_active: '#2a2a37',
+  button_background_hover: '#2a2a37',
+};
+const LIGHT = {
+  frame: '#e6e5e0',
+  frame_inactive: '#ecebe7',
+  tab_background_text: '#5b5b66',
+  tab_selected: '#ffffff',
+  tab_text: '#1d1d22',
+  tab_line: '#dc2626',
+  toolbar: '#f7f6f3',
+  toolbar_text: '#1d1d22',
+  toolbar_field: '#ffffff',
+  toolbar_field_text: '#1d1d22',
+  toolbar_field_border_focus: '#dc2626',
+  toolbar_top_separator: '#e6e5e0',
+  toolbar_bottom_separator: '#e6e5e0',
+  icons: '#1d1d22',
+  icons_attention: '#dc2626',
+  popup: '#ffffff',
+  popup_text: '#1d1d22',
+  popup_border: '#e6e5e0',
+  sidebar: '#f7f6f3',
+  sidebar_text: '#1d1d22',
+  sidebar_border: '#e6e5e0',
+  ntp_background: '#f7f6f3',
+  ntp_text: '#1d1d22',
+  button_background_active: '#e6e5e0',
+  button_background_hover: '#ecebe7',
+};
+function paint() {
+  const dark = globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
+  void more.theme.update({ colors: dark ? DARK : LIGHT }).catch(() => {});
+}
+paint();
+globalThis.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', paint);
+more.runtime.onStartup.addListener(paint);

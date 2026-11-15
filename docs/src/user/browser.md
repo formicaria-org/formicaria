@@ -37,8 +37,8 @@ Other Firefox add-ons work too: install them from Firefox's add-on site as in an
 
 ## Keep a page
 
-On any page, press the **formicaria button** in the toolbar, or right-click the page and choose
-**Keep in formicaria**. formicaria reads what the page says it is and keeps it:
+On any page, press the **formicaria button** in the toolbar (or **Alt+Shift+K**), or right-click
+the page and choose **Keep in formicaria**. formicaria reads what the page says it is and keeps it:
 
 | The page is | It becomes |
 |---|---|
@@ -56,6 +56,30 @@ If you **select text** before keeping, it goes at the top of the note as a quote
 reopens the page with that passage highlighted.
 
 Then press **Open in formicaria** to go to the note. It is yours: edit it, tag it, move it.
+
+## formicaria beside every page, and on every new tab
+
+- **The sidebar**: press **Alt+Shift+F**, or the formicaria entry in Firefox's sidebar menu, and
+  formicaria opens beside the page you are reading: search it, open a note, write while you read.
+- **Every new tab opens on formicaria**, so your notes are one press away. Type in the address bar
+  as usual to go somewhere else.
+- **Alt+Shift+K** keeps the page you are on, like the toolbar button. (Change either in Firefox's
+  *Manage Extension Shortcuts*.)
+- The window takes **formicaria's colours**, dark or light as your system is.
+
+## Downloads
+
+Every download asks **where it should go**, and keeps **one copy**:
+
+- **Keep in formicaria** (the default: press Enter). A song goes to **Music**. An album bought as a
+  **zip** (from Bandcamp and the like) becomes its songs in Music; the zip itself is not kept. Any
+  other file becomes a note with the file attached, on the **Web** shelf, saying where it came from.
+  Nothing is left in your Downloads folder.
+- **Downloads folder**: the download carries on as in any browser.
+- **Choose a folder…**: Firefox asks where to save it.
+
+Closing the question without choosing sends the file to your Downloads folder, so a download is
+never lost. If formicaria cannot take a file, it is saved to Downloads and a notification says why.
 
 ## What it does not do
 

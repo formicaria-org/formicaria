@@ -27,6 +27,17 @@ trap, add one. Newest concerns first within each section.
 - **Firefox's built-in `adblock-rust`** (Firefox 149+, off by default) is not used; uBlock Origin is.
 - **The copy of a page is the page as the browser had it, without its scripts** (JSON-LD kept). Some
   pages draw their text with script and their copy reads emptier than the page did.
+- **0.32.0's sidebar, new tab, colours and shortcuts are unseen.** Headless, the new tab proved
+  itself and the app's policy then named exactly our add-on as the one frame-ancestor; whether
+  formicaria draws inside the sidebar and the new tab, how the colours look, and the shortcuts were
+  not seen. **One risk to check**: Firefox's per-site storage isolation may give formicaria-in-a-frame
+  its own copy of the per-device settings kept in the page's storage (light/dark, the board's order,
+  the player's queue), apart from formicaria in a tab.
+- **Downloads → formicaria (0.32.0)** ran headless on invented files: a song, a two-track album zip
+  and a PDF became two kinds of note, one copy each, nothing left in Downloads. A file is fetched a
+  second time to be kept; a download a site serves only once (a one-time link, a form post) fails
+  over to Downloads, with a notification. Whole files are held in memory while kept (an album of a
+  few hundred MB is fine on a computer).
 - **The phone (R2)** is not started: GeckoView in the APK, measured against the 100 MB ceiling.
 
 ## A swipe between views — what is left (2026-11-05)

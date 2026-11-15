@@ -455,7 +455,7 @@ Three conditions:
 
 ## 12. The refined plan: a formicaria browser where a person's usual add-ons just work
 
-_No code. Research and plan only, written after the owner's note: the point is to let people bring
+_No code. Research and plan only, written after the owner asked for it: the point is to let people bring
 the options they use every day, so popular Firefox add-ons should work seamlessly._
 
 ### 12.1 The decision this plan rests on: Gecko on every platform that gets our browser
