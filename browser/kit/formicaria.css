@@ -9,3 +9,20 @@
 #formicaria-home {
   list-style-image: url("chrome://branding/content/icon32.png");
 }
+
+/* Firefox's Settings page, made formicaria's (owner, 2026-11-15, after looking at the real window):
+   - "Your browser is being managed by your organization": Firefox says this whenever policies are in
+     force, which is how formicaria turns Mozilla's services off. Untrue in spirit here;
+   - the "Same settings, new look!" promotion;
+   - "AI controls": the chatbot is off by policy, so its section only invites confusion;
+   - "formicaria support": it leads to Mozilla's support site, which is about Firefox.
+   Hidden, not removed: about:policies still lists every policy. browser-check fails if one returns. */
+@-moz-document url-prefix("about:preferences"), url-prefix("about:settings") {
+  #policies-container-content,
+  moz-promo.settings-redesign-promo,
+  #category-ai-features,
+  #helpButton,
+  #need-help {
+    display: none !important;
+  }
+}

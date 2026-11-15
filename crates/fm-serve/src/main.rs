@@ -404,6 +404,21 @@ fn main() {
         spawn_watchdog(Arc::clone(&state));
     }
 
+    // **formicaria's browser is kept current by this program, the one that stays up** (0.33.1): a
+    // newer kit (this formicaria brought one) or a security point release is prepared in the
+    // background now, not by whichever short-lived process happened to open the browser.
+    #[cfg(feature = "browser")]
+    if let Some(d) = browser::dir() {
+        // Again every six hours: a formicaria left open for days still gets Mozilla's security
+        // releases (the check itself is at most once a day, `browser_kit::prepare`).
+        std::thread::spawn(move || loop {
+            if d.join("firefox").join("firefox").is_file() {
+                browser_kit::prepare_in_background(d.clone());
+            }
+            std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+        });
+    }
+
     // **Auto-start the local study agent, if it is enabled** (a per-device opt-in). fm-serve just
     // runs an *opt-in script in `agents/`* — the shared command core (`fm_app`/`dispatch`) never
     // learns the agent exists, and with no `agents/` directory nothing is spawned (pure formicaria).

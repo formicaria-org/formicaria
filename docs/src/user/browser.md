@@ -73,6 +73,10 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 
 - **formicaria is the pinned first tab** of the window, always there. The **formicaria button** at the
   left of the toolbar, or **Alt+Shift+F**, brings it forward from any page.
+- **Only one formicaria tab.** Opening formicaria again (double-clicking it, say) brings the pinned
+  tab forward rather than opening a second one; a link to a note opens in it. A new tab is an
+  ordinary empty tab for browsing.
+- **Your tabs come back** when the browser starts again, the formicaria tab with them.
 - **A page beside a note**: right-click a page's tab and put it in **split view** with the formicaria
   tab, so you read on one side and write on the other.
 - **Alt+Shift+K** keeps the page you are on, like the toolbar button. (Change either in the add-ons'
@@ -89,8 +93,11 @@ your notebook.
 ## Updates
 
 formicaria keeps its browser up to date by itself. Mozilla's security releases are checked once a day,
-fetched, checked against Mozilla's signature and prepared in the background; the new copy goes in the
-next time the browser starts. If a new copy does not start, the previous one stays.
+fetched, checked against Mozilla's signature and prepared in the background, by formicaria itself while
+it runs. If the browser is closed, the new copy goes in straight away; if it is open, formicaria shows
+a line at the top: **close the browser's window and open formicaria again** (your tabs come back). If
+a new copy does not start, the previous one stays. A formicaria update that changes the browser's
+look works the same way.
 
 ## Downloads
 

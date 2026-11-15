@@ -1491,6 +1491,8 @@ export interface BrowserStatus {
   pinned?: string;
   /** A newer copy (a security release, or a newer kit) is ready and goes in at the next start. */
   update_ready?: boolean;
+  /** formicaria's browser is open right now (an update then waits for its restart). */
+  running?: boolean;
   /** Sites may notify while their tab is closed (off by default). */
   web_push?: boolean;
 }

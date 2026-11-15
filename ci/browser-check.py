@@ -127,6 +127,110 @@ def measure(firefox: Path, profile: Path, report: Path, urls: list[str], extra_e
     return data
 
 
+class Marionette:
+    """A minimal client for Firefox's remote protocol (length-prefixed JSON on port 2828)."""
+
+    def __init__(self, port: int = 2828):
+        import socket
+        for _ in range(60):
+            try:
+                self.s = socket.create_connection(("127.0.0.1", port), timeout=30)
+                break
+            except OSError:
+                time.sleep(1)
+        else:
+            fail("could not reach the browser's remote protocol")
+        self.n = 0
+        self._read()
+
+    def _read(self):
+        buf = b""
+        while b":" not in buf:
+            buf += self.s.recv(1)
+        size, rest = buf.split(b":", 1)
+        while len(rest) < int(size):
+            rest += self.s.recv(int(size) - len(rest))
+        return json.loads(rest)
+
+    def cmd(self, name: str, params: dict | None = None):
+        self.n += 1
+        body = json.dumps([0, self.n, name, params or {}]).encode()
+        self.s.sendall(str(len(body)).encode() + b":" + body)
+        while True:
+            r = self._read()
+            if r[0] == 1 and r[1] == self.n:
+                if r[2]:
+                    raise RuntimeError(f"{name}: {r[2]}")
+                return r[3]
+
+
+def settings_page(ff: Path, work: Path) -> dict:
+    """Open the real Settings page of formicaria's browser and say what a person would see there."""
+    import base64
+    profile = work / "settings-profile"
+    if profile.exists():
+        shutil.rmtree(profile)
+    profile.mkdir(parents=True)
+    subprocess.Popen(
+        [str(ff / "firefox"), "--headless", "--marionette", "-remote-allow-system-access", "--no-remote",
+         "--name", "formicaria-check", "--profile", str(profile), "about:blank"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    try:
+        m = Marionette()
+        m.cmd("WebDriver:NewSession", {"capabilities": {}})
+        m.cmd("WebDriver:Navigate", {"url": "about:preferences"})
+        time.sleep(4)
+        seen = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+            const hidden = (sel) => { const e = document.querySelector(sel); return !e || getComputedStyle(e).display === 'none'; };
+            const nav = Array.from(document.querySelectorAll('moz-page-nav-button')).map(b => b.textContent || b.getAttribute('label') || '');
+            return {
+              managed_notice_hidden: hidden('#policies-container-content'),
+              new_look_promo_hidden: hidden('moz-promo.settings-redesign-promo'),
+              ai_controls_hidden: hidden('#category-ai-features'),
+              support_link_hidden: hidden('#helpButton'),
+              about_formicaria: nav.some(t => /About formicaria/.test(t)),
+            };"""})["value"]
+        shot = m.cmd("WebDriver:TakeScreenshot", {"full": False})["value"]
+        (CACHE / "settings.png").write_bytes(base64.b64decode(shot))
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        mascot = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "script": """
+            const done = arguments[arguments.length - 1];
+            fetch('chrome://global/skin/illustrations/kit-concerned.svg').then(r => r.text()).then(done, e => done('ERR ' + e));"""})["value"]
+        ours = (ROOT / "browser" / "kit" / "branding" / "about-logo.svg").read_text()
+        seen["mascot_is_formicarias"] = mascot.strip() == ours.strip()
+        # One formicaria tab: opening formicaria again brings the pinned one forward, and a note's
+        # address opens in it (what a double-click on formicaria or a restored session does).
+        tabs = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER], "scriptTimeout": 60000, "script": """
+            const done = arguments[arguments.length - 1];
+            const url = arguments[0];
+            const gb = window.gBrowser;
+            const sp = Services.scriptSecurityManager.getSystemPrincipal();
+            const ours = () => gb.tabs.filter(t => (t.linkedBrowser.currentURI.spec || '').startsWith(url));
+            const wait = (ms) => new Promise(r => setTimeout(r, ms));
+            (async () => {
+              gb.addTab(url, { triggeringPrincipal: sp }); await wait(5000);
+              const one = ours();
+              const pinned = one.length === 1 && one[0].pinned;
+              gb.selectedTab = gb.addTab('about:blank', { triggeringPrincipal: sp });
+              gb.addTab(url, { triggeringPrincipal: sp }); await wait(5000);
+              const again = ours().length;
+              gb.addTab(url + '/#note=check', { triggeringPrincipal: sp }); await wait(5000);
+              const o = ours();
+              done({ pinned, again, deep: o.length, note: o[0]?.linkedBrowser.currentURI.spec || '',
+                     forward: gb.selectedTab === o[0] });
+            })().catch(e => done({ error: String(e) }));"""})["value"]
+        seen["tab_pinned"] = tabs.get("pinned") is True
+        seen["tab_once"] = tabs.get("again") == 1 and tabs.get("forward") is True
+        seen["tab_note"] = tabs.get("deep") == 1 and str(tabs.get("note", "")).endswith("#note=check")
+        if not all((seen["tab_pinned"], seen["tab_once"], seen["tab_note"])):
+            print(f"browser-check: tabs seen {tabs}")
+        m.cmd("WebDriver:DeleteSession")
+        return seen
+    finally:
+        stop(ff)
+
+
 def stock_esr(version: str, sha512: str) -> Path:
     """Mozilla's ESR, unmodified, with a measurement-only startup script: the baseline."""
     d = CACHE / f"stock-{version}"
@@ -198,7 +302,20 @@ def main() -> None:
             "Firefox's updater is off by policy": "DisableAppUpdate" in first.get("policies", []),
             "the Mozilla account is not disabled": "DisableFirefoxAccounts" not in first.get("policies", []),
             "the startup script raised nothing": not first.get("errors"),
+            "the launcher's address made one formicaria tab": first.get("formicariaTabs") == 1,
         }
+        page = settings_page(ff, work)
+        checks.update({
+            "Settings: no 'managed by your organization'": page.get("managed_notice_hidden") is True,
+            "Settings: no 'new look' promotion": page.get("new_look_promo_hidden") is True,
+            "Settings: no 'AI controls' section": page.get("ai_controls_hidden") is True,
+            "Settings: no link to Mozilla's support": page.get("support_link_hidden") is True,
+            "Settings: 'About formicaria' is there": page.get("about_formicaria") is True,
+            "Settings: formicaria's mark instead of Firefox's mascot": page.get("mascot_is_formicarias") is True,
+            "one formicaria tab: opened, it is pinned": page.get("tab_pinned") is True,
+            "one formicaria tab: opened again, the pinned one comes forward": page.get("tab_once") is True,
+            "one formicaria tab: a note's address opens in it": page.get("tab_note") is True,
+        })
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")
 

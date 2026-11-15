@@ -601,6 +601,7 @@ let mockBrowser = {
   web_push: false,
   pinned: '153.7.0esr',
   update_ready: false,
+  running: false,
   busy: false,
   phase: '',
   done: 0,

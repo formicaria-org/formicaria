@@ -269,7 +269,10 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
         "DontCheckDefaultBrowser": true,
         "OverrideFirstRunPage": "",
         "OverridePostUpdatePage": "",
-        "Homepage": { "URL": server, "StartPage": "homepage" },
+        // **The previous session comes back** (0.33.1): restarting formicaria's browser, to finish an
+        // update for one, must not lose the person's tabs. The formicaria tab is pinned and restored
+        // with them; the startup script opens it if it is missing.
+        "Homepage": { "URL": server, "StartPage": "previous-session" },
         "EnableTrackingProtection": {
             "Value": true, "Cryptomining": true, "Fingerprinting": true, "EmailTracking": true
         },
@@ -290,13 +293,33 @@ fn file_url(p: &Path) -> String {
     format!("file://{enc}")
 }
 
+/// The add-on's file name for these bytes: `formicaria-<16 hex>.xpi`.
+pub fn xpi_name(xpi: &[u8]) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    xpi.hash(&mut h);
+    format!("formicaria-{:016x}.xpi", h.finish())
+}
+
 /// Write the add-on, the key, the profile and the policies — at setup, and again before every
 /// launch so the address and the choices are current.
 fn prepare(d: &Path, xpi: &[u8], server: &str) -> Result<(), String> {
     let key = ensure_key(d)?;
-    let xpi_path = d.join("formicaria.xpi");
+    // **A file name per add-on build** (0.33.1): Firefox installs a policy's add-on again when its
+    // address changes, so each build gets its own, and the older files are removed.
+    let xpi_path = d.join(if xpi.is_empty() { "formicaria.xpi".into() } else { xpi_name(xpi) });
     if !xpi.is_empty() {
-        std::fs::write(&xpi_path, xpi).map_err(|e| e.to_string())?;
+        if !xpi_path.is_file() {
+            std::fs::write(&xpi_path, xpi).map_err(|e| e.to_string())?;
+        }
+        if let Ok(rd) = std::fs::read_dir(d) {
+            for e in rd.flatten() {
+                let n = e.file_name().to_string_lossy().to_string();
+                if n.starts_with("formicaria") && n.ends_with(".xpi") && e.path() != xpi_path {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
+        }
     }
     let profile = d.join("profile");
     std::fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
@@ -486,6 +509,7 @@ pub fn status(st: &BrowserState) -> Value {
         "pinned": crate::browser_kit::pin().version,
         "update_ready": d.as_deref().is_some_and(|d| d.join("firefox.next").join("firefox").is_file()),
         "web_push": prefs.web_push,
+        "running": d.as_deref().is_some_and(crate::browser_kit::running),
         "folder": d.map(|p| p.display().to_string()),
     })
 }
@@ -708,6 +732,13 @@ mod tests {
                 "http://127.0.0.1:8765"
             ]
         );
+    }
+
+    #[test]
+    fn each_add_on_build_has_its_own_file_name() {
+        assert_eq!(xpi_name(b"one"), xpi_name(b"one"));
+        assert_ne!(xpi_name(b"one"), xpi_name(b"two"));
+        assert!(xpi_name(b"one").starts_with("formicaria-") && xpi_name(b"one").ends_with(".xpi"));
     }
 
     #[test]

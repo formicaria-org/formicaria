@@ -14783,3 +14783,25 @@ policy no longer blocks it when off). A person who set up 0.31–0.32 keeps thei
 **Not in this release:** the app's shell mode (its own chrome hidden, notes as entries of the window's
 panel); Windows and macOS; other languages; the phone (G0 needs a device).
 
+
+## 2026-11-15 (night) — formicaria's browser: one formicaria tab, the session restored, updates delivered by the running server `#ui` `#toolchain`
+
+**Context.** 0.33.0's kit never reached a browser that was already open when formicaria was updated:
+the preparation ran in the second, short-lived `fm-serve` a double-click starts, which exits at once.
+The person saw the old Firefox and, on each double-click, a second formicaria tab.
+
+**Decided.**
+- **The long-running server prepares updates** (at its start and every 6 h; the Mozilla check stays
+  once a day), across processes one at a time (`prepare.lock`). Prepared while the browser is closed,
+  the copy goes in at once; while it is open, the app shows one line asking to close the browser's
+  window and open formicaria again.
+- **Restarting restores the previous session** (`Homepage.StartPage` `previous-session`, was
+  `homepage`): asking for a restart must not cost the person their tabs. A changed default.
+- **One formicaria tab.** The startup script closes a second tab on formicaria's address and brings
+  the pinned one forward; a note's address opens in the pinned one. Checked by `browser-check`.
+- **The add-on's file is named per build** (`formicaria-<hash>.xpi`), so Firefox sees a new address
+  when formicaria updates; older files are removed.
+- **Settings is formicaria's**: the kit hides the "managed by your organization" notice, the "new
+  look" promotion, the AI controls section and the links to Mozilla's support, and puts formicaria's
+  mark where Firefox's mascot was. The AI section is hidden, not changed: the policy already turns
+  Firefox's generative AI off.

@@ -4,7 +4,7 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-## formicaria's browser — what is not yet known or done (2026-11-15, 0.33.0)
+## formicaria's browser — what is not yet known or done (2026-11-15, 0.33.1)
 
 - **Measured, headless, by `pixi run browser-check`** (the release gate), against the same ESR
   unmodified: memory **+6.4 %**, start unchanged, the window titled formicaria, the formicaria tab
@@ -13,9 +13,12 @@ trap, add one. Newest concerns first within each section.
 - **A security point release swapped in at a start** (`browser_kit::prepare` → `swap_in_prepared`)
   is unit-tested and uses the same `acquire` as setup, but no real 153.x → 153.(x+1) update has
   happened yet. The first one will.
-- **Applying a new kit to an existing browser** (0.31–0.32 users, or any formicaria update) happens in
-  the background after a start and goes in at the next start, so the first start after updating still
-  shows the old one.
+- **Applying a new kit to an existing browser** (0.31–0.32 users, or any formicaria update) is prepared
+  by the long-running server at its start (and every 6 h), swapped in at once when the browser is
+  closed; when it is open, a banner asks for a restart. **In 0.33.0 this never happened** when the old
+  browser was already open: the preparation ran in the short-lived second `fm-serve`, which exits at
+  once and took the thread with it (fixed in 0.33.1; a cross-process `prepare.lock` keeps two from
+  downloading into one folder).
 - **Without `gpgv`** on the computer, only the ESR this release pinned can be installed (by its pinned
   sum); security point releases wait for the next formicaria release.
 - **Disk**: the live copy, a prepared one and the previous one can coexist briefly (~3 × 320 MB).

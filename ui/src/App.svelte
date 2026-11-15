@@ -1,6 +1,7 @@
 <script lang="ts">
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
+  import BrowserRestartBanner from './lib/BrowserRestartBanner.svelte';
   import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { setAppClock } from './lib/appTime';
@@ -3330,6 +3331,7 @@
         </p>
       {/if}
       <UpdateBanner />
+      <BrowserRestartBanner />
       {#if error}
         <p class="banner error">
           {error}

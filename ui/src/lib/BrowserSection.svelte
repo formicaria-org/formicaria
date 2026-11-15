@@ -109,7 +109,9 @@
           <span class="k">updates</span>
           <span class="muted"
             >security releases arrive by themselves{st.update_ready
-              ? ' — one is ready and goes in when the browser next starts'
+              ? st.running
+                ? ' — one is ready: close the browser’s window and open formicaria again'
+                : ' — one is ready and goes in when the browser next starts'
               : ''}; tested with Firefox {st.pinned}</span
           >
         </li>

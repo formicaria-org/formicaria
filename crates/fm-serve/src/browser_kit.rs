@@ -375,6 +375,12 @@ fn prepare(d: &Path) -> Result<(), String> {
     if !d.join("firefox").join("firefox").is_file() || d.join("firefox.next").exists() {
         return Ok(());
     }
+    // One preparation across processes too: a second formicaria started by a double-click must not
+    // download into the same folder as the one already running. The lock goes with the process.
+    let lock = std::fs::File::create(d.join("prepare.lock")).map_err(|e| e.to_string())?;
+    if lock.try_lock().is_err() {
+        return Ok(());
+    }
     let pin = pin();
     let installed =
         std::fs::read_to_string(d.join("version")).unwrap_or_default().trim().to_string();
@@ -409,6 +415,9 @@ fn prepare(d: &Path) -> Result<(), String> {
     let ff = acquire(&work, &v, &|_| {}, &|_, _| {})?;
     std::fs::rename(&ff, d.join("firefox.next")).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_dir_all(&work);
+    // Not running: put it in place now, so the next start is already the new one (0.33.1). Running:
+    // it waits, and formicaria tells the person to restart the browser (`status`'s `update_ready`).
+    swap_in_prepared(d);
     Ok(())
 }
 

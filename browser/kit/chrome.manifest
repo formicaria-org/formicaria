@@ -9,3 +9,5 @@ override chrome://branding/content/about-logo.png branding/about-logo.png
 override chrome://branding/content/about-logo@2x.png branding/about-logo@2x.png
 override chrome://branding/content/about-logo.svg branding/about-logo.svg
 override chrome://branding/content/about-wordmark.svg branding/about-wordmark.svg
+# Firefox's mascot on the default-browser card (Settings) becomes formicaria's mark.
+override chrome://global/skin/illustrations/kit-concerned.svg branding/about-logo.svg
