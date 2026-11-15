@@ -171,6 +171,8 @@ def settings_page(ff: Path, work: Path) -> dict:
     if profile.exists():
         shutil.rmtree(profile)
     profile.mkdir(parents=True)
+    # The panel test clicks a link from a script, which the pop-up blocker would stop.
+    (profile / "user.js").write_text('user_pref("dom.disable_open_during_load", false);\n')
     subprocess.Popen(
         [str(ff / "firefox"), "--headless", "--marionette", "-remote-allow-system-access", "--no-remote",
          "--name", "formicaria-check", "--profile", str(profile), "about:blank"],
@@ -199,32 +201,73 @@ def settings_page(ff: Path, work: Path) -> dict:
             fetch('chrome://global/skin/illustrations/kit-concerned.svg').then(r => r.text()).then(done, e => done('ERR ' + e));"""})["value"]
         ours = (ROOT / "browser" / "kit" / "branding" / "about-logo.svg").read_text()
         seen["mascot_is_formicarias"] = mascot.strip() == ours.strip()
-        # One formicaria tab: opening formicaria again brings the pinned one forward, and a note's
-        # address opens in it (what a double-click on formicaria or a restored session does).
+        # The panel: formicaria's address opened in a tab goes to the panel (a note's address too) and
+        # the tab goes away; a link formicaria opens in a new window becomes a tab of this window.
         tabs = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER], "scriptTimeout": 60000, "script": """
             const done = arguments[arguments.length - 1];
             const url = arguments[0];
             const gb = window.gBrowser;
             const sp = Services.scriptSecurityManager.getSystemPrincipal();
-            const ours = () => gb.tabs.filter(t => (t.linkedBrowser.currentURI.spec || '').startsWith(url));
             const wait = (ms) => new Promise(r => setTimeout(r, ms));
+            const ours = () => gb.tabs.filter(t => (t.linkedBrowser.currentURI.spec || '').startsWith(url)).length;
+            const panel = () => document.getElementById('formicaria-browser');
+            const state = () => document.getElementById('browser').getAttribute('formicaria');
             (async () => {
+              gb.addTab('https://example.org/', { triggeringPrincipal: sp });
               gb.addTab(url, { triggeringPrincipal: sp }); await wait(5000);
-              const one = ours();
-              const pinned = one.length === 1 && one[0].pinned;
-              gb.selectedTab = gb.addTab('about:blank', { triggeringPrincipal: sp });
-              gb.addTab(url, { triggeringPrincipal: sp }); await wait(5000);
-              const again = ours().length;
+              const r = { first: (panel()?.currentURI?.spec || '').startsWith(url), tabs1: ours(), state1: state() };
               gb.addTab(url + '/#note=check', { triggeringPrincipal: sp }); await wait(5000);
-              const o = ours();
-              done({ pinned, again, deep: o.length, note: o[0]?.linkedBrowser.currentURI.spec || '',
-                     forward: gb.selectedTab === o[0] });
+              r.note = panel()?.currentURI?.spec || ''; r.tabs2 = ours();
+              const n = gb.tabs.length;
+              panel().fixupAndLoadURIString('data:text/html,<a id=a target=_blank href="https://example.org/?from=panel">x</a><script>setTimeout(()=>document.getElementById("a").click(),300)</script>', { triggeringPrincipal: sp });
+              await wait(4000);
+              r.linkTab = gb.tabs.some(t => t.linkedBrowser.currentURI.spec.includes('from=panel'));
+              r.windows = [...Services.wm.getEnumerator('navigator:browser')].length;
+              document.getElementById('formicaria-panel-fold').doCommand(); await wait(300);
+              r.folded = state();
+              done(r);
             })().catch(e => done({ error: String(e) }));"""})["value"]
-        seen["tab_pinned"] = tabs.get("pinned") is True
-        seen["tab_once"] = tabs.get("again") == 1 and tabs.get("forward") is True
-        seen["tab_note"] = tabs.get("deep") == 1 and str(tabs.get("note", "")).endswith("#note=check")
-        if not all((seen["tab_pinned"], seen["tab_once"], seen["tab_note"])):
-            print(f"browser-check: tabs seen {tabs}")
+        seen["panel_takes_address"] = tabs.get("first") is True and tabs.get("tabs1") == 0
+        seen["panel_takes_note"] = str(tabs.get("note", "")).endswith("#note=check") and tabs.get("tabs2") == 0
+        seen["panel_links_are_tabs"] = tabs.get("linkTab") is True and tabs.get("windows") == 1
+        seen["panel_folds"] = tabs.get("folded") == "folded"
+        if not all(seen[k] for k in ("panel_takes_address", "panel_takes_note", "panel_links_are_tabs", "panel_folds")):
+            print(f"browser-check: panel seen {tabs}")
+        # **Add to the open note**, end to end: a note open in the panel, a selection on a page,
+        # Alt+Shift+A, and the passage is in the note on disk with where it came from.
+        try:
+            made = post("/api/create_notes", {"notes": [{"title": "Reading", "body": "Start."}]})
+            nid = made[0]["id"]
+            m.cmd("WebDriver:ExecuteScript", {"args": [SERVER + "/#note=" + nid], "script": """
+                document.getElementById('formicaria-browser').fixupAndLoadURIString(arguments[0],
+                  { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
+                const t = gBrowser.addTab('https://example.org/', { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
+                gBrowser.selectedTab = t;"""})
+            time.sleep(6)
+            handles = m.cmd("WebDriver:GetWindowHandles")
+            handles = handles if isinstance(handles, list) else handles.get("value", handles)
+            m.cmd("WebDriver:SwitchToWindow", {"handle": handles[-1]})
+            m.cmd("Marionette:SetContext", {"value": "content"})
+            m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+                const r = document.createRange(); r.selectNodeContents(document.querySelector('h1') || document.body);
+                getSelection().removeAllRanges(); getSelection().addRange(r);"""})
+            # The add-on's Alt+Shift+A, by its own command: the harness's synthetic keys do not reach
+            # add-on shortcuts, and this runs exactly what the key runs.
+            m.cmd("Marionette:SetContext", {"value": "chrome"})
+            m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+                [...document.querySelectorAll('key')].find(k => k.getAttribute('modifiers') === 'alt,shift' && k.getAttribute('key') === 'A').doCommand();"""})
+            time.sleep(8)
+            body = post("/api/get", {"id": nid}).get("body", "")
+            seen["add_to_note"] = body.startswith("Start.\n\n> ") and "> — [Example Domain](https://example.org/)" in body
+            if not seen["add_to_note"]:
+                print(f"browser-check: the note read {body!r}")
+            found = post("/api/page_notes", {"url": "https://example.org"})
+            seen["page_in_notes"] = any(n.get("id") == nid for n in found)
+            m.cmd("Marionette:SetContext", {"value": "chrome"})
+        except Exception as e:  # noqa: BLE001 - reported as a failed check
+            print(f"browser-check: add to note: {e}")
+            seen.setdefault("add_to_note", False)
+            seen.setdefault("page_in_notes", False)
         m.cmd("WebDriver:DeleteSession")
         return seen
     finally:
@@ -274,6 +317,8 @@ def main() -> None:
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         time.sleep(2)
+        # A vault with a git identity, so the app shows its notes rather than its first-run welcome.
+        post("/api/set_identity", {"name": "Check Reader", "email": "reader@example.org"})
         post("/api/browser_setup")
         for _ in range(600):
             s = post("/api/browser_status")
@@ -294,7 +339,8 @@ def main() -> None:
             and "Firefox" not in str(first.get("title", "")),
             "the brand strings are formicaria's": first.get("brand") == "formicaria",
             "the formicaria button is in the toolbar": first.get("widget") is True,
-            "the formicaria tab is pinned": first.get("pinned") is True,
+            "formicaria is in its panel": first.get("panel") is True,
+            "the panel keeps formicaria's own storage": first.get("partitionKey") == "",
             "only the add-on line is locked": first.get("signaturesLocked") is True,
             "Sync and the Mozilla account are available": first.get("accountsAvailable") is True,
             "split view is on": first.get("splitView") is True,
@@ -302,7 +348,7 @@ def main() -> None:
             "Firefox's updater is off by policy": "DisableAppUpdate" in first.get("policies", []),
             "the Mozilla account is not disabled": "DisableFirefoxAccounts" not in first.get("policies", []),
             "the startup script raised nothing": not first.get("errors"),
-            "the launcher's address made one formicaria tab": first.get("formicariaTabs") == 1,
+            "no tab holds formicaria": first.get("formicariaTabs") == 0,
         }
         page = settings_page(ff, work)
         checks.update({
@@ -312,9 +358,12 @@ def main() -> None:
             "Settings: no link to Mozilla's support": page.get("support_link_hidden") is True,
             "Settings: 'About formicaria' is there": page.get("about_formicaria") is True,
             "Settings: formicaria's mark instead of Firefox's mascot": page.get("mascot_is_formicarias") is True,
-            "one formicaria tab: opened, it is pinned": page.get("tab_pinned") is True,
-            "one formicaria tab: opened again, the pinned one comes forward": page.get("tab_once") is True,
-            "one formicaria tab: a note's address opens in it": page.get("tab_note") is True,
+            "the panel: formicaria's address opened in a tab goes to it": page.get("panel_takes_address") is True,
+            "the panel: a note's address opens in it": page.get("panel_takes_note") is True,
+            "the panel: a link it opens becomes a tab of the window": page.get("panel_links_are_tabs") is True,
+            "the panel: it folds away": page.get("panel_folds") is True,
+            "the add-on adds a selection to the note open in the panel": page.get("add_to_note") is True,
+            "the page is then found in your notes": page.get("page_in_notes") is True,
         })
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")

@@ -9,12 +9,16 @@
       .muted { color: #5b6b66; font-size: 12px; }
       button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #2f5d50; background: #2f5d50; color: #fff; cursor: pointer; }
       .err { color: #9b2c2c; }
+      ul { margin: 6px 0; padding-left: 16px; }
+      li { margin: 4px 0; }
+      li .muted { overflow-wrap: anywhere; }
     </style>
   </head>
   <body>
     <h1 id="head">Keeping this page…</h1>
     <p id="what" class="muted"></p>
-    <p><button id="open" hidden>Open in formicaria</button></p>
+    <ul id="notes" hidden></ul>
+    <p><button id="open" hidden>Open in formicaria</button> <button id="again" hidden>Keep again</button></p>
     <script src="popup.js"></script>
   </body>
 </html>

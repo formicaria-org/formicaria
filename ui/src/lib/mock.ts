@@ -1989,6 +1989,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'open_external':
       return undefined as T;
+    // The browser's add-on asks these (`fm_app::source`); the app itself never does.
+    case 'page_notes':
+      return [] as T;
+    case 'sources':
+      return [] as T;
     // The vault list the mock models. Two, so the sidebar's vault chips and filter are
     // exercised (they only render above one). The first-run state — an empty list — is
     // reached for real, not here: `pnpm dev` should give you a working app.

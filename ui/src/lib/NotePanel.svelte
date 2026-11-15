@@ -3,6 +3,7 @@
   import { clockText, dayOfInstant } from './appTime';
   import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
   import { SAVE_NOW } from './updater.svelte';
+  import { inbox as bridgeInbox, appended as appendedText } from './web/bridge.svelte';
   import {
     getNote,
     updateBody,
@@ -1211,6 +1212,25 @@
   // edited on a canvas instead of as text. Detection is a plain property check —
   // no new Kind (the model resists that).
   let isBoard = $derived(note?.props?.view === 'board');
+
+  // **A passage from the browser** (`lib/web/bridge.svelte.ts`): added to the end of this note's text
+  // and saved as typing is, so it is in the editor, undoable, and through the same conflict checks.
+  $effect(() => {
+    const ins = bridgeInbox.insert;
+    if (!ins || !note || ins.id !== note.id) return;
+    untrack(() => {
+      bridgeInbox.insert = null;
+      if (isBoard || isDiscussion) {
+        ins.done({ ok: false, error: 'That note is a board or a discussion; open a text note.' });
+        return;
+      }
+      draft = appendedText(draft, ins.text);
+      void save().then(
+        () => ins.done({ ok: draft.includes(ins.text.trim()), title: note?.title || undefined }),
+        (e) => ins.done({ ok: false, error: String(e) }),
+      );
+    });
+  });
 
   /// **Which note this pane is showing — as a memo, so effects stop re-running on every save.**
   ///

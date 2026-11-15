@@ -31,8 +31,14 @@ trap, add one. Newest concerns first within each section.
   kit loudly (the swap refuses) and the previous copy stays.
 - **A GET carrying no `Origin` is still accepted on loopback** (blob reads by content address); as
   before, not widened.
-- **The app's shell mode is not built**: formicaria is the pinned first tab, but its notes are not yet
-  entries of the window's own list (`browser-plan` §14.4).
+- **formicaria's panel lives in one window**: another window's ant button brings that window forward
+  rather than moving the panel (moving a live page between windows is possible in Firefox, not done).
+- **The add-on's background page is persistent** now (it holds the bridge's port to the panel), a few
+  MB; measured within the budget by `browser-check`.
+- **"This page is in your notes" scans the vault** (like `backlinks`) when a tab is shown or loads; fine
+  at thousands of notes, not indexed.
+- **A panel that fills the window keeps the content area's tab selected but hidden**; choosing a tab
+  in the list brings it back beside.
 - **The phone (G0/R2)** needs a device to measure; not started.
 
 ## A swipe between views — what is left (2026-11-05)

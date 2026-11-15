@@ -555,6 +555,10 @@ A note can sit beside the page it is about. There is no "formicaria tab" in a br
 
 ### 14.3 The window, concretely (desktop)
 
+> **Revised (2026-11-15, late night):** a pinned tab cannot join Firefox's split view, so formicaria
+> became a **docked panel** of the window, beside whichever page is shown; tabs are web pages only
+> (`decisions.md`; research: `data-sources-research-2026-11-15.md` §2–§4).
+
 - **The left panel is formicaria's**: the places (Library, Tasks, Food, Fitness, Health, Music, Web)
   on top, and below them **everything open**, notes, views and web pages in one list. It is built on
   Firefox's vertical tabs and tab groups, restyled: a tab group per place.

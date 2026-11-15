@@ -819,6 +819,13 @@ fn dispatch_inner(
         "agenda" => json(commands::agenda(&lock()?.store(scope)).map_err(err)?),
         "get" => json(commands::get(&lock()?.store(scope), &s("id")).map_err(err)?),
         "search" => json(commands::search(&lock()?.store(scope), &s("query")).map_err(err)?),
+        // **"This page is in your notes"** (`source.rs`): the notes naming a page, for the browser's
+        // toolbar button. A store scan like `backlinks`; asked when a tab is shown or loaded.
+        "page_notes" => {
+            json(crate::source::page_notes(&lock()?.store(scope), &s("url"), 20).map_err(err)?)
+        }
+        // The sources formicaria knows and how their items are named (`source.rs`): read-only.
+        "sources" => json(crate::source::catalog()),
         "recent" => json(commands::recent(&lock()?.store(scope)).map_err(err)?),
         // The Collaboration surface's feed: every open proposal (a note carrying
         // `proposes: branch:<name>`), across vaults. A store query like `recent`, not a per-vault
@@ -1328,6 +1335,9 @@ fn dispatch_inner(
                 serde_json::from_value(args.clone()).map_err(|e| format!("clip: {e}"))?;
             crate::clip::check(&req)?;
             let url = crate::clip::address(&req.url)?;
+            // **The source contract** (`source.rs`): where it came from, under which name, when.
+            let mut req = req;
+            crate::source::stamp(&mut req.props, "web", &url, "copied");
             let vault = lock()?.config(scope, &req.vault)?.name;
             let hash = if req.snapshot.is_empty() {
                 None

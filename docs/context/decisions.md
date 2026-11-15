@@ -14786,6 +14786,10 @@ panel); Windows and macOS; other languages; the phone (G0 needs a device).
 
 ## 2026-11-15 (night) — formicaria's browser: one formicaria tab, the session restored, updates delivered by the running server `#ui` `#toolchain`
 
+> **PARTLY SUPERSEDED** by *2026-11-15 (late night) — formicaria docks beside the page*: the pinned
+> formicaria tab became a docked panel (pinned tabs cannot join Firefox's split view). The update
+> delivery, the session restore and the add-on's file name stand.
+
 **Context.** 0.33.0's kit never reached a browser that was already open when formicaria was updated:
 the preparation ran in the second, short-lived `fm-serve` a double-click starts, which exits at once.
 The person saw the old Firefox and, on each double-click, a second formicaria tab.
@@ -14805,3 +14809,41 @@ The person saw the old Firefox and, on each double-click, a second formicaria ta
   look" promotion, the AI controls section and the links to Mozilla's support, and puts formicaria's
   mark where Firefox's mascot was. The AI section is hidden, not changed: the policy already turns
   Firefox's generative AI off.
+
+## 2026-11-15 (late night) — formicaria docks beside the page; the web becomes the first source on one contract `#ui` `#data` `#seams` `#agent`
+
+**Context.** The owner: *"the tabs are to browse the internet, and not the notes … we would need to
+clearly link the web with the notes, through simple commands"*; *"the web is a data source, same as
+health info from a smartwatch … make it easy to connect with data sources"*; *"plan and execute"*.
+Research and measurements: `data-sources-research-2026-11-15.md` (a formicaria tab costs ~35 MB,
+a web page ~65 MB; **a pinned tab cannot join a split view**, checked in ESR 153).
+
+**Decided.**
+1. **formicaria is a docked panel of its browser's window, not a tab** (research §3, option C). One
+   content `<browser>` beside the tab panels, the shape of Firefox's own right-hand panel; formicaria's
+   address loads there, with its normal storage (checked: no partition key). **Tabs are web pages
+   only.** The panel is resizable; it can fill the window (today's look) or fold away; Alt+Shift+F
+   and the ant button show it. It lives in one window at a time: one copy of the app. A tab that
+   loads formicaria's address is moved into the panel (a deep link opens there) and closed; this also
+   turns 0.33's restored pinned tab into the panel. Supersedes `browser-plan` §14.3's "beside = split
+   view" and the pinned tab of the entry above.
+2. **The add-on talks to the app in the panel through a bridge**: a content script on formicaria's
+   own address only, holding a port to the add-on's background. The app accepts a bridge message only
+   when it was posted by its own window (`event.source === window`), so a page formicaria opened
+   cannot write into a note. Messages: insert into the open note, open a note, check for changes.
+3. **Linking commands** (research §4): *Add to the open note* (a selection or the page's link, with
+   its source), *This page is in your notes* (a count on the toolbar button, looked up when a tab is
+   shown or loaded, never polled), and `fm` in the address bar to search the vault.
+4. **One contract for every source** (research §5), written down here and applied first to the web:
+   every item a source brings carries `source` (`web`, `mail`, `calendar`, `files`, `watch`, …),
+   `source_id` (the source's own id: the page address, the DOI, the Gmail thread), `captured` (when),
+   and `recorded` (`sensed`, `typed`, `copied` or `derived`; a clipped page is `copied`); the raw original is kept in the vault where there
+   is one; a second arrival updates rather than copies. A read-only **`sources` catalog** command
+   lists each source, the kinds of item it makes and the property that identifies them, for Settings
+   and for Myrme. Existing mail and calendar keys stay as they are; the catalog names them. Gadgetbridge
+   is the next source on the contract (FIT files kept raw).
+5. **Myrme's access** follows research §7: the catalog is its menu; a per-source switch, off by
+   default; reads before writes; content a source brought in is untrusted text. Not built in this step.
+
+**Widens what ships:** one content script (formicaria's own address only), one more read-only
+command reachable by the add-on (`page_notes`) and the vault search (`search`) for the address bar.

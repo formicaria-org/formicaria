@@ -38,6 +38,10 @@ pub const EXTENSION_ROUTES: &[&str] = &[
     "/api/ingest",
     "/api/create_notes",
     "/api/music_library",
+    // The page's notes for the toolbar button, and the vault's search for `fm` in the address bar
+    // (`decisions.md` 2026-11-15, late night): both read-only.
+    "/api/page_notes",
+    "/api/search",
 ];
 
 /// The origin of formicaria's own add-on in this browser (`moz-extension://<uuid>`), learnt the first

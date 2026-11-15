@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "formicaria",
-  "description": "formicaria's browser actions: keep the page you are on, bookmark it, and keep downloads, in your formicaria notebook.",
-  "version": "1.2.0",
+  "description": "formicaria's browser actions: keep the page you are on, add a passage to the note open in formicaria, see which notes name a page, and keep downloads, in your formicaria notebook.",
+  "version": "1.3.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "browser@formicaria-org.github.io",
@@ -23,7 +23,7 @@
     "scripts": [
       "background.js"
     ],
-    "persistent": false
+    "persistent": true
   },
   "browser_action": {
     "default_title": "Keep this page in formicaria (Alt+Shift+K)",
@@ -37,15 +37,29 @@
       },
       "description": "Keep this page in formicaria"
     },
-    "show-formicaria": {
+    "add-to-note": {
       "suggested_key": {
-        "default": "Alt+Shift+F"
+        "default": "Alt+Shift+A"
       },
-      "description": "Bring formicaria forward"
+      "description": "Add the selection, or this page's link, to the note open in formicaria"
     }
   },
   "icons": {
     "48": "icon.svg",
     "96": "icon.svg"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "omnibox": {
+    "keyword": "fm"
   }
 }

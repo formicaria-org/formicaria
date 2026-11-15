@@ -10,7 +10,7 @@ version.
 
 **Settings → Browser → Set up formicaria's browser.** formicaria downloads **Firefox ESR**, Mozilla's
 long-term-support browser engine, **from Mozilla**, checks it against **Mozilla's signature**, and makes
-it formicaria's: its name, its icon and its look, with formicaria always the first tab. It is not a
+it formicaria's: its name, its icon and its look, with formicaria beside the page you are reading. It is not a
 fork of Firefox: Mozilla's own build, with formicaria's touches added on this computer. It is about 90 MB to download and 320 MB on your computer. It goes in formicaria's
 settings folder (`~/.config/formicaria/browser/`), with a profile of its own, so it is separate from
 any Firefox you already use.
@@ -69,20 +69,37 @@ reopens the page with that passage highlighted.
 
 Then press **Open in formicaria** to go to the note. It is yours: edit it, tag it, move it.
 
-## formicaria is the first tab
+## formicaria beside the page
 
-- **formicaria is the pinned first tab** of the window, always there. The **formicaria button** at the
-  left of the toolbar, or **Alt+Shift+F**, brings it forward from any page.
-- **Only one formicaria tab.** Opening formicaria again (double-clicking it, say) brings the pinned
-  tab forward rather than opening a second one; a link to a note opens in it. A new tab is an
-  ordinary empty tab for browsing.
-- **Your tabs come back** when the browser starts again, the formicaria tab with them.
-- **A page beside a note**: right-click a page's tab and put it in **split view** with the formicaria
-  tab, so you read on one side and write on the other.
-- **Alt+Shift+K** keeps the page you are on, like the toolbar button. (Change either in the add-ons'
-  *Manage Extension Shortcuts*.)
+- **formicaria sits beside the page**, on the right of the window, and **the tabs are for the web**.
+  Drag the line between them to make formicaria wider or narrower; the width is kept.
+- **⤢** at the top of formicaria makes it **fill the window**, as it was before; choosing a page in the
+  tab list puts it back beside the page. **✕ folds it away**; the **ant button** at the left of the
+  toolbar, or **Alt+Shift+F**, brings it back.
+- There is **one formicaria**, in one window: opening formicaria again (double-clicking it, say)
+  shows it there rather than opening a second one, and a link to a note opens in it. A link in a
+  note opens as a tab beside it.
+- **Your tabs come back** when the browser starts again.
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.
+
+## Bring the page into a note
+
+- **Add to the open note**: select a passage and press **Alt+Shift+A**, or right-click and choose
+  **Add to the open formicaria note**. The passage goes at the end of the note open in formicaria,
+  quoted, with a link back to the page. With nothing selected, the page's link goes in; on a link, that
+  link. The note saves as if you had typed it, so **Undo** takes it back.
+- **This page is in your notes**: when a note names the page you are on, a red number on the
+  formicaria button says how many. Press the button to see them, each with the line that names the
+  page, and open one beside the page; **Keep again** keeps a second copy if you want one.
+- **Search your notes from the address bar**: type **fm**, a space, and what you are looking for;
+  choose a note to open it in formicaria.
+- **Alt+Shift+K** keeps the whole page, like the toolbar button. (Change any of these shortcuts in
+  the add-ons' *Manage Extension Shortcuts*.)
+
+Kept pages and passages say where they came from: the note's **source** is `web`, with the page's
+address and when it was kept. Every source formicaria reads from (mail, calendars, files, and later a
+watch) describes what it brings the same way.
 
 ## Bookmarks
 

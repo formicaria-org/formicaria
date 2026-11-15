@@ -26,3 +26,30 @@
     display: none !important;
   }
 }
+
+/* formicaria docked beside the page (`formicaria.cfg` §4): beside, filling the window, or folded. */
+#formicaria-panel {
+  min-width: 280px;
+  border-inline-start: 1px solid var(--chrome-content-separator-color, rgba(0, 0, 0, 0.15));
+}
+#formicaria-panel-head {
+  padding: 2px 6px;
+  gap: 4px;
+  font-size: 0.9em;
+}
+#formicaria-panel-head > toolbarbutton {
+  min-width: 24px;
+}
+#browser:not([formicaria]) > #formicaria-panel,
+#browser:not([formicaria]) > #formicaria-splitter,
+#browser[formicaria="folded"] > #formicaria-panel,
+#browser[formicaria="folded"] > #formicaria-splitter,
+#browser[formicaria="full"] > #tabbrowser-tabbox,
+#browser[formicaria="full"] > #formicaria-splitter {
+  visibility: collapse;
+}
+#browser[formicaria="full"] > #formicaria-panel {
+  flex: 1;
+  width: auto !important;
+  border-inline-start: none;
+}

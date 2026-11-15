@@ -168,3 +168,55 @@ fn walk(dir: &Path) -> Vec<std::path::PathBuf> {
     }
     out
 }
+
+/// **The source contract and "this page is in your notes"** (`decisions.md` 2026-11-15, late night):
+/// a kept page says where it came from, and the page is found again by another form of its address,
+/// in a kept page and in a note that only mentions it.
+#[test]
+fn a_kept_page_carries_its_source_and_is_found_again() {
+    let (_h, _vault, app) = app();
+    let made = call(
+        &app,
+        "clip_save",
+        json!({
+            "url": "https://example.org/walks/hills",
+            "title": "A walk in the hills",
+            "body": "The path climbs gently.",
+            "tags": ["web"],
+            "props": { "source_url": "https://example.org/walks/hills" },
+        }),
+        b"",
+    )
+    .unwrap();
+    let id = made["id"].as_str().unwrap().to_string();
+    let note = get(&app, &id);
+    let props = note["props"]
+        .as_object()
+        .or_else(|| note["extra"].as_object())
+        .cloned()
+        .unwrap_or_default();
+    let text = serde_json::to_string(&note).unwrap();
+    assert!(text.contains("\"source\"") && text.contains("\"web\""), "{props:?} {text}");
+    assert!(text.contains("\"recorded\"") && text.contains("\"copied\""), "{text}");
+    assert!(text.contains("\"captured\""), "{text}");
+
+    let other = call(
+        &app,
+        "create_notes",
+        json!({ "notes": [{ "title": "Weekend", "body": "Try [this walk](http://www.example.org/walks/hills/?utm_source=x) soon." }] }),
+        b"",
+    );
+    assert!(other.is_ok(), "{other:?}");
+    let found =
+        call(&app, "page_notes", json!({ "url": "https://example.org/walks/hills#top" }), b"")
+            .unwrap();
+    let found = found.as_array().unwrap();
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(found.iter().any(|n| n["id"] == id.as_str()));
+    assert!(found.iter().any(|n| n["context"].as_str().unwrap().contains("Try [this walk]")));
+    let none =
+        call(&app, "page_notes", json!({ "url": "https://example.org/walks/other" }), b"").unwrap();
+    assert_eq!(none.as_array().unwrap().len(), 0);
+    let catalog = call(&app, "sources", json!({}), b"").unwrap();
+    assert!(catalog.as_array().unwrap().iter().any(|s| s["source"] == "web"));
+}

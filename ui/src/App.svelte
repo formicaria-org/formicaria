@@ -2,6 +2,7 @@
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import BrowserRestartBanner from './lib/BrowserRestartBanner.svelte';
+  import { listen as listenBridge } from './lib/web/bridge.svelte';
   import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { setAppClock } from './lib/appTime';
@@ -2032,6 +2033,19 @@
     history.replaceState(history.state, '', location.pathname + location.search);
     openNoteInPane(m[1].toUpperCase());
   }
+  // **The browser's bridge** (`lib/web/bridge.svelte.ts`): the add-on opens a note here, or adds a
+  // passage to the note in front (the active pane when it is a note, else the last note opened).
+  $effect(() =>
+    listenBridge({
+      open: (id) => openNoteInPane(id),
+      target: () => {
+        const ps = workspace.panes;
+        const front = ps[workspace.active ?? 0];
+        const p = front && !isView(front) ? front : [...ps].reverse().find((x) => !isView(x));
+        return p?.noteId ? { id: p.noteId, title: p.noteTitle ?? 'your note' } : null;
+      },
+    }),
+  );
   $effect(() => {
     openFromHash();
     window.addEventListener('hashchange', openFromHash);

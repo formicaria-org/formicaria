@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 133 of them are below**, grouped by what they are for. If you add an arm to
+**All 135 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -56,7 +56,9 @@ dispatch no longer has fails too.)
 | `deleted_notes`  | `days` (default 30)          | `DeletedRow[]`         | read-only: notes deleted in the last `days`, read from each notebook's own history (git, or libgit2 on the phone), skipping ones that exist again |
 | `restore_deleted` | `vault`, `id`, `days`       | `ObjectMeta`           | bring back a note listed by `deleted_notes`, exactly as it was before it was deleted |
 | `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — parsed locally, never looked up online |
-| `clip_save`      | `url`, `title`, `body`, `tags`, `props`, `bibtex`, `snapshot`, `vault` | `ObjectMeta` | keeps a page from formicaria's browser: the note the add-on built, and the page's copy as an asset linked at its end; with `bibtex`, the note is made as `create_paper` makes one. Fetches nothing; only `http(s)` pages |
+| `clip_save`      | `url`, `title`, `body`, `tags`, `props`, `bibtex`, `snapshot`, `vault` | `ObjectMeta` | keeps a page from formicaria's browser: the note the add-on built, and the page's copy as an asset linked at its end; with `bibtex`, the note is made as `create_paper` makes one. Fetches nothing; only `http(s)` pages. Stamps the source contract (`source: web`, `source_id`, `captured`, `recorded: copied`) where the add-on did not |
+| `page_notes`     | `url` | `[{id, title, context}]` | the notes that name a page, matched by its address with the scheme, `www.`, fragment, tracking parameters and trailing slash ignored; `context` is the line that names it. Read-only; the browser's toolbar count |
+| `sources`        | — | `[{source, name, kinds, identity, recorded, raw_kept, status}]` | the catalog of the sources formicaria reads from and how their items are named (`fm_app::source`). Read-only |
 | `recipe_from_page` | `url` (query); body = the page | `WebRecipe`        | reads a recipe out of a page the browser already has — `recipe_from_link`'s reader with no fetch |
 | `paper_bibtex`   | `id`                         | `String`               | that note's frontmatter rendered back as a BibTeX entry |
 
@@ -283,8 +285,9 @@ downloaded from Mozilla, checked against Mozilla's signature and the pinned SHA-
 `<config>/formicaria/browser/`), the person's two choices (`open_in_it`, `block_ads`), and opening
 formicaria in it. Host-only, like the updater's routes: they are about this computer, not a vault.
 
-**The browser's add-on reaches six routes and no others** — `clip_save`, `recipe_from_page`,
-`list_vaults`, and for a download kept in formicaria `ingest`, `create_notes` and `music_library` —
+**The browser's add-on reaches eight routes and no others** — `clip_save`, `recipe_from_page`,
+`list_vaults`, for a download kept in formicaria `ingest`, `create_notes` and `music_library`, and the
+read-only `page_notes` and `search` (the toolbar's count and `fm` in the address bar) —
 and only from a `moz-extension://` origin carrying this computer's key
 (`X-Formicaria-Key`, kept `0600` in that folder). Any other extension is refused by the same
 cross-origin guard that refuses a web page.

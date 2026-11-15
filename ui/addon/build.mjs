@@ -15,7 +15,7 @@ const stage = join(out, 'stage');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
-for (const name of ['content', 'background', 'popup', 'choose']) {
+for (const name of ['content', 'background', 'popup', 'choose', 'bridge']) {
   await build({
     configFile: false,
     publicDir: false,
