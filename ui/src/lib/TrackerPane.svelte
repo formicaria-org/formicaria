@@ -640,8 +640,8 @@
         />
       {/await}
     {:else if def.span === 'library'}
-      {#await import('./music/SongsScreen.svelte') then { default: SongsScreen }}
-        <SongsScreen signal={[feed, wrotes]} {onopen} onadd={() => (addingSong = true)} />
+      {#await import('./music/MusicScreen.svelte') then { default: MusicScreen }}
+        <MusicScreen signal={[feed, wrotes]} {onopen} onadd={() => (addingSong = true)} />
       {/await}
     {:else if def.span === 'cards'}
       {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}

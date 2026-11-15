@@ -756,6 +756,7 @@ const READ_ONLY: &[&str] = &[
     "health_record",
     "log_recent",
     "music_library",
+    "music_playlists",
     "log_recipes",
     "log_routines",
     "log_products",
@@ -2626,6 +2627,7 @@ fn dispatch_inner(
         // Every song, in one pass: the Songs screen asks once and filters as the person types
         // (`decisions.md#ui`, 2026-11-13, *a sixth group, Music*).
         "music_library" => json(crate::music::library(&lock()?.store(scope)).map_err(err)?),
+        "music_playlists" => json(crate::music::playlists(&lock()?.store(scope)).map_err(err)?),
         "log_recipes" => {
             let mut g = lock()?;
             let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;

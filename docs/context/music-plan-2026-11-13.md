@@ -1,10 +1,15 @@
 # Music — a song is a logged note, playlists are notes, a player view (plan, 2026-11-13)
 
-> **Status, 2026-11-13: M1–M5 ruled as proposed** (`decisions.md`, *a sixth group, Music*), with
+> **Status, 2026-11-15: M1–M5 ruled as proposed** (`decisions.md`, *a sixth group, Music*), with
 > one change from Part 4: a song's file is uploaded **like any other attachment**, so it has its
-> asset note, and the song note embeds it. **Phase 2 is built**: tags read at upload, the song
-> note, `music_library`, Songs and *Add a song*. Phases 3–8 are not. Where this disagrees with the
-> code, the code wins.
+> asset note, and the song note embeds it. **Phases 2 and 3 are built, and most of 4**: tags read
+> at upload, the song note, *Add a song*; the player (`music/player.svelte.ts`, Media Session, the
+> queue and settings kept per device); and, at the owner's ask (2026-11-15 entry), the view as a
+> **deck above a browser** — Songs · Albums · Artists · Playlists, playlists as tagged notes
+> (`music_playlists`), *Play next* / *Add to queue*, an equaliser where the audio is same-origin.
+> Left of phase 4: multi-select and M3U8 out and in. Phases 5–8 are not built. Drawn by a domain
+> screen (`span: library`), not a generic `tracks` renderer: nothing else needs one yet. Where
+> this disagrees with the code, the code wins.
 
 **The ask (owner, 2026-11-13):**
 - *"a song is just an asset, so it can be viewed and played seamlessly … an efficient playlist

@@ -218,3 +218,65 @@ fn logged_entries_cost_the_board_no_more_per_object_than_notes_do() {
          exclusion has stopped being a cheap filter. Push `log` down into the index."
     );
 }
+
+/// **The Songs screen's one ask is one pass over the vault, no dearer per object than the board's**
+/// (`decisions.md#ui`, 2026-11-13, *a sixth group, Music*). `music_library` answers every song at
+/// once, unbounded on purpose, so the screen can filter as the person types. `log` does not reach
+/// the index (`known-issues.md`, *every logged entry still costs the board a read*), so the pass
+/// reads the notes beside the songs too; this pins that it stays one pass, at a note's price.
+#[test]
+fn the_music_library_costs_no_more_per_song_than_the_board_per_note() {
+    use fm_app::commands::board;
+    use fm_app::log::{create_notes, NoteDraft};
+    use fm_app::music::library;
+
+    let songs = 5_000usize;
+    let (_dir, mut store, _) = vault(songs, 0);
+    let board_alone = {
+        let _ = board(&store, "status").unwrap(); // warm
+        let t = std::time::Instant::now();
+        let _ = board(&store, "status").unwrap();
+        t.elapsed()
+    };
+    for chunk in 0..songs / 200 {
+        let drafts: Vec<NoteDraft> = (0..200)
+            .map(|i| {
+                let n = chunk * 200 + i;
+                serde_json::from_value(serde_json::json!({
+                    "title": format!("song {n}"),
+                    "body": format!("![song {n}](asset:sha256-{n:064x})\n"),
+                    "props": {
+                        "log": "music", "artist": format!("artist {}", n % 300),
+                        "album": format!("album {}", n % 700), "track": 1 + n % 12,
+                        "duration_s": 180 + n % 120, "audio": format!("sha256:{n:064x}"),
+                    },
+                }))
+                .unwrap()
+            })
+            .collect();
+        create_notes(&mut store, "", &drafts).unwrap();
+    }
+    let _ = library(&store).unwrap(); // warm
+    let t = std::time::Instant::now();
+    let all = library(&store).unwrap();
+    let listed = t.elapsed();
+    assert_eq!(all.len(), songs, "every song, and nothing else");
+
+    let per_note = board_alone.as_secs_f64() / songs as f64;
+    // Every object of the vault is read: the notes and the songs.
+    let per_object = listed.as_secs_f64() / (2 * songs) as f64;
+    let ratio = per_object / per_note;
+    eprintln!(
+        "music_library: {:.1} ms for {songs} songs beside {songs} notes ({:.1} µs/object); \
+         board: {:.1} ms for {songs} notes ({:.1} µs/note); {ratio:.2}x",
+        listed.as_secs_f64() * 1e3,
+        per_object * 1e6,
+        board_alone.as_secs_f64() * 1e3,
+        per_note * 1e6,
+    );
+    assert!(
+        ratio < 2.5,
+        "an object costs the library {ratio:.1}x what a note costs the board — the library has \
+         started doing more than one pass. Push `log` down into the index."
+    );
+}

@@ -1386,6 +1386,14 @@ export const logRecent = (view: string, opts: { slot?: string; q?: string; limit
 /** **Every song**, as its note (`log: music`), sorted by title — asked once by the Songs screen,
  *  which filters and sorts in memory while the person types (`decisions.md#ui`, 2026-11-13). */
 export const musicLibrary = () => invoke<ObjectMeta[]>('music_library');
+/** A playlist: a note tagged `playlist`, its songs' note ids in the body's order. */
+export interface Playlist {
+  id: string;
+  title: string;
+  songs: string[];
+}
+/** Every playlist, by title. */
+export const musicPlaylists = () => invoke<Playlist[]>('music_playlists');
 /** The recipes saved in a log, each with the sum of its ingredients. */
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
 /** One day's nutrients; `planned` counts what is planned too (a day still to come). */

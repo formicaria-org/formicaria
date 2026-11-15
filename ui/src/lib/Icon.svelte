@@ -62,6 +62,24 @@
     // Points down because it opens a menu below the button — the one place its direction has to
     // agree with what happens.
     'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+    // The player's controls (`music/PlayerBar.svelte`, 2026-11-13).
+    play: '<path d="M7 4.5v15l12-7.5z"/>',
+    pause: '<path d="M8 5v14M16 5v14"/>',
+    'skip-back': '<path d="M18 5v14L8 12z"/><path d="M6 5v14"/>',
+    'skip-forward': '<path d="M6 5v14l10-7z"/><path d="M18 5v14"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
+    rewind: '<path d="M11 6v12L3 12z"/><path d="M20 6v12l-8-6z"/>',
+    'fast-forward': '<path d="M4 6v12l8-6z"/><path d="M13 6v12l8-6z"/>',
+    shuffle:
+      '<path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 3.8C14.3 15 15.5 17 17.5 17H21"/><path d="M3 17h3.5c1.4 0 2.4-.6 3.3-1.6"/><path d="M14.2 8.6c.9-1 1.9-1.6 3.3-1.6H21"/><path d="M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5"/>',
+    repeat:
+      '<path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="m17 3 3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="m7 21-3-3 3-3"/>',
+    volume:
+      '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>',
+    mute: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>',
+    sliders:
+      '<path d="M5 4v6M5 14v6M12 4v3M12 11v9M19 4v9M19 17v3"/><path d="M3 12h4M10 9h4M17 15h4"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
     grip: '<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',
   };
 </script>

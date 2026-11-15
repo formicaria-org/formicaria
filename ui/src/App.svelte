@@ -121,6 +121,8 @@
   import * as nav from './lib/nav.svelte';
   import { captureUndoable, createNotesUndoable, setPropertyUndoable } from './lib/undo.svelte';
   import ViewBar from './lib/ViewBar.svelte';
+  import PlayerBar from './lib/music/PlayerBar.svelte';
+  import { restore as restorePlayer } from './lib/music/player.svelte';
   import { draftFrom, starters } from './lib/templates';
   import {
     BUILTIN_SPACES,
@@ -157,6 +159,8 @@
     return raw ? { workspace: opening(loaded.workspace), migrated: true } : loaded;
   }
   const loaded = loadWorkspace();
+  // The last queue, paused — read at the same moment as the workspace, from the same device.
+  restorePlayer();
   let workspace = $state<Workspace>(loaded.workspace);
   let feeds = $state<Record<string, Feed>>({});
   /// How many messages each note's discussion holds — the feed's reply badges. Read like
@@ -3429,6 +3433,10 @@
           </div>
         {/each}
       </div>
+      <!-- **The player is the app's own** (`decisions.md#ui`, 2026-11-13, *a sixth group, Music*):
+           under the windows, so it is the bottom of the screen on a computer and sits just above
+           the bar on a phone. It draws nothing until a song is in the queue. -->
+      <PlayerBar onopen={openNote} />
     </div>
 
     <ReminderBanner />

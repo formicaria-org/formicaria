@@ -4,14 +4,13 @@ formicaria keeps your songs beside your notes. **A song is a note**, like a meal
 artist, album and the rest are the note's details, and its audio file is attached to it like any
 other file. Open a song's note and it plays there.
 
-> **New, and only the start.** Built in November 2026 and tried on a computer only. For now you can
-> add songs, search them and open them; albums, artists, playlists and a player that keeps playing
-> while you move around the app come next.
+> **New.** Built in November 2026 and tried on a computer only. You can add songs, browse them by
+> song, album, artist and playlist, make playlists and play them.
 
 ## Turning it on and off
 
 **Music** is one of the app's [groups](./views.md#the-groups), beside Food, Fitness and Health. It
-opens on **Songs**. It is shown unless you hide it, with the same switch as the others:
+opens on its player, with your songs under it. It is shown unless you hide it, with the same switch as the others:
 
 **Settings → Food & reminders → Food and training → Show Food, Fitness, Health and Music on this device.**
 
@@ -35,11 +34,63 @@ file carried are kept on the file's own note too, so you can always see what it 
 
 Undo (**↶**) takes back the songs you just saved (a very large batch, 200 songs at a time).
 
-## Songs
+## The player
 
-The search comes first: type any part of a title, an artist, an album or a genre. Every word you
-type must match, capitals and accents don't matter (*beyonce* finds *Beyoncé*), and the list
-narrows as you type. Press a song to open its note.
+The top of Music is a music player: a lit display above a row of keys. It is there before anything
+plays; press a song below to start.
+
+- **The display** shows the song scrolling past, its number in what is playing (*TRK 02/12*), the
+  time — press it to see the time left instead — and how far along it is: press or drag the bar to
+  jump. Lights show **SHUF**, **REP** (or **REP1**), **EQ** and the volume, and on a computer a level
+  meter moves with the sound.
+- **The keys**: shuffle, ⏮ (the start of the song, or the one before when you are near its start),
+  ▶/❚❚, ⏭, and repeat — press it again for *all*, *one*, *off*. Where there is room (a computer, a
+  tablet) also back and forward ten seconds and ■ stop.
+- **Under the keys**: mute and the volume; **Sound**; **Queue** (what plays next: press one to play
+  it, × to take it out); and the song's **note**.
+- **Sound**, on a computer: a five-band equaliser with presets (*Flat*, *Bass boost*, *Rock*, *Pop*,
+  *Jazz*, *Classical*, *Vocal*, *Treble boost*) or your own setting, and the balance between left and
+  right. Not on a phone yet.
+- **Keys on a computer**, while Music is open and you are not typing: **Space** play or pause,
+  **← →** five seconds back or on, **N** next, **P** previous, **M** mute, **S** shuffle, **R**
+  repeat, **+ −** volume. Your keyboard's media keys work too, anywhere in the app.
+
+**It keeps playing wherever you go in the app.** Leave Music, or scroll the player out of sight,
+and a slim bar appears at the bottom with the song and ⏮ ⏯ ⏭; press the song's name to come back to
+the player (elsewhere in the app it opens **Now playing**: the cover, the controls and the queue).
+
+**What is queued, and your volume, shuffle, repeat and sound, are kept on this device**, and come
+back the next time you open the app, paused.
+
+On a phone the music stops when you leave the app or the screen turns off, for now.
+
+## Finding your music
+
+Under the player: **Songs · Albums · Artists · Playlists**, and one search for all four. Type any
+part of a title, an artist, an album or a genre; every word must match, and capitals and accents
+don't matter (*beyonce* finds *Beyoncé*).
+
+- **Press a song to play it.** The list you pressed it in becomes what plays next, in that order —
+  search first to play just what you found. **Play** and **Shuffle** above a list play all of it.
+- **Albums** are their covers; press one for its songs in track order.
+- **Artists** list everyone with their albums and songs; a compilation's songs are under each of the
+  artists who made them.
+- **⋯ beside a song** (or beside an album's, artist's or the whole list's **Shuffle**): **Play next**,
+  **Add to queue**, **Add to playlist…**, **Open its note**.
+
+## Playlists
+
+A playlist is a note tagged `playlist`, with its songs as a numbered list of links. You can open it
+and edit it like any note — the list's order is the order it plays in — but you rarely need to:
+
+- **Make one** with **New playlist** in Playlists, with **Save the queue as a playlist**, or from any
+  ⋯ → **Add to playlist…** → a name → **Make it**.
+- **Add to one** from any ⋯ → **Add to playlist…** → its name. A whole album or artist goes in at
+  once from its own ⋯.
+- **In a playlist**, a song's ⋯ also has **Move up**, **Move down** and **Take out of this
+  playlist**. Words you wrote in the playlist's note around the list are kept.
+
+Undo (**↶**) takes back any change to a playlist.
 
 ## Where your songs are kept
 

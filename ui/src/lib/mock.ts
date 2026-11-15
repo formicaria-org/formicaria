@@ -2399,6 +2399,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return healthGuidance(notes, String(args.day)) as T;
     case 'health_days':
       return tracker.healthDays(notes, args as { from: string; to: string; weeks?: boolean }) as T;
+    case 'music_playlists':
+      // As `music::playlists`: notes tagged `playlist`, their `note:` links in the body's order.
+      return notes
+        .filter((n) => n.tags.some((t) => t.toLowerCase() === 'playlist'))
+        .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''))
+        .map((n) => ({
+          id: n.id,
+          title: n.title ?? '',
+          songs: [...(noteDetail(n.id)?.body ?? '').matchAll(/note:([0-9A-Za-z]{26})/g)].map((m) =>
+            m[1].toUpperCase(),
+          ),
+        })) as T;
     case 'music_library':
       return notes
         .filter((n) => n.props.log === 'music')

@@ -2799,20 +2799,36 @@ Under ~15 GB free, run `free-space` first. A clean clone also installs a second 
 environment; build from a `git worktree` with this checkout's environment instead.
 
 
-## Music — what phase 2 does not do yet (2026-11-13)
+## Music — what is not built yet (2026-11-15)
 
 `music-plan-2026-11-13.md`, Part 5, is the queue; these are the gaps a person meets today.
-- **No player.** A song plays only inside its note's own player, which stops when the note closes.
-  No queue, no next song, no media keys (phase 3).
-- **Songs is the only view.** No Albums, Artists or Playlists, no multi-select, no sort control; the
-  list is drawn whole, not virtualised, and has not been measured with thousands of songs (phase 3,
-  `perf.rs`).
+- **No multi-select, no sort control, no M3U8 out or in.** ⋯ on an album, an artist or all songs
+  acts on all of them; a playlist is reordered one *Move up* / *Move down* at a time.
+- **A playlist link to a note that is not a song** (or a song deleted since) is left out of its
+  list and counted as *not in your music*; the line stays in the note.
+- **The list costs a pass over the whole vault.** `log` does not reach the index (see *every logged
+  entry still costs the board a read*), so `music_library` reads every note, not only the songs.
+  Measured on a development laptop, release build (`cargo test --release -p fm-app --test perf
+  the_music_library -- --nocapture`): **100 ms** for 5,000 songs beside 5,000 notes, 1.4x the
+  board's cost per object; the test fails at 2.5x. The fix is the same `log` column. Rows are drawn
+  only in view (a fixed 56 px row in `MusicScreen.svelte`); not measured in a browser with 5,000.
 - **A file already in the library still gets a second asset note.** The sheet uploads first and
   compares the audio's hash after, so the duplicate song is refused but the upload made its asset
   note, as any re-uploaded attachment does (`assets.rs`, *a second ingest still makes its own asset
   note*). One blob, two cards behind it.
 - **A song whose file is not on this device** (added on another one, over the git size limit) is
-  listed like any other, and its note says the file is not available only when opened.
-- **No cover is shown** anywhere yet, though it is read and stored (`cover` on the song note).
-- **Not tried on a phone.** The sheet and the list are laid out for a narrow window; a phone upload
-  of a large file goes through the chunked path, untested with audio on a device.
+  listed like any other; pressing it shows *cannot be played here* in the player.
+- **No gapless playback** (M5), and **two players can sound at once**: a song's note has its own
+  `<audio>`, which the app's player does not pause.
+- **Sound (equaliser, balance) and the level meter are computer-only**: built on Web Audio, silent
+  for the phone's cross-origin file protocol, so not offered there. The meter and the bands are not
+  asserted by a test (jsdom has no Web Audio); seen working only as far as a headless Chromium
+  shows the deck. Once the graph is built the element stays routed through it for the session.
+- **The slim bar coming back when the deck is scrolled away** rests on `IntersectionObserver`,
+  which jsdom lacks, so `App.music.test.ts` only covers the fallback (a deck always in view).
+- **Back closing an opened album, artist or playlist, the ⋯ sheet and Now playing** is the shared
+  layer mechanism (`nav.svelte.ts`), not asserted in `App.music.test.ts`: history left by earlier
+  tests made `history.back()` land elsewhere, so the tests use buttons.
+- **On a phone, music stops when the app leaves the screen** (M4: a native player, later). Nothing
+  of it has been tried on a phone; a large upload goes through the chunked path, untested with
+  audio on a device.

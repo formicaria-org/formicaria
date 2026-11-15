@@ -14549,3 +14549,51 @@ attachments travel is a per-vault size limit*; *the board and the agenda are lef
 Verdict: **extends three closed sets** (log kinds, add actions, spans) and the group list; **adds a
 dependency**. It widens what ships: a sixth group and its shipped view, and `lofty` (MIT OR
 Apache-2.0, pure Rust; its default feature's `flate2` is already in both builds) in `fm-core`, so in the desktop and phone builds.
+
+## 2026-11-15 — the Music view is a player you see: a deck above the browser, lean on a phone; playlists are tagged notes `#ui` `#data`
+
+> **Extends** *a sixth group, Music* (2026-11-13), M3: the player stays the app's own, and the
+> Music view now also draws it full-size. Reverses nothing.
+
+**The owner**, on seeing phase 3 (a list, the player hidden until something played): *"it should
+look like an mp3, a vintage but full options version"*; *"where we can browse for the songs and
+playlist and play them, also seeing it running (plus volume option and sound option if possible)"*;
+then *"the mp3 look should be lean, and fit nicely in mobile devices"* and *"easy to browse
+collections and songs"*.
+
+**Decision.**
+1. **The view's one screen is a deck above a browser** (`music/MusicScreen.svelte`, `span:
+   library`). The deck (`music/Deck.svelte`) is a lit display — the song scrolling, track number,
+   time played or left, a level meter, status lights — over the keys: shuffle, previous, play,
+   next, repeat (off / all / one), and where it has room back/forward ten seconds and stop; volume
+   and mute; *Sound*; the queue. The look is the app's own, not any product's (a survey of retro
+   players informed it: one dominant readout, transport keys, docked panels).
+2. **One column, the player on top, sized by its own width** (container queries; owner: *"why the
+   play is on the left and the rest on the right? … a vertical layout"* — a side-by-side split was
+   tried first and dropped). Under 26rem: one row of five touch-sized keys and a row of icons, and
+   the deck scrolls away while the tabs and search stay pinned. From 48rem: a strip — the display
+   beside the keys — pinned with the tabs and search on one line while the songs scroll under it.
+   A narrow pane on a computer is lean too.
+3. **The slim bar shows only while no deck is in view** (`IntersectionObserver`; without one, a
+   deck counts as in view). Its press scrolls back to the deck when there is one.
+4. **The browser is Songs · Albums · Artists · Playlists, one search over all.** Albums are covers
+   (three across on a phone) and play in disc/track order; an artist is who made the songs, so a
+   compilation's songs go to each. Every row's ⋯ is *Play next*, *Add to queue*, *Add to playlist*,
+   *Open its note*.
+5. **A playlist is a note tagged `playlist`**, its body a numbered list of `[Title](note:<id>)`
+   links in play order (the plan's *Playlists*). `music_playlists` (read-only) answers each with its
+   song ids in body order, repeats kept. Every change is a body edit against the version read,
+   recorded for Undo; other lines of the body are kept.
+6. **Sound runs through Web Audio only where the audio is same-origin.** Five bands
+   (60 Hz–14 kHz, ±12 dB) with presets, a balance and the meter's analyser. A
+   `MediaElementSource` is silent for cross-origin audio without CORS, which the phone's file
+   protocol is, so there the graph is never built and *Sound* is not offered. A failure to build it
+   leaves the plain element playing.
+7. **Settings are device state** like the queue (`fm-player` in `localStorage`): volume, mute,
+   shuffle, repeat, the bands, the balance. **Player keys** (Space, ←/→, N, P, M, S, R, +/−) work
+   only while the Music view is up, nothing that types has focus and no dialog is open.
+
+**The four questions.** `#ui` `#data`. Read: *a sixth group, Music*; *a group carries views, one
+shared filter and one add action*; *leave working views alone* (`#ui`, 2026-10-12) — no other view
+changes. Verdict: **permitted**, inside M3. It widens what ships by one read-only command and no
+dependency.
