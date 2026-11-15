@@ -43,7 +43,17 @@ if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
         [ -e "$f" ] && [ "$(stat -c %Y "$f" 2>/dev/null || echo 0)" -gt "$started" ] && stale=1
     done
     if [ "$stale" -eq 0 ]; then
-        xdg-open "$URL" >/dev/null 2>&1 || true   # current — reuse; the browser focuses an open tab
+        # Current — reuse it, **through formicaria, not `xdg-open`** (2026-11-15): the running program
+        # started once more hands the address to the running one, which opens it where formicaria
+        # opens (its own browser when that is on, `open_formicaria`), exactly as a downloaded copy's
+        # second double-click does. `xdg-open` alone meant the person's default browser, so a double-
+        # click within the ~90 s after closing formicaria's window opened it in another browser.
+        exe="$(readlink "/proc/$pid/exe" 2>/dev/null || true)"
+        if [ -n "$exe" ] && [ -x "$exe" ]; then
+            FM_OPEN=1 FM_ADDR="${HOST}:${PORT}" "$exe" >/dev/null 2>&1 || xdg-open "$URL" >/dev/null 2>&1 || true
+        else
+            xdg-open "$URL" >/dev/null 2>&1 || true
+        fi
         exit 0
     fi
     echo "formicaria: a newer build or model config is present — restarting the server" >&2
