@@ -14847,3 +14847,44 @@ a web page ~65 MB; **a pinned tab cannot join a split view**, checked in ESR 153
 
 **Widens what ships:** one content script (formicaria's own address only), one more read-only
 command reachable by the add-on (`page_notes`) and the vault search (`search`) for the address bar.
+
+## 2026-11-15 (later still) — two verbs for the web: *Bring in* and *Save page*; what follows a selection is formicaria's `#ui` `#data`
+
+**Context.** The owner: *"select parts of a content in the web tab and seamlessly bring it into the
+note … the selection gets the right content, then the user should be able to bring the actual content
+through assets or just a link for the heavy ones … more than one action done in different ways doing
+the same could help … minimal and intuitive actions … we can also add things like if a person selects
+with the pointer what happens after it, we are not restricted by defaults"*. Plan:
+`data-sources-research-2026-11-15.md` §11.
+
+**Decided.**
+1. **Two verbs, everywhere the same.** *Bring in* puts what was pointed at into **the note in front**,
+   named on the button (*Bring into "Reading"*); with no note in front, a new note named after the
+   page is made and opened. *Save page* makes the page its own note (recipe, paper, article…); *Just
+   the link instead* is the old bookmark. *Keep in formicaria*, *Add to the open formicaria note* and
+   *Bookmark in formicaria* are gone from the menus.
+2. **One pipeline** (`ui/src/lib/web/bring.ts`): text arrives quoted with its formatting and a link to
+   the passage; a table as a table; code as code; an image **kept in the vault** (above 10 MB, a link
+   with *Keep a copy*); a link as a link; an audio or video file as a link with *Keep the file*; a
+   stream as the page at the moment it was playing. Every piece ends with its source.
+3. **Corrections after, not questions before**: a line in formicaria says what came in, with
+   **Undo** and the one alternative. The add-on's system notifications remain only for when
+   formicaria is not open.
+4. **Many ways in, one action**: the selection chip, the right-click menu (with *Pick from this
+   page…* for what a selection cannot reach), a drop onto formicaria, Alt+Shift+A.
+5. **What follows a selection is the person's setting** (the address-bar ant's panel): *offer* (the
+   chip; the starting choice), *bring in at once* (Alt held skips; a double-click on a word never
+   brings), *nothing*. The chip's script runs on every web page's top frame (3 KB, idle until a
+   selection, drawn in a closed shadow root, never acting on what a page says), measured inside
+   `browser-check`'s memory budget.
+6. **The page's ant moves into the address bar** (*Save page*; filled when notes name the page). The
+   toolbar's ant stays for showing formicaria.
+7. **formicaria's panel goes left or right of the page** (⇆ in its header; double-click the divider
+   to fill or go back beside). Top and bottom wait for a test of a grid layout of the window's row.
+8. **The phone** gets the same two verbs with its own gestures (research §11.4): the selection
+   toolbar, long-press, the share sheet, the note as a sheet over the page, and the ant as an
+   eyedropper. Built with the phone's browser (R2).
+
+**Widens what ships:** a content script on every web page (top frame, the chip), one injected on
+request (Pick), the add-on's `menus` permission (to read the clicked video's moment), and the add-on
+now writes attachments into the vault of the note in front through the existing `ingest` route.

@@ -47,10 +47,10 @@ part of your notebook and are never synced.
 
 Other Firefox add-ons work too: install them from Firefox's add-on site as in any Firefox.
 
-## Keep a page
+## Save a page
 
-On any page, press the **formicaria button** in the toolbar (or **Alt+Shift+K**), or right-click
-the page and choose **Keep in formicaria**. formicaria reads what the page says it is and keeps it:
+On any page, press the **ant in the address bar** (or **Alt+Shift+K**), or right-click the page and
+choose **Save page in formicaria**. formicaria reads what the page says it is and saves it:
 
 | The page is | It becomes |
 |---|---|
@@ -60,22 +60,23 @@ the page and choose **Keep in formicaria**. formicaria reads what the page says 
 | a **song or album page** (Bandcamp and others) | a note with the link, on the **Web** shelf; music you have bought is added with **Add a song** |
 | anything else | an **article**: its text, read the way Firefox's reader view reads it, on the **Web** shelf |
 
-**Every kept page ends with a link to a copy of the page as it was when you kept it**, stored in
+**Every saved page ends with a link to a copy of the page as it was when you saved it**, stored in
 your vault like any attachment. Large copies stay off git under the vault's size limit for
 attachments, as every attachment does.
 
-If you **select text** before keeping, it goes at the top of the note as a quote, with a link that
+If you **select text** before saving, it goes at the top of the note as a quote, with a link that
 reopens the page with that passage highlighted.
 
 Then press **Open in formicaria** to go to the note. It is yours: edit it, tag it, move it.
 
 ## formicaria beside the page
 
-- **formicaria sits beside the page**, on the right of the window, and **the tabs are for the web**.
-  Drag the line between them to make formicaria wider or narrower; the width is kept.
-- **⤢** at the top of formicaria makes it **fill the window**, as it was before; choosing a page in the
-  tab list puts it back beside the page. **✕ folds it away**; the **ant button** at the left of the
-  toolbar, or **Alt+Shift+F**, brings it back.
+- **formicaria sits beside the page**, and **the tabs are for the web**. Drag the line between them
+  to make formicaria wider or narrower; the width is kept.
+- **⇆** at the top of formicaria moves it to the **other side** of the page. **⤢** makes it **fill the
+  window** (or double-click the line between them); choosing a page in the tab list puts it back
+  beside. **✕ folds it away**; the **ant button** at the left of the toolbar, or **Alt+Shift+F**,
+  brings it back.
 - There is **one formicaria**, in one window: opening formicaria again (double-clicking it, say)
   shows it there rather than opening a second one, and a link to a note opens in it. A link in a
   note opens as a tab beside it.
@@ -83,29 +84,53 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.
 
-## Bring the page into a note
+## Bring things in, or save the page
 
-- **Add to the open note**: select a passage and press **Alt+Shift+A**, or right-click and choose
-  **Add to the open formicaria note**. The passage goes at the end of the note open in formicaria,
-  quoted, with a link back to the page. With nothing selected, the page's link goes in; on a link, that
-  link. The note saves as if you had typed it, so **Undo** takes it back.
-- **This page is in your notes**: when a note names the page you are on, a red number on the
-  formicaria button says how many. Press the button to see them, each with the line that names the
-  page, and open one beside the page; **Keep again** keeps a second copy if you want one.
-- **Search your notes from the address bar**: type **fm**, a space, and what you are looking for;
-  choose a note to open it in formicaria.
-- **Alt+Shift+K** keeps the whole page, like the toolbar button. (Change any of these shortcuts in
-  the add-ons' *Manage Extension Shortcuts*.)
+Two things you can do with what you find, and the same words everywhere:
 
-Kept pages and passages say where they came from: the note's **source** is `web`, with the page's
-address and when it was kept. Every source formicaria reads from (mail, calendars, files, and later a
-watch) describes what it brings the same way.
+| You want | Do | What happens |
+|---|---|---|
+| **this piece in what you are writing** | **Bring in**: select it and press the **ant chip** that appears beside it; or right-click it → **Bring into "…"**; or drag it onto formicaria; or Alt+Shift+A | it goes into **the note in front** in formicaria, named on the button. With no note open, a new note named after the page is made and opened |
+| **the whole page, for later** | **Save page**: the **ant in the address bar**, or right-click the page → **Save page in formicaria**, or Alt+Shift+K | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
+
+**What arrives is what you pointed at:**
+
+- **text** comes quoted, with its bold, italics, links and lists, and a link that reopens the page at
+  that passage;
+- an **image** is **kept in your vault** (large ones come as a link, with *Keep a copy* one press
+  away);
+- a **link** comes as a link;
+- a **table** comes as a table, **code** as a code block;
+- a **video or audio file** comes as a link, with *Keep the file* one press away; a **video on a
+  streaming site** comes as a link to the page **at the moment it was playing**.
+
+After each one, a line at the bottom of formicaria says what came in, with **Undo** and the one
+other choice (*Link only instead*, *Keep the file*).
+
+**What is hard to select** (an image in a slideshow, a whole table): right-click the page → **Pick
+from this page…**. What is under the pointer lights up and says what it is; **scroll** to widen it to
+what contains it, or narrow it back; **click** to bring it in (Shift+click to bring several); **Esc**
+to stop.
+
+**After you select something on a page**, formicaria does what you choose, in the address-bar ant's
+panel: **offer to bring it in** (the chip, the starting choice), **bring it in at once** (every
+selection goes in; hold Alt to just select; a double-click on a word never does), or **nothing**.
+
+**This page is in your notes**: when a note already names the page you are on, the ant in the
+address bar is **filled**; press it to see those notes, each with the line that names the page, and
+open one beside the page (**Save again** keeps a second copy if you want one).
+
+**Search your notes from the address bar**: type **fm**, a space, and what you are looking for.
+
+What you bring in or save says where it came from: the note's **source** is `web`, with the page's
+address and when. Every source formicaria reads from (mail, calendars, files, and later a watch)
+describes what it brings the same way.
 
 ## Bookmarks
 
-Right-click a page → **Bookmark in formicaria**: a note with the page's title and link, on the
-**Bookmarks** shelf, without a copy of the page. Like every note, it travels to your other devices with
-your notebook.
+After saving a page, press **Just the link instead** in the ant's panel: a note with the page's title
+and link, on the **Bookmarks** shelf, without a copy of the page. Like every note, it travels to your
+other devices with your notebook.
 
 ## Updates
 

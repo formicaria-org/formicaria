@@ -12,6 +12,7 @@ and formicaria browser are never touched):
 3. measures memory (PSS, every process) and start against **the same ESR, unmodified**, and fails the
    release past the budgets: memory > +10 %, start > +15 % (+100 ms of noise).
 """
+import base64
 import json
 import os
 import re
@@ -164,6 +165,98 @@ class Marionette:
                 return r[3]
 
 
+TEST_PORT = 8796
+TEST_PAGE = f"http://localhost:{TEST_PORT}/page.html"
+# A 1x1 PNG, so the image test has real bytes to keep.
+PIXEL = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+
+def serve_test_page(work: Path) -> subprocess.Popen:
+    """A page holding one of each kind, on `localhost` (formicaria's own `127.0.0.1` is not a web page)."""
+    d = work / "testpage"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "pixel.png").write_bytes(PIXEL)
+    (d / "page.html").write_text(
+        "<!doctype html><html><head><title>Test walks</title></head><body>"
+        "<p id=p>The path <b>climbs</b> gently through the pines.</p>"
+        "<p><img id=img src=pixel.png alt='A pixel'></p>"
+        "<table id=t><tr><th>Day</th><th>Km</th></tr><tr><td>Mon</td><td>12</td></tr></table>"
+        "<p id=q>Ants carry leaves home along the trail.</p>"
+        "</body></html>"
+    )
+    return subprocess.Popen([sys.executable, "-m", "http.server", str(TEST_PORT), "--bind", "127.0.0.1",
+                             "--directory", str(d)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def bring_in(m: "Marionette") -> dict:
+    """Each way in, through the add-on's own commands (the harness's synthetic keys do not reach add-on
+    shortcuts; `doCommand` runs exactly what the key runs)."""
+    out: dict = {}
+    nid = post("/api/create_notes", {"notes": [{"title": "Reading", "body": "Start."}]})[0]["id"]
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    m.cmd("WebDriver:ExecuteScript", {"args": [SERVER + "/#note=" + nid, TEST_PAGE], "script": """
+        const sp = Services.scriptSecurityManager.getSystemPrincipal();
+        document.getElementById('formicaria-browser').fixupAndLoadURIString(arguments[0], { triggeringPrincipal: sp });
+        gBrowser.selectedTab = gBrowser.addTab(arguments[1], { triggeringPrincipal: sp });"""})
+    time.sleep(6)
+    handles = m.cmd("WebDriver:GetWindowHandles")
+    handles = handles if isinstance(handles, list) else handles.get("value", handles)
+    m.cmd("WebDriver:SwitchToWindow", {"handle": handles[-1]})
+
+    def select(js: str) -> None:
+        m.cmd("Marionette:SetContext", {"value": "content"})
+        m.cmd("WebDriver:ExecuteScript", {"args": [], "script": f"""
+            const r = document.createRange(); {js}
+            getSelection().removeAllRanges(); getSelection().addRange(r);"""})
+
+    def bring_key() -> str:
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+            [...document.querySelectorAll('key')].find(k => k.getAttribute('modifiers') === 'alt,shift' && k.getAttribute('key') === 'A').doCommand();"""})
+        time.sleep(5)
+        return post("/api/get", {"id": nid}).get("body", "")
+
+    select("r.selectNodeContents(document.getElementById('p'));")
+    body = bring_key()
+    out["bring_text"] = "> The path **climbs** gently through the pines." in body and "> — [Test walks](" in body
+    select("r.selectNode(document.getElementById('img'));")
+    body = bring_key()
+    out["bring_image"] = "![A pixel](asset:sha256-" in body
+    select("r.selectNode(document.getElementById('t'));")
+    body = bring_key()
+    out["bring_table"] = "| Day | Km |" in body and "| Mon | 12 |" in body
+    # The chip: a selection made with the pointer offers it, and pressing it brings the selection in.
+    select("r.selectNodeContents(document.getElementById('q'));")
+    m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+        document.getElementById('q').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));"""})
+    time.sleep(1)
+    has_chip = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+        const c = document.querySelector('formicaria-chip'); if (c) c.click(); return !!c;"""})
+    time.sleep(5)
+    body = post("/api/get", {"id": nid}).get("body", "")
+    out["bring_chip"] = bool(has_chip.get("value") if isinstance(has_chip, dict) else has_chip) and "Ants carry leaves home" in body
+    if not all(out.values()):
+        print(f"browser-check: the note read {body!r}")
+    out["page_in_notes"] = any(n.get("id") == nid for n in post("/api/page_notes", {"url": TEST_PAGE}))
+    # The panel moves to the left of the page, and formicaria is still in it.
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    side = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER], "script": """
+        const done = arguments[arguments.length - 1];
+        document.getElementById('formicaria-panel-side').doCommand();
+        setTimeout(() => {
+          const b = document.getElementById('browser');
+          const p = document.getElementById('formicaria-panel').getBoundingClientRect();
+          const t = document.getElementById('tabbrowser-tabbox').getBoundingClientRect();
+          done({ side: b.getAttribute('formicaria-side'), left: p.left < t.left,
+                 ours: (document.getElementById('formicaria-browser').currentURI?.spec || '').startsWith(arguments[0]) });
+          document.getElementById('formicaria-panel-side').doCommand();
+        }, 3000);"""})["value"]
+    out["panel_left"] = side.get("side") == "left" and side.get("ours") is True
+    return out
+
+
 def settings_page(ff: Path, work: Path) -> dict:
     """Open the real Settings page of formicaria's browser and say what a person would see there."""
     import base64
@@ -233,41 +326,14 @@ def settings_page(ff: Path, work: Path) -> dict:
         seen["panel_folds"] = tabs.get("folded") == "folded"
         if not all(seen[k] for k in ("panel_takes_address", "panel_takes_note", "panel_links_are_tabs", "panel_folds")):
             print(f"browser-check: panel seen {tabs}")
-        # **Add to the open note**, end to end: a note open in the panel, a selection on a page,
-        # Alt+Shift+A, and the passage is in the note on disk with where it came from.
+        # **Bring in**, end to end (research §11): a note open in the panel, then from a page each kind
+        # of thing, and each must arrive in the note on disk as itself, with where it came from.
         try:
-            made = post("/api/create_notes", {"notes": [{"title": "Reading", "body": "Start."}]})
-            nid = made[0]["id"]
-            m.cmd("WebDriver:ExecuteScript", {"args": [SERVER + "/#note=" + nid], "script": """
-                document.getElementById('formicaria-browser').fixupAndLoadURIString(arguments[0],
-                  { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
-                const t = gBrowser.addTab('https://example.org/', { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
-                gBrowser.selectedTab = t;"""})
-            time.sleep(6)
-            handles = m.cmd("WebDriver:GetWindowHandles")
-            handles = handles if isinstance(handles, list) else handles.get("value", handles)
-            m.cmd("WebDriver:SwitchToWindow", {"handle": handles[-1]})
-            m.cmd("Marionette:SetContext", {"value": "content"})
-            m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
-                const r = document.createRange(); r.selectNodeContents(document.querySelector('h1') || document.body);
-                getSelection().removeAllRanges(); getSelection().addRange(r);"""})
-            # The add-on's Alt+Shift+A, by its own command: the harness's synthetic keys do not reach
-            # add-on shortcuts, and this runs exactly what the key runs.
-            m.cmd("Marionette:SetContext", {"value": "chrome"})
-            m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
-                [...document.querySelectorAll('key')].find(k => k.getAttribute('modifiers') === 'alt,shift' && k.getAttribute('key') === 'A').doCommand();"""})
-            time.sleep(8)
-            body = post("/api/get", {"id": nid}).get("body", "")
-            seen["add_to_note"] = body.startswith("Start.\n\n> ") and "> — [Example Domain](https://example.org/)" in body
-            if not seen["add_to_note"]:
-                print(f"browser-check: the note read {body!r}")
-            found = post("/api/page_notes", {"url": "https://example.org"})
-            seen["page_in_notes"] = any(n.get("id") == nid for n in found)
-            m.cmd("Marionette:SetContext", {"value": "chrome"})
-        except Exception as e:  # noqa: BLE001 - reported as a failed check
-            print(f"browser-check: add to note: {e}")
-            seen.setdefault("add_to_note", False)
-            seen.setdefault("page_in_notes", False)
+            seen.update(bring_in(m))
+        except Exception as e:  # noqa: BLE001 - reported as failed checks
+            print(f"browser-check: bring in: {e}")
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "page_in_notes", "panel_left"):
+            seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
     finally:
@@ -350,7 +416,11 @@ def main() -> None:
             "the startup script raised nothing": not first.get("errors"),
             "no tab holds formicaria": first.get("formicariaTabs") == 0,
         }
-        page = settings_page(ff, work)
+        testpage = serve_test_page(work)
+        try:
+            page = settings_page(ff, work)
+        finally:
+            testpage.terminate()
         checks.update({
             "Settings: no 'managed by your organization'": page.get("managed_notice_hidden") is True,
             "Settings: no 'new look' promotion": page.get("new_look_promo_hidden") is True,
@@ -362,8 +432,12 @@ def main() -> None:
             "the panel: a note's address opens in it": page.get("panel_takes_note") is True,
             "the panel: a link it opens becomes a tab of the window": page.get("panel_links_are_tabs") is True,
             "the panel: it folds away": page.get("panel_folds") is True,
-            "the add-on adds a selection to the note open in the panel": page.get("add_to_note") is True,
+            "bring in: a passage arrives quoted, with its source": page.get("bring_text") is True,
+            "bring in: an image arrives kept in the vault": page.get("bring_image") is True,
+            "bring in: a table arrives as a table": page.get("bring_table") is True,
+            "bring in: the chip after a selection brings it in": page.get("bring_chip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
+            "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")

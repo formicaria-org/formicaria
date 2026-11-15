@@ -31,6 +31,12 @@ trap, add one. Newest concerns first within each section.
   kit loudly (the swap refuses) and the previous copy stays.
 - **A GET carrying no `Origin` is still accepted on loopback** (blob reads by content address); as
   before, not widened.
+- **Bring in (0.35)**: the chip's script runs on every web page's top frame (not in frames: a
+  selection inside an embedded frame is brought in only by right-click or Alt+Shift+A). Pick's widen
+  and narrow use the wheel; no touch version until the phone. An image the page made itself (a
+  `blob:` address) comes as a link. *Undo* and the alternatives find what came in by its text, so
+  after the person edits it they say so rather than guess. The panel moving sides reloads formicaria
+  (a moved browser starts empty); top and bottom are not offered yet.
 - **formicaria's panel lives in one window**: another window's ant button brings that window forward
   rather than moving the panel (moving a live page between windows is possible in Firefox, not done).
 - **The add-on's background page is persistent** now (it holds the bridge's port to the panel), a few

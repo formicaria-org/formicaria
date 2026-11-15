@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "formicaria",
-  "description": "formicaria's browser actions: keep the page you are on, add a passage to the note open in formicaria, see which notes name a page, and keep downloads, in your formicaria notebook.",
-  "version": "1.3.0",
+  "description": "formicaria's browser actions: bring what you select on a page into the note open in formicaria, save whole pages, see which notes name a page, and keep downloads, in your formicaria notebook.",
+  "version": "1.4.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "browser@formicaria-org.github.io",
@@ -17,7 +17,8 @@
     "notifications",
     "downloads",
     "theme",
-    "<all_urls>"
+    "<all_urls>",
+    "menus"
   ],
   "background": {
     "scripts": [
@@ -25,23 +26,18 @@
     ],
     "persistent": true
   },
-  "browser_action": {
-    "default_title": "Keep this page in formicaria (Alt+Shift+K)",
-    "default_popup": "popup.html",
-    "default_icon": "icon.svg"
-  },
   "commands": {
     "keep-page": {
       "suggested_key": {
         "default": "Alt+Shift+K"
       },
-      "description": "Keep this page in formicaria"
+      "description": "Save this page in formicaria"
     },
     "add-to-note": {
       "suggested_key": {
         "default": "Alt+Shift+A"
       },
-      "description": "Add the selection, or this page's link, to the note open in formicaria"
+      "description": "Bring the selection (or the page's link) into the note in front in formicaria"
     }
   },
   "icons": {
@@ -57,9 +53,33 @@
         "bridge.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "exclude_matches": [
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "select.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "omnibox": {
     "keyword": "fm"
+  },
+  "page_action": {
+    "default_icon": "icon-page.svg",
+    "default_title": "Save this page in formicaria (Alt+Shift+K)",
+    "default_popup": "popup.html",
+    "show_matches": [
+      "http://*/*",
+      "https://*/*"
+    ],
+    "pinned": true
   }
 }

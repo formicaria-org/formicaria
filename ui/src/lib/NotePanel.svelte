@@ -3,7 +3,11 @@
   import { clockText, dayOfInstant } from './appTime';
   import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
   import { SAVE_NOW } from './updater.svelte';
-  import { inbox as bridgeInbox, appended as appendedText } from './web/bridge.svelte';
+  import {
+    inbox as bridgeInbox,
+    appended as appendedText,
+    replaced as replacedText,
+  } from './web/bridge.svelte';
   import {
     getNote,
     updateBody,
@@ -1228,6 +1232,26 @@
       void save().then(
         () => ins.done({ ok: draft.includes(ins.text.trim()), title: note?.title || undefined }),
         (e) => ins.done({ ok: false, error: String(e) }),
+      );
+    });
+  });
+
+  // **Undo, or the alternative** (*Link only instead*, *Keep the file*): what was brought in is
+  // replaced in this note's text, saved the same way.
+  $effect(() => {
+    const r = bridgeInbox.replace;
+    if (!r || !note || r.id !== note.id) return;
+    untrack(() => {
+      bridgeInbox.replace = null;
+      const next = replacedText(draft, r.from, r.to);
+      if (next == null) {
+        r.done({ ok: false, error: 'It was changed since; edit the note by hand.' });
+        return;
+      }
+      draft = next;
+      void save().then(
+        () => r.done({ ok: true, title: note?.title || undefined }),
+        (e) => r.done({ ok: false, error: String(e) }),
       );
     });
   });

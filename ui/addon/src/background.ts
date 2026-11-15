@@ -8,6 +8,20 @@
 import type { WebRecipe } from '../../src/lib/types';
 import { buildClip, kindOf, type PageFacts } from '../../src/lib/web/clip';
 import { choose, onCreated, type Pending, type Where } from './downloads';
+import {
+  IMAGE_LIMIT,
+  classify,
+  fileName,
+  imageKept,
+  imageLinked,
+  linkPiece,
+  mediaKept,
+  mediaLinked,
+  pagePiece,
+  streamed,
+  textPiece,
+  type Piece,
+} from '../../src/lib/web/bring';
 // Exported for the end-to-end test's copy of the add-on, which answers the question itself.
 export { choose };
 
@@ -214,10 +228,12 @@ const waiting = new Map<number, (r: Reply) => void>();
         if (bridge === p) bridge = null;
       });
       p.onMessage.addListener((m) => {
-        const r = m as Reply;
+        const r = m as Reply & { up?: string };
         if (typeof r?.n === 'number') {
           waiting.get(r.n)?.(r);
           waiting.delete(r.n);
+        } else if (typeof r?.up === 'string') {
+          void fromApp(m as Record<string, unknown>);
         }
       });
     })
@@ -233,52 +249,202 @@ export function ask(m: Record<string, unknown>): Promise<Reply> {
     waiting.set(n, resolve);
     setTimeout(() => {
       if (waiting.delete(n)) reject(new Error('formicaria did not answer.'));
-    }, 5000);
+    }, 8000);
     b.postMessage({ ...m, n });
   });
 }
 
-/** The passage to add: the selection quoted with its source, or the link, or the page's link. */
-export function passage(p: {
-  selection?: string;
-  title?: string;
-  url?: string;
-  link?: string;
-  linkText?: string;
-}) {
-  const clean = (t: string) => t.replace(/[[\]]/g, '').trim();
-  const title = clean(p.title || p.url || 'this page');
-  const sel = (p.selection ?? '').trim();
-  if (sel) {
-    const quoted = sel
-      .split(/\r?\n/)
-      .map((l) => `> ${l}`.trimEnd())
-      .join('\n');
-    return `${quoted}\n>\n> — [${title}](${p.url})`;
-  }
-  if (p.link) return `- [${clean(p.linkText || p.link)}](${p.link})`;
-  return `- [${title}](${p.url})`;
-}
+// --- "Bring this in" (`src/lib/web/bring.ts`; research §11) ------------------------------------
 
-/** **Add to the open note**: the selection (or a link, or the page) goes to the end of the note open
- *  in formicaria, with where it came from. */
-export async function addToNote(text: string, url: string): Promise<Reply> {
-  if (!/^https?:/.test(url)) return { ok: false, error: 'Only from a web page.' };
+/** The note in front in formicaria, as the app last said: where *Bring in* goes. */
+interface Front {
+  id: string;
+  title: string;
+  vault: string;
+}
+let front: Front | null = null;
+/** The one alternative each bring-in offers afterwards (*Link only instead*, *Keep the file*). */
+const alternatives = new Map<string, () => Promise<string>>();
+let tokens = 0;
+
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const mb = (n: number) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
+
+/** Hand the text to the note in front (or a new note named after the page), with its alternative. */
+async function deliver(
+  p: Piece,
+  text: string,
+  what: string,
+  alt?: { label: string; make: () => Promise<string> },
+): Promise<Reply> {
+  let token: string | undefined;
+  if (alt) {
+    token = String(++tokens);
+    alternatives.set(token, alt.make);
+    if (alternatives.size > 50) alternatives.delete(alternatives.keys().next().value as string);
+  }
   try {
-    return await ask({ type: 'insert', text, url });
+    return await ask({
+      type: 'insert',
+      text,
+      what,
+      page: { title: p.pageTitle, url: p.pageUrl },
+      alt: alt && token ? { label: alt.label, token } : undefined,
+    });
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: msg(e) };
   }
 }
 
-function told(r: Reply) {
+/** The file at `src`, fetched as the page would (its cookies, its address as referrer). */
+async function fetchBytes(src: string, referrer: string) {
+  const r = await fetch(src, { credentials: 'include', referrer: referrer || undefined });
+  if (!r.ok) throw new Error(`the site answered ${r.status}`);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  if (!bytes.length) throw new Error('the site sent nothing');
+  return { bytes, type: r.headers.get('content-type') ?? '' };
+}
+
+/** Keep bytes in the vault of the note in front; answers the reference and the attachment's note. */
+async function store(bytes: Uint8Array, name: string) {
+  const c = await config();
+  const v = encodeURIComponent(front?.vault ?? '');
+  const meta = (await call(
+    c.server,
+    c.key,
+    `ingest?name=${encodeURIComponent(name)}&vault=${v}`,
+    new Blob([bytes as BlobPart]),
+    false,
+  )) as { id: string; assets: string[] };
+  return { ref: (meta.assets[0] ?? '').replace(/^sha256:/, 'sha256-'), id: meta.id };
+}
+
+async function forget(id: string) {
+  const c = await config();
+  await call(c.server, c.key, 'delete', JSON.stringify({ id }), true).catch(() => null);
+}
+
+/** **One pipeline, whatever started it**: what the piece is decides the content or a link. */
+export async function bringPiece(p: Piece): Promise<Reply> {
+  switch (p.kind) {
+    case 'text':
+      return deliver(p, textPiece(p), 'the passage');
+    case 'link':
+      return deliver(p, linkPiece(p), 'the link');
+    case 'page':
+      return deliver(p, pagePiece(p), 'a link to the page');
+    case 'image': {
+      if (!p.src || /^(blob|mediasource):/.test(p.src)) return deliver(p, imageLinked(p), 'the image as a link');
+      try {
+        const { bytes, type } = await fetchBytes(p.src, p.pageUrl);
+        if (type && !/^image\//.test(type)) throw new Error('not an image');
+        const name = fileName(p.src, 'image');
+        if (bytes.length > IMAGE_LIMIT) {
+          return deliver(p, imageLinked(p), 'the image as a link', {
+            label: `Keep a copy (${mb(bytes.length)})`,
+            make: async () => imageKept(p, (await store(bytes, name)).ref),
+          });
+        }
+        const kept = await store(bytes, name);
+        return deliver(p, imageKept(p, kept.ref), 'the image', {
+          label: 'Link only instead',
+          make: async () => {
+            await forget(kept.id);
+            return imageLinked(p);
+          },
+        });
+      } catch {
+        return deliver(p, imageLinked(p), 'the image as a link');
+      }
+    }
+    case 'video':
+    case 'audio': {
+      const word = p.kind === 'video' ? 'the video' : 'the audio';
+      if (streamed(p.src)) return deliver(p, mediaLinked(p), `${word}, at this moment`);
+      const src = p.src as string;
+      return deliver(p, mediaLinked(p), `${word} as a link`, {
+        label: 'Keep the file',
+        make: async () => {
+          const { bytes } = await fetchBytes(src, p.pageUrl);
+          const name = fileName(src, p.kind);
+          return mediaKept(p, (await store(bytes, name)).ref, name);
+        },
+      });
+    }
+  }
+}
+
+/** Shown only when formicaria could not say it itself (it is not open). */
+function failed(r: Reply) {
+  if (r.ok) return;
   void browser.notifications.create({
     type: 'basic',
-    title: r.ok ? 'Added to your note' : 'Not added',
-    message: r.ok ? `Added to “${r.title ?? 'the open note'}”.` : (r.error ?? ''),
+    title: 'Not brought in',
+    message: r.error ?? '',
     iconUrl: 'icon.svg',
   });
 }
+
+/** The selection in a tab (or one of its frames), as HTML and words. */
+const SELECTION = `(() => { const s = getSelection(); if (!s || !s.rangeCount) return { html: '', text: '' };
+  const d = document.createElement('div'); for (let i = 0; i < s.rangeCount; i++) d.append(s.getRangeAt(i).cloneContents());
+  return { html: d.innerHTML, text: s.toString().trim() }; })()`;
+
+async function selectionIn(tab: number, frameId?: number): Promise<{ html: string; text: string }> {
+  const [r] = (await (
+    browser.tabs.executeScript as (t: number, d: { code: string; frameId?: number }) => Promise<unknown[]>
+  )(tab, { code: SELECTION, frameId }).catch(() => [null])) as ({ html: string; text: string } | null)[];
+  return r ?? { html: '', text: '' };
+}
+
+/** Messages the app sends up the bridge: the note in front, an alternative chosen, a drop. */
+async function fromApp(m: Record<string, unknown>) {
+  if (m.up === 'front') {
+    front = typeof m.id === 'string' && m.id ? { id: m.id, title: String(m.title ?? ''), vault: String(m.vault ?? '') } : null;
+    void storage.local.set({ front: front?.title ?? '' });
+    void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
+  } else if (m.up === 'alt' && typeof m.token === 'string') {
+    const make = alternatives.get(m.token);
+    if (!make) return;
+    alternatives.delete(m.token);
+    try {
+      const to = await make();
+      await ask({ type: 'replace', note: m.note, from: m.from, to });
+    } catch (e) {
+      failed({ ok: false, error: msg(e) });
+    }
+  } else if (m.up === 'drop') {
+    const [t] = await browser.tabs.query({ active: true, currentWindow: true });
+    const tt = (t ?? {}) as { url?: string; title?: string };
+    const page = { url: tt.url ?? '', title: tt.title ?? '' };
+    const html = String(m.html ?? '');
+    const text = String(m.text ?? '');
+    const uri = String(m.uri ?? '');
+    let p = classify(html, text, page);
+    if (p.kind === 'page' && uri) p = { ...p, kind: 'link', src: uri, alt: text || uri };
+    failed(await bringPiece(p));
+  }
+}
+
+// --- the APIs used below, typed where they are used ---------------------------------------------
+
+const pageAction = (
+  browser as unknown as {
+    pageAction: {
+      setIcon(d: { tabId: number; path: string }): Promise<void>;
+      setTitle(d: { tabId: number; title: string }): Promise<void>;
+    };
+  }
+).pageAction;
+const storage = (
+  browser as unknown as { storage: { local: { set(d: Record<string, unknown>): Promise<void> } } }
+).storage;
+const menus = browser.contextMenus as unknown as {
+  create(d: { id: string; title: string; contexts: string[] }): void;
+  update(id: string, d: { title: string }): Promise<void>;
+  removeAll(): Promise<void>;
+  onClicked: { addListener(f: (info: unknown, tab?: { id?: number; url?: string; title?: string }) => void): void };
+};
 
 // --- "this page is in your notes" -------------------------------------------------------------
 
@@ -292,14 +458,6 @@ const seen = new Map<number, PageNote[]>();
 /** The notes naming the page in `tab`, and the count on the toolbar button. Asked when a tab is shown
  *  or finishes loading, never polled. */
 export async function pageNotes(tabId: number, url: string): Promise<PageNote[]> {
-  const action = (
-    browser as unknown as {
-      browserAction: {
-        setBadgeText(d: { tabId: number; text: string }): Promise<void>;
-        setBadgeBackgroundColor(d: { color: string }): Promise<void>;
-      };
-    }
-  ).browserAction;
   let found: PageNote[] = [];
   if (/^https?:/.test(url)) {
     try {
@@ -312,9 +470,16 @@ export async function pageNotes(tabId: number, url: string): Promise<PageNote[]>
     }
   }
   seen.set(tabId, found);
-  void action.setBadgeBackgroundColor({ color: '#dc2626' }).catch(() => {});
-  void action
-    .setBadgeText({ tabId, text: found.length ? String(found.length) : '' })
+  // **The page's ant, in the address bar** (research §11.3, rule 4): filled when notes name the page.
+  const n = found.length;
+  void pageAction.setIcon({ tabId, path: n ? 'icon-page-in.svg' : 'icon-page.svg' }).catch(() => {});
+  void pageAction
+    .setTitle({
+      tabId,
+      title: n
+        ? `In ${n === 1 ? 'one' : n} of your notes · Save this page in formicaria`
+        : 'Save this page in formicaria (Alt+Shift+K)',
+    })
     .catch(() => {});
   return found;
 }
@@ -373,6 +538,32 @@ browser.runtime.onMessage.addListener((m) => {
   if (m?.type === 'keep' && typeof m.tab === 'number') return keep(m.tab);
   if (m?.type === 'show' && m.server && m.id) return show(m.server, m.id);
   if (m?.type === 'server') return config().then((c) => ({ server: c.server }));
+  // *Just the link instead*, after a save: the saved note goes, a bookmark comes.
+  if (m?.type === 'link-instead' && typeof m.tab === 'number' && m.id) {
+    const tab = m.tab;
+    const was = m.id;
+    return forget(was).then(() =>
+      tabsEvents.get(tab).then((t) => bookmark(t as { url?: string; title?: string })),
+    );
+  }
+  // From the selection chip (`select.ts`) and Pick (`pick.ts`), in the tab that sent it.
+  const from = m as unknown as {
+    type?: string;
+    html?: string;
+    text?: string;
+    piece?: Partial<Piece>;
+  };
+  if (from?.type === 'bring-selection' || from?.type === 'bring-piece') {
+    return browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
+      const tt = (t ?? {}) as { url?: string; title?: string };
+      const page = { url: tt.url ?? '', title: tt.title ?? '' };
+      const p: Piece =
+        from.type === 'bring-selection'
+          ? classify(from.html ?? '', from.text ?? '', page)
+          : ({ ...from.piece, pageUrl: page.url, pageTitle: page.title } as Piece);
+      failed(await bringPiece(p));
+    });
+  }
   if (m?.type === 'notes' && typeof m.tab === 'number') {
     const tab = m.tab;
     return tabsEvents.get(tab).then((t) => pageNotes(tab, t.url ?? ''));
@@ -380,61 +571,85 @@ browser.runtime.onMessage.addListener((m) => {
   return undefined;
 });
 
-// Once per install: the menu outlives the (non-persistent) background page.
-browser.runtime.onInstalled.addListener(() => {
-  browser.contextMenus.create({
-    id: 'formicaria-keep',
-    title: 'Keep in formicaria',
-    contexts: ['page', 'selection', 'link', 'image'],
+// **Two verbs** (research §11.3): *Bring into "…"* names the note it goes to; *Save page*; and *Pick*
+// for what a selection cannot reach. Made at every start (the background page is persistent).
+function bringTitle() {
+  // `&` marks an access key in a menu's title; doubled, it is shown.
+  return front ? `Bring into “${front.title.replace(/&/g, '&&') || 'your note'}”` : 'Bring into a new note';
+}
+void menus.removeAll().then(() => {
+  menus.create({
+    id: 'formicaria-bring',
+    title: bringTitle(),
+    contexts: ['selection', 'image', 'link', 'video', 'audio', 'page'],
   });
-  browser.contextMenus.create({
-    id: 'formicaria-add',
-    title: 'Add to the open formicaria note',
-    contexts: ['page', 'selection', 'link'],
-  });
-  browser.contextMenus.create({
-    id: 'formicaria-bookmark',
-    title: 'Bookmark in formicaria',
-    contexts: ['page'],
-  });
+  menus.create({ id: 'formicaria-save', title: 'Save page in formicaria', contexts: ['page'] });
+  menus.create({ id: 'formicaria-pick', title: 'Pick from this page…', contexts: ['page'] });
 });
-browser.contextMenus.onClicked.addListener((info, tab) => {
+
+/** **Save page**: the page as its own note; formicaria says what it became. */
+export async function savePage(tab: number) {
+  const k = await keep(tab);
+  const text = k.ok
+    ? `Saved “${k.title}” as ${KIND_WORDS[k.kind ?? ''] ?? 'a note'}.`
+    : `Not saved: ${k.error ?? ''}`;
+  const said = await ask({ type: 'toast', text, id: k.id }).catch(() => null);
+  if (!said?.ok) {
+    void browser.notifications.create({
+      type: 'basic',
+      title: k.ok ? 'Saved in formicaria' : 'Not saved',
+      message: k.ok ? `${k.title} — ${KIND_WORDS[k.kind ?? ''] ?? 'a note'}.` : (k.error ?? ''),
+      iconUrl: 'icon.svg',
+    });
+  }
+  if (k.ok) void pageNotes(tab, ((await tabsEvents.get(tab)) as { url?: string }).url ?? '');
+  return k;
+}
+
+menus.onClicked.addListener((info, tab) => {
   if (tab?.id == null) return;
+  const id = tab.id;
   const i = info as {
     menuItemId?: string;
     selectionText?: string;
     linkUrl?: string;
     linkText?: string;
+    srcUrl?: string;
+    mediaType?: string;
     pageUrl?: string;
+    frameId?: number;
+    targetElementId?: number;
   };
-  const which = i.menuItemId;
-  if (which === 'formicaria-add') {
-    const t = tab as { url?: string; title?: string };
-    const url = t.url ?? i.pageUrl ?? '';
-    const text = passage({
-      selection: i.selectionText,
-      title: t.title,
-      url,
-      link: i.linkUrl,
-      linkText: i.linkText,
-    });
-    void addToNote(text, url).then(told);
-    return;
+  if (i.menuItemId === 'formicaria-save') return void savePage(id);
+  if (i.menuItemId === 'formicaria-pick') {
+    return void browser.tabs.executeScript(id, { file: '/pick.js' }).catch((e) => failed({ ok: false, error: msg(e) }));
   }
-  const run =
-    which === 'formicaria-bookmark'
-      ? bookmark(tab as { url?: string; title?: string })
-      : keep(tab.id);
-  void run.then((k) =>
-    browser.notifications.create({
-      type: 'basic',
-      title: k.ok ? 'Kept in formicaria' : 'Not kept',
-      message: k.ok
-        ? `${k.title} — kept as ${KIND_WORDS[k.kind ?? ''] ?? 'a note'}.`
-        : (k.error ?? ''),
-      iconUrl: 'icon.svg',
-    }),
-  );
+  if (i.menuItemId !== 'formicaria-bring') return;
+  const page = { url: tab.url ?? i.pageUrl ?? '', title: tab.title ?? '' };
+  const base = { pageUrl: page.url, pageTitle: page.title };
+  void (async () => {
+    let p: Piece;
+    if (i.selectionText) {
+      const s = await selectionIn(id, i.frameId);
+      p = classify(s.html, s.text || i.selectionText, page);
+    } else if (i.mediaType === 'image' && i.srcUrl) {
+      p = { ...base, kind: 'image', src: i.srcUrl };
+    } else if ((i.mediaType === 'video' || i.mediaType === 'audio') && i.srcUrl !== undefined) {
+      // Where it was playing, from the element itself (Firefox's `menus.getTargetElement`).
+      const [at] = (await (
+        browser.tabs.executeScript as (t: number, d: { code: string; frameId?: number }) => Promise<unknown[]>
+      )(id, {
+        code: `(() => { const el = browser.menus.getTargetElement(${Number(i.targetElementId)}); return el ? { t: el.currentTime, src: el.currentSrc || el.src } : null; })()`,
+        frameId: i.frameId,
+      }).catch(() => [null])) as ({ t: number; src: string } | null)[];
+      p = { ...base, kind: i.mediaType, src: at?.src || i.srcUrl, time: at?.t };
+    } else if (i.linkUrl) {
+      p = { ...base, kind: 'link', src: i.linkUrl, alt: i.linkText };
+    } else {
+      p = { ...base, kind: 'page' };
+    }
+    failed(await bringPiece(p));
+  })();
 });
 
 // --- 0.32.0: the shortcut, downloads, and formicaria's colours -------------------------------
@@ -449,32 +664,18 @@ const more = browser as unknown as {
   runtime: { onStartup: { addListener(f: () => void): void } };
 };
 
-/** **Alt+Shift+K keeps the page; Alt+Shift+A adds the selection to the open note.** (Alt+Shift+F,
- *  formicaria's panel, belongs to the browser itself: `formicaria.cfg`.) */
+/** **Alt+Shift+A brings the selection (or the page's link) in; Alt+Shift+K saves the page.**
+ *  (Alt+Shift+F, formicaria's panel, belongs to the browser itself: `formicaria.cfg`.) */
 more.commands.onCommand.addListener((c) => {
-  if (c === 'add-to-note') {
-    void browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
-      if (t?.id == null) return;
-      const tt = t as { id: number; url?: string; title?: string };
-      const [selection] = (await browser.tabs
-        .executeScript(tt.id, { code: 'String(getSelection() ?? "")' })
-        .catch(() => [''])) as string[];
-      void addToNote(passage({ selection, title: tt.title, url: tt.url }), tt.url ?? '').then(told);
-    });
-    return;
-  }
-  if (c !== 'keep-page') return;
   void browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
     if (t?.id == null) return;
-    const k = await keep(t.id);
-    void browser.notifications.create({
-      type: 'basic',
-      title: k.ok ? 'Kept in formicaria' : 'Not kept',
-      message: k.ok
-        ? `${k.title} — kept as ${KIND_WORDS[k.kind ?? ''] ?? 'a note'}.`
-        : (k.error ?? ''),
-      iconUrl: 'icon.svg',
-    });
+    const tt = t as { id: number; url?: string; title?: string };
+    if (c === 'keep-page') return void savePage(tt.id);
+    if (c !== 'add-to-note') return;
+    const page = { url: tt.url ?? '', title: tt.title ?? '' };
+    if (!/^https?:/.test(page.url)) return failed({ ok: false, error: 'Only from a web page.' });
+    const s = await selectionIn(tt.id);
+    failed(await bringPiece(classify(s.html, s.text, page)));
   });
 });
 

@@ -2,7 +2,8 @@
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import BrowserRestartBanner from './lib/BrowserRestartBanner.svelte';
-  import { listen as listenBridge } from './lib/web/bridge.svelte';
+  import { listen as listenBridge, up as bridgeUp, bridged } from './lib/web/bridge.svelte';
+  import BringToast from './lib/BringToast.svelte';
   import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { setAppClock } from './lib/appTime';
@@ -2035,17 +2036,93 @@
   }
   // **The browser's bridge** (`lib/web/bridge.svelte.ts`): the add-on opens a note here, or adds a
   // passage to the note in front (the active pane when it is a note, else the last note opened).
+  function bringTarget() {
+    const ps = workspace.panes;
+    const front = ps[workspace.active ?? 0];
+    const p = front && !isView(front) ? front : [...ps].reverse().find((x) => !isView(x));
+    return p?.noteId ? { id: p.noteId, title: p.noteTitle ?? 'your note' } : null;
+  }
   $effect(() =>
     listenBridge({
       open: (id) => openNoteInPane(id),
-      target: () => {
-        const ps = workspace.panes;
-        const front = ps[workspace.active ?? 0];
-        const p = front && !isView(front) ? front : [...ps].reverse().find((x) => !isView(x));
-        return p?.noteId ? { id: p.noteId, title: p.noteTitle ?? 'your note' } : null;
+      target: bringTarget,
+      // **No note in front: a new one, named after the page, opened** so the person goes on writing.
+      create: async (title) => {
+        const [made] = await ipc.createNotes([{ title, body: '', tags: [], start: '', props: {} }]);
+        if (!made) return null;
+        openNoteInPane(made.id);
+        await tick();
+        return { id: made.id, title };
       },
     }),
   );
+  // **Where "Bring in" goes, told to the browser** (its menu and chip name the note): sent when the
+  // note in front changes, with its vault so a kept image lands beside it.
+  let toldFront = '';
+  $effect(() => {
+    // Only inside formicaria's browser: anywhere else nobody is listening, and asking costs a read.
+    if (!bridged()) return;
+    const t = bringTarget();
+    const key = t ? `${t.id}\u0000${t.title}` : '';
+    if (key === toldFront) return;
+    toldFront = key;
+    if (!t) return bridgeUp({ up: 'front', id: '', title: '', vault: '' });
+    void ipc
+      .getNote(t.id)
+      .then((n) =>
+        bridgeUp({ up: 'front', id: t.id, title: n?.title || t.title, vault: n?.vault ?? '' }),
+      )
+      .catch(() => bridgeUp({ up: 'front', id: t.id, title: t.title, vault: '' }));
+  });
+  // **Drop anything from a page onto formicaria** (research §11.3): what was dragged goes to the
+  // browser's add-on, which works out what it is and brings it into the note in front. A drag that
+  // started inside formicaria (a card on a board) is formicaria's own and left alone.
+  let draggingInside = false;
+  let dropHint = $state('');
+  $effect(() => {
+    const start = () => (draggingInside = true);
+    const end = () => {
+      draggingInside = false;
+      dropHint = '';
+    };
+    const fromPage = (e: DragEvent) =>
+      bridged() &&
+      !draggingInside &&
+      !!e.dataTransfer &&
+      ['text/uri-list', 'text/html', 'text/x-moz-url'].some((t) =>
+        e.dataTransfer!.types.includes(t),
+      );
+    const over = (e: DragEvent) => {
+      if (!fromPage(e)) return;
+      e.preventDefault();
+      const t = bringTarget();
+      dropHint = t ? `Drop to bring it into “${t.title}”` : 'Drop to bring it into a new note';
+    };
+    const leave = (e: DragEvent) => {
+      if (!e.relatedTarget) dropHint = '';
+    };
+    const drop = (e: DragEvent) => {
+      if (!fromPage(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dropHint = '';
+      const d = e.dataTransfer!;
+      const uri = (d.getData('text/uri-list') || d.getData('text/x-moz-url')).split('\n')[0].trim();
+      bridgeUp({ up: 'drop', html: d.getData('text/html'), text: d.getData('text/plain'), uri });
+    };
+    addEventListener('dragstart', start, true);
+    addEventListener('dragend', end, true);
+    addEventListener('dragover', over, true);
+    addEventListener('dragleave', leave, true);
+    addEventListener('drop', drop, true);
+    return () => {
+      removeEventListener('dragstart', start, true);
+      removeEventListener('dragend', end, true);
+      removeEventListener('dragover', over, true);
+      removeEventListener('dragleave', leave, true);
+      removeEventListener('drop', drop, true);
+    };
+  });
   $effect(() => {
     openFromHash();
     window.addEventListener('hashchange', openFromHash);
@@ -3346,6 +3423,8 @@
       {/if}
       <UpdateBanner />
       <BrowserRestartBanner />
+      <BringToast onopen={openNoteInPane} />
+      {#if dropHint}<p class="drop-hint" role="status">{dropHint}</p>{/if}
       {#if error}
         <p class="banner error">
           {error}
@@ -4671,5 +4750,18 @@
       height: 2.75rem;
       padding: 0;
     }
+  }
+  .drop-hint {
+    position: fixed;
+    inset: auto 0 calc(var(--space-6) + var(--safe-bottom, 0px)) 0;
+    margin: 0 auto;
+    width: fit-content;
+    z-index: 61;
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-sm);
+    background: var(--accent);
+    color: white;
+    border-radius: 999px;
+    pointer-events: none;
   }
 </style>

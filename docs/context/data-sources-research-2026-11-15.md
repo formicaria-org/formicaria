@@ -343,3 +343,189 @@ copy of Firefox ESR 153.7.0.
   https://webmachinelearning.github.io/webmcp/ [secondary]
 - Microsoft Recall criticism:
   https://www.techrepublic.com/article/news-signal-blocks-windows-recall-privacy/ [secondary]
+
+## 11. "Bring this in": one action, many ways to start it (plan, 2026-11-15, not built)
+
+> **The owner:** *"select parts of a content in the web tab and seamlessly bring it into the note … if
+> it is an image we bring the image, if it is a link a link, if text the text, if audio and video then
+> audio and video … the selection gets the right content, then the user should be able to bring the
+> actual content through assets or just a link for the heavy ones … more than one action done in
+> different ways doing the same could help."*
+
+### 11.1 What exists (searched 2026-11-15)
+
+- **Firefox's screenshot tool** picks the element under the pointer and climbs to a sensible ancestor
+  (`overlayHelpers.mjs`; by-element selection since Firefox 106). Its known weakness is choosing the
+  wrong block; users asked for an "Expand to parent" control [primary: source; secondary: Mozilla
+  Connect].
+- **Obsidian Web Clipper's highlighter** selects text, images and elements and clips only those; its
+  images stay web links until a separate "download attachments" command [primary: help pages].
+- **Notesnook** clicks blocks one by one; **Obsidian's Select to Note** clicks an element or drags a
+  rectangle and appends to a note [secondary].
+- **Edge's Web Select** (now in Web Capture) kept a table a table when pasted [secondary].
+- **Evernote** clips only a selection made beforehand; **Trilium** and **Memos** save an image from
+  the right-click menu; **video and audio are barely handled anywhere** [secondary].
+
+None is aware of the note open beside the page, keeps media in the person's own store by choice,
+*and* records the source of each piece. formicaria has the three: the panel's open note, the vault,
+the source contract (§5).
+
+### 11.2 The pipeline (one, whatever started it)
+
+1. **Resolve what was pointed at** into a *piece* of a known kind: text (with its formatting), image,
+   link, table, code, formula, audio, video, embedded post, or a structured item (recipe, paper). The
+   richer the starting point, the better the guess (11.3).
+2. **Choose its form: the content or a link.**
+   - Text, tables, code, formulas: always the content (small).
+   - Images: **the image, kept in the vault**, up to a size the person sets; above it, ask.
+   - Audio and video **files**: **a link by default**, with *Keep the file (N MB)* one press away.
+   - **Streams** (most video sites): a link at the current moment, the title, the thumbnail, and the
+     transcript when the page offers captions; there is no single file to keep. **Protected media**:
+     the link only; its protection is not circumvented.
+   - It lands at once by these defaults; the message that follows offers the one alternative
+     (*Link only instead* / *Keep a copy instead*), and the defaults per kind are in Settings →
+     Browser (11.3, rule 2).
+3. **Fetch** what is kept: the add-on downloads it with the page's own access (so an image behind a
+   sign-in works) and hands the bytes to the server's existing `ingest` route; the vault stores it as
+   an attachment. The app never fetches from other sites.
+4. **Deliver** to the target: the note open in the panel (at the cursor, else the end); with none
+   open, a new note named after the page, or a picked note. Through the bridge and the note's own
+   editor: **one undo** for the whole bring-in.
+5. **Say where it came from**, per piece: a link that reopens the page at that passage (a text
+   fragment, as clips already make), and the date. The page's "in your notes" count then includes it.
+
+### 11.3 The person's view: two things they want, two verbs
+
+> **The owner:** *"plan better for usability and clarity from the user point of view, minimal and
+> intuitive actions … we need also to make it work on the phone."*
+
+Every action a person takes on a page is one of two intents. Everything else (clip, keep, bookmark,
+add to note, download into the vault) is merged into them:
+
+| Intent | Verb (same word everywhere) | What happens |
+|---|---|---|
+| *"I want this piece in what I'm writing"* | **Bring in** | what is selected or pointed at goes into **the note in front**, named on every button (*Bring into "Reading"*) |
+| *"I want this page for later"* | **Save page** | the page becomes **its own note**: a recipe in Food, a paper in Papers, anything else on the Web shelf; *link only* is the old bookmark |
+
+Rules that keep it clear:
+1. **The destination is always named** before the press: the right-click item, the drop outline and
+   the chip say *into "Reading"*. With no note in front, **Bring in** makes a new note named after
+   the page and opens it, so the person can keep writing.
+2. **No questions when a good default exists; corrections after, not dialogs before.** What comes
+   in follows the defaults of 11.2 at once, and a short message in formicaria says what happened with
+   the one alternative: *Brought an image into "Reading" · **Link only instead** · Undo*. A question
+   comes first only when it costs something real: a file above the size limit, or a large download on
+   the phone's mobile data.
+3. **Feedback where the eyes are**: the chosen part of the page flashes briefly, the note scrolls to
+   what arrived, and the message sits in formicaria (not a system notification).
+4. **The page's own icon is about the page; the selection's tools are about the selection.** The ant
+   in the address bar (where the bookmark star is, and read the same way) is **Save page**; it is
+   filled, with a count, when notes already name the page, and pressing it lists them. Showing or
+   hiding formicaria stays on its toolbar button and the panel's own header. **Bring in** lives where
+   the selection is.
+5. **One undo** for every bring-in; nothing a person did not point at is ever written.
+6. **Learnable in one go**: the first time a person selects text in formicaria's browser, one hint:
+   *"Press the ant to bring this into your note."* Shown once.
+
+### 11.4 The same two verbs, on each device
+
+| | Computer (formicaria's browser) | Phone (formicaria's own browser, GeckoView) | Phone (any other app) |
+|---|---|---|---|
+| **Bring in a selection** | the **ant chip** beside the selection, or right-click → *Bring into "Reading"*, or drag it onto formicaria; Alt+Shift+A | **"Bring in" in the text selection toolbar** (beside Copy and Share: GeckoView lets the app add its own selection actions **[to verify in G0]**) | **"formicaria" in the selection toolbar** of every app (Android's text-processing entry); text only, no address |
+| **Bring in an image, link, video** | right-click it → *Bring into "Reading"*; or drag it | **long-press** it → *Bring into "Reading"* (GeckoView reports what was pressed: image, link, video **[to verify in G0]**) | **Share → formicaria** |
+| **Save page** | the ant in the address bar; Alt+Shift+K | the ant in the address bar | **Share → formicaria** → *Save page* |
+| **See the note while reading** | formicaria beside the page (left, right, top, bottom: §11.6) | **the note as a sheet over the page**: a strip at the bottom with the note's name; pull it up to half height to read and write while the page stays visible, all the way up for the note alone. A tablet in landscape gets the side panel | — |
+| **Where it goes** | the note in front, in the panel | the note last open in formicaria, named on the sheet; a tap changes it | a small sheet: *Into "Reading" ▾ · Bring in* |
+| **Hard to select** (an image in a carousel, a table, a video) | **Pick** (right-click → *Pick from this page*): hover lights up blocks, scroll widens or narrows, click brings in | **Pick** from the page menu: tap a block, pinch out or in to widen or narrow, tap *Bring in* | — |
+
+**The phone's own gesture for it** (owner, 2026-11-15: *"a quick tap plus a sustained one opens the
+selection tool that selects the thing to bring, then the sustained tap is like copying it into the
+note"*): **tap, then press and hold still** on a page opens Pick at that spot, with the block under the
+finger lit and named; moving the finger (or pinching) widens or narrows it; **holding on** past a
+short count brings it into the note (a ring fills around the finger, so letting go early cancels).
+Firefox on Android uses *tap, then press and drag* for one-finger zoom, so the gesture is told apart
+by the finger staying still; **[to verify on a device in G0]**.
+
+Other phone gestures for the same act (brainstorm, owner: *"or similar"*), all feeding Pick and the
+same pipeline:
+- **The ant as an eyedropper** (recommended as the main one): press the ant on the note sheet, slide
+  onto the page (the block under the finger lights up, named), let go to bring it in. Visible, so
+  learnable, and it never competes with the page's own gestures.
+- **Tap, then hold still** (above): quick and buttonless, but hidden.
+- **Fling to the note**: select with the usual handles, flick toward the sheet.
+- **Pull it in**: long-press an image or a link and drag it down into the sheet (Android's own drag
+  and drop).
+- **Two-finger press** on a block takes the whole block (rare on pages, but undiscoverable).
+- **Circle it with a stylus** (the gesture Android's Circle to Search made familiar), in formicaria's
+  browser only.
+
+**What similar apps teach, and the simplest choice** (owner: *"intuitive and simple, minimal effort by
+the user"*; searched 2026-11-15):
+- **Readwise Reader highlights as soon as text is selected**, by default; a menu turns it off, and on
+  a computer holding Alt (Option) selects without highlighting
+  ([docs](https://docs.readwise.io/reader/docs/faqs/highlights-tags-notes)) [primary]. So selecting
+  *is* the save there, which is formicaria's *bring in at once*; Alt held while selecting skips it.
+- **iPhone's "lift subject"**: press and hold an image until it lifts, drag it into Notes (iOS 16)
+  [secondary: MacRumors, iPhoneLife]. Press, hold, drag to the note is already learnt.
+- **So the phone needs two gestures, both known**: *select text* (it comes in, or one tap on *Bring
+  in* in the selection toolbar), and *press, hold and drag anything into the note sheet*. The
+  eyedropper ant and tap-then-hold are shortcuts on top, not things to learn first. What happens after a selection is
+formicaria's to decide on the phone as on the computer (11.3): offer, bring at once, or nothing.
+
+On the phone nothing depends on drag and drop or on keyboard shortcuts, and the long-press, the
+selection toolbar and the share sheet are the gestures Android users already know.
+
+### 11.5 What changes from 0.34
+
+- The menus collapse to **two items**: *Bring into "…"* and *Save page in formicaria* (and *Pick from
+  this page* on a right-click of the page itself). *Keep in formicaria*, *Add to the open formicaria
+  note* and *Bookmark in formicaria* go.
+- The toolbar's keep button moves into the address bar as the page's ant (Save page, with the
+  count); the toolbar's ant stays for showing formicaria.
+- The add-on's system notifications give way to the message inside formicaria (with *Undo* and the
+  one alternative).
+
+### 11.6 Placing formicaria (computer)
+
+Left, right, top or bottom, from a **Place** item in the panel's header or by dragging the header to
+an edge (an outline shows where it will dock), as Vivaldi does; double-click the divider to switch
+between beside and fill. Left and right reuse the panel's ordering; top and bottom need the window's
+row laid out as a grid and are tested before they are offered (moving the page area itself would
+reload every page).
+
+### 11.7 How usability is checked
+
+Tasks, each with a target count of presses, run by `browser-check` on its test page (computer) and
+by a phone test (GeckoView, when R2 starts):
+
+| Task | Target |
+|---|---|
+| Bring a paragraph into the note in front | select + 1 press |
+| Bring an image in, then make it a link instead | 1 right-click + 1 press, then 1 press |
+| Save a recipe page | 1 press |
+| See which notes name this page and open one | 1 press + 1 press |
+| On the phone: bring a selection from another app | select + 2 taps |
+| On the phone: read the note while reading the page | 1 pull |
+
+The computer's test page holds one of each kind (a paragraph with formatting, an image, a table,
+code, a formula, an audio file, a video file, a link); each must arrive in the note in front as
+itself, with its source, and *Link only* must leave no attachment.
+
+Order to build: the two verbs and their menus (with the content-or-link defaults and the message with
+its alternative); the address-bar ant; the selection chip (default by measurement, 11.8); drag; Pick;
+placing the panel. The phone's half comes with its browser (R2), on the same pipeline.
+
+### 11.8 Risks
+
+- **Choosing the right block** is the hard part (Firefox's own picker misses on some sites); widening
+  and narrowing is the remedy, and the label says what will be brought before the click.
+- **A script on every page is light, not free** (owner, 2026-11-15: *"it should be a lightweight
+  option … why are scripts heavy?"*): a few KB, idle until a selection, but Firefox keeps a small
+  isolated scope for it in every page it runs in (and in every frame, unless limited to the top
+  frame). It is measured in `browser-check` against the budget, not assumed. Its other limits: a page
+  can see and occasionally clash with the chip, and the script acts only on the person's gestures,
+  never on what a page says. Right-click, drag, paste, the keyboard and the strip need no page script;
+  pick mode injects its own only while it is on.
+- **Large media** fills the vault: the size limit, the chip's choice, and the attachment rules already
+  in place (large files stay off git).
+- **Copyright**: a personal copy, as every clipper keeps; formicaria never shares it.

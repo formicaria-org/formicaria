@@ -32,6 +32,10 @@
   min-width: 280px;
   border-inline-start: 1px solid var(--chrome-content-separator-color, rgba(0, 0, 0, 0.15));
 }
+#browser[formicaria-side="left"] > #formicaria-panel {
+  border-inline-start: none;
+  border-inline-end: 1px solid var(--chrome-content-separator-color, rgba(0, 0, 0, 0.15));
+}
 #formicaria-panel-head {
   padding: 2px 6px;
   gap: 4px;
