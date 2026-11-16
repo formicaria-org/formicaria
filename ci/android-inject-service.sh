@@ -453,12 +453,38 @@ class MainActivity : TauriActivity() {
     page.webChromeClient = object : WebChromeClient() {
       override fun onReceivedTitle(view: WebView, title: String?) = tellApp(id, view)
     }
+    // **A long press on an image or a link offers it** (text keeps Android's own selection): bring it
+    // into the note, or open the link as a page item of its own.
+    page.setOnLongClickListener {
+      val hit = page.hitTestResult
+      val src = hit.extra
+      if (src == null || !(src.startsWith("https://") || src.startsWith("http://"))) return@setOnLongClickListener false
+      when (hit.type) {
+        WebView.HitTestResult.IMAGE_TYPE, WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> { offer(page, "image", src); true }
+        WebView.HitTestResult.SRC_ANCHOR_TYPE -> { offer(page, "link", src); true }
+        else -> false
+      }
+    }
     page.visibility = View.GONE
     findViewById<ViewGroup>(android.R.id.content)
       .addView(page, FrameLayout.LayoutParams(0, 0))
     pages[id] = page
     if (url.startsWith("https://") || url.startsWith("http://")) page.loadUrl(url)
     return page
+  }
+
+  private fun offer(page: WebView, kind: String, src: String) {
+    val items = if (kind == "link") arrayOf("Bring the link into your note", "Open it as a page")
+      else arrayOf("Bring the image into your note")
+    android.app.AlertDialog.Builder(this).setItems(items) { _, which ->
+      if (which == 0) {
+        bring(JSONObject().put("kind", kind).put("src", src).put("pageUrl", page.url ?: "")
+          .put("pageTitle", page.title ?: "").put("note", ""))
+      } else {
+        val d = JSONObject().put("url", src)
+        wv?.evaluateJavascript("window.dispatchEvent(new CustomEvent('fm-page-open',{detail:$d}))", null)
+      }
+    }.show()
   }
 
   inner class Pages {

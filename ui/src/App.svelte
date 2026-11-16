@@ -1991,6 +1991,12 @@
       if (Object.keys(patch).length) changePane(p.id, patch);
     };
     window.addEventListener('fm-page', onPage);
+    // A link in a page, long-pressed and opened as a page: an item of its own.
+    const onPageOpen = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url ?? '';
+      if (/^https?:\/\//.test(url)) focusOrOpen('page', { url, pageTitle: null });
+    };
+    window.addEventListener('fm-page-open', onPageOpen);
     document.addEventListener('click', onLink, true);
     // **A passage of any note, brought into another** (⇥ on a note; `lib/piece.ts`): the same sheet
     // asks which note, and the piece goes there with its link back.
@@ -2011,6 +2017,7 @@
       window.removeEventListener('fm-bring-to-room', bring);
       document.removeEventListener('click', onLink, true);
       window.removeEventListener('fm-page', onPage);
+      window.removeEventListener('fm-page-open', onPageOpen);
     };
   });
   /** **Put pieces into a note** (`lib/piece.ts`): the one way content arrives in a note from anywhere,
@@ -2216,19 +2223,24 @@
       launching = true;
       return;
     }
-    const pair =
-      /^#pair=note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}),note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(
-        location.hash,
-      );
+    // **Two items together** (a formicaria tab dragged beside another; `formicaria.cfg`'s `pair`): any
+    // two, notes or views; the first shown with the second (`besideId`).
+    const pair = /^#pair=([^,]+),([^,]+)$/.exec(location.hash);
     if (pair) {
       launching = false;
       history.replaceState(history.state, '', location.pathname + location.search);
-      const [a, b] = [pair[1].toUpperCase(), pair[2].toUpperCase()];
-      makeRoomFor(a);
-      openNoteInPane(a);
-      makeRoomFor(b);
-      openNoteInPane(b);
-      setLayout('tiled');
+      const open = (item: string) => {
+        const at = decodeURIComponent(item);
+        const note = /^note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(at);
+        if (note) {
+          makeRoomFor(note[1].toUpperCase());
+          openNoteInPane(note[1].toUpperCase());
+        } else if (at.startsWith('view:')) openAddress(at.slice(5));
+        return workspace.panes[focused]?.id ?? null;
+      };
+      const first = open(pair[1]);
+      const second = open(pair[2]);
+      if (first && second && first !== second) besideId = first;
       return;
     }
     const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);

@@ -82,7 +82,8 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
   and the tab becomes that page. With nothing typed, it offers a new note and the sections.
 - **Two things side by side only when you ask**: drag a tab onto the left or right half of the page.
   Two pages share the window (Firefox's split view); a note or section and a page put formicaria
-  beside the page, on that side; two notes go side by side in formicaria. **Alt+Shift+F** shows
+  beside the page, on that side; two of formicaria's (notes, views, sections) show together in
+  formicaria. **Alt+Shift+F** shows
   formicaria beside the page you are on; **✕** on its side puts it away again. Drag the line between
   them to make either wider; **⇆** moves formicaria right, below, left or above the page.
 - **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, whatever it is, and

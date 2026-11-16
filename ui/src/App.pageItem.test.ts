@@ -118,3 +118,19 @@ it('the bar switches between the page and the note before it, and closing the pa
   await fireEvent.click(screen.getByRole('menuitem', { name: 'close example.org' }));
   expect(calls).toContainEqual(['close', pageId]);
 });
+
+it('a link long-pressed in a page and opened as a page becomes an item of its own', async () => {
+  render(App);
+  await screen.findAllByRole('button');
+  window.dispatchEvent(
+    new CustomEvent('fm-page-open', { detail: { url: 'https://example.org/colonies' } }),
+  );
+  await waitFor(() =>
+    expect(calls.some((c) => c[0] === 'show' && c[2] === 'https://example.org/colonies')).toBe(
+      true,
+    ),
+  );
+  // Only web addresses.
+  window.dispatchEvent(new CustomEvent('fm-page-open', { detail: { url: 'javascript:alert(1)' } }));
+  expect(calls.filter((c) => c[0] === 'show' && !/^https:/.test(c[2] ?? ''))).toHaveLength(0);
+});

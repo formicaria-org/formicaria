@@ -15193,3 +15193,12 @@ The owner's answers on the phone layout (*two together only when I ask*) and *"k
    either goes back to one. Pages pair too: each draws itself over its own half.
 2. ***Open…* on the phone**, from the view menu: the same screen as a new tab in formicaria's browser;
    a web address or a search opens a page item (the search on DuckDuckGo, the browser's default).
+
+## 2026-11-17 — any two of formicaria's items together; a long press in a phone page `#ui`
+
+1. **Two formicaria tabs dragged together show both, whatever they are** (notes, views, sections):
+   `#pair=<item>,<item>` opens each and shows the first with the second through the same `besideId`
+   as the phone. Before, two views fell back to one.
+2. **A long press on an image or a link in a phone page** offers *Bring … into your note* (the piece
+   goes through the pending-pieces path, into the note before the page) and, for a link, *Open it as a
+   page*. Text keeps Android's own selection. The image is brought as a link: the phone keeps no copy.

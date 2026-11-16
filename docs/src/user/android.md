@@ -100,7 +100,8 @@ The phone's way to bring something into a study room, from any app:
 
 - **Web pages, inside formicaria**: a web link in a note opens the page as an item of your collection,
   in the same place a note would be, with the bottom bar kept. **‹**, or Android's **Back**, goes back in
-  the page (Back leaves it once there is nowhere further back); **⇥** brings
+  the page (Back leaves it once there is nowhere further back); **long-press an image or a link** to
+  bring it into your note, or to open the link as a page of its own; **⇥** brings
   what you selected (or the page itself, as a link) into the note you came from, quoted with the page's
   exact address. The page stays where you left it while you go elsewhere; swipe its card aside to
   close it.

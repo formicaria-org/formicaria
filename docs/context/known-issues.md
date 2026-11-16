@@ -44,7 +44,7 @@ trap, add one. Newest concerns first within each section.
   page's address. GeckoView (formicaria's browser on the phone) is not built: APK budget and G0.
 - **Every item a tab (0.43, computer)**: the app says its item in its address (`#at=`) and the
   browser moves the shown formicaria tab to it; one formicaria behind every formicaria tab, so two
-  formicaria tabs side by side go through formicaria's own two panes (`#pair=`), notes only. *Open…*
+  formicaria tabs side by side go through formicaria's own two halves (`#pair=`). *Open…*
   searches notes by text; a section or view is reached from its places row, not by typing its name.
 - **Pages on the phone (0.43)**: the shell draws each page's WebView *above* the app, over the item's
   box; the app hides it whenever a dialog or a menu is up (`PageItem`), so an app overlay that is
