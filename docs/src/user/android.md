@@ -98,8 +98,15 @@ The phone's way to bring something into a study room, from any app:
 - **Your collection**: the counted button at the bottom shows what you have open as cards; tap one to
   go to it, **swipe a note's card aside** to close it.
 
-Web pages still open in your phone's browser; Share or the selection menu brings what you choose into
-formicaria. Web pages as items of your collection inside formicaria come in a later version.
+- **Web pages, inside formicaria**: a web link in a note opens the page as an item of your collection,
+  in the same place a note would be, with the bottom bar kept. **‹** goes back in the page; **⇥** brings
+  what you selected (or the page itself, as a link) into the note you came from, quoted with the page's
+  exact address. The page stays where you left it while you go elsewhere; swipe its card aside to
+  close it.
+- **Switch back in one press**: the button at the bottom beside your collection shows the item you had
+  before (a note, a view, a page); press it to go there, and again to come back.
+
+Share or the selection menu of any other app still brings what you choose into formicaria.
 
 ## Attachments
 

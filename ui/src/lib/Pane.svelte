@@ -1,5 +1,6 @@
 <script lang="ts">
   import SourceLine from './SourceLine.svelte';
+  import PageItem from './PageItem.svelte';
   // One pane of the workspace: a compact header (view picker, per-view controls, close) over
   // one of the existing renderers. The renderers are pure and already `height:100%`, so a pane
   // is a thin frame around them — the whole reason the flexible grid is cheap.
@@ -62,6 +63,8 @@
     onreorder: (from: number, to: number) => void;
     onresize: (patch: { colSpan?: number; rowSpan?: number }) => void;
     onclose: () => void;
+    /** The note a page item brings its selection into (`PageItem`). */
+    pageTarget?: () => { id: string; title: string } | null;
     onfocus: () => void;
     /// **Does this pane wear its own header?** Only when several are tiled: then you need names to
     /// tell them apart, a handle to reorder them, and controls that say which pane they belong to.
@@ -102,6 +105,7 @@
     onreorder,
     onresize,
     onclose,
+    pageTarget = () => null,
     onfocus,
     headed,
     addSignal = 0,
@@ -414,8 +418,10 @@
     </header>
   {/if}
 
-  {#if drawnPane.kind === 'view' && (drawnPane.viewName === 'Conversations' || drawnPane.viewName === 'Coming up')}
-    <SourceLine source={drawnPane.viewName === 'Conversations' ? 'mail' : 'calendar'} />
+  {#if drawnPane.kind === 'view' && drawnPane.viewName === 'Conversations'}
+    <SourceLine source="mail" />
+  {:else if drawnPane.kind === 'agenda'}
+    <SourceLine source="calendar" />
   {/if}
   <div
     class="pane-body"
@@ -482,6 +488,8 @@
       {:else}
         <p class="pane-empty">No note.</p>
       {/if}
+    {:else if drawnPane.kind === 'page'}
+      <PageItem pane={drawnPane} target={pageTarget} />
     {:else if drawnPane.kind === 'view' && shownView?.renderer === 'shelf'}
       <!-- The Library's shelves: the notes by their `shelf:` tags, as a bookcase (2026-10-24). -->
       {#if board}

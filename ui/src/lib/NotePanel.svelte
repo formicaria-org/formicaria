@@ -1854,13 +1854,12 @@
       shelves = [];
     }
   }
-  /** On that shelf (its other shelves give way), and out of Today's Inbox. */
+  /** On that shelf (its other shelves give way). */
   async function placeOn(shelf: string) {
     if (!note) return;
     const tags = note.tags.filter((t) => !t.startsWith('shelf:'));
     tags.push(`shelf:${shelf}`);
     await setProp('tags', tags.join(', '));
-    if (note.props?.source && !note.props?.filed) await setProp('filed', appToday());
     toast.now = { text: `On the shelf ${shelf}` };
   }
   /** What goes out: the selection, else the note's text. */
@@ -2970,7 +2969,7 @@
                 }}>Bring into another note…</button
               >
               <!-- **Place on a shelf** (`workspace-design` §13.4): every note finds its place in the
-                   library; placing also files it out of Today's Inbox. -->
+                   library. -->
               <button
                 class="opt"
                 onclick={() => {

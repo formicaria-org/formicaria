@@ -20,6 +20,8 @@
     timeline:
       '<circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M5 8v8M10 6h9M10 18h9"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    globe:
+      '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9M12 3c-2.5 2.7-3.8 5.7-3.8 9s1.3 6.3 3.8 9"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     minus: '<path d="M5 12h14"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',

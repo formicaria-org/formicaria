@@ -71,6 +71,11 @@ type Accepted =
       alt?: { label: string; token: string };
       /** Said on the page already (the bubble): formicaria shows no second line. */
       quiet: boolean;
+      /** **The note chosen on the page** (the chooser by formicaria's icon), else the one in front. */
+      note?: string;
+      noteTitle?: string;
+      /** A new note, named after the page, chosen on the page. */
+      fresh?: boolean;
     }
   | { n: number; type: 'replace'; id: string; from: string; to: string }
   | { n: number; type: 'toast'; text: string; id?: string }
@@ -107,6 +112,9 @@ export function accepted(
           ? { label: alt.label as string, token: alt.token as string }
           : undefined,
       quiet: m.quiet === true,
+      ...(typeof m.note === 'string' && ID.test(m.note) ? { note: m.note.toUpperCase() } : {}),
+      ...(str(m.noteTitle, 500) ? { noteTitle: str(m.noteTitle, 500)! } : {}),
+      ...(m.fresh === true ? { fresh: true } : {}),
     };
   }
   if (m.type === 'replace' && typeof m.note === 'string' && ID.test(m.note)) {
@@ -180,7 +188,12 @@ export function listen(h: Handlers): () => void {
       return;
     }
     void (async () => {
-      const t = h.target() ?? (await h.create(m.page.title || 'From the web'));
+      const fresh = () => h.create(m.page.title || 'From the web');
+      // The note chosen on the page is opened, so its pane takes the insert as the one in front would.
+      const chosen = m.note
+        ? (h.open(m.note), { id: m.note, title: m.noteTitle || 'your note' })
+        : null;
+      const t = chosen ?? (m.fresh ? await fresh() : (h.target() ?? (await fresh())));
       if (!t) {
         reply(m.n, { ok: false, error: 'formicaria could not make a note for it.' });
         return;

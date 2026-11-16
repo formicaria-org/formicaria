@@ -298,16 +298,9 @@ fn every_shipped_view_parses_and_can_be_drawn() {
         .filter(|v| matches!(v.renderer, Some(Renderer::Timeline) | Some(Renderer::Agenda)))
         .map(|v| (v.name.as_str(), v.group.as_deref(), v.error.is_none()))
         .collect();
-    // Mail's conversations (2026-11-16): its own section. Today's Inbox and what is coming up
-    // (2026-11-16, workspace-design §12): a section of their own.
-    assert_eq!(
-        lists,
-        vec![
-            ("Conversations", Some("Mail"), true),
-            ("Inbox", Some("Today"), true),
-            ("Coming up", Some("Today"), true)
-        ]
-    );
+    // Mail's conversations (2026-11-16): its own section. (*Today* shipped in 0.40 and was taken out
+    // in 0.43: the owner had not asked for it.)
+    assert_eq!(lists, vec![("Conversations", Some("Mail"), true)]);
     let shipped: Vec<_> = all
         .iter()
         .filter(|v| {

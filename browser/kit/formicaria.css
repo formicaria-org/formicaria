@@ -103,3 +103,10 @@
 #main-window:has(#browser[formicaria="folded"]) #formicaria-float {
   display: block;
 }
+
+/* **Firefox kept bare** (`workspace-design` §13.7): the browser is the shell; its toolbar keeps the
+   tabs and the address bar, and formicaria's actions are in formicaria's own UI. */
+#home-button,
+#fxa-toolbar-menu-button {
+  display: none !important;
+}

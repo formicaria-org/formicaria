@@ -42,6 +42,15 @@ trap, add one. Newest concerns first within each section.
   on the development machine (no Android SDK there); the release build compiles it. A selection
   from another app carries no address, so it says *shared from another app*; Share usually adds the
   page's address. GeckoView (formicaria's browser on the phone) is not built: APK budget and G0.
+- **Every item a tab (0.43, computer)**: the app says its item in its address (`#at=`) and the
+  browser moves the shown formicaria tab to it; one formicaria behind every formicaria tab, so two
+  formicaria tabs side by side go through formicaria's own two panes (`#pair=`), notes only. *Open…*
+  searches notes by text; a section or view is reached from its places row, not by typing its name.
+- **Pages on the phone (0.43)**: the shell draws each page's WebView *above* the app, over the item's
+  box; the app hides it whenever a dialog or a menu is up (`PageItem`), so an app overlay that is
+  neither (a toast, a popover without a role) is covered by the page. Pages are the system WebView:
+  no add-on, no tracking protection beyond Android's, no pinch-to-select tool; ⇥ takes the selection
+  or the page. Not tried on a device before release; the Kotlin compiles with the pinned SDK.
 - **The library model (0.38)**: a lean tab opens formicaria at its item; a note's tab whose note was
   deleted shows formicaria's notice and can be closed. The collection's *beside* for any two tabs by
   one drag (D3) is not built. The Mail section is a timeline of conversations, not yet a mail client

@@ -18,7 +18,17 @@ import type {
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
 export type PaneKind =
-  'board' | 'agenda' | 'timeline' | 'activity' | 'collaboration' | 'discussions' | 'note' | 'view';
+  | 'board'
+  | 'agenda'
+  | 'timeline'
+  | 'activity'
+  | 'collaboration'
+  | 'discussions'
+  | 'note'
+  | 'view'
+  /** **A web page, an item of the collection like a note** (`workspace-design` §13.7): on the phone
+   *  the shell draws it where this pane is (`__fmPage`); elsewhere it opens as a link. */
+  | 'page';
 
 export interface Pane {
   id: string;
@@ -32,6 +42,9 @@ export interface Pane {
   /** note — the title last seen, so a list of windows can name a note rather than call it "Note".
    *  Optional: a workspace saved before 2026-09-11 has none, and the note reports it when it loads. */
   noteTitle?: string | null;
+  /** page — its address, and its title once the page has said it. */
+  url?: string | null;
+  pageTitle?: string | null;
   colSpan: number; // grid columns occupied (>=1)
   rowSpan: number; // grid rows occupied (>=1)
 }
@@ -61,7 +74,7 @@ export const SCHEMA = 3;
 /** **Only notes are windows** (`decisions.md#ui`, 2026-10-16). Every other pane is *the view* — the
  *  one place you are — and the workspace holds exactly one of it, which picking a view re-points. */
 export function isView(p: Pane): boolean {
-  return p.kind !== 'note';
+  return p.kind !== 'note' && p.kind !== 'page';
 }
 
 export interface Workspace {
@@ -212,6 +225,7 @@ export function matchesTarget(p: Pane, kind: PaneKind, over: Partial<Pane> = {})
   if (p.kind !== kind) return false;
   if (kind === 'view') return p.viewName === (over.viewName ?? null);
   if (kind === 'note') return p.noteId === (over.noteId ?? null);
+  if (kind === 'page') return p.url === (over.url ?? null);
   return true;
 }
 
@@ -298,6 +312,7 @@ export function feedKey(p: Pane): string | null {
     case 'view':
       return p.viewName ? `view:${p.viewName}` : null;
     case 'note':
+    case 'page':
     case 'activity':
       // No feed: `note` self-fetches by id; `activity` reads the reactive activity module,
       // which App refreshes alongside the feeds.
@@ -395,6 +410,8 @@ export function paneTitle(p: Pane): string {
       // Its title — whose first letters are what a narrow list or tab shows — and "Note" only until
       // the note has loaded, or for a note that has no title.
       return p.noteTitle?.trim() || 'Note';
+    case 'page':
+      return p.pageTitle?.trim() || hostOf(p.url ?? '') || 'Page';
     default:
       return paneLabel(p.kind);
   }
@@ -434,8 +451,17 @@ export const BUILTIN_PANES: BuiltinPane[] = [
 /// and the window menu in a phone's bottom bar. A built-in's own, a pen for a note, and `null` for a
 /// saved view, which both lists show as a dot rather than inventing art. One function, so the two
 /// lists cannot come to disagree.
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 export function paneIcon(p: Pane): string | null {
   if (p.kind === 'note') return 'pen';
+  if (p.kind === 'page') return 'globe';
   return BUILTIN_PANES.find((b) => b.kind === p.kind)?.icon ?? null;
 }
 

@@ -1,5 +1,5 @@
 // **Placing a note, and handing it out** (`workspace-design` §13.4, §13.6): *Place on a shelf…* puts
-// a note on a shelf (and files it out of Today's Inbox); *Send by mail…* opens Gmail's compose with the
+// a note on a shelf; *Send by mail…* opens Gmail's compose with the
 // note's title and text. Both in the note's ＋ (Options).
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -19,7 +19,7 @@ async function openNew(title: string, body: string, props: Record<string, string
   return made.id;
 }
 
-it('a note placed on a new shelf carries that shelf, and leaves the Inbox', async () => {
+it('a note placed on a new shelf carries that shelf', async () => {
   const id = await openNew('Saved page', 'Text.', { source: 'web' });
   await fireEvent.click(screen.getByRole('button', { name: 'Place on a shelf…' }));
   const input = await screen.findByRole('textbox', { name: 'new shelf' });
@@ -31,7 +31,6 @@ it('a note placed on a new shelf carries that shelf, and leaves the Inbox', asyn
       props: Record<string, unknown>;
     };
     expect(n.tags).toContain('shelf:Ants');
-    expect(n.props.filed).toBeTruthy();
   });
 });
 

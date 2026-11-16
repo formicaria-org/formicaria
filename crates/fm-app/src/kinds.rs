@@ -118,7 +118,7 @@ pub const KINDS: &[KindSpec] = &[
         key: "web",
         label: "Web page",
         mark: "◎",
-        views: &["Study rooms", "Today"],
+        views: &["Study rooms"],
         sources: &["web"],
         place: "Study rooms › Web",
         out: &["share"],

@@ -399,6 +399,8 @@ no new machinery:
 
 ## 12. What is left, in the order it is built (plan, 2026-11-16)
 
+> **0.43: Today and its Inbox are withdrawn** (the owner had not asked for them; `decisions.md` 2026-11-16, night, later).
+>
 > **Status (0.40):** 1 (D3), 2 (Mail as a client) and 3 (Today and its Inbox, the first screen unchanged)
 > are built. 4 (the phone's browser, phase A): a first version as a separate screen was withdrawn
 > before release (§12.1: a page is a layer of formicaria); 0.41 ships the layer. Next: 8 (Windows and macOS). **Last, by the owner's
@@ -471,7 +473,12 @@ The web is one of formicaria's features, as notes, Music or Food are. So:
 > **Status (0.41):** step 1 (the kind registry, `kind_key` on every note) and step 2 (one piece, `put`;
 > *Bring into another note…* in every note's ＋) are built; the computer's quick switch (§13.7) too.
 > **0.42:** steps 3 (Place on a shelf…, the views' source line) and 4 (Send by mail, Reply in Gmail,
-> Add to calendar / .ics, Share) are built. Next: step 5 on the phone (pages as items, the switch).
+> Add to calendar / .ics, Share) are built. **0.43:** step 5: web pages as items of the collection on
+> the phone (`PageItem` + the shell's `__fmPage`), the bar's switch to the previous item, Firefox's
+> toolbar bare. Two items together on the phone (a card dragged to a side) is not built yet.
+> **0.43 also: the unifying UI on the computer** (`decisions.md` 2026-11-16, night, last): one item
+> fills the window; every formicaria item a tab that follows formicaria's moves; ＋ opens *Open…*; the
+> chooser by formicaria's icon on a page (the note in front, any note found, a new note).
 
 ### 13.1 The cycle
 
@@ -489,7 +496,7 @@ Myrme; it replaces `sources`).
 | Kind | Recognised by (today's markers) | View(s) | Source(s) | A passage of it, in another note | Out (hand-off) | Default place |
 |---|---|---|---|---|---|---|
 | **study note** | none of the below | Study rooms | — | quote + `note:` link | Mail (new), Share | Study rooms |
-| **web clip** | `source: web` / tag `web` | Study rooms (Web shelf), Today | the web (browser) | quote + page link at the passage | — | shelf *Web* |
+| **web clip** | `source: web` / tag `web` | Study rooms (Web shelf) | the web (browser) | quote + page link at the passage | — | shelf *Web* |
 | **paper** | tag `paper` / `doi` | Study rooms (Papers) | the web, BibTeX | quote + citation | — | shelf *Papers* |
 | **recipe** | `recipe` | Food (Recipes) | the web, typed | ingredients/steps as text + link | — | Food |
 | **log entry** | `log: food\|workout\|health\|music` | Food, Fitness, Health, Music | typed, a watch (later) | the entry's values as a line | — | its view |
@@ -519,7 +526,7 @@ side), drag a selection from one into the other, or *Send to the note beside*.
 A **place** = a section (from the kind) and, inside it, a **shelf** (`shelf:` tags, as today).
 - *File it* becomes **Place…**: a small picker in the note's head: the suggested place (§13.2's
   default), the shelves of that section, a new shelf. It sets the `shelf:` tag and `filed`.
-- **Today's Inbox** = notes with a `source` and no `filed`: the new acquisitions.
+- ~~**Today's Inbox**~~ — withdrawn in 0.43 (`decisions.md` 2026-11-16, night, later): the owner had not asked for *Today*.
 - A note produced while studying has **Place…** too; unplaced it stays in the Study rooms' timeline.
 
 ### 13.5 Views and their sources (step 3)

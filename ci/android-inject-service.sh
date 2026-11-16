@@ -111,7 +111,12 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.WebChromeClient
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
@@ -122,6 +127,7 @@ import androidx.webkit.WebViewFeature
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 
 class MainActivity : TauriActivity() {
   private var wv: WebView? = null
@@ -418,6 +424,100 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  /// **A web page, an item of the collection** (`docs/context/workspace-design-2026-11-15.md` §13.7):
+  /// the app owns the collection, the switch and the layout; the shell only **draws** a page's
+  /// WebView over the box the app gives (CSS pixels of the app's own view), hides it when the app
+  /// says it is out of sight, and tells the app the page's title and address as they change. One
+  /// WebView per item, kept while the item is open, so a page switched away from and back is where
+  /// it was. A page is the web's: no bridge into it, nothing of formicaria's inside it.
+  private val pages = HashMap<String, WebView>()
+
+  private fun tellApp(id: String, page: WebView) {
+    val d = JSONObject().put("id", id).put("title", page.title ?: "").put("url", page.url ?: "")
+    wv?.evaluateJavascript("window.dispatchEvent(new CustomEvent('fm-page',{detail:$d}))", null)
+  }
+
+  private fun pageFor(id: String, url: String): WebView {
+    pages[id]?.let { return it }
+    val page = WebView(this)
+    page.settings.javaScriptEnabled = true
+    page.settings.domStorageEnabled = true
+    page.settings.builtInZoomControls = true
+    page.settings.displayZoomControls = false
+    page.webViewClient = object : WebViewClient() {
+      override fun doUpdateVisitedHistory(view: WebView, u: String?, reload: Boolean) = tellApp(id, view)
+    }
+    page.webChromeClient = object : WebChromeClient() {
+      override fun onReceivedTitle(view: WebView, title: String?) = tellApp(id, view)
+    }
+    page.visibility = View.GONE
+    findViewById<ViewGroup>(android.R.id.content)
+      .addView(page, FrameLayout.LayoutParams(0, 0))
+    pages[id] = page
+    if (url.startsWith("https://") || url.startsWith("http://")) page.loadUrl(url)
+    return page
+  }
+
+  inner class Pages {
+    /// Draw the item's page over that box (the app's CSS pixels), opening it at `url` the first time.
+    @JavascriptInterface
+    fun show(id: String, url: String, x: Double, y: Double, w: Double, h: Double) {
+      runOnUiThread {
+        val page = pageFor(id, url)
+        val d = resources.displayMetrics.density
+        val main = wv
+        val origin = IntArray(2).also { main?.getLocationInWindow(it) }
+        val root = IntArray(2).also { (page.parent as? View)?.getLocationInWindow(it) }
+        val lp = FrameLayout.LayoutParams((w * d).toInt(), (h * d).toInt())
+        lp.leftMargin = (x * d).toInt() + origin[0] - root[0]
+        lp.topMargin = (y * d).toInt() + origin[1] - root[1]
+        page.layoutParams = lp
+        page.visibility = View.VISIBLE
+        page.bringToFront()
+      }
+    }
+
+    @JavascriptInterface
+    fun hide(id: String) {
+      runOnUiThread { pages[id]?.visibility = View.GONE }
+    }
+
+    /// The item was closed: its page goes for good.
+    @JavascriptInterface
+    fun close(id: String) {
+      runOnUiThread {
+        val page = pages.remove(id) ?: return@runOnUiThread
+        (page.parent as? ViewGroup)?.removeView(page)
+        page.destroy()
+      }
+    }
+
+    @JavascriptInterface
+    fun back(id: String) {
+      runOnUiThread { pages[id]?.let { if (it.canGoBack()) it.goBack() } }
+    }
+
+    /// **Bring the selection in** (`decisions.md` 2026-11-16, *a page is a layer*): the page's
+    /// selection (its HTML and words), or the page itself when nothing is selected, with the page's
+    /// exact address and title, into `note` (or the note in front, decided by the app).
+    @JavascriptInterface
+    fun bring(id: String, note: String) {
+      runOnUiThread {
+        val page = pages[id] ?: return@runOnUiThread
+        page.evaluateJavascript(PICK) { got ->
+          try {
+            val json = JSONTokener(got).nextValue() as? String ?: return@evaluateJavascript
+            val piece = JSONObject(json)
+            if (piece.optString("text").length > MAX_TEXT) piece.put("text", piece.optString("text").take(MAX_TEXT))
+            if (piece.optString("html").length > MAX_TEXT) piece.remove("html")
+            piece.put("note", note)
+            bring(piece)
+          } catch (e: Exception) { }
+        }
+      }
+    }
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     wv = webView
     webView.addJavascriptInterface(Insets(), "__fmInsets")
@@ -425,7 +525,8 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(UpdateDownload(), "__fmUpdate")
     // What another app shared: the page asks for it. See `takeShared`.
     webView.addJavascriptInterface(Share(), "__fmShare")
-    // The activity the page painter (step 5) hands what it brings back to.
+    // Web pages as items of the collection, drawn where the app says. See `Pages`.
+    webView.addJavascriptInterface(Pages(), "__fmPage")
     current = java.lang.ref.WeakReference(this)
 
     // **Applied before the page's own CSS**, on every navigation, so there is no frame in which
@@ -464,10 +565,9 @@ class MainActivity : TauriActivity() {
   }
 
   companion object {
-    /// **What was brought in from a page** (the page painter, `workspace-design` §13.7), waiting for the app's page to take
-    /// it: the selection's HTML and words, or an image or link, with the page's exact address and
-    /// title, and the note it goes into. Held here, process-wide, since the page screen is another
-    /// activity.
+    /// **What was brought in from a page** (`Pages.bring`), waiting for the app to take it: the
+    /// selection's HTML and words, or the page itself, with the page's exact address and title, and
+    /// the note it goes into.
     val brought = mutableListOf<JSONObject>()
     var current: java.lang.ref.WeakReference<MainActivity>? = null
 
@@ -479,6 +579,19 @@ class MainActivity : TauriActivity() {
 
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
+    /// What a page gives when brought in: its selection, or itself.
+    private const val PICK = """
+      (function () {
+        var s = window.getSelection(), t = String(s || '').trim(), h = '';
+        if (t && s.rangeCount) {
+          var d = document.createElement('div');
+          d.appendChild(s.getRangeAt(0).cloneContents());
+          h = d.innerHTML;
+        }
+        return JSON.stringify({ kind: t ? 'selection' : 'page', text: t, html: h,
+          pageUrl: location.href, pageTitle: document.title });
+      })()
+    """
     /// A passage brought in is text a person chose; a whole book pasted into Share is cut here.
     private const val MAX_TEXT = 100_000
     /// The newest release's APK — the address `docs/src/user/android.md` gives for the first install.

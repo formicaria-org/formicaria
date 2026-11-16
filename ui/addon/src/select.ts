@@ -46,6 +46,7 @@ browser.runtime.onMessage.addListener((m) => {
 const LOGO = `<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#dc2626"/><g fill="none" stroke="#1a1205" stroke-width="22" stroke-linecap="round"><path d="M240 122 C 212 88, 198 76, 178 66"/><path d="M272 122 C 300 88, 314 76, 334 66"/><path d="M232 214 C 188 196, 150 196, 118 214"/><path d="M228 240 C 180 240, 140 252, 110 278"/><path d="M232 266 C 190 286, 156 308, 138 338"/><path d="M280 214 C 324 196, 362 196, 394 214"/><path d="M284 240 C 332 240, 372 252, 402 278"/><path d="M280 266 C 322 286, 356 308, 374 338"/></g><g fill="#1a1205"><circle cx="256" cy="150" r="40"/><circle cx="256" cy="232" r="32"/><ellipse cx="256" cy="346" rx="54" ry="66"/></g></svg>`;
 
 let host: HTMLElement | null = null;
+let root: ShadowRoot | null = null;
 let face: HTMLElement | null = null;
 
 function hide() {
@@ -78,42 +79,117 @@ interface Result {
   alt?: { label: string; token: string };
 }
 
-async function bring(s: { html: string; text: string }, at: { x: number; y: number }) {
+type Aim = { note?: string; noteTitle?: string; fresh?: boolean };
+
+async function bring(s: { html: string; text: string }, at: { x: number; y: number }, aim: Aim = {}) {
   const r = await browser.runtime
-    .sendMessage<Result>({ type: 'bring-selection', html: s.html, text: s.text })
+    .sendMessage<Result>({ type: 'bring-selection', html: s.html, text: s.text, ...aim })
     .catch((e) => ({ ok: false, error: String(e) }) as Result);
   bubble(at, r ?? { ok: false, error: 'no answer' });
 }
 
-/** formicaria's icon, floating where the pointer let go of the selection. */
+/** formicaria's icon, floating where the pointer let go of the selection. **A click opens the
+ *  chooser** (owner, 2026-11-16: *"if one clicks on it … the user can search for the note where they
+ *  want it to go, otherwise it is not clear"*): the note in front first (Enter), a field to find any
+ *  other note, and a new note. */
 function chip(at: { x: number; y: number }, s: { html: string; text: string }) {
   if (!host) {
     host = document.createElement('formicaria-chip');
-    const root = host.attachShadow({ mode: 'closed' });
-    root.innerHTML = `<style>
-      :host { all: initial; position: fixed; z-index: 2147483647; }
-      button { all: initial; display: block; width: 28px; height: 28px; cursor: pointer; border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,.3); transition: transform .12s; }
-      button:hover { transform: scale(1.15); }
-      svg { display: block; width: 28px; height: 28px; }
-    </style><button type="button">${LOGO}</button>`;
-    face = root.querySelector('button');
-    // Pressing it must not clear the selection it is about to bring.
-    host.addEventListener('mousedown', (e) => e.preventDefault());
+    root = host.attachShadow({ mode: 'closed' });
   }
-  const h = host;
-  const tip = front ? `Bring into “${front}”` : 'Bring into a new note';
+  const r = root!;
+  r.innerHTML = `<style>
+      :host { all: initial; position: fixed; z-index: 2147483647; font: 14px/1.35 system-ui, sans-serif; }
+      .ant { all: initial; display: block; width: 28px; height: 28px; cursor: pointer; border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.3); transition: transform .12s; }
+      .ant:hover { transform: scale(1.15); }
+      svg { display: block; width: 28px; height: 28px; }
+      .menu { display: none; width: 280px; background: #fff; color: #1a1205; border-radius: 10px;
+        box-shadow: 0 6px 24px rgba(0,0,0,.28); padding: 6px; }
+      .menu.open { display: block; }
+      .row { all: initial; display: block; box-sizing: border-box; width: 100%; padding: 7px 9px; border-radius: 6px;
+        cursor: pointer; font: inherit; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .row:hover, .row:focus { background: #fde2e2; outline: none; }
+      .main { font-weight: 600; }
+      input { all: initial; display: block; box-sizing: border-box; width: 100%; margin: 4px 0; padding: 7px 9px;
+        border: 1px solid #d6cfc7; border-radius: 6px; font: inherit; color: inherit; background: #fff; }
+      .found:empty { display: none; }
+      .muted { color: #6b6158; }
+    </style><button type="button" class="ant">${LOGO}</button><div class="menu" role="menu"></div>`;
+  face = r.querySelector('.ant');
+  const menu = r.querySelector('.menu') as HTMLElement;
+  // Pressing the icon must not clear the selection it is about to bring.
+  face?.addEventListener('mousedown', (e) => e.preventDefault());
+  const tip = front ? `Bring into “${front}”, or choose a note` : 'Bring into a note';
   face?.setAttribute('title', tip);
   face?.setAttribute('aria-label', tip);
-  h.onclick = (e) => {
+  const into = (aim: Aim) => {
+    hide();
+    void bring(s, { x: at.x, y: at.y + 4 }, aim);
+  };
+  const row = (label: string, act: () => void, cls = 'row') => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls;
+    b.textContent = label;
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      act();
+    });
+    return b;
+  };
+  const open = () => {
+    menu.replaceChildren();
+    const main = row(front ? `Into “${front}”` : 'Into a new note', () => into(front ? {} : { fresh: true }), 'row main');
+    const field = document.createElement('input');
+    field.type = 'search';
+    field.placeholder = 'Another note…';
+    field.setAttribute('aria-label', 'find the note to bring it into');
+    const found = document.createElement('div');
+    found.className = 'found';
+    let hits: { id: string; title: string }[] = [];
+    let seq = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    field.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = field.value.trim();
+      if (!q) return found.replaceChildren();
+      timer = setTimeout(async () => {
+        const mine = ++seq;
+        const got = await browser.runtime
+          .sendMessage<{ id: string; title: string }[]>({ type: 'search-notes', q })
+          .catch(() => []);
+        if (mine !== seq) return;
+        hits = got ?? [];
+        found.replaceChildren(
+          ...(hits.length
+            ? hits.map((h) => row(h.title, () => into({ note: h.id, noteTitle: h.title })))
+            : [Object.assign(document.createElement('div'), { className: 'row muted', textContent: 'No note found' })]),
+        );
+      }, 180);
+    });
+    field.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && hits[0]) into({ note: hits[0].id, noteTitle: hits[0].title });
+      if (e.key === 'Escape') hide();
+    });
+    menu.append(main, field, found);
+    if (front) menu.append(row('Into a new note', () => into({ fresh: true })));
+    menu.classList.add('open');
+    face!.style.display = 'none';
+    (main as HTMLElement).focus();
+  };
+  // On the host, so a click on the icon (and only before the chooser is open) opens it.
+  host.onclick = (e) => {
+    if (menu.classList.contains('open')) return;
     e.preventDefault();
     e.stopPropagation();
-    hide();
-    void bring(s, { x: at.x, y: at.y + 4 });
+    open();
   };
-  h.style.left = `${Math.max(4, Math.min(at.x, innerWidth - 36))}px`;
-  h.style.top = `${Math.max(4, Math.min(at.y, innerHeight - 36))}px`;
-  document.documentElement.append(h);
+  host.style.left = `${Math.max(4, Math.min(at.x, innerWidth - 290))}px`;
+  host.style.top = `${Math.max(4, Math.min(at.y, innerHeight - 260))}px`;
+  document.documentElement.append(host);
 }
 
 function flash(rect: DOMRect) {
@@ -162,11 +238,13 @@ addEventListener('mouseup', (e) => {
   setTimeout(() => settled(e), 0);
 });
 addEventListener('keyup', (e) => {
+  if (host && document.activeElement === host) return;
   if (e.shiftKey || e.key === 'Shift') setTimeout(() => settled(e), 0);
 });
 addEventListener('scroll', hide, { passive: true });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hide();
+  else if (host && document.activeElement === host) return;
 });
 
 export {};

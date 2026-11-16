@@ -15128,3 +15128,58 @@ building"*.
 
 **Widens what ships:** one shell call (`out`, Android's share chooser), the add-on's beside-list gains
 `calendar.google.com`.
+
+## 2026-11-16 (night) — web pages are items of the phone's collection `#ui` `#seams`
+
+Step 5 of `workspace-design` §13 (approved plan; the owner's answers: the item fills the content area
+with the slim bottom bar; the switch goes to the previous item; two together only when asked).
+
+**Built (0.43).** A web page is a pane kind, `page` (`url`, `pageTitle`), like a note: opened by a web
+link on the phone, listed with the open notes, closed by its card. The Android shell does not own a
+screen for it any more (the withdrawn `PageActivity`): `__fmPage.show(id, url, box)` draws one WebView
+per item over the box the app gives, `hide` when the app says it is out of sight (another item in
+front, a dialog or menu up), `close` when the item closes, `back`, and `bring(id, note)` takes the
+selection (or the page) as a `Brought` piece into the note before the page, through the existing
+pending-pieces path. The page tells the app its title and address (`fm-page`), which name the item
+and reopen it there. The bar's **switch** goes to the item in front before this one, any kind. On a
+computer a `page` item is only its address (formicaria's browser has real tabs). Firefox's toolbar
+loses the home and account buttons (CSS), checked by `browser-check`.
+
+**Widens what ships:** the phone's shell gains one JavaScript interface (`__fmPage`) and WebViews of
+the system's own engine for web pages; nothing of formicaria is injected into them.
+
+## 2026-11-16 (night, later) — *Today* taken out; a section pressed again goes to its start `#ui`
+
+The owner, on 0.41: *"the study rooms does nothing and there is a not requested today view"*.
+
+1. **Today is withdrawn.** The section (its *Inbox* and *Coming up* views, shipped in 0.40 from
+   `workspace-design` §12 #3) was never asked for. Its two shipped views are removed, so it leaves
+   every install; *Place on a shelf…* no longer writes `filed`, which only the Inbox read. The
+   calendar's source line moves to the Agenda. The *0.40 Today* part of the 2026-11-16 entries is
+   superseded by this one.
+2. **A section pressed while you are in it goes to its start** (its first view: Study rooms → its
+   Shelves). Before, it returned early and nothing happened, which read as broken.
+
+## 2026-11-16 (night, last) — formicaria contains the browser: every item a tab, one item fills the window `#ui` `#seams`
+
+> Supersedes, for the computer, the 2026-11-15 (late night) *formicaria docks beside the page* rule
+> that "tabs are web pages only" and that choosing a page while formicaria fills the window puts
+> formicaria beside it.
+
+The owner, on 0.41: *"It looks like we just have fm with a browser on the side, still"*; and before:
+*"fm contains many features like browsing, it is not contained in them"*, *"two together only when I
+ask"*; then *"go to the phone and unifying UI. Myrme last"*.
+
+**Ruling.** In formicaria's browser:
+1. **One item fills the window.** Choosing a page shows the page alone; choosing a formicaria tab
+   shows formicaria alone. Two side by side only when asked (a tab dragged to a side, D3; or
+   Alt+Shift+F).
+2. **Every formicaria item is a tab**, beside the pages in one row. While a formicaria tab is shown,
+   moving inside formicaria (opening a note from a board, a view from the rail) moves *that tab*, as a
+   link moves a page's tab; the app tells the browser its item in its own address (`#at=`).
+3. **＋ (and Ctrl+T) opens formicaria's *Open…***: the library search with the web in it (an address
+   to go to, a search of the web), the sections, a new note. What is chosen fills that tab; a web
+   address turns it into a page.
+4. A formicaria tab given a web address (typed in the address bar) becomes a page.
+
+Firefox stays the shell: the tab row, the address bar, the window.

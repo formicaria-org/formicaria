@@ -289,6 +289,8 @@ const mb = (n: number) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
 
 /** Hand the text to the note in front (or a new note named after the page), with its alternative. */
 let quietNow = false;
+/** Where the piece goes, when chosen on the page (the chooser): a note, or a new one. */
+let aimNow: { note?: string; noteTitle?: string; fresh?: boolean } = {};
 async function deliver(
   p: Piece,
   text: string,
@@ -311,6 +313,7 @@ async function deliver(
       quiet,
       page: { title: p.pageTitle, url: p.pageUrl },
       alt: offered,
+      ...aimNow,
     });
     return { ...r, inserted: text, alt: offered };
   } catch (e) {
@@ -347,9 +350,14 @@ async function forget(id: string) {
 }
 
 /** **One pipeline, whatever started it**: what the piece is decides the content or a link. */
-export async function bringPiece(p: Piece, quiet = false): Promise<Reply> {
+export async function bringPiece(
+  p: Piece,
+  quiet = false,
+  aim: { note?: string; noteTitle?: string; fresh?: boolean } = {},
+): Promise<Reply> {
   p = { ...p, when: p.when ?? `${today()} ${clockNow()}` };
   quietNow = quiet;
+  aimNow = aim;
   switch (p.kind) {
     case 'text':
       return deliver(p, textPiece(p), 'the passage');
@@ -767,6 +775,9 @@ omnibox.onInputEntered.addListener((text) => {
     html?: string;
     text?: string;
     piece?: Partial<Piece>;
+    note?: unknown;
+    noteTitle?: unknown;
+    fresh?: unknown;
   };
   if (from?.type === 'bring-selection' || from?.type === 'bring-piece') {
     return browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
@@ -776,10 +787,24 @@ omnibox.onInputEntered.addListener((text) => {
         from.type === 'bring-selection'
           ? classify(from.html ?? '', from.text ?? '', page)
           : ({ ...from.piece, pageUrl: page.url, pageTitle: page.title } as Piece);
-      const r = await bringPiece(p, from.type === 'bring-selection');
+      const aim = {
+        note: typeof from.note === 'string' ? from.note : undefined,
+        noteTitle: typeof from.noteTitle === 'string' ? from.noteTitle : undefined,
+        fresh: from.fresh === true,
+      };
+      const r = await bringPiece(p, from.type === 'bring-selection', aim);
       if (from.type === 'bring-piece') failed(r);
       return r;
     });
+  }
+  // **The chooser's search** (formicaria's icon by a selection): the notes a word finds, to bring into.
+  if (m?.type === 'search-notes' && typeof m.q === 'string' && m.q.trim()) {
+    return config()
+      .then((c) => call(c.server, c.key, 'search', JSON.stringify({ query: m.q }), true))
+      .then((hits: { id: string; title?: string }[] | null) =>
+        (hits ?? []).slice(0, 6).map((h) => ({ id: h.id, title: h.title || 'Untitled' })),
+      )
+      .catch(() => []);
   }
   if (m?.type === 'notes' && typeof m.tab === 'number') {
     const tab = m.tab;

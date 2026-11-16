@@ -1,4 +1,5 @@
 <script lang="ts">
+  import OpenAnything from './lib/OpenAnything.svelte';
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import BrowserRestartBanner from './lib/BrowserRestartBanner.svelte';
@@ -292,6 +293,8 @@
     const closing = workspace.panes.find((p) => p.id === id);
     if (!closing || isView(closing)) return;
     const wasFront = workspace.panes[focused]?.id === id;
+    if (closing.kind === 'page')
+      (globalThis as { __fmPage?: { close(id: string): void } }).__fmPage?.close(id);
     const filtered = workspace.panes.filter((p) => p.id !== id);
     const panes = filtered.length ? filtered : [newPane('board')];
     // **The remaining views reclaim the space.** Growing on open without shrinking on close
@@ -1778,6 +1781,17 @@
   const focusedPane = $derived(workspace.panes[focused]);
   /// How many notes are open — the windows the phone's counted button lists.
   const openNotes = $derived(workspace.panes.filter((p) => !isView(p)).length);
+  // **The quick switch** (`workspace-design` §13.7; the owner: *"the previous item"*): the item that
+  // was in front before this one, of any kind, one press away in the bar.
+  const frontId = $derived(workspace.panes[focused]?.id);
+  let prevId = $state<string | null>(null);
+  let lastFront: string | undefined;
+  $effect(() => {
+    const id = frontId;
+    if (lastFront && id && id !== lastFront) prevId = lastFront;
+    lastFront = id;
+  });
+  const prevIndex = $derived(workspace.panes.findIndex((p) => p.id === prevId && p.id !== frontId));
   const focusedFeed = $derived(
     focusedPane && feedKey(focusedPane) ? feeds[feedKey(focusedPane) ?? ''] : undefined,
   );
@@ -1861,8 +1875,14 @@
   }
   function openSpace(name: string) {
     const s = spaces.find((x) => x.name === name);
-    if (!s || s.name === focusedSpace?.name) return;
+    if (!s) return;
     const first = s.tabs[0];
+    // **Pressed again, it goes to the section's start** (its first view): pressing the section you
+    // are in did nothing, which read as broken (owner, 0.41: *"the study rooms does nothing"*).
+    if (s.name === focusedSpace?.name) {
+      if (focusedPane && showsTab(focusedPane, first)) return;
+      return first.viewName ? openGroupView(first.viewName) : focusOrOpen(first.kind);
+    }
     if (first.viewName) return openGroupView(first.viewName);
     const open = workspace.panes.findIndex((p) => s.tabs.some((t) => showsTab(p, t)));
     if (open !== -1) selectWindow(open);
@@ -1927,18 +1947,29 @@
     };
     fromPages();
     window.addEventListener('fm-share', fromPages);
-    // **Links open inside formicaria on the phone** (phase A): a web link in the app goes to the page
-    // screen, with the note in front as where *Bring in* goes.
-    const page = (globalThis as { __fmPage?: { open(u: string, n: string, t: string): void } })
-      .__fmPage;
+    // **Links open inside formicaria on the phone** (`workspace-design` §13.7): a web link becomes a
+    // page item of the collection, drawn by the shell where the app puts it (`PageItem`).
+    const page = (globalThis as { __fmPage?: object }).__fmPage;
     const onLink = (e: MouseEvent) => {
       if (!page || e.defaultPrevented || e.button !== 0) return;
       const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
       if (!a || !/^https?:/.test(a.href) || a.origin === location.origin) return;
+      if (a.closest('.page-link')) return;
       e.preventDefault();
-      const t = bringTarget();
-      page.open(a.href, t?.id ?? '', t?.title ?? '');
+      focusOrOpen('page', { url: a.href, pageTitle: null });
     };
+    // **What a page says of itself** (its title, where it went): the item is named by it, and comes
+    // back at that address.
+    const onPage = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; title?: string; url?: string }>).detail;
+      const p = d && workspace.panes.find((x) => x.id === d.id && x.kind === 'page');
+      if (!p) return;
+      const patch: Partial<PaneT> = {};
+      if (d.title && d.title !== p.pageTitle) patch.pageTitle = d.title;
+      if (d.url && d.url !== p.url) patch.url = d.url;
+      if (Object.keys(patch).length) changePane(p.id, patch);
+    };
+    window.addEventListener('fm-page', onPage);
     document.addEventListener('click', onLink, true);
     // **A passage of any note, brought into another** (⇥ on a note; `lib/piece.ts`): the same sheet
     // asks which note, and the piece goes there with its link back.
@@ -1958,6 +1989,7 @@
       window.removeEventListener('fm-share', fromPages);
       window.removeEventListener('fm-bring-to-room', bring);
       document.removeEventListener('click', onLink, true);
+      window.removeEventListener('fm-page', onPage);
     };
   });
   /** **Put pieces into a note** (`lib/piece.ts`): the one way content arrives in a note from anywhere,
@@ -2129,11 +2161,18 @@
     // the collection opens. `&tab` marks one opened from a tab: the tabs are then the list of what is
     // open, so the app keeps few windows of its own and lets the oldest go.
     // **Two study rooms side by side** (workspace-design §12, D3): one tab dragged beside another.
+    // **A new tab** (＋ or Ctrl+T in formicaria's browser): *Open…* fills it.
+    if (/^#open(&tab)?$/.test(location.hash)) {
+      history.replaceState(history.state, '', location.pathname + location.search);
+      launching = true;
+      return;
+    }
     const pair =
       /^#pair=note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}),note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(
         location.hash,
       );
     if (pair) {
+      launching = false;
       history.replaceState(history.state, '', location.pathname + location.search);
       const [a, b] = [pair[1].toUpperCase(), pair[2].toUpperCase()];
       makeRoomFor(a);
@@ -2146,6 +2185,8 @@
     const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);
     const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})(&tab)?$/.exec(location.hash);
     if (!m && !v) return;
+    // Another item asked for (another formicaria tab chosen while *Open…* was up): it is put away.
+    launching = false;
     history.replaceState(history.state, '', location.pathname + location.search);
     if (v) return openAddress(decodeURIComponent(v[1]));
     const id = m![1].toUpperCase();
@@ -2178,7 +2219,8 @@
   function bringTarget() {
     const ps = workspace.panes;
     const front = ps[workspace.active ?? 0];
-    const p = front && !isView(front) ? front : [...ps].reverse().find((x) => !isView(x));
+    // A note: a page item (`kind: 'page'`) is in front while its passage is being brought.
+    const p = front?.kind === 'note' ? front : [...ps].reverse().find((x) => x.kind === 'note');
     return p?.noteId ? { id: p.noteId, title: p.noteTitle ?? 'your note' } : null;
   }
   $effect(() =>
@@ -2225,6 +2267,36 @@
     const name = front ? paneTitle(front) : '';
     document.title = name ? `${name} — formicaria` : 'formicaria';
   });
+  // **formicaria's tab follows its item** (`decisions.md` 2026-11-16, night, last): inside formicaria's
+  // browser the app writes the item in front into its own address (`#at=<item>&title=<name>`), and
+  // the browser keeps the formicaria tab shown on it, as a page's tab follows its links.
+  let launching = $state(false);
+  const frontAddress = $derived.by(() => {
+    const p = workspace.panes[focused];
+    if (!p) return '';
+    if (p.kind === 'note') return p.noteId ? `note:${p.noteId}` : '';
+    if (p.kind === 'page') return '';
+    if (p.kind === 'view') return p.viewName ? `view:saved:${p.viewName}` : '';
+    return `view:${p.kind}`;
+  });
+  const sayAt = (at: string, title: string) => {
+    const hash = `#at=${encodeURIComponent(at)}&title=${encodeURIComponent(title)}`;
+    // Never over an address not yet read (`#note=`, `#view=`, `#open`, `#pair=`): that is what to open.
+    if (location.hash && !location.hash.startsWith('#at=')) return;
+    if (location.hash !== hash)
+      history.replaceState(history.state, '', location.pathname + location.search + hash);
+  };
+  $effect(() => {
+    if (!bridged()) return;
+    const front = workspace.panes[focused];
+    if (launching) return sayAt('open:', 'New tab');
+    if (frontAddress) sayAt(frontAddress, front ? paneTitle(front) : 'formicaria');
+  });
+  /** A web address or a web search chosen in *Open…*: this tab becomes that page. */
+  function openWeb(at: string) {
+    sayAt(at, '');
+    launching = false;
+  }
   let toldFront = '';
   $effect(() => {
     // Only inside formicaria's browser: anywhere else nobody is listening, and asking costs a read.
@@ -3125,6 +3197,18 @@
          list opens from it like every other menu in this bar. Hidden by CSS from 40rem up, where the row
          is back; mounted only in `single`, where the other windows are out of sight. -->
       <!-- Counts the open **notes** — the only windows (2026-10-16) — and is there only while one is. -->
+      {#if (workspace.layout ?? 'single') === 'single' && prevIndex >= 0}
+        {@const prev = workspace.panes[prevIndex]}
+        <button
+          type="button"
+          class="switch-btn"
+          onclick={() => selectWindow(prevIndex)}
+          aria-label="switch to {paneTitle(prev)}"
+          title="Back to {paneTitle(prev)}"
+        >
+          <Icon name={paneIcon(prev) ?? 'list'} size={18} />
+        </button>
+      {/if}
       {#if (workspace.layout ?? 'single') === 'single' && openNotes > 0}
         <div class="create-wrap windows-wrap">
           <button
@@ -3701,6 +3785,25 @@
         />
       {/if}
 
+      {#if launching}
+        <OpenAnything
+          places={viewTargets}
+          onnote={(id) => {
+            launching = false;
+            openNoteInPane(id);
+          }}
+          onplace={(run) => {
+            launching = false;
+            run();
+          }}
+          onnew={() => {
+            launching = false;
+            onNew();
+          }}
+          onweb={openWeb}
+          onclose={() => (launching = false)}
+        />
+      {/if}
       <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
          spans some columns; panes flow into rows. The renderers are pure and height:100%, so
          each drops into its cell unchanged. -->
@@ -3744,6 +3847,7 @@
               onreorder={movePane}
               onresize={(patch) => resizePane(pane.id, patch)}
               onclose={() => closePane(pane.id)}
+              pageTarget={bringTarget}
               onfocus={() => (focused = i)}
               headed={workspace.layout === 'tiled'}
               addSignal={i === focused ? groupAdd : 0}
@@ -4575,6 +4679,13 @@
     background: var(--border);
   }
   /* **The open windows' button**, beside the view button — a phone only (the 40rem block shows it). */
+  .switch-btn {
+    flex: none;
+    display: grid;
+    place-items: center;
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+  }
   .windows-wrap {
     display: none;
   }

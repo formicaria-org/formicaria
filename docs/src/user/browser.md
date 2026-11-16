@@ -69,31 +69,29 @@ reopens the page with that passage highlighted.
 
 Then press **Open in formicaria** to go to the note. It is yours: edit it, tag it, move it.
 
-## formicaria beside the page
+## Your tabs: notes, views and pages together
 
-- **formicaria sits beside the page**, and **the tabs are for the web**. Drag the line between them
-  to make formicaria wider or narrower; the width is kept.
-- **⇆** at the top of formicaria moves it around the page: **right, below, left, above**, in turn. **⤢** makes it **fill the
-  window** (or double-click the line between them); choosing a page in the tab list puts it back
-  beside. **✕ folds it away**; the **ant button** at the left of the toolbar, or **Alt+Shift+F**,
-  brings it back.
-- There is **one formicaria**, in one window: opening formicaria again (double-clicking it, say)
-  shows it there rather than opening a second one, and a link to a note opens in it. A link in a
-  note opens as a tab beside it.
+- **Every tab is one thing**, of any kind: a web page, a note, a view (Board, Agenda, Shelves…), a
+  section. Choosing a tab shows that one thing, filling the window. formicaria's tabs carry its icon.
+- **Moving inside formicaria moves its tab**: open a note from the board, and that tab is now the
+  note, as following a link moves a page's tab. To keep both, choose *Open as a tab* in a note's **＋**
+  (Options); a link to a web page in a note opens the page in a tab of its own.
+- **＋ (or Ctrl+T) opens *Open…*** in a new tab: one field for your notes and the web. Type and pick a
+  note; or a web address (*Go to …*), or *Search the web for …* with the browser's own search engine,
+  and the tab becomes that page. With nothing typed, it offers a new note and the sections.
+- **Two things side by side only when you ask**: drag a tab onto the left or right half of the page.
+  Two pages share the window (Firefox's split view); a note or section and a page put formicaria
+  beside the page, on that side; two notes go side by side in formicaria. **Alt+Shift+F** shows
+  formicaria beside the page you are on; **✕** on its side puts it away again. Drag the line between
+  them to make either wider; **⇆** moves formicaria right, below, left or above the page.
+- **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, whatever it is, and
+  again to come back.
+- Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click.
 - **Tabs are across the top**, as in any browser: click to switch, drag to reorder; **scroll over
   them** to move through them; **Ctrl+Tab** shows your recent tabs as cards to pick from. Prefer them
   down the side? **Settings → Browser → Tabs down the side** (always shown, never behind a button).
-- **Anything of formicaria can be a tab too**, beside your pages: choose *Open as a tab* in a note's **＋** (Options) to
-  open it as a tab, or **middle-click** a section in formicaria's list (Study rooms, Food, Music,
-  Mail…). Such a tab costs almost nothing: choosing it shows formicaria at that note or section,
-  filling the window; choosing a page puts formicaria back beside it. Together, your tabs are your
-  **collection**: what you have out right now, of every kind.
-- **Put any two tabs side by side**: drag a tab onto the left or right half of the page. Two pages
-  share the window (Firefox's split view); a note or section and a page put formicaria beside the
-  page, on that side; two notes show side by side in formicaria.
-- **Switch back quickly**: **Alt+Shift+X** goes to the item you had before (a page, a note, a
-  section), and again to come back. When the side beside the page is closed, a small mark in the
-  corner shows it is still there; click it to bring it back.
+- There is **one formicaria** behind all its tabs, in one window: opening formicaria again shows it
+  there rather than starting a second one.
 - **Your tabs come back** when the browser starts again, formicaria's ones too.
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.
@@ -104,7 +102,7 @@ Two things you can do with what you find, and the same words everywhere:
 
 | You want | Do | What happens |
 |---|---|---|
-| **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it. Or right-click it → **Bring into "…"**, or drag it onto formicaria | it goes into **the note in front** in formicaria (its name is on the icon's tooltip and the snip's bar). With no note open, a new note named after the page is made and opened |
+| **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it, and choose where it goes: **the note in front** (first, so Enter is enough), **another note** (type to find it), or **a new note**. Or right-click it → **Bring into "…"**, or drag it onto formicaria | it goes into **the note in front** in formicaria (its name is on the icon's tooltip and the snip's bar). With no note open, a new note named after the page is made and opened |
 | **the whole page, for later** | **Save the whole page** in the snip's bar, or right-click the page → **Save page in formicaria**, or **Alt+Shift+K** | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
 
 **The snip's bar also offers what the page plainly has**, one press each: **The main text**, **The

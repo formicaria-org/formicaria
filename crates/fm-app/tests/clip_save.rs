@@ -247,26 +247,3 @@ fn a_conversation_stays_in_mail_and_is_still_found() {
     let found = call(&app, "search", json!({ "query": "gate" }), b"").unwrap();
     assert_eq!(found.as_array().unwrap().len(), 2);
 }
-
-/// **Today's Inbox** (workspace-design §12, #3): a page saved from the browser is in it until it is
-/// filed; the note itself stays where it is.
-#[test]
-fn a_saved_page_waits_in_the_inbox_until_filed() {
-    let (_h, _vault, app) = app();
-    let made = call(
-        &app,
-        "clip_save",
-        json!({ "url": "https://example.org/a", "title": "Saved page", "body": "Text.", "tags": ["web"], "props": {} }),
-        b"",
-    )
-    .unwrap();
-    let id = made["id"].as_str().unwrap().to_string();
-    let inbox = |app: &App| {
-        let out = call(app, "run_view", json!({ "name": "Inbox" }), b"").unwrap();
-        serde_json::to_string(&out).unwrap()
-    };
-    assert!(inbox(&app).contains("Saved page"), "{}", inbox(&app));
-    call(&app, "set_property", json!({ "id": id, "key": "filed", "value": "2026-11-16" }), b"")
-        .unwrap();
-    assert!(!inbox(&app).contains("Saved page"), "{}", inbox(&app));
-}

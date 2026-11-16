@@ -234,6 +234,11 @@ def bring_in(m: "Marionette") -> dict:
     time.sleep(1)
     has_chip = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
         const c = document.querySelector('formicaria-chip'); if (c) c.click(); return !!c;"""})
+    # The click opens the chooser with the note in front first, focused: Enter brings it there.
+    time.sleep(0.5)
+    m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions": [
+        {"type": "keyDown", "value": "\ue007"}, {"type": "keyUp", "value": "\ue007"}]}]})
+    m.cmd("WebDriver:ReleaseActions", {})
     time.sleep(5)
     body = post("/api/get", {"id": nid}).get("body", "")
     out["bring_chip"] = bool(has_chip.get("value") if isinstance(has_chip, dict) else has_chip) and "Ants carry leaves home" in body
@@ -311,13 +316,32 @@ def lean_tabs(m: "Marionette") -> dict:
           out.again = document.getElementById('browser').getAttribute('formicaria');
           out.labelAfter = lean.label;
           try { out.kept = JSON.parse(SessionStore.getTabState(lean)).extData?.['formicaria-item'] === 'note:' + id; } catch (e) { out.kept = String(e); }
+          // **The tab follows formicaria's item**: the app saying it moved to the board moves this tab.
+          const panel = document.getElementById('formicaria-browser');
+          panel.fixupAndLoadURIString(server + '/#at=' + encodeURIComponent('view:board') + '&title=Board', { triggeringPrincipal: sp });
+          await wait(1500);
+          out.followed = lean.getAttribute('formicaria-item');
+          out.followedLabel = lean.label;
+          // **+ opens formicaria's Open...** in a new formicaria tab, which fills the window.
+          const before = gBrowser.tabs.length;
+          BrowserCommands.openTab();
+          await wait(2500);
+          const nt = gBrowser.selectedTab;
+          out.plus = { more: gBrowser.tabs.length === before + 1, item: nt.getAttribute('formicaria-item'),
+                       state: document.getElementById('browser').getAttribute('formicaria') };
+          gBrowser.removeTab(nt);
           done(out);
         })().catch(e => done({ error: String(e) }));"""})["value"]
     ok = (r.get("made") is True and r.get("selected") is True and r.get("full") == "full"
           and r.get("label") == "Lean room" and r.get("labelAfter") == "Lean room" and r.get("light") is True)
-    if not ok or r.get("kept") is not True or r.get("beside", "beside") != "beside":
+    plus = r.get("plus") or {}
+    out = {"lean_tab": ok, "lean_kept": r.get("kept") is True,
+           "lean_fills": r.get("beside") == "folded" and r.get("again") == "full",
+           "tab_follows": r.get("followed") == "view:board" and r.get("followedLabel") == "Board",
+           "plus_opens": plus.get("more") is True and plus.get("item") == "open:" and plus.get("state") == "full"}
+    if not all(out.values()):
         print(f"browser-check: lean tab seen {r}")
-    return {"lean_tab": ok, "lean_kept": r.get("kept") is True, "lean_beside": r.get("beside") == "beside" and r.get("again") == "full"}
+    return out
 
 
 def pairs(m: "Marionette") -> dict:
@@ -363,13 +387,17 @@ def pairs(m: "Marionette") -> dict:
           out.floatShown = !!fl && getComputedStyle(fl).display !== 'none';
           document.getElementById('browser').setAttribute('formicaria', 'beside'); await wait(200);
           out.floatHidden = !!fl && getComputedStyle(fl).display === 'none';
+          // Firefox kept bare: no home or account button on the toolbar (the tab row and address bar stay).
+          const gone = id => { const b = document.getElementById(id); return !b || getComputedStyle(b).display === 'none'; };
+          out.bare = gone('home-button') && gone('fxa-toolbar-menu-button') && !!document.getElementById('urlbar');
           done(out);
         })().catch(e => done({ error: String(e) }));"""})["value"]
     ok = {"pair_pages": r.get("pages") == "split" and r.get("split") is True,
           "pair_room_page": r.get("mixed") == "beside" and r.get("mixedSide") == "left" and r.get("mixedState") == "beside",
           "pair_rooms": r.get("both") == "rooms" and r.get("bothState") == "full",
           "quick_switch": r.get("swap") == "tab" and r.get("swapBack") is True,
-          "float_when_closed": r.get("floatShown") is True and r.get("floatHidden") is True}
+          "float_when_closed": r.get("floatShown") is True and r.get("floatHidden") is True,
+          "bare_toolbar": r.get("bare") is True}
     if not all(ok.values()):
         print(f"browser-check: pairs seen {r}")
     return ok
@@ -459,8 +487,8 @@ def settings_page(ff: Path, work: Path) -> dict:
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: pairs: {e}")
         for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom",
-                  "lean_tab", "lean_kept", "lean_beside", "pair_pages", "pair_room_page", "pair_rooms",
-                  "quick_switch", "float_when_closed"):
+                  "lean_tab", "lean_kept", "lean_fills", "tab_follows", "plus_opens", "pair_pages", "pair_room_page", "pair_rooms",
+                  "quick_switch", "float_when_closed", "bare_toolbar"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -566,18 +594,21 @@ def main() -> None:
             "bring in: a passage arrives quoted, with its source": page.get("bring_text") is True,
             "bring in: an image arrives kept in the vault": page.get("bring_image") is True,
             "bring in: a table arrives as a table": page.get("bring_table") is True,
-            "bring in: the chip after a selection brings it in": page.get("bring_chip") is True,
+            "bring in: the icon after a selection opens the chooser, and Enter brings it into the note in front": page.get("bring_chip") is True,
             "snip: an area brings its text, image and table in, each as itself": page.get("snip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
             "the panel moves below the page, formicaria still in it": page.get("panel_bottom") is True,
             "a study room opens as a lean tab, formicaria filling the window": page.get("lean_tab") is True,
             "the lean tab is kept by the session (back after a restart)": page.get("lean_kept") is True,
-            "a page chosen puts formicaria beside it; the lean tab fills again": page.get("lean_beside") is True,
+            "one item fills the window: a page chosen shows the page alone; formicaria's tab fills again": page.get("lean_fills") is True,
+            "formicaria's tab follows the item formicaria moves to": page.get("tab_follows") is True,
+            "+ opens formicaria's Open... in a new formicaria tab": page.get("plus_opens") is True,
             "D3: a page dropped beside a page makes a split view": page.get("pair_pages") is True,
             "D3: a study room dropped beside a page puts formicaria on that side": page.get("pair_room_page") is True,
             "D3: two study rooms dropped together show side by side": page.get("pair_rooms") is True,
             "the quick switch returns to the item before, any kind": page.get("quick_switch") is True,
             "a small mark shows what is beside, only when that side is closed": page.get("float_when_closed") is True,
+            "the toolbar is bare: the address bar, no home or account button": page.get("bare_toolbar") is True,
             "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
         for name, ok in checks.items():

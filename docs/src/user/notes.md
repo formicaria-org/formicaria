@@ -431,8 +431,7 @@ song, a meeting, a mail conversation, a discussion…), and each kind has the vi
 note's **＋** (Options) holds what you can do with it beyond writing:
 
 - **Place on a shelf…**: on the shelf its kind suggests (*Web* for a saved page, *Papers* for a paper),
-  on one of your shelves, or on a new one. A note that came in from outside (a saved page, a download)
-  leaves **Today**'s Inbox when it has its place.
+  on one of your shelves, or on a new one.
 - **Bring into another note…**: the passage you selected (or a link to this note; for a mail, its
   latest message) goes into a note you choose, quoted, with a link back here.
 - **Send by mail…**: Gmail opens a new mail with the note's title and the selected passage (or the
@@ -444,5 +443,5 @@ note's **＋** (Options) holds what you can do with it beyond writing:
 - **Share…**: on the phone, Android's share sheet (any app); on a computer, the text is copied.
 - **Open as a tab** (in formicaria's browser), **Copy to…**, **Delete**, **Close**.
 
-The **Mail** and **Coming up** views say on one line where their notes come from and when they were
+The **Mail** view and the **Agenda** say on one line where their notes come from and when they were
 last read, with **Read now**.
