@@ -203,9 +203,9 @@ describe('v2: property editing, timeline, delete', () => {
 
     // The timeline is the Library's view: opening the group from the panel shows it, beside the
     // board that was already there — which is why the same note is now on screen twice.
-    await fireEvent.click(await screen.findByRole('button', { name: 'open Library' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'open Study rooms' }));
     // The Library opens on its shelves; its Timeline is the next tab.
-    const library = await screen.findByRole('group', { name: 'Library' });
+    const library = await screen.findByRole('group', { name: 'Study rooms' });
     await fireEvent.click(within(library).getByRole('button', { name: 'Timeline' }));
     // The seeded mock notes are created "now", so they land under Today.
     expect(await screen.findByText('Today')).toBeTruthy();

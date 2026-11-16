@@ -8309,6 +8309,10 @@ own calendars become notes on their own*.
 
 ## 2026-10-09 — the email exchange lives in the conversation note `#data` `#vault` `#agent`
 
+> **SUPERSEDED IN PART** (2026-11-16, night) — *the library's words; mail stays in its section*: mail
+> no longer appears among the study notes; it is brought into a study room only when the person
+> chooses. Its files stay where this entry put them: only where it is shown changes.
+
 > Reverses ruling 4 of *mail and your own calendars become notes on their own* and the "text stays on
 > the machine" bullet of *Gmail is read with the person's own Google client*. Owner's decision, with
 > the consequences stated to them first.
@@ -14937,3 +14941,60 @@ sidebar left hidden by 0.32's sidebar, so every tab was behind a button.
 4. **Ask the assistant what matters here** (only when one is running and a note is in front): a
    discussion about that note, the page quoted as material and not as instructions; Myrme answers
    with proposals the person accepts (the existing write path), so nothing is written unasked.
+
+## 2026-11-16 (night) — the library's words; mail stays in its section `#ui` `#data` `#agent`
+
+**The owner:** *"fm is the library (in the broadest sense), it has sections (music, food, video…) and
+every section has study rooms as well (notes with collaboration, Myrme…). Each section has
+catalogues (their views). At a given time, a user has a collection made of many different things
+(food, web, emails…) it uses to study or work."* And: *"the mail would stay in the mail client, not
+go into the notes, unless one wants to bring it there to use it to study. Every section has its own
+location and no need to bring it into the study notes necessarily."*
+
+**Decided.**
+1. **The words**: formicaria is **the library**; it has **sections** (Music, Food, Video, Web, Mail,
+   Fitness, Health…), each with its **catalogues** (its views) and its own location; **study rooms**
+   are the notes, with collaboration and Myrme, in every section; a **collection** is what a person
+   has open at a time, of any section, to study or work. The plan in these words:
+   `workspace-design-2026-11-15.md` §11.
+2. **Mail stays in the Mail section.** A conversation is the Mail section's item, seen in its own
+   client view, not among the study notes; it enters a study room when the person brings it in (a
+   passage, a link), as a web page does. Reverses in part *the email exchange lives in the
+   conversation note* (2026-10-09) **in how it is shown only**: its files stay where they are (the
+   owner, the same night: *"in essence fm stays in the core the same, I am trying just to more
+   cohesively link it with the places the knowledge and data comes from"*).
+3. **Every section's items stay in their section**; bringing into a study room is a deliberate act,
+   the same for every section.
+4. **The core stays the same** (the owner, same night): the plan is a layer of access and linking
+   (one collection, one library search, one *Bring in* for every section, one description per
+   section); no item moves, no store is added.
+5. **Sections are also where Myrme will act** (the owner, same night: *"so we have data and knowledge
+   sources, but in the future also places where Myrme can act to actively search them"*): a
+   section's description will offer the assistant its own search and reads, a switch per section
+   (off by default), results as proposals; step D7, with Myrme's repository.
+
+## 2026-11-16 (night, later) — the library model, built: Study rooms, lean tabs, sections, the library search `#ui` `#data`
+
+The owner: *"refine and execute the plan"* (`workspace-design-2026-11-15.md` §11). The four open
+questions were taken on the recommendations, the owner having said to go on: the notes' group is
+shown as **Study rooms**; a study room's tab **fills** the window; tab groups only **when made**; the
+phone's bar uses the same words (with its browser).
+
+**Built (0.38).**
+1. **Study rooms**: the notes' group keeps its key (`Library`, so no saved view breaks) and is shown
+   as *Study rooms* (`sectionLabel`).
+2. **Lean tabs** (D1–D2): *Open as a tab* (⧉ on a note) and middle-click on a section in
+   formicaria's list make a tab of the collection that loads nothing (lazy `about:blank`), keeps its
+   item and title in the session, and shows formicaria at that item, filling the window. `#view=` and
+   `#note=…&tab` are the app's addresses for them; opened from a tab, the app lets its oldest note
+   window go rather than refusing (the tabs are the list).
+3. **Mail as its own section**: a shipped view (*Conversations*, `group: Mail`); the study rooms'
+   timeline and shelves leave out notes carrying `gmail_thread`; their files, the search, sync and
+   the assistant's meeting pass are unchanged.
+4. **The sections described once** (`ui/src/lib/sections.ts`, D5): label, mark, address, which items
+   it owns, and the assistant's access (all off, D7's formicaria side).
+5. **The library search** (D4): `fm` in the address bar labels each result with its section and
+   opens it as a tab.
+
+**Not yet:** D3 (any two tabs beside each other by one drag; today: the panel beside a page, and
+Firefox's split view for two pages), D6 (the phone), D7's assistant side (Myrme's repository).

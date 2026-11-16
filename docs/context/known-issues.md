@@ -35,6 +35,10 @@ trap, add one. Newest concerns first within each section.
   device for G0); Gadgetbridge as a source (needs a watch's files; `training-coach-plan` P1); Myrme's
   per-source switches (in Myrme's repository). *Ask Myrme what matters here* uses the existing
   discussion → proposal path, so it writes nothing without the person's acceptance.
+- **The library model (0.38)**: a lean tab opens formicaria at its item; a note's tab whose note was
+  deleted shows formicaria's notice and can be closed. The collection's *beside* for any two tabs by
+  one drag (D3) is not built. The Mail section is a timeline of conversations, not yet a mail client
+  of its own. Section of an item is guessed from its tags and properties (`sections.ts`).
 - **Snip (0.36)**: the area's blocks are those at least half inside it, so a paragraph cut in half by
   the edge comes whole or not at all; a picture of the area is the visible view only (no scrolling
   while snipping); synthetic Ctrl+Shift events drive the gate's test, the real drag is by hand.

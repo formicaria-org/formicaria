@@ -226,135 +226,176 @@ Items 1–3 carry most of the value; 4–6 depend on the browser's shell mode (`
 5. **Densities**: *Essential* and *Full*, chosen per device? Recommended: yes, *Essential* by default on
    the phone.
 
-## 11. One desk for everything: the library model (plan, 2026-11-16; build after 0.37)
+## 11. One library, its sections, and the collection you work with (plan, 2026-11-16; build after 0.37)
 
-> **The owner:** *"Since we are creating an interface to other features (web search, smart devices
-> data…), the overall fm view can use a mixture of techniques in the back but appear uniform in the
-> front (like tabs) … a web feature will require a browser tab but a note feature can have a more
-> lean tab … food, fitness, music have dedicated views but can appear as separate tabs … I would use
-> the library analogy. A library allows to search books but also movies, music, and it allows to sit
-> and write using all that info close to you … we retain the customization and other features, we
-> need a cohesive model that allows them all to be accessed, swapped, edited from the same view."*
+> **The owner:** *"the overall fm view can use a mixture of techniques in the back but appear uniform
+> in the front (like tabs) … a web feature will require a browser tab but a note feature can have a
+> more lean tab … food, fitness, music have dedicated views but can appear as separate tabs … we
+> retain the customization … we need a cohesive model that allows them all to be accessed, swapped,
+> edited from the same view."* Then, settling the words: *"fm is the library (in the broadest
+> sense), it has sections (music, food, video…) and every section has study rooms as well (notes
+> with collaboration, Myrme…). Each section has catalogues (their views). At a given time, a user
+> has a collection made of many different things (food, web, emails…) it uses to study or work."*
+> And: *"the mail would stay in the mail client, not go into the notes, unless one wants to bring it
+> there to use it to study. Every section has its own location and no need to bring it into the study
+> notes necessarily."*
 
-### 11.1 The words (a proposal; the owner decides, `decisions.md#ui`: the names never differ by device)
+> **Status (2026-11-16, 0.38):** built D0 (the words; *Study rooms*), D1–D2 (lean tabs for study
+> rooms and sections), D4 (the library search), D5 (sections described once; Mail as its own section)
+> and D7's formicaria side (the assistant's access per section, all off). Not yet: D3 (one-drag
+> *beside* for any two tabs), D6 (the phone), D7's assistant side. `decisions.md` 2026-11-16 (night,
+> later).
 
-| Word | In the library | In formicaria | Today's word, if any |
-|---|---|---|---|
-| **formicaria** | the library itself | the whole app, every collection and the desk | — |
-| **Collection** | the books, the films, the records: each kind kept and catalogued its own way | Notes, Web, Music, Food, Fitness, Health, Mail, Calendar…, and whatever comes next (a watch) | the groups / places |
-| **View** (a collection's room) | the music room, with its own players and shelves | the dedicated screen of a collection, with its own search, layouts, saved views and settings | view (unchanged) |
-| **Item** | one book, one film | one note, page, song, recipe, workout, conversation, or a saved view | note, page… |
-| **The catalogue** | the one card index across every collection | one search over all collections (Ctrl+K and `fm` in the address bar), results grouped by collection | search |
-| **The desk** | the table you sit at, with what you took out | **the row of tabs**: everything open now, of any collection, side by side or one at a time | tabs, panes, windows |
-| **Shelf** | a shelf you arrange yourself | the person's own grouping inside a collection (unchanged) | shelf |
-| **Source** | where the library acquires from | where items come from (web, mail, calendars, files, a watch): the source contract | source (`data-sources-research` §5) |
+### 11.0 Scope: the core stays the same
 
-**One rename to decide:** the notes' view is called **Library** today. With formicaria itself the
-library, that view would become **Notes** (the collection of books). Recommended, since the analogy
-breaks otherwise; the person's saved views keep their names.
+> **The owner:** *"in essence fm stays in the core the same, I am trying just to more cohesively link
+> it with the places the knowledge and data comes from."*
+
+Nothing in formicaria's core changes: notes as files, the notebook and its sync, each section's
+views and settings, the assistant. This plan adds **a layer of access and linking** on top:
+- **one way to have anything open** (the collection, as tabs, whatever the engine behind);
+- **one search over the library** (every section asked at once);
+- **one way to bring any source into a study room** (the web's *Bring in*, for every section);
+- **one description per section** (11.5), so a new source plugs into all of these;
+- later, **places where Myrme acts**: each section can offer the assistant its own way to search and
+  read it (the owner: *"so we have data and knowledge sources, but in the future also places where
+  Myrme can act to actively search them"*).
+
+Where it touches an existing part, the least change is taken: no item moves, no store is added, a
+name changes only where the words would otherwise clash.
+
+### 11.1 The words (settled by the owner, 2026-11-16)
+
+| Word | In a library | In formicaria |
+|---|---|---|
+| **The library** | the building and everything in it | **formicaria** itself, in the broadest sense |
+| **Section** | the books, the films, the records, each kept its own way | **Music, Food, Video, Web, Mail, Fitness, Health, Calendar…**, and whatever comes next (a watch). Each has **its own location**: its items live there and need not go anywhere else |
+| **Catalogue** | a section's card index and shelves | **a section's views**: its own search, layouts, saved views, shelves and settings (all kept as they are) |
+| **Study room** | the rooms where you sit, read and write, with others | **notes**, with **collaboration** (discussions, proposals) and **Myrme**; every section has them: a note can be written beside any section's items |
+| **Item** | one book, one film | one song, recipe, page, mail conversation, workout, note… |
+| **Collection** | what you have taken out and spread on your table right now | **what is open now**: things from any section (a recipe, two pages, a mail, a note), the tabs, to study or work with |
+| **Source** | where the library acquires from | where items come from (web, mail, calendars, files, a watch): the source contract (`data-sources-research` §5) |
+
+**Consequences of the words:**
+- Today's **Library** view (the notes) is the **study rooms'** catalogue; its name in the app is to
+  settle (11.8, Q1).
+- **Mail stays in the Mail section** (its client and its catalogue); it enters a study room only when
+  the person **brings it in** (a quote, a link, a passage), as a web page does. This reverses part of
+  *the email exchange lives in the conversation note* (2026-10-09); `decisions.md` 2026-11-16 (night).
+- **Each section's items stay in their section.** Bringing something into a study room is a
+  deliberate act (the *Bring in* of the web, for every section).
 
 ### 11.2 The model: uniform in front, a fitting engine behind
 
-**Everything open is a tab on the desk**, and every tab behaves alike: a title and its collection's
-icon; open, close, reorder by dragging, pin, group, restore after a restart, put beside another. What
-differs is the **engine** behind it, chosen by what the item needs:
+**Everything open is a tab in the collection**, and every tab behaves alike: a title and its
+section's icon; open, close, reorder by dragging, pin, group, restore after a restart, put beside
+another. What differs is the **engine** behind it, chosen by what the item needs:
 
 | Item | Engine behind its tab | Cost |
 |---|---|---|
 | **A web page** | a real browser tab (Gecko) | a web page's (~65 MB measured) |
-| **A note, a saved view, a collection's view** (Notes, Music, Food, Fitness, Health…) | a **lean tab**: a tab that loads nothing (`about:blank`, never a copy of the app); selecting it shows **the one formicaria** at that item | about nothing per tab; formicaria itself runs once (§16 of `browser-plan`) |
-| **A mail conversation** | a note (it is one today), Reply opening Gmail in a web tab beside it | as a note, plus a page while replying |
-| **A future collection** (a watch's workouts, a mail client) | whichever fits: a lean tab onto its view in formicaria, or a web tab onto its service | declared by the collection |
+| **A study room** (a note), **a catalogue** (Music, Food, Fitness, Health, a saved view…) | a **lean tab**: a tab that loads nothing (`about:blank`, never a copy of the app); selecting it shows **the one formicaria** at that item | about nothing per tab; formicaria itself runs once (`browser-plan` §16) |
+| **A mail conversation** | the Mail section's own view (its client), in formicaria | as a catalogue; Reply in Gmail beside it, a web tab |
+| **A future section** (a watch, another mail client) | whichever fits: a lean tab onto its catalogue in formicaria, or a web tab onto its service | declared by the section (11.5) |
 
-**Each collection keeps its own view and its own ways** (the Music deck, Food's recipes and day,
-Fitness, saved views, shelves, themes): the desk does not replace them, it **holds** them. A tab onto
-a view remembers the view's state (its filters, its layout), so two tabs can show the same collection
-two ways.
+**Each section keeps its catalogues and its ways** (the Music deck, Food's recipes and day, Fitness,
+saved views, shelves, themes): the collection does not replace them, it **holds** them. A tab onto a
+catalogue remembers its state (filters, layout), so two tabs can show the same section two ways.
 
 ### 11.3 How it looks and behaves (computer)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
-│ [♪ Music] [▣ Food · Today] [📝 Reading] [🌐 Ant – Wikipedia] [🌐 arXiv 1706…] [+]      │ the desk
-│  ←  →  ⟳   [ search everything, or an address …                         ] 🐜  ☰       │
+│ [♪ Music] [▣ Food · Today] [✉ Mail · Lab] [📝 Reading] [🌐 Ant – Wikipedia] [+]        │ the collection
+│  ←  →  ⟳   [ search the library, or an address …                         ] 🐜  ☰      │
 ├─────────────────────────────────────────────┬────────────────────────────────────────┤
-│  📝 Reading (a note: formicaria)             │  🌐 Ant – Wikipedia (a web page)        │
-│                                             │                                        │
+│  📝 Reading (a study room: formicaria)       │  🌐 Ant – Wikipedia (a web page)        │
 └─────────────────────────────────────────────┴────────────────────────────────────────┘
 ```
 
-- **Opening** anything opens it as a tab: a note from a list (or *Open as a tab* on any item), a
-  collection from formicaria's side list, a catalogue result, a link. Middle-click and Ctrl+click
-  open in a new tab, as on the web.
+- **Opening** anything opens it as a tab: an item from a catalogue (or *Open as a tab*), a section
+  from formicaria's side list, a search result, a link. Middle-click and Ctrl+click open a new tab.
 - **Beside**: drag a tab onto the left or right half of the window to put it beside the one shown:
-  a note beside a page (today's panel), a page beside a page (Firefox's split view), a note beside a
-  note or a view (formicaria's own two panes). One gesture, whatever the engines.
-- **Selecting a lean tab** shows formicaria at that item, filling the content area (or beside the page
-  it was paired with). Selecting a web tab shows the page, and formicaria beside it if the person
-  keeps one there.
-- **Closing a tab** puts the item away; nothing is deleted (as returning a book to its shelf).
-- **Restarting** restores the desk: web tabs as the browser does, lean tabs from their item's address.
-- **The catalogue** (Ctrl+K, or typing in the address bar) searches every collection at once, grouped
-  (Notes, Music, Food, Mail, saved pages…), then offers the web; each collection's own view keeps its
-  own, richer search.
-- **Organising the desk**: tab groups (Firefox's) for a project or a collection (*Research: 3 notes,
-  4 pages*); a group can be **kept as a note** (a reading list) and reopened whole.
-- **formicaria's own list of open windows** (its panes) is shown only outside formicaria's browser (a
-  plain browser, a paired tablet); inside it, **the desk is the list**, so there are never two.
+  a study room beside a page (today's panel), a page beside a page (Firefox's split view), a study
+  room beside a catalogue. One gesture, whatever the engines.
+- **Bring in**, from any section into a study room: the web's way (select, snip, drag) extended to
+  every section: a passage of a mail, a recipe, a song, a workout, each arriving as itself with its
+  source.
+- **Selecting a lean tab** shows formicaria at that item, filling the content area (or beside the
+  page it was paired with).
+- **Closing a tab** returns the item to its section; nothing is deleted.
+- **Restarting** restores the collection: web tabs as the browser does, lean tabs by their item's
+  address.
+- **Searching the library** (Ctrl+K, or typing in the address bar) asks every section at once,
+  grouped (Study rooms, Music, Food, Mail, saved pages…), then offers the web; each section's own
+  catalogue keeps its own, richer search.
+- **Keeping a collection**: tab groups (Firefox's) for a project (*Thesis: 3 study rooms, 4 pages, 1
+  mail*); a group can be **kept** and reopened whole later, like a reserved shelf.
+- **formicaria's own list of open windows** (its panes) shows only outside formicaria's browser (a
+  plain browser, a paired tablet); inside it, **the collection is the list**, never two lists.
 
 ### 11.4 The phone
 
-The same words and the same desk, in a phone's shape (`browser-plan` §14.5, §16):
-- the desk is a **grid of cards** (one per open item, of any collection), swiped away to close,
-  dragged to reorder, the classic phone tab view;
-- one item at a time, full screen; **swipe sideways** between neighbours on the desk;
-- a note **beside a page** is the note as a sheet over the page (`data-sources-research` §11.4);
-- web pages run in GeckoView, started only when a page is opened; everything else is formicaria's
-  own screens.
+The same words in a phone's shape (`browser-plan` §14.5, §16): the collection is a **grid of cards**
+(one per open item, of any section), swiped away to close, dragged to reorder; one item at a time,
+full screen; **swipe sideways** between neighbours; a study room **beside a page** is the note as a
+sheet over the page (`data-sources-research` §11.4); web pages run in GeckoView, started only when a
+page is opened.
 
-### 11.5 What each collection declares (the cohesive part)
+### 11.5 What each section declares (the cohesive part)
 
-One small description per collection, in code, so a new one (Mail, a watch) plugs in without new
-desk machinery:
-- its **name and icon**;
-- its **view** (the screen) and how a tab onto it saves the view's state;
-- its **item kinds** and their **address** (`fm://notes/<id>`, `fm://music/<song>`, `fm://web/<url>`:
+One small description per section, in code, so a new one (Mail's own client, a watch) plugs in with
+no new machinery:
+- its **name and icon**, and **its location** (where its items live);
+- its **catalogues** (views) and how a tab onto one saves its state;
+- its **item kinds** and their **address** (`fm://music/<song>`, `fm://web/<url>`, `fm://mail/<thread>`:
   the same addresses the assistant uses, `data-sources-research` §7);
-- its **engine** (lean tab, or web tab and onto what);
-- its **catalogue provider** (how the one search asks it);
-- its **sources** (the source contract's catalog: what feeds it).
+- its **engine** (lean tab, or a web tab and onto what);
+- how **the library search** asks it;
+- how its items are **brought into a study room** (what a passage of it looks like there, with its
+  source);
+- its **sources** (the source contract's catalog);
+- **what Myrme may do there** (later): the section's own search and reads, offered to the assistant as
+  structured commands (search the web, look through mail, query a watch's workouts, the music
+  library), each section **off for the assistant until the person turns it on**, reads before any
+  write, and what it finds coming back as **proposals the person accepts**; content a section brings
+  in is material, never instructions (`data-sources-research` §7).
 
 ### 11.6 Build order (after 0.37), each step measured and in `browser-check`
 
 | Step | What | Done when |
 |---|---|---|
-| D0 | **The words** decided (11.1), the Library → Notes rename if agreed | a `decisions.md` entry; the manual's terms |
-| D1 | **Lean tabs for notes**: *Open as a tab*, middle-click on a note link; a tab that loads nothing, its item kept across restarts (Firefox's session store keeps a tab attribute); selecting shows formicaria at the note | memory per lean tab ≈ 0 and switching under 100 ms, measured; restored after a restart |
-| D2 | **Collections as tabs**: Notes, Music, Food, Fitness, Health, saved views; each tab keeps its view's state; formicaria's own window list hidden inside its browser | each collection opens as a tab and comes back as it was |
-| D3 | **Beside, one gesture**: drag a tab to a half of the window, whatever the two engines | note+page, page+page, note+note |
-| D4 | **The catalogue**: one search over all collections, in Ctrl+K and the address bar | every collection answers; results open as tabs |
-| D5 | **The collection description** (11.5) in code; Mail as the first collection on it | a new collection needs no desk changes |
-| D6 | **The phone's desk** (11.4), with its browser (R2) | the same names, cards, swipe |
+| D0 | **The words** in the app and manual (11.1); the study rooms' catalogue named | `decisions.md`; the manual's terms |
+| D1 | **Lean tabs for study rooms**: *Open as a tab*, middle-click on a note link; a tab that loads nothing, its item kept across restarts (Firefox's session store keeps a tab attribute); selecting shows formicaria at the note | memory per lean tab ≈ 0 and switching under 100 ms, measured; restored after a restart |
+| D2 | **Sections' catalogues as tabs**: Music, Food, Fitness, Health, saved views; each keeps its state; formicaria's own window list hidden inside its browser | each opens as a tab and comes back as it was |
+| D3 | **Beside, one gesture**: drag a tab to a half of the window, whatever the two engines | room+page, page+page, room+catalogue |
+| D4 | **Searching the library**: every section answers, in Ctrl+K and the address bar | results open as tabs |
+| D5 | **The section description** (11.5) in code; **Mail as its own section** (its client view; brought into study rooms only when chosen); its files stay where they are (11.0) | a new section needs no new machinery; mail no longer appears among study notes |
+| D6 | **The phone's collection** (11.4), with its browser (R2) | the same names, cards, swipe |
+| D7 | **Myrme acting in sections**: each section's search offered to the assistant, a switch per section (off by default), results as proposals; with Myrme's repository | the assistant searches a section the person opened to it, and nothing else |
 
 ### 11.7 Risks
 
 - **Firefox's tab internals** (lazy tabs, session attributes) can move between ESR majors: few hooks,
-  each exercised by `browser-check`, as for the panel.
-- **Two lists of what is open** is the failure to avoid: inside formicaria's browser the desk is the
-  only one.
+  each exercised by `browser-check`.
+- **Two lists of what is open** is the failure to avoid: inside formicaria's browser the collection is
+  the only one.
+- **Moving mail out of the notes** touches what reads it today: the search, the assistant's meeting
+  proposals (`fm_agent::meetings`) and sync. D5 keeps each working against the Mail section.
 - **A rename confuses** people who know *Library*: the manual and a one-time line say it.
-- **Memory**: lean tabs must stay lean; a tab that silently loaded the app would multiply it (measured
-  per step).
+- **Memory**: lean tabs must stay lean (measured per step).
 
 ### 11.8 Questions for the owner
 
-1. **The words** of 11.1, and **Library → Notes**? Recommended: yes.
-2. **Selecting a note's tab**: fill the window with formicaria, or keep the page it was beside?
-   Recommended: fill; *beside* is one drag (11.3).
-3. **Collections in tab groups automatically** (a Food group, a Research group), or only when the
-   person makes one? Recommended: only when made; automatic grouping surprises.
-4. **The phone's bottom bar** (Today · Inbox · Search · Places · Tabs, §4) becomes **Today · Desk ·
-   Catalogue · Collections**? Recommended: yes, the same words everywhere.
+1. **The study rooms' catalogue** (today's *Library* view of the notes): call it **Study rooms**, or
+   keep **Library** for it? Recommended: **Study rooms**, since formicaria is the library.
+2. **Selecting a study room's tab**: fill the window, or stay beside the page it came from?
+   Recommended: fill; *beside* is one drag.
+3. **Tab groups**: only when the person makes one (recommended), or one per section automatically?
+4. **The phone's bottom bar**: **Today · Collection · Search · Sections**? Recommended: yes.
+5. **Where Mail's items live**: by 11.0, **where they are today** (files in the notebook); what changes
+   is only where they are *shown* (the Mail section's own view, not among the study notes). A
+   separate store would be a core change, so it is not proposed.
 
 ## Sources
 

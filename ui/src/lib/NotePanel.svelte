@@ -7,6 +7,8 @@
     inbox as bridgeInbox,
     appended as appendedText,
     replaced as replacedText,
+    bridged,
+    up as bridgeUp,
   } from './web/bridge.svelte';
   import {
     getNote,
@@ -2920,6 +2922,23 @@
             </div>
           {/if}
         </div>
+      {/if}
+      {#if note && bridged()}
+        <!-- **Open as a tab** (workspace-design §11, D1): in formicaria's browser, this study room
+             becomes a tab of the collection, beside the pages. -->
+        <button
+          class="edit open-tab"
+          onclick={(e) => {
+            e.stopPropagation();
+            bridgeUp({
+              up: 'open-tab',
+              address: `note:${note!.id}`,
+              title: note!.title || 'Untitled',
+            });
+          }}
+          aria-label="open as a tab"
+          title="Open as a tab">⧉</button
+        >
       {/if}
       <!-- Outside `{#if note}`: a note that failed to load is still a window, and still closes. -->
       <button

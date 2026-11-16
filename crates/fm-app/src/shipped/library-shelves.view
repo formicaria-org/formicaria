@@ -2,3 +2,7 @@ name: Shelves
 view: shelf
 group: Library
 rest: Other
+filter:
+  - not:
+      prop: gmail_thread
+      exists: true

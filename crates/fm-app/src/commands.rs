@@ -713,8 +713,15 @@ pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreEr
 /// [`board`]); the renderer groups the rest by creation day into a Logseq-style
 /// journal.
 pub fn recent(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    // **The study rooms' timeline holds the study notes**: a mail conversation is the Mail
+    // section's, shown there (`decisions.md` 2026-11-16, night; `shipped/mail-conversations.view`).
+    // Its file stays where it is, and search still finds it.
     let q = Query {
-        filter: crate::thread::notes_base(),
+        filter: crate::thread::notes_base().and(Predicate::Not(Box::new(Predicate::Prop {
+            key: fm_core::mail::GMAIL_THREAD.into(),
+            op: Op::Exists,
+            value: PropertyValue::Null,
+        }))),
         sort: vec![SortKey::desc("created")],
         ..Default::default()
     };

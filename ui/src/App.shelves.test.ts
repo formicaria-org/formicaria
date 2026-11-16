@@ -56,7 +56,7 @@ test('a book opens as a note, and Library brings the shelves back', async () => 
   await fireEvent.click(within(tutorials).getByRole('button', { name: 'Start here' }));
   await waitFor(() => expect(screen.getAllByText('Start here').length).toBeGreaterThan(1));
   const nav = await screen.findByRole('navigation', { name: 'views' });
-  await fireEvent.click(within(nav).getByRole('button', { name: /Library/ }));
+  await fireEvent.click(within(nav).getByRole('button', { name: /Study rooms/ }));
   expect(await screen.findByRole('region', { name: 'Tutorials' })).toBeTruthy();
 });
 

@@ -83,7 +83,12 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 - **Tabs are across the top**, as in any browser: click to switch, drag to reorder; **scroll over
   them** to move through them; **Ctrl+Tab** shows your recent tabs as cards to pick from. Prefer them
   down the side? **Settings → Browser → Tabs down the side** (always shown, never behind a button).
-- **Your tabs come back** when the browser starts again.
+- **Anything of formicaria can be a tab too**, beside your pages: press **⧉** at the top of a note to
+  open it as a tab, or **middle-click** a section in formicaria's list (Study rooms, Food, Music,
+  Mail…). Such a tab costs almost nothing: choosing it shows formicaria at that note or section,
+  filling the window; choosing a page puts formicaria back beside it. Together, your tabs are your
+  **collection**: what you have out right now, of every kind.
+- **Your tabs come back** when the browser starts again, formicaria's ones too.
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.
 
@@ -136,7 +141,9 @@ goes in; hold Alt to just select; a double-click on a word never does), or **not
 address bar is **filled red**; press it, and the snip's bar says **In 2 of your notes**: press that to
 see them, each with the line that names the page, and open one beside the page.
 
-**Search your notes from the address bar**: type **fm**, a space, and what you are looking for.
+**Search the whole library from the address bar**: type **fm**, a space, and what you are looking
+for. Each result says its section (✎ Study rooms, ✉ Mail, ♪ Music, ◍ Food, ◎ Web…) and opens as a
+tab.
 
 **Exactly where it came from.** A saved page ends with the **full address it was read at**, with the
 date and time, and, when the page names a different address to cite (its canonical address, a

@@ -289,6 +289,37 @@ def bring_in(m: "Marionette") -> dict:
     return out
 
 
+def lean_tabs(m: "Marionette") -> dict:
+    """A study room as a lean tab of the collection (workspace-design §11, D1)."""
+    nid = post("/api/create_notes", {"notes": [{"title": "Lean room", "body": "Here."}]})[0]["id"]
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER, nid], "scriptTimeout": 60000, "script": """
+        const done = arguments[arguments.length - 1];
+        const [server, id] = [arguments[0], arguments[1]];
+        const sp = Services.scriptSecurityManager.getSystemPrincipal();
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        (async () => {
+          gBrowser.addTab(server + '/#tab=' + encodeURIComponent('note:' + id) + '&title=Lean%20room', { triggeringPrincipal: sp });
+          await wait(4000);
+          const lean = gBrowser.tabs.find(t => t.getAttribute('formicaria-item') === 'note:' + id);
+          const out = { made: !!lean, label: lean?.label, selected: gBrowser.selectedTab === lean,
+                        full: document.getElementById('browser').getAttribute('formicaria'),
+                        light: !lean?.linkedBrowser?.currentURI || lean.linkedBrowser.currentURI.spec === 'about:blank' };
+          const web = gBrowser.tabs.find(t => /^https?:/.test(t.linkedBrowser.currentURI.spec) && !t.getAttribute('formicaria-item'));
+          if (web) { gBrowser.selectedTab = web; await wait(1000); out.beside = document.getElementById('browser').getAttribute('formicaria'); }
+          gBrowser.selectedTab = lean; await wait(1500);
+          out.again = document.getElementById('browser').getAttribute('formicaria');
+          out.labelAfter = lean.label;
+          try { out.kept = JSON.parse(SessionStore.getTabState(lean)).extData?.['formicaria-item'] === 'note:' + id; } catch (e) { out.kept = String(e); }
+          done(out);
+        })().catch(e => done({ error: String(e) }));"""})["value"]
+    ok = (r.get("made") is True and r.get("selected") is True and r.get("full") == "full"
+          and r.get("label") == "Lean room" and r.get("labelAfter") == "Lean room" and r.get("light") is True)
+    if not ok or r.get("kept") is not True or r.get("beside", "beside") != "beside":
+        print(f"browser-check: lean tab seen {r}")
+    return {"lean_tab": ok, "lean_kept": r.get("kept") is True, "lean_beside": r.get("beside") == "beside" and r.get("again") == "full"}
+
+
 def settings_page(ff: Path, work: Path) -> dict:
     """Open the real Settings page of formicaria's browser and say what a person would see there."""
     import base64
@@ -364,7 +395,12 @@ def settings_page(ff: Path, work: Path) -> dict:
             seen.update(bring_in(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: bring in: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom"):
+        try:
+            seen.update(lean_tabs(m))
+        except Exception as e:  # noqa: BLE001 - reported as failed checks
+            print(f"browser-check: lean tabs: {e}")
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom",
+                  "lean_tab", "lean_kept", "lean_beside"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -474,6 +510,9 @@ def main() -> None:
             "snip: an area brings its text, image and table in, each as itself": page.get("snip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
             "the panel moves below the page, formicaria still in it": page.get("panel_bottom") is True,
+            "a study room opens as a lean tab, formicaria filling the window": page.get("lean_tab") is True,
+            "the lean tab is kept by the session (back after a restart)": page.get("lean_kept") is True,
+            "a page chosen puts formicaria beside it; the lean tab fills again": page.get("lean_beside") is True,
             "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
         for name, ok in checks.items():

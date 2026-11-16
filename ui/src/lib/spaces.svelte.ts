@@ -11,7 +11,14 @@ import { paneIcon, paneLabel, type Pane, type PaneKind } from './panes';
 import type { ViewGroup } from './types';
 
 export type SpaceTab = { key: string; label: string; kind: PaneKind; viewName?: string };
-export type Space = { name: string; icon: string; tabs: SpaceTab[] };
+/** `name` is the group's key (what a view's `group:` names, kept so no saved view breaks); `label` is
+ *  what a person reads, when it differs (`decisions.md` 2026-11-16, night: *the library's words*). */
+export type Space = { name: string; label?: string; icon: string; tabs: SpaceTab[] };
+
+/** What a section is called on screen: the notes' group reads **Study rooms** (formicaria is the
+ *  library; its notes are the study rooms), every other group its own name. */
+export const sectionLabel = (name: string): string =>
+  BUILTIN_SPACES.find((s) => s.name === name)?.label ?? name;
 
 /// A built-in view as a tab: **its name is the registry's**, never written again here
 /// (`decisions.md#ui`, 2026-10-12, *the names never differ*).
@@ -22,6 +29,7 @@ const tab = (kind: PaneKind): SpaceTab => ({ key: kind, label: paneLabel(kind), 
 export const BUILTIN_SPACES: Space[] = [
   {
     name: 'Library',
+    label: 'Study rooms',
     icon: paneIcon({ kind: 'timeline' } as Pane) ?? 'timeline',
     tabs: [tab('timeline')],
   },

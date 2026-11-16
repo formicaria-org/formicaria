@@ -220,3 +220,27 @@ fn a_kept_page_carries_its_source_and_is_found_again() {
     let catalog = call(&app, "sources", json!({}), b"").unwrap();
     assert!(catalog.as_array().unwrap().iter().any(|s| s["source"] == "web"));
 }
+
+/// **Mail is its own section** (`decisions.md` 2026-11-16, night): a conversation is not in the study
+/// rooms' timeline, and the library's search still finds it. Its file stays where it is.
+#[test]
+fn a_conversation_stays_in_mail_and_is_still_found() {
+    let (_h, _vault, app) = app();
+    call(
+        &app,
+        "create_notes",
+        json!({ "notes": [
+            { "title": "Field trip plans", "body": "Meet at the gate.", "props": { "gmail_thread": "t-1" } },
+            { "title": "Field notes", "body": "Ants at the gate." },
+        ] }),
+        b"",
+    )
+    .unwrap();
+    let recent = call(&app, "recent", json!({}), b"").unwrap();
+    let titles: Vec<_> =
+        recent.as_array().unwrap().iter().map(|n| n["title"].as_str().unwrap_or("")).collect();
+    assert!(titles.contains(&"Field notes"), "{titles:?}");
+    assert!(!titles.contains(&"Field trip plans"), "{titles:?}");
+    let found = call(&app, "search", json!({ "query": "gate" }), b"").unwrap();
+    assert_eq!(found.as_array().unwrap().len(), 2);
+}

@@ -1010,6 +1010,9 @@ const SHIPPED: &[(&str, &str)] = &[
     ("health-over-time", include_str!("shipped/health-over-time.view")),
     ("health-guidance", include_str!("shipped/health-guidance.view")),
     ("music-songs", include_str!("shipped/music-songs.view")),
+    // **Mail is its own section** (`decisions.md` 2026-11-16, night): the conversations, where they
+    // already are, shown here rather than among the study rooms.
+    ("mail-conversations", include_str!("shipped/mail-conversations.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

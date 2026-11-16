@@ -25,6 +25,7 @@ import {
   type Piece,
 } from '../../src/lib/web/bring';
 import type { Block } from './snip';
+import { sectionOf } from '../../src/lib/sections';
 // Exported for the end-to-end test's copy of the add-on, which answers the question itself.
 export { choose };
 
@@ -525,6 +526,12 @@ async function fromApp(m: Record<string, unknown>) {
         : null;
     void storage.local.set({ front: front?.title ?? '' });
     void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
+  } else if (m.up === 'open-tab' && typeof m.address === 'string' && /^(note|view):/.test(m.address)) {
+    // **Open as a tab** (workspace-design §11): formicaria's address, which formicaria's browser turns
+    // into a lean tab of the collection (`formicaria.cfg`).
+    const c = await config();
+    const url = `${c.server}/#tab=${encodeURIComponent(m.address)}&title=${encodeURIComponent(String(m.title ?? ''))}`;
+    await browser.tabs.create({ url });
   } else if (m.up === 'after' && ['offer', 'bring', 'nothing'].includes(String(m.value))) {
     // Settings → Browser: what follows a selection on a page (`select.ts` reads it).
     void storage.local.set({ after: String(m.value) });
@@ -640,21 +647,32 @@ const omnibox = (
     };
   }
 ).omnibox;
-omnibox.setDefaultSuggestion({ description: 'Search your formicaria notes' });
+omnibox.setDefaultSuggestion({ description: 'Search the library: every section of formicaria' });
 let lastHits: { id: string; title: string }[] = [];
 omnibox.onInputChanged.addListener((text, suggest) => {
   void config()
     .then((c) => call(c.server, c.key, 'search', JSON.stringify({ query: text }), true))
-    .then((hits: { id: string; title?: string }[] | null) => {
-      lastHits = (hits ?? []).slice(0, 8).map((h) => ({ id: h.id, title: h.title || 'Untitled' }));
-      suggest(lastHits.map((h) => ({ content: `note:${h.id}`, description: h.title })));
-    })
+    .then(
+      (hits: { id: string; title?: string; tags?: string[]; props?: Record<string, unknown> }[] | null) => {
+        // **The library's search** (workspace-design §11, D4): each hit with its section.
+        const top = (hits ?? []).slice(0, 8);
+        lastHits = top.map((h) => ({ id: h.id, title: h.title || 'Untitled' }));
+        suggest(
+          top.map((h) => {
+            const s = sectionOf(h);
+            return { content: `note:${h.id}`, description: `${s.mark} ${s.label} · ${h.title || 'Untitled'}` };
+          }),
+        );
+      },
+    )
     .catch(() => suggest([]));
 });
 omnibox.onInputEntered.addListener((text) => {
   const id = text.startsWith('note:') ? text.slice(5) : lastHits[0]?.id;
   if (!id) return;
-  void config().then((c) => show(c.server, id));
+  // Opened as a tab of the collection, beside the pages (workspace-design §11).
+  const title = lastHits.find((h) => h.id === id)?.title ?? 'formicaria';
+  void fromApp({ up: 'open-tab', address: `note:${id}`, title });
 });
 
 (

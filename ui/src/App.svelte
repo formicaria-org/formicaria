@@ -129,6 +129,7 @@
   import { draftFrom, starters } from './lib/templates';
   import {
     BUILTIN_SPACES,
+    sectionLabel,
     spaceOfGroup,
     spacesShown,
     type Space,
@@ -837,7 +838,7 @@
     return [
       ...BUILTIN_SPACES.map((s) => ({
         key: `group:${s.name}`,
-        label: s.name,
+        label: s.label ?? s.name,
         icon: s.icon,
         saved: false,
         run: () => openSpace(s.name),
@@ -2029,10 +2030,38 @@
   // browser add-on sends the person after it keeps a page — to the note it just wrote. Read at start
   // and on every change, then cleared, so Back and a reload do not reopen it.
   function openFromHash() {
-    const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(location.hash);
-    if (!m) return;
+    // **A study room or a catalogue by its address** (workspace-design §11, D1–D2): what a tab of
+    // the collection opens. `&tab` marks one opened from a tab: the tabs are then the list of what is
+    // open, so the app keeps few windows of its own and lets the oldest go.
+    const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);
+    const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})(&tab)?$/.exec(location.hash);
+    if (!m && !v) return;
     history.replaceState(history.state, '', location.pathname + location.search);
-    openNoteInPane(m[1].toUpperCase());
+    if (v) return openAddress(decodeURIComponent(v[1]));
+    const id = m![1].toUpperCase();
+    if (m![2]) makeRoomFor(id);
+    openNoteInPane(id);
+  }
+  /** `group:<name>` a section, `saved:<name>` a saved view, or a built-in view by its kind. */
+  function openAddress(a: string) {
+    if (a.startsWith('group:')) {
+      const name = a.slice(6);
+      if (spaces.some((x) => x.name === name)) return openSpace(name);
+      const g = groupsOf(views ?? []).find((x) => x.name === name);
+      if (g) openGroupView(g.views[0]);
+      return;
+    }
+    if (a.startsWith('saved:')) return focusOrOpen('view', { viewName: a.slice(6) });
+    if (OPENABLE_PANES.some((b) => b.kind === a)) focusOrOpen(a as PaneKind);
+  }
+  /** Opened from a tab: if the windows are full, the oldest note window goes (its tab remains). */
+  function makeRoomFor(id: string) {
+    if (workspace.panes.some((p) => p.noteId === id)) return;
+    if (workspace.panes.length < MAX_PANES) return;
+    const oldest = workspace.panes.find(
+      (p) => p.kind === 'note' && p.id !== workspace.panes[focused]?.id,
+    );
+    if (oldest) closePane(oldest.id);
   }
   // **The browser's bridge** (`lib/web/bridge.svelte.ts`): the add-on opens a note here, or adds a
   // passage to the note in front (the active pane when it is a note, else the last note opened).
@@ -3048,6 +3077,18 @@
             class="view-item"
             class:saved={t.saved}
             onclick={t.run}
+            onauxclick={(e) => {
+              // **Middle-click opens it as a tab of the collection** (workspace-design §11, D2), as
+              // on the web; only inside formicaria's browser.
+              if (e.button !== 1 || !bridged()) return;
+              e.preventDefault();
+              const address = t.key.startsWith('group:')
+                ? t.key
+                : t.saved
+                  ? `saved:${t.key.replace(/^saved:|^view:/, '')}`
+                  : t.key;
+              bridgeUp({ up: 'open-tab', address: `view:${address}`, title: t.label });
+            }}
             title={t.saved ? `Open “${t.label}” — a view you saved` : `Open ${t.label}`}
             aria-label={`open ${t.label}`}
           >
@@ -3563,7 +3604,9 @@
               addSignal={i === focused ? groupAdd : 0}
               spaceTabs={tabsOf(pane)}
               onahead={loadAhead}
-              spaceName={spaces.find((x) => x.tabs.some((t) => showsTab(pane, t)))?.name ?? ''}
+              spaceName={sectionLabel(
+                spaces.find((x) => x.tabs.some((t) => showsTab(pane, t)))?.name ?? '',
+              )}
             />
           </div>
         {/each}

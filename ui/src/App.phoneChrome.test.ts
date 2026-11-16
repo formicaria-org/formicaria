@@ -50,7 +50,7 @@ test('the counted button counts open notes, and lists them with the view', async
   render(App);
   await screen.findByRole('button', { name: 'open a view' });
   // No note open: nothing to count, so no button. And a view opened is not a window.
-  await openView('Library');
+  await openView('Study rooms');
   expect(screen.queryByRole('button', { name: /^open notes:/ })).toBeNull();
   await openView('Tasks');
   await openGaeNote();
