@@ -15306,3 +15306,34 @@ tested structure"*.
 ant's panel); and the browser's start-up check on Windows waits for the browser, not for
 `firefox.exe` (a launcher that exits at once there: `-wait-for-browser`, and the check judges by the
 picture the browser draws), the likely reason the first Windows run failed.
+
+## 2026-11-17 — formicaria's browser on Windows trusts the pinned sum, not a found `gpgv` `#toolchain`
+
+The release's own Windows check (0.47.0) said, publicly: *"Mozilla's signature did not verify, so
+nothing was installed."* The runner had a `gpgv` (Git for Windows carries one) that failed to verify
+Mozilla's genuine signature, most likely over Windows paths. On Windows formicaria no longer looks for
+`gpgv`: it takes the version this release pinned, by the SHA-512 recorded when the release was made
+(itself checked against Mozilla's signature then, `browser-bump`). A newer point release waits for a
+formicaria release there, as where `gpgv` is missing. Linux and macOS are unchanged.
+
+**2026-11-17, later: a feature tab costs what it shows.** `browser-check` measured 21 MB per extra
+feature tab once its runs alternated (medians of three), over the 20 MB budget; the 17.7 MB that let
+0.47.0 pass was a quiet run. Every page was loading the trackers' screens, the proposal review (402 KB
+with its diff library) and the feed thread up front; `Pane` now loads each when shown, as it already
+did the note editor. The budget stands.
+
+## 2026-11-17 — mail off for now; the web by name on the phone `#ui` `#data`
+
+The owner: *"remove emails from everywhere for now, one can keep it in a browser"*; and on 0.47.0:
+*"I see no browser in the phone … I couldn't find it in Open either, it is not in the suggested list"*.
+
+1. **Mail is off**, not deleted: `fm-serve` is built without its `mail` feature (no Gmail reading,
+   no mail routes); the Mail section, Settings → Mail, *Reply in Gmail*, *Send by mail* (and the
+   `send_mail` action), the ant's Mail and the shipped *Conversations* view are gone. Notes read from
+   Gmail before stay in the vault, found by search. Webmail is a web page like any other.
+2. **The web, by name**: *Web* (a globe) in the views list on every device, straight to an address or
+   a search; and *Open…* offers *Web* first before anything is typed. The phone's browser was in
+   0.47.0 but reachable only by typing into *Open…*.
+3. **No *Open…*** (the owner: *"why we need open? we have the views, a click on it opens it"*): the
+   views list opens every feature and search finds notes; *Web* is the one entry they lacked, and its
+   screen (`WebOpen.svelte`) asks for an address or a search and nothing else.

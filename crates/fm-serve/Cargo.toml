@@ -19,7 +19,8 @@ path = "src/main.rs"
 # `cargo build --no-default-features` compiles a provably agent-free core: "rm -rf agents/ is
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
-default = ["agent", "tls", "update", "calendar", "mail", "products", "browser"]
+# `mail` is off for now (`decisions.md` 2026-11-17): webmail is used as a web page; Gmail is not read.
+default = ["agent", "tls", "update", "calendar", "products", "browser"]
 agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #

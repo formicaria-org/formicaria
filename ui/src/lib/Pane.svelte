@@ -1,4 +1,22 @@
+<script module lang="ts">
+  import type { Component } from 'svelte';
+  // **The trackers' screens, loaded once and then kept** (`decisions.md` 2026-11-17): not carried by a
+  // page that shows none, and drawn at once on every later change of view (a tracker is rebuilt for
+  // each view, and a load on each would show an empty moment every time).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let trackerLoaded: Component<any> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let trackerLoading: Promise<Component<any>> | null = null;
+  function loadTracker() {
+    trackerLoading ??= import('./TrackerPane.svelte').then((m) => (trackerLoaded = m.default));
+    return trackerLoading;
+  }
+</script>
+
 <script lang="ts">
+  let TrackerC = $state(trackerLoaded);
+  // Loaded when shown (`decisions.md` 2026-11-17): a feature page holding a board does not carry the
+  // trackers' screens, the proposal review or the feed thread; each tab costs what it shows.
   import SourceLine from './SourceLine.svelte';
   import PageItem from './PageItem.svelte';
   // One pane of the workspace: a compact header (view picker, per-view controls, close) over
@@ -19,13 +37,9 @@
   import Discussions from '../renderers/Discussions.svelte';
   import Icon from './Icon.svelte';
   import ViewControls from './ViewControls.svelte';
-  import FeedThread from './FeedThread.svelte';
   import VaultBadge from './VaultBadge.svelte';
-  import ProposalReview from './ProposalReview.svelte';
-  import MailHeard from './MailHeard.svelte';
   import TagChips from './library/TagChips.svelte';
   import { spacesShown, type SpaceTab } from './spaces.svelte';
-  import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, paneLabel, clampSpan, rendererKind, feedKey } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
@@ -316,6 +330,10 @@
   /// payload it describes rather than depending on a second `list_views` fetch. The words about
   /// what it *hides* moved to `ViewControls`; this is only about which component to mount.
   const shownView = $derived(drawnPane.kind === 'view' ? drawnFeed?.view : undefined);
+  $effect(() => {
+    if (shownView?.renderer === 'totals' && !TrackerC)
+      void loadTracker().then((c) => (TrackerC = c));
+  });
 
   // **Column order, reconnected.** `boardOrder.ts` is a pure, tested core — and after the
   // pane rewrite nothing imported it: `onreorder` was `() => {}`, so dragging a column
@@ -418,9 +436,7 @@
     </header>
   {/if}
 
-  {#if drawnPane.kind === 'view' && drawnPane.viewName === 'Conversations'}
-    <SourceLine source="mail" />
-  {:else if drawnPane.kind === 'agenda'}
+  {#if drawnPane.kind === 'agenda'}
     <SourceLine source="calendar" />
   {/if}
   <div
@@ -520,17 +536,22 @@
     {:else if drawnPane.kind === 'view' && shownView?.renderer === 'totals'}
       <!-- A tracker's view asks for its own days; the feed only says which view it is. -->
       {#key trackerBuild}
-        <TrackerPane
-          pane={drawnPane}
-          feed={drawnFeed}
-          going={pane.viewName ?? undefined}
-          {addSignal}
-          tabs={headed}
-          {onchange}
-          {onsaved}
-          {onopen}
-          {onahead}
-        />
+        {#if TrackerC}
+          {@const TrackerPane = TrackerC}
+          <TrackerPane
+            pane={drawnPane}
+            feed={drawnFeed}
+            going={pane.viewName ?? undefined}
+            {addSignal}
+            tabs={headed}
+            {onchange}
+            {onsaved}
+            {onopen}
+            {onahead}
+          />
+        {:else}
+          <p class="pane-empty">Loading…</p>
+        {/if}
       {/key}
     {:else if drawnPane.kind === 'view' && !drawnFeed}
       <!-- A view whose feed has not come. Falling through drew the timeline: "No notes yet", or
@@ -599,9 +620,6 @@
           </ul>
         </section>
       {/if}
-      <!-- What the assistant made of the mail it read — including "nothing to change", which
-           proposes nothing and so would otherwise leave no trace here. -->
-      <MailHeard {onopen} />
       <!-- Proposals: each expands to its diff (fetched lazily on open); "open" jumps to the
            proposal note itself, where its discussion lives. -->
       <!-- Open proposals first; the closed ones below, folded, newest first — like a forge's closed
@@ -631,7 +649,9 @@
               >
             </summary>
             {#if openProposal[p.id]}
-              <ProposalReview id={p.id} />
+              {#await import('./ProposalReview.svelte') then { default: ProposalReview }}
+                <ProposalReview id={p.id} />
+              {/await}
             {/if}
           </details>
         </li>
@@ -696,12 +716,14 @@
 </section>
 
 {#snippet thread(id: string)}
-  <FeedThread
-    noteId={id}
-    onposted={(n) => (threadCounts = { ...threadCounts, [id]: n })}
-    {onsaved}
-    {onopen}
-  />
+  {#await import('./FeedThread.svelte') then { default: FeedThread }}
+    <FeedThread
+      noteId={id}
+      onposted={(n) => (threadCounts = { ...threadCounts, [id]: n })}
+      {onsaved}
+      {onopen}
+    />
+  {/await}
 {/snippet}
 
 <style>

@@ -76,14 +76,14 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 
 - **The ant at the start of the tab row is formicaria.** Press it: a small panel with a search field
   (your notes, or the web), **New note**, and formicaria's features: **Notes**, **Tasks**, **Agenda**,
-  **Mail**, **Food journal**, **Fitness**, **Health**, **Music**. Choose one and it opens in **a tab of
+  **Food journal**, **Fitness**, **Health**, **Music**. Choose one and it opens in **a tab of
   its own**, filling the window.
 - **Every tab is one thing**: a feature (with its own views as a row of buttons at the top: Notes'
   *Shelves* and *Timeline*, Food's *Day*, *Menu*, *Trends*…), a single note, or a web page. formicaria's
   tabs have no bars or windows inside them: the browser's tabs are the windows.
 - **Opening a note from a feature opens it in a tab of its own**, beside the feature, as a link would.
-- **Mail is your webmail, in a tab** (Gmail unless you change it at the foot of the ant's panel).
-  Select something in a mail and bring it into a note as from any page.
+- **Your webmail** is a web page like any other: open it in a tab, and bring what you select into a
+  note.
 - **+ (or Ctrl+T) is a new web tab**, as in any browser. The browser is for the web; formicaria's
   features come from the ant.
 - **Two tabs side by side**: drag a tab onto the left or right half of the page (Firefox's split
@@ -150,7 +150,7 @@ address bar is **filled red**; press it, and the snip's bar says **In 2 of your 
 see them, each with the line that names the page, and open one beside the page.
 
 **Search the whole library from the address bar**: type **fm**, a space, and what you are looking
-for. Each result says its section (✎ Notes, ✉ Mail, ♪ Music, ◍ Food, ◎ Web…) and opens as a
+for. Each result says its section (✎ Notes, ♪ Music, ◍ Food, ◎ Web…) and opens as a
 tab.
 
 **Exactly where it came from.** A saved page ends with the **full address it was read at**, with the

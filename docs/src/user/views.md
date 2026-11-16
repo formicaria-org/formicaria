@@ -18,7 +18,6 @@ The views are gathered into **sections** of the library, and they are all ways o
 | Group | What it is for | Its views |
 |---|---|---|
 | **Notes** (called *Library* before 0.38) | everything you have written: on shelves, or browsed by tag | Shelves, Timeline |
-| **Mail** | the conversations formicaria reads from Gmail, kept apart from what you write: in a conversation's **＋** (Options), *Reply in Gmail* opens it beside, and *Bring into another note…* takes the selected passage (or the latest message) into another note | Conversations |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |

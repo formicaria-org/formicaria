@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { webmail } from './lib/webmail';
   import { loadFeed as loadFeedShared, cardsOf } from './lib/feeds';
-  import OpenAnything from './lib/OpenAnything.svelte';
+  import WebOpen from './lib/WebOpen.svelte';
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import BrowserRestartBanner from './lib/BrowserRestartBanner.svelte';
@@ -842,16 +841,9 @@
         label: g.name,
         icon: 'chart',
         saved: false,
-        // **Mail is your webmail** (`lib/webmail.ts`): a page inside formicaria on the phone, a tab
-        // elsewhere. The conversations it reads stay in your notes, found by search.
-        run: () => (g.name === 'Mail' ? openWebmail() : openGroupView(g.views[0])),
+        run: () => openGroupView(g.views[0]),
       })),
   ];
-  function openWebmail() {
-    const url = webmail();
-    if (isPhone()) focusOrOpen('page', { url, pageTitle: 'Mail' });
-    else window.open(url, '_blank', 'noopener');
-  }
 
   /// The rail: what you are invited to open, minus the rare one. **With the four groups it is the
   /// groups first** — a built-in view that belongs to one is reached inside it, exactly as a
@@ -865,10 +857,12 @@
     return [
       // **Open…** (a note found, a section, a web page): the same screen as a new tab in formicaria's
       // browser, first in the list on every device.
+      // **The web**, by name (the owner on 0.47: *"I see no browser in the phone"*): straight to an
+      // address or a search; a page opens inside formicaria on the phone, in a tab elsewhere.
       {
-        key: 'open',
-        label: 'Open…',
-        icon: 'search',
+        key: 'web',
+        label: 'Web',
+        icon: 'globe',
         saved: false,
         run: () => (launching = true),
       },
@@ -887,7 +881,7 @@
   /// icons cannot afford and a list you filter can (`decisions.md#ui`, 2026-10-12, *the names
   /// never differ*). The phone's view menu reads `viewTargets` itself.
   let paletteTargets = $derived([
-    ...viewTargets.filter((t) => t.key !== 'open'),
+    ...viewTargets.filter((t) => t.key !== 'web'),
     ...targetsFrom(OPENABLE_PANES.filter((b) => !RAIL_PANES.includes(b))).filter(
       (t) => !t.key.startsWith('group:') && !t.saved,
     ),
@@ -2162,17 +2156,9 @@
     // **A study room or a catalogue by its address** (workspace-design §11, D1–D2): what a tab of
     // the collection opens. `&tab` marks one opened from a tab: the tabs are then the list of what is
     // open, so the app keeps few windows of its own and lets the oldest go.
-    // **A new tab** (＋ or Ctrl+T in formicaria's browser): *Open…* fills it.
-    if (/^#open(&tab)?$/.test(location.hash)) {
-      history.replaceState(history.state, '', location.pathname + location.search);
-      launching = true;
-      return;
-    }
     const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);
     const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})(&tab)?$/.exec(location.hash);
     if (!m && !v) return;
-    // Another item asked for (another formicaria tab chosen while *Open…* was up): it is put away.
-    launching = false;
     history.replaceState(history.state, '', location.pathname + location.search);
     if (v) return openAddress(decodeURIComponent(v[1]));
     const id = m![1].toUpperCase();
@@ -2254,9 +2240,9 @@
     const name = front ? paneTitle(front) : '';
     document.title = name ? `${name} — formicaria` : 'formicaria';
   });
-  /** *Open…* (the views list's first entry): a note found, a section, a new note, a web page. */
+  /** *Web* (the views list's first entry): an address or a search, opened as a page. */
   let launching = $state(false);
-  /** A web address or a web search chosen in *Open…*: a page item. */
+  /** A web address or a web search chosen in *Web*: a page item. */
   function openWeb(at: string) {
     launching = false;
     // A page item (the phone draws it; elsewhere it is its address, to open).
@@ -3787,23 +3773,7 @@
       {/if}
 
       {#if launching}
-        <OpenAnything
-          places={viewTargets.filter((t) => t.key !== 'open')}
-          onnote={(id) => {
-            launching = false;
-            openNoteInPane(id);
-          }}
-          onplace={(run) => {
-            launching = false;
-            run();
-          }}
-          onnew={() => {
-            launching = false;
-            onNew();
-          }}
-          onweb={openWeb}
-          onclose={() => (launching = false)}
-        />
+        <WebOpen onweb={openWeb} onclose={() => (launching = false)} />
       {/if}
       <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
          spans some columns; panes flow into rows. The renderers are pure and height:100%, so

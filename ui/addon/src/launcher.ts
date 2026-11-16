@@ -4,7 +4,6 @@
 // feature's view, a note, a new note, or (only for the web) a web search or address.
 declare const browser: {
   runtime: { sendMessage<T>(m: unknown): Promise<T> };
-  storage: { local: { get(k: string[]): Promise<Record<string, unknown>>; set(v: Record<string, unknown>): Promise<void> } };
   search: { search(o: { query: string; disposition?: string }): Promise<void> };
   tabs: { create(o: { url: string }): Promise<unknown> };
 };
@@ -58,55 +57,15 @@ let hits: { id: string; title: string }[] = [];
 let seq = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
-/** **Mail is your webmail, in a tab** (`decisions.md` 2026-11-17): Gmail unless another address is
- *  set here; formicaria brings what you select there into your notes, as from any page. */
-let webmail = 'https://mail.google.com/';
-let editingMail = false;
-void browser.storage.local.get(['webmail']).then((s) => {
-  if (typeof s.webmail === 'string' && /^https:\/\//.test(s.webmail)) webmail = s.webmail;
-  draw();
-});
-
 function draw() {
   const t = q.value.trim();
   list.replaceChildren();
   if (!t) {
     list.append(row('New note', () => open('new:', 'New note'), '', '＋'));
     list.append(sep());
-    for (const [mark, label, a] of FEATURES.slice(0, 3)) list.append(row(label, () => open(a, label), '', mark));
-    list.append(row('Mail', () => go(webmail), '', '✉'));
-    for (const [mark, label, a] of FEATURES.slice(3)) list.append(row(label, () => open(a, label), '', mark));
+    for (const [mark, label, a] of FEATURES) list.append(row(label, () => open(a, label), '', mark));
     list.append(sep());
     list.append(row('Search the web', () => q.focus(), 'web', '⌕'));
-    if (editingMail) {
-      const li = document.createElement('li');
-      const input = Object.assign(document.createElement('input'), {
-        type: 'url',
-        value: webmail,
-        placeholder: 'https://…',
-      });
-      input.setAttribute('aria-label', 'your webmail address');
-      input.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        const v = input.value.trim();
-        if (/^https:\/\/[^\s]+$/.test(v)) {
-          webmail = v;
-          void browser.storage.local.set({ webmail: v });
-        }
-        editingMail = false;
-        draw();
-      });
-      li.append(input);
-      list.append(li);
-      input.focus();
-    } else {
-      list.append(
-        row(`Mail opens ${webmail.replace(/^https:\/\//, '').replace(/\/$/, '')} — change`, () => {
-          editingMail = true;
-          draw();
-        }, 'muted'),
-      );
-    }
     return;
   }
   for (const h of hits) list.append(row(h.title, () => open(`note:${h.id}`, h.title), '', '✎'));

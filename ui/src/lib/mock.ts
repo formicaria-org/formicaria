@@ -2453,14 +2453,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // The views that come with the app are always listed, as the server lists them; whether
       // their groups are *shown* is the device's choice (`trackersShown` in `App.svelte`).
       views.push(...tracker.TRACKER_VIEWS);
-      // Mail's conversations, as `crates/fm-app/src/shipped/mail-conversations.view` ships them.
-      views.push({
-        name: 'Conversations',
-        renderer: 'timeline',
-        group_by: null,
-        group: 'Mail',
-        shipped: true,
-      });
       // The Library's shelves, as `crates/fm-app/src/shipped/library-shelves.view` ships them.
       views.push({
         name: 'Shelves',

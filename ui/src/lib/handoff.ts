@@ -5,15 +5,6 @@
 // read-only (`gmail.readonly`). These are the addresses and files it opens.
 import { addDays } from './civil';
 
-/** Gmail's compose window with a subject and a body (and a recipient, when known). */
-export function gmailCompose(subject: string, body: string, to = ''): string {
-  const q = new URLSearchParams({ view: 'cm', fs: '1' });
-  if (to) q.set('to', to);
-  q.set('su', subject);
-  q.set('body', body);
-  return `https://mail.google.com/mail/?${q.toString()}`;
-}
-
 /** A note's `start` / `due` (`2026-11-20` or `2026-11-20T14:30`) as a calendar's dates: an all-day
  *  span, or a timed one (an hour when no end is given), in the calendar's own zone. */
 export function eventDates(start: string, end?: string | null): string | null {

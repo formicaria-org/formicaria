@@ -1,16 +1,16 @@
 # Mail (Gmail)
 
+> **Off for now** (formicaria 0.48): formicaria does not read mail. Use your webmail as a web page
+> (formicaria's browser on a computer, *Web* on the phone) and bring what you select into a note.
+> Conversations formicaria read before stay in your notes and are found by search. What follows
+> describes the reader as it was, for when it returns.
+
 formicaria can read your Gmail and keep a note for each conversation you care about. Invitations
 inside messages become meetings straight away. It reads **only** conversations with a label you choose, from a
 date you choose, and it can **only read**: Google gives it no way to send, delete or change mail.
 **Label a conversation once and formicaria follows all of it** — the replies you send and receive
 afterwards are read too, even though Gmail does not put the label on them.
 
-
-**Mail is your webmail.** *Mail* (in formicaria's browser, the ant's panel; on the phone and
-elsewhere, the views list) opens your webmail, Gmail unless you set another address (the ant's
-panel, or Settings → Mail → *Mail opens*). What follows on this page is the other half: formicaria
-reading the mail you label, so your conversations are in your notes and found by search.
 ## What it does to your notes
 
 - **One note per conversation**, tagged `mail`, titled by its subject (without `Re:`, `R:`, `Fwd:`).

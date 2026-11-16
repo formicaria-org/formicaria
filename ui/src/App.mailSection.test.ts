@@ -26,7 +26,8 @@ it('a passage of a conversation is brought into a note, with a link back', async
   render(App);
   // In the note's Options, so its head stays the title, one ＋ and a ×.
   await fireEvent.click(await screen.findByRole('button', { name: 'note options' }));
-  expect(screen.getByRole('button', { name: 'Reply in Gmail' })).toBeTruthy();
+  // Mail is off for now (2026-11-17): no reply from here; the passage still comes along.
+  expect(screen.queryByRole('button', { name: 'Reply in Gmail' })).toBeNull();
   await fireEvent.click(screen.getByRole('button', { name: 'Bring into another note…' }));
   const sheet = await screen.findByRole('dialog', { name: 'add what was shared to a note' });
   await fireEvent.click(within(sheet).getByRole('button', { name: /New note/ }));

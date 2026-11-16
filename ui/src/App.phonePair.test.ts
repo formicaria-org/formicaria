@@ -1,5 +1,5 @@
 // **Two together, only when asked** (the owner, 2026-11-16): a card's *with this one* shows that item
-// with the one in front; *One at a time* (or choosing a card) goes back to one. **Open… on the
+// with the one in front; *One at a time* (or choosing a card) goes back to one. **Web on the
 // phone**: from the view menu; a web address there opens a page item.
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -45,7 +45,7 @@ it('a card shows its item together with the one in front, and one at a time agai
   expect(shown()).toBe(1);
 });
 
-it('Open… on the phone: a web address opens the page as an item of the collection', async () => {
+it('Web on the phone: a web address opens the page as an item of the collection', async () => {
   const shown: string[] = [];
   const g = globalThis as Record<string, unknown>;
   g.__fmPage = {
@@ -58,8 +58,8 @@ it('Open… on the phone: a web address opens the page as an item of the collect
   try {
     render(App);
     await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
-    await fireEvent.click(screen.getByRole('menuitem', { name: 'Open…' }));
-    const field = await screen.findByRole('searchbox', { name: 'search your notes or the web' });
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Web' }));
+    const field = await screen.findByRole('searchbox', { name: 'a web address or a search' });
     await fireEvent.input(field, { target: { value: 'example.org/ants' } });
     await fireEvent.click(await screen.findByRole('button', { name: 'Go to example.org/ants' }));
     expect(

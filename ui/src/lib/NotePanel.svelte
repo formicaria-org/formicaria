@@ -12,7 +12,7 @@
     up as bridgeUp,
     toast,
   } from './web/bridge.svelte';
-  import { calendarEvent, gmailCompose, icsEvent } from './handoff';
+  import { calendarEvent, icsEvent } from './handoff';
   import {
     getNote,
     updateBody,
@@ -3006,29 +3006,7 @@
                   />
                 </div>
               {/if}
-              <!-- **Out of the library, by hand-off** (`lib/handoff.ts`): the service opens with the
-                   content in it; the person finishes there. -->
-              <button
-                class="opt"
-                onclick={() => {
-                  optionsOpen = false;
-                  openOutside(gmailCompose(note!.title || '', outText()));
-                }}>Send by mail…</button
-              >
-              {#if note.props?.gmail_thread && typeof note.props?.mail_link === 'string'}
-                <button
-                  class="opt"
-                  onclick={() => {
-                    optionsOpen = false;
-                    const sel = String(getSelection() ?? '').trim();
-                    if (sel) {
-                      void navigator.clipboard?.writeText(sel);
-                      toast.now = { text: 'Copied; paste it in the reply' };
-                    }
-                    openOutside(note!.props.mail_link as string);
-                  }}>Reply in Gmail</button
-                >
-              {/if}
+
               {#if note.start}
                 <button
                   class="opt"

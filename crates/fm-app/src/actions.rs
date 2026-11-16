@@ -59,13 +59,6 @@ pub const ACTIONS: &[ActionSpec] = &[
     a("new_note", "New note", "a title, and a piece to start it", "a new note", Runs::Server),
     a("place", "Place on a shelf", "a note and a shelf", "the note on that shelf", Runs::Server),
     a(
-        "send_mail",
-        "Send by mail",
-        "a subject and text",
-        "a mail ready to send, in Gmail",
-        Runs::HandOff,
-    ),
-    a(
         "add_event",
         "Add to calendar",
         "a title, a time, text",

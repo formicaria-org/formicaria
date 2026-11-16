@@ -33,14 +33,3 @@ it('a note placed on a new shelf carries that shelf', async () => {
     expect(n.tags).toContain('shelf:Ants');
   });
 });
-
-it('Send by mail opens Gmail compose with the title and the text', async () => {
-  const open = vi.spyOn(window, 'open').mockImplementation(() => null);
-  await openNew('Lab visit', 'Tuesday works.');
-  await fireEvent.click(screen.getByRole('button', { name: 'Send by mail…' }));
-  expect(open).toHaveBeenCalledOnce();
-  const u = new URL(open.mock.calls[0][0] as string);
-  expect(u.host).toBe('mail.google.com');
-  expect(u.searchParams.get('su')).toBe('Lab visit');
-  expect(u.searchParams.get('body')).toContain('Tuesday works.');
-});

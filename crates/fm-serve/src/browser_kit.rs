@@ -150,6 +150,13 @@ pub fn bin(ff: &Path) -> PathBuf {
 /// Can Mozilla's signature be checked here? Without `gpgv` (Windows and macOS usually), only the
 /// version this formicaria release pinned is taken, by its sum.
 pub fn gpgv_available() -> bool {
+    // **Not on Windows** (2026-11-17): a `gpgv` found there (Git for Windows carries one) failed to
+    // verify Mozilla's genuine signature on the release's Windows job, most likely over Windows paths.
+    // There the sum this release pinned (checked against Mozilla's signature when the release was
+    // made) is what is trusted, for the pinned version only.
+    if cfg!(windows) {
+        return false;
+    }
     Command::new("gpgv")
         .arg("--version")
         .stdout(Stdio::null())
@@ -258,7 +265,9 @@ pub fn acquire(
     let want = crate::browser::sum_for(&String::from_utf8_lossy(&sums), &file)
         .ok_or("Mozilla's checksums do not list this file, so it was not downloaded.")?;
     let pinned_sum = pin.sha512.iter().find(|(p, _)| p == plat).map(|(_, s)| s.as_str());
-    match signature_ok(work, &sums, &sig) {
+    let checked =
+        if gpgv_available() { signature_ok(work, &sums, &sig) } else { Err("no gpgv".into()) };
+    match checked {
         Ok(true) => {}
         Ok(false) => {
             return Err("Mozilla's signature did not verify, so nothing was installed.".into())

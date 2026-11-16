@@ -1,6 +1,0 @@
-name: Conversations
-view: timeline
-group: Mail
-filter:
-  - prop: gmail_thread
-    exists: true

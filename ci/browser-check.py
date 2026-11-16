@@ -520,10 +520,15 @@ def main() -> None:
         # 35 MB a copy of the whole app measured per tab): one feature page against five, twice each.
         feats = [f"{SERVER}/f/group/Library", f"{SERVER}/f/group/Tasks", f"{SERVER}/f/agenda",
                  f"{SERVER}/f/group/Food", f"{SERVER}/f/timeline"]
-        one = [measure(ff, work / f"feat1-{i}", work / "feat1.json", feats[:1], {}) for i in range(2)]
-        five = [measure(ff, work / f"feat5-{i}", work / "feat5.json", feats, {}) for i in range(2)]
-        per_tab = (avg(five, "pss_kb") - avg(one, "pss_kb")) / 4 / 1024
-        print(f"browser-check: memory  one feature tab {avg(one, 'pss_kb') / 1024:.0f} MB, five {avg(five, 'pss_kb') / 1024:.0f} MB: {per_tab:.1f} MB per extra tab")
+        # In turn, three of each, and the median: two runs of each, one after the other, read the
+        # machine's load as a change of 4.5 MB per tab between two runs of the same pages.
+        one, five = [], []
+        for i in range(3):
+            one.append(measure(ff, work / f"feat1-{i}", work / "feat1.json", feats[:1], {}))
+            five.append(measure(ff, work / f"feat5-{i}", work / "feat5.json", feats, {}))
+        med = lambda xs: sorted(x.get("pss_kb") or 0 for x in xs)[len(xs) // 2] / 1024
+        per_tab = (med(five) - med(one)) / 4
+        print(f"browser-check: memory  one feature tab {med(one):.0f} MB, five {med(five):.0f} MB (medians of 3): {per_tab:.1f} MB per extra tab")
         checks["each extra feature tab costs at most 20 MB"] = per_tab <= 20
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")

@@ -37,7 +37,6 @@
   import ClockSection from './ClockSection.svelte';
   import TrackersSection from './TrackersSection.svelte';
   import RemindersSection from './RemindersSection.svelte';
-  import MailSection from './MailSection.svelte';
   import BackupPanel from './BackupPanel.svelte';
   import {
     config as fetchConfig,
@@ -1692,7 +1691,7 @@
       {#if !isRemote() && !isPhone()}
         <div class="cat" data-cat="connections">
           <CalendarsSection />
-          <MailSection />
+          <!-- Mail is off for now (`decisions.md` 2026-11-17): webmail is used as a web page. -->
         </div>
       {/if}
 

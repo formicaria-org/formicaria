@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { setWebmail, webmail } from './webmail';
-  let webmailNow = $state(webmail());
   /// Where the person is sent to fix things, as plain links (2026-10-16, the owner: *"guide me better
   /// to the cloud settings"*): the manual's step-by-step set-up, and the one Google Cloud page whose
   /// *Publish app* ends the 7-day sign-out. One list, shared with the Collaboration card.
@@ -153,20 +151,6 @@
 <section data-testid="mail">
   <h3>Mail</h3>
   <ManualLink page="user/mail.html" section="connect-it" />
-  <!-- **Mail is your webmail** (`lib/webmail.ts`): what *Mail* opens. -->
-  <label class="webmail">
-    <span>Mail opens</span>
-    <input
-      type="url"
-      value={webmailNow}
-      aria-label="your webmail address"
-      onchange={(e) => {
-        const v = (e.currentTarget as HTMLInputElement).value;
-        if (setWebmail(v)) webmailNow = v.trim();
-        else (e.currentTarget as HTMLInputElement).value = webmailNow;
-      }}
-    />
-  </label>
   <p class="muted lede">
     Read Gmail to keep your meetings and conversations up to date. formicaria can only read.
   </p>
@@ -363,15 +347,5 @@
     padding: 0;
     color: var(--accent);
     cursor: pointer;
-  }
-  .webmail {
-    display: flex;
-    gap: var(--space-2);
-    align-items: center;
-    margin-block: var(--space-2);
-  }
-  .webmail input {
-    flex: 1;
-    min-width: 0;
   }
 </style>

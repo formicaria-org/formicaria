@@ -300,7 +300,8 @@ fn every_shipped_view_parses_and_can_be_drawn() {
         .collect();
     // Mail's conversations (2026-11-16): its own section. (*Today* shipped in 0.40 and was taken out
     // in 0.43: the owner had not asked for it.)
-    assert_eq!(lists, vec![("Conversations", Some("Mail"), true)]);
+    // (Mail's conversations shipped from 2026-11-16 and were taken out with mail on 2026-11-17.)
+    assert!(lists.is_empty(), "{lists:?}");
     let shipped: Vec<_> = all
         .iter()
         .filter(|v| {
