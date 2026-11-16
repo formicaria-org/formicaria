@@ -543,6 +543,23 @@ class MainActivity : TauriActivity() {
       }
     }
 
+    /// **Save this page** (≡): its HTML handed to the app, which reads it as the computer's *Save page*
+    /// does and keeps it as a note (`lib/web/read.ts`).
+    @JavascriptInterface
+    fun html(id: String) {
+      runOnUiThread {
+        val page = pages[id] ?: return@runOnUiThread
+        page.evaluateJavascript("document.documentElement.outerHTML") { got ->
+          try {
+            val html = (JSONTokener(got).nextValue() as? String ?: return@evaluateJavascript).take(MAX_PAGE)
+            val d = JSONObject().put("id", id).put("url", page.url ?: "").put("title", page.title ?: "")
+              .put("html", html)
+            wv?.evaluateJavascript("window.dispatchEvent(new CustomEvent('fm-page-html',{detail:$d}))", null)
+          } catch (e: Exception) { }
+        }
+      }
+    }
+
     @JavascriptInterface
     fun back(id: String) {
       runOnUiThread { pages[id]?.let { if (it.canGoBack()) it.goBack() } }
@@ -646,6 +663,8 @@ class MainActivity : TauriActivity() {
 
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
+    /// The most of a page's HTML handed over to be saved (characters).
+    private const val MAX_PAGE = 5_000_000
     /// The selection bar's *Bring into note*.
     private const val BRING_ITEM = 0x666d
     /// What a page gives when brought in: its selection, or itself.

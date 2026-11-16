@@ -77,6 +77,9 @@ struct AppState {
     /// Set once the first request lands, so we grant a longer grace for a cold
     /// browser to make contact before the idle timeout applies.
     connected: AtomicBool,
+    /// **formicaria's browser is being restarted** after an update (`/api/browser_relaunch`): its tabs
+    /// have said goodbye, and the server must not take that for the person leaving.
+    relaunching: AtomicBool,
     /// The tabs that have identified themselves, by the id each one mints on load. A tab joins on
     /// its first command and leaves when it says goodbye on `pagehide`.
     tabs: Mutex<std::collections::HashSet<String>>,
@@ -124,6 +127,7 @@ impl AppState {
             tabs: Mutex::new(std::collections::HashSet::new()),
             goodbye: Mutex::new(None),
             connected: AtomicBool::new(false),
+            relaunching: AtomicBool::new(false),
             #[cfg(feature = "agent")]
             agent: std::sync::Arc::new(agent::AgentState::new(port)),
             #[cfg(feature = "update")]
@@ -895,6 +899,9 @@ fn spawn_watchdog(state: Arc<AppState>) {
     };
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
+        if state.relaunching.load(Ordering::Relaxed) {
+            continue;
+        }
         if state.remind.resting.load(Ordering::Relaxed) {
             // Whoever says the last reminder stops the program (`remind.rs`): stopping it from
             // here raced that, and won, so the reminder it had stayed for was never said.
@@ -951,6 +958,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // Read headers; we care about the body length, who is calling, and the byte range a
     // media element is asking for.
     let mut content_length = 0usize;
+    let mut relaunch_asked = false;
     let mut origin: Option<String> = None;
     let mut range: Option<String> = None;
     let mut host: Option<String> = None;
@@ -988,6 +996,8 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
             // "I am the assistant, not a person." Read here, acted on at the liveness refresh
             // below; it changes nothing else about how the request is treated.
             agent_client = v.trim() == "1";
+        } else if lower.starts_with("x-formicaria-relaunch:") {
+            relaunch_asked = true;
         } else if lower.starts_with("x-formicaria-key:") {
             // formicaria's browser add-on proving it is ours (`browser::authorize_extension`). Off
             // `line`, not `lower`, like the cookie: it is a credential.
@@ -1296,6 +1306,30 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
         return changes_stream(reader.get_mut(), state);
     }
 
+    // **After an update, formicaria's browser restarts itself** (`decisions.md` 2026-11-17): its
+    // startup script sees a new server build, asks for this, and quits; the browser is started again
+    // once it has closed, its kit brought up to date meanwhile, on the person's own tabs. Only from this
+    // machine, and only with a header a web page cannot send without asking first.
+    #[cfg(feature = "browser")]
+    if path == "/api/browser_relaunch" {
+        if !peer.loopback || !relaunch_asked {
+            return write_response(reader.get_mut(), "403 Forbidden", "text/plain", b"no");
+        }
+        // What is typed in every open page is written first; only then may the browser quit.
+        save_everywhere(state);
+        state.relaunching.store(true, Ordering::Relaxed);
+        let st = Arc::clone(state);
+        let server = format!("http://127.0.0.1:{}", state.port);
+        let dist = state.dist.clone();
+        std::thread::spawn(move || {
+            browser::relaunch_when_closed(&addon_xpi(dist.as_deref()), &server);
+            // Time for the restored tabs to say they are here before the watchdog counts again.
+            std::thread::sleep(Duration::from_secs(60));
+            st.relaunching.store(false, Ordering::Relaxed);
+        });
+        return write_response(reader.get_mut(), "202 Accepted", "text/plain", b"");
+    }
+
     if path == "/api/alive" {
         // Carries the build id as well, so a launcher can tell *which* formicaria is here. Added
         // to the object rather than to `status_json`, which has a branch per sharing state — one
@@ -1516,6 +1550,27 @@ fn probe(addr: &str) -> Running {
     Running::Ours(id)
 }
 
+/// How many times every open tab has been asked to save what is typed (`save_everywhere`).
+static SAVE_ASKED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// **Every open page writes what is typed, before the program or the browser restarts** (an update;
+/// `decisions.md` 2026-11-17: *"automatic update is not losing data"*). Asked over every change stream;
+/// then waited for: until the writes stop (no change for 1.5 s), at most 10 s.
+pub(crate) fn save_everywhere(state: &AppState) {
+    SAVE_ASKED.fetch_add(1, Ordering::SeqCst);
+    state.app.nudge();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut g = state.app.generation();
+    loop {
+        std::thread::sleep(Duration::from_millis(1500));
+        let now = state.app.generation();
+        if now == g || Instant::now() > deadline {
+            break;
+        }
+        g = now;
+    }
+}
+
 /// At most this many change streams at once: each is a parked thread, a few tens of KB.
 const MAX_STREAMS: usize = 64;
 static STREAMS: AtomicUsize = AtomicUsize::new(0);
@@ -1540,14 +1595,20 @@ fn changes_stream(conn: &mut dyn Conn, state: &AppState) -> std::io::Result<()> 
           X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
     )?;
     let mut g = state.app.generation();
+    let mut asked = SAVE_ASKED.load(Ordering::SeqCst);
     conn.write_all(format!("data: {{\"generation\":{g}}}\n\n").as_bytes())?;
     conn.flush()?;
     loop {
         let now = state.app.wait_changed(g, Duration::from_secs(25));
+        let ask = SAVE_ASKED.load(Ordering::SeqCst);
+        if ask != asked {
+            asked = ask;
+            conn.write_all(b"data: {\"save\":true}\n\n")?;
+        }
         if now > g {
             g = now;
             conn.write_all(format!("data: {{\"generation\":{g}}}\n\n").as_bytes())?;
-        } else {
+        } else if ask == asked {
             conn.write_all(b": still here\n\n")?;
         }
         conn.flush()?;
@@ -2146,6 +2207,67 @@ mod tests {
         .unwrap();
         assert!(next() > first);
         assert!(t.elapsed() < Duration::from_secs(5), "at once, not at the keep-alive");
+    }
+
+    /// **Before an update restarts anything, every open page is told to save** (`save_everywhere`),
+    /// over its change stream, and the server waits for the writes to stop.
+    #[test]
+    fn an_update_tells_every_open_page_to_save_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state = std::sync::Arc::new(AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            ours(),
+            0,
+        ));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let for_thread = std::sync::Arc::clone(&state);
+        std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().unwrap();
+            let _ = handle(&mut sock, Peer { loopback: true, tls: false }, &for_thread);
+        });
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        client.write_all(b"GET /api/changes HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").unwrap();
+        let mut reader = _BufReader::new(&mut client);
+        let mut line = String::new();
+        // Past the headers and the first generation.
+        loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            if line.starts_with("data: ") {
+                break;
+            }
+        }
+        let asker = std::sync::Arc::clone(&state);
+        let t = Instant::now();
+        let waited = std::thread::spawn(move || save_everywhere(&asker));
+        loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            if line.starts_with("data: ") {
+                break;
+            }
+        }
+        assert_eq!(line.trim(), r#"data: {"save":true}"#);
+        assert!(t.elapsed() < Duration::from_secs(5), "told at once");
+        waited.join().unwrap();
+    }
+
+    /// **The browser restart cannot be asked for by a web page**: only with the header a page cannot
+    /// send without a preflight this server never grants.
+    #[test]
+    fn a_browser_restart_needs_its_header() {
+        let (status, _) = request(
+            "POST /api/browser_relaunch HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n",
+            ours(),
+        );
+        assert!(status.contains("403"), "{status}");
     }
 
     /// **A launcher has to be able to tell which build is holding the port.**

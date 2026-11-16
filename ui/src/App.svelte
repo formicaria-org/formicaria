@@ -1,8 +1,10 @@
 <script lang="ts">
+  import ViewControls from './lib/ViewControls.svelte';
+  import { readPage, parsePage } from './lib/web/read';
+  import { buildClip } from './lib/web/clip';
   import TabBar from './lib/TabBar.svelte';
   import NewTab from './feature/NewTab.svelte';
-  import { tabBar, barPosition, setBarPosition } from './lib/shell.svelte';
-  import { FEATURES } from './lib/features';
+  import { tabBar, barPosition } from './lib/shell.svelte';
   import { parseRoute } from './feature/route';
   import SelectionBring from './lib/SelectionBring.svelte';
   import { noteShown } from './lib/lastNote';
@@ -151,7 +153,6 @@
   } from './lib/spaces.svelte';
   import { trackersShown } from './lib/trackers.svelte';
   import * as trackers from './lib/trackers.svelte';
-  import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
   import ShareSheet from './lib/ShareSheet.svelte';
   import {
@@ -1780,6 +1781,7 @@
     const id = frontId;
     if (lastFront && id && id !== lastFront) {
       prevId = lastFront;
+      void leftNote(lastFront);
       // A tap in the other of the two brings it in front; the two stay together.
       if (besideId === id) besideId = lastFront;
     }
@@ -1967,6 +1969,11 @@
       if (Object.keys(patch).length) changePane(p.id, patch);
     };
     window.addEventListener('fm-page', onPage);
+    const onPageHtml = (e: Event) =>
+      void pageHtml(
+        (e as CustomEvent<{ id: string; url: string; title?: string; html: string }>).detail,
+      );
+    window.addEventListener('fm-page-html', onPageHtml);
     // A link in a page, long-pressed and opened as a page: an item of its own.
     const onPageOpen = (e: Event) => {
       const url = (e as CustomEvent<{ url?: string }>).detail?.url ?? '';
@@ -1993,6 +2000,7 @@
       window.removeEventListener('fm-bring-to-room', bring);
       document.removeEventListener('click', onLink, true);
       window.removeEventListener('fm-page', onPage);
+      window.removeEventListener('fm-page-html', onPageHtml);
       window.removeEventListener('fm-page-open', onPageOpen);
     };
   });
@@ -2258,7 +2266,6 @@
   let launching = $state(false);
   /** **+ in the one bar** (`decisions.md` 2026-11-17, *one frame*): the new tab's suggestions. */
   let newTabOpen = $state(false);
-  let featureMenuOpen = $state(false);
   /** A feature's first view, as a pane: what a tab of it opens on. */
   function featurePane(key: string): Partial<PaneT> & { kind: PaneKind } {
     const space = spaces.find((x) => x.name === key);
@@ -2269,25 +2276,73 @@
     if (group) return { kind: 'view', viewName: group.views[0] };
     return { kind: (key as PaneKind) || 'timeline' };
   }
+  /** **Save this page** (≡, a web page in front): the shell hands over its HTML (`__fmPage.html`), and
+   *  it is read and saved as the computer's *Save page* does (`lib/web/read.ts`, `clip_save`). */
+  let savingPage: string | null = null;
+  function savePage() {
+    const p = workspace.panes[focused];
+    const shell = (globalThis as { __fmPage?: { html?(id: string): void } }).__fmPage;
+    if (!p || p.kind !== 'page' || !shell?.html) return;
+    savingPage = p.id;
+    shell.html(p.id);
+  }
+  async function pageHtml(d: { id: string; url: string; title?: string; html: string }) {
+    if (d.id !== savingPage) return;
+    savingPage = null;
+    try {
+      const facts = readPage(parsePage(d.html, d.url), d.url);
+      const draft = buildClip(facts, appToday(), null, clockText());
+      await ipc.clipSave({
+        url: facts.url,
+        title: draft.title,
+        body: draft.body,
+        tags: draft.tags,
+        props: draft.props,
+        bibtex: draft.bibtex ?? '',
+        snapshot: facts.snapshot,
+      });
+      notice = `Saved “${draft.title}” in your notes.`;
+    } catch (e) {
+      error = `The page could not be saved: ${String(e)}`;
+    }
+  }
+  /** **A new note left empty goes when it is left** (the owner: an opened, unused thing stays and is
+   *  useless). What is typed is saved first, so a note with words in it is never taken for empty. */
+  async function leftNote(id: string) {
+    const p = workspace.panes.find((x) => x.id === id);
+    if (!tabBar() || !p || p.kind !== 'note' || !p.noteId || p.noteTitle) return;
+    const writes: Promise<unknown>[] = [];
+    window.dispatchEvent(new CustomEvent('fm-save-now', { detail: writes }));
+    await Promise.allSettled(writes);
+    try {
+      const r = await ipc.discardIfBlank(p.noteId);
+      if (r.discarded && workspace.panes.some((x) => x.id === id)) closePane(id);
+    } catch {
+      /* kept */
+    }
+  }
   /** What the new tab chose (`NewTab`'s addresses): a feature, a note, or the web, in a tab of its own. */
   function goNewTab(url: string) {
     newTabOpen = false;
     if (/^https?:\/\//.test(url)) return focusOrOpen('page', { url, pageTitle: null });
     const r = parseRoute(url);
     if (r.kind === 'note') return openNoteInPane(r.id);
-    if (r.kind === 'group') {
-      const { kind, ...over } = featurePane(r.name);
-      return addPane(kind, over);
-    }
-    if (r.kind === 'builtin') return addPane(r.pane);
-  }
-  /** The tab's chooser (`Food ▾`): *this* tab moves to the feature. */
-  function switchFeature(key: string) {
-    featureMenuOpen = false;
-    const front = workspace.panes[focused];
-    if (!front) return;
-    const { kind, ...over } = featurePane(key);
-    changePane(front.id, { kind, viewName: null, noteId: null, ...over });
+    // A feature already open: its tab, not a second one (the bar slides to it).
+    const open = (want: Partial<PaneT> & { kind: PaneKind }) => {
+      const space = spaces.find((x) =>
+        x.tabs.some((t) => (t.viewName ? t.viewName === want.viewName : t.kind === want.kind)),
+      );
+      const at = workspace.panes.findIndex((p) =>
+        space
+          ? space.tabs.some((t) => showsTab(p, t))
+          : p.kind === want.kind && p.viewName === (want.viewName ?? null),
+      );
+      if (at !== -1) return selectWindow(at);
+      const { kind, ...over } = want;
+      addPane(kind, over);
+    };
+    if (r.kind === 'group') return open(featurePane(r.name));
+    if (r.kind === 'builtin') return open({ kind: r.pane });
   }
   /** A web address or a web search chosen in *Web*: a page item. */
   function openWeb(at: string) {
@@ -2996,7 +3051,7 @@
         onhelp={() => (helpOpen = true)}
         onbackup={onBackup}
         onundo={() => void runUndo('undo')}
-        onposition={setBarPosition}
+        onsavepage={workspace.panes[focused]?.kind === 'page' ? savePage : undefined}
       />
     {:else}
       <header class="topbar">
@@ -3842,59 +3897,7 @@
          pane header would both be in the DOM, giving two elements labelled `group by` — ambiguous
          to a screen reader and to `getByLabelText`. This branches on the layout *preference*, not
          on the viewport, so the rule it has to respect is untouched. -->
-      {#if tabBar() && workspace.panes[focused] && isView(workspace.panes[focused])}
-        <!-- **The tab's line** (`decisions.md` 2026-11-17, *one frame*): the feature as a chooser that
-             moves this tab, its views, and how they are shown — the same line as a feature page. -->
-        <div class="tab-line">
-          <div class="chooser">
-            <button
-              type="button"
-              class="feature-name"
-              aria-haspopup="menu"
-              aria-expanded={featureMenuOpen}
-              aria-label="switch this tab to another feature"
-              onclick={() => (featureMenuOpen = !featureMenuOpen)}
-              >{focusedSpace
-                ? sectionLabel(focusedSpace.name)
-                : paneTitle(workspace.panes[focused])} ▾</button
-            >
-            {#if featureMenuOpen}
-              <ul class="feature-menu" role="menu" aria-label="features" use:popup>
-                {#each FEATURES as f (f.key)}
-                  <li role="none">
-                    <button type="button" role="menuitem" onclick={() => switchFeature(f.key)}
-                      >{f.label}</button
-                    >
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-          </div>
-          {#if focusedSpace && focusedSpace.tabs.length > 1}
-            {#each focusedSpace.tabs as t (t.key)}
-              {@const on = showsTab(workspace.panes[focused], t)}
-              <button
-                type="button"
-                class="view-tab"
-                class:on
-                aria-current={on ? 'page' : undefined}
-                onclick={() =>
-                  changePane(workspace.panes[focused].id, {
-                    kind: t.viewName ? 'view' : t.kind,
-                    viewName: t.viewName ?? null,
-                  })}>{t.label}</button
-              >
-            {/each}
-          {/if}
-          <ViewControls
-            pane={workspace.panes[focused]}
-            feed={feedKey(workspace.panes[focused])
-              ? feeds[feedKey(workspace.panes[focused]) ?? '']
-              : undefined}
-            onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
-          />
-        </div>
-      {:else if !tabBar() && (workspace.layout ?? 'single') === 'single'}
+      {#if !tabBar() && (workspace.layout ?? 'single') === 'single'}
         <ViewBar
           panes={workspace.panes}
           active={focused}
@@ -5286,43 +5289,6 @@
     order: 1;
     flex: 1;
     min-height: 0;
-  }
-  .tab-line {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    overflow-x: auto;
-    flex: none;
-  }
-  .tab-line .chooser {
-    position: relative;
-    flex: none;
-  }
-  .feature-name {
-    font-weight: 700;
-  }
-  .feature-menu {
-    list-style: none;
-    margin: 4px 0 0;
-    padding: 4px;
-    min-width: 12rem;
-    background: var(--bg, Canvas);
-    border-radius: 10px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-  }
-  .feature-menu button {
-    width: 100%;
-    text-align: start;
-  }
-  .view-tab {
-    flex: none;
-    border-radius: 999px;
-    padding: var(--space-1) var(--space-3);
-  }
-  .view-tab.on {
-    background: color-mix(in srgb, #dc2626 18%, transparent);
-    font-weight: 600;
   }
   .new-tab-sheet {
     position: fixed;

@@ -15375,3 +15375,30 @@ bar, Vivaldi's Speed Dial and tiling, Teams' + picker, Chrome's tab strip, Andro
    the ±50 MB a whole browser wobbles by between runs read 12 to 37 MB per tab for the same pages.
    On formicaria's own tabs the address row is out of the layout (`display: none`): folded, it still
    kept 20 px in ESR 153.
+
+## 2026-11-17 — updates complete themselves; the phone's fixes after 0.49 `#ui` `#toolchain`
+
+The owner on 0.49: *"I update it in app and see nothing without closing and opening it again (can't it
+do automatically this process?)"*; *"this is important also for other users: automatic update is not
+losing data and it is really automatic in full"*; on the phone: an empty tab left behind, the bar's
+place belongs in Appearance, *"how can I bring in an entire page"*, the tab's line repeated the
+feature's own views (*"start with removing it completely, one can use + … if it is already open it can
+scroll laterally"*).
+
+1. **Every open page saves before anything restarts** (`save_everywhere`): the server tells every
+   change stream `save`, each page raises the updater's `fm-save-now` (each editor writes what is
+   pending), and the server waits until writes stop (1.5 s quiet, at most 10 s). Before an in-app
+   update (`update.rs`'s hand-over) and before the browser restarts for one.
+2. **formicaria's browser restarts itself after an update**: its startup script reads the server's
+   build every 20 s; when it changes it asks `/api/browser_relaunch` (loopback, and a header a page
+   cannot send unasked) and quits only on the server's yes. The server keeps itself up meanwhile
+   (`relaunching`), waits for the browser to close, swaps in a prepared copy, brings the kit up to
+   date in place (`refresh_kit`, safe with nothing running), and starts it on the session's own tabs.
+3. **Phone**: the tab's line is gone (the features show their own views); + on a feature already open
+   goes to its tab and the row slides to it; a new note left empty is discarded when left (what is
+   typed is saved first, so words are never taken for empty); the bar's place is in Settings →
+   Appearance; **Save this page** in ≡ (the shell hands over the page's HTML, read by the same code as
+   the computer's *Save page*, now shared in `lib/web/read.ts`).
+4. **Computer**: a feature page does not repeat a tracker's own views on its line.
+5. **Next for the phone's tabs** (owner's ideas, to prototype): an arc of tabs fanning out, or a roller
+   (a slot machine) instead of the horizontal row.

@@ -501,8 +501,28 @@ pub fn launch_args(profile: &Path, url: &str) -> Vec<std::ffi::OsString> {
     } else {
         Vec::new()
     };
-    a.extend(["--profile".into(), profile.as_os_str().to_owned(), url.into()]);
+    a.extend(["--profile".into(), profile.as_os_str().to_owned()]);
+    // No address: the session's own tabs (a restart after an update).
+    if !url.is_empty() {
+        a.push(url.into());
+    }
     a
+}
+
+/// **Started again after it closed** (an update asked, `/api/browser_relaunch`): once the browser has
+/// gone, a prepared copy goes in, the kit is brought up to date, and it opens on the person's own tabs.
+pub fn relaunch_when_closed(xpi: &[u8], server: &str) {
+    let Some(d) = dir() else { return };
+    let start = std::time::Instant::now();
+    while crate::browser_kit::running(&d) && start.elapsed() < std::time::Duration::from_secs(60) {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    if crate::browser_kit::running(&d) {
+        return;
+    }
+    crate::browser_kit::swap_in_prepared(&d);
+    crate::browser_kit::refresh_kit(&d);
+    let _ = launch("", xpi, server);
 }
 
 /// Open `url` in formicaria's browser. Refreshes the profile and the policies first, so the add-on

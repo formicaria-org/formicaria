@@ -101,6 +101,8 @@ pub struct App {
     /// notified on every [`App::bump`], so an open tab hears of a change at once instead of asking
     /// every few seconds (`decisions.md` 2026-11-17, *one server, many views*).
     changed: (Mutex<()>, std::sync::Condvar),
+    /// Wakes the waiters without a change (`nudge`): the server has something else to tell them.
+    nudged: AtomicU64,
     /// **The app's clock** (2026-10-24, *one app clock*) — the same handle the stores read and write
     /// on, so a choice made in Settings applies to every vault at once.
     clock: fm_core::zone::Clock,
@@ -361,6 +363,7 @@ impl App {
             config_writable,
             generation: AtomicU64::new(0),
             changed: (Mutex::new(()), std::sync::Condvar::new()),
+            nudged: AtomicU64::new(0),
             clock,
         }
     }
@@ -383,15 +386,24 @@ impl App {
         self.generation.load(Ordering::Relaxed)
     }
 
-    /// **Wait until the vaults move past `since`**, or `timeout` passes; answers the generation then.
-    /// What the server's change stream holds each open tab on: a parked thread, woken by a write.
+    /// Wake whoever waits for a change, though nothing changed: the server has something to say to
+    /// every open tab (ask them to save what is typed, before an update or a restart).
+    pub fn nudge(&self) {
+        self.nudged.fetch_add(1, Ordering::Relaxed);
+        let _held = self.changed.0.lock().unwrap_or_else(|p| p.into_inner());
+        self.changed.1.notify_all();
+    }
+
+    /// **Wait until the vaults move past `since`**, or `timeout` passes, or a [`App::nudge`]; answers
+    /// the generation then. What the server's change stream holds each open tab on: a parked thread.
     pub fn wait_changed(&self, since: u64, timeout: std::time::Duration) -> u64 {
         let deadline = std::time::Instant::now() + timeout;
+        let nudged = self.nudged.load(Ordering::Relaxed);
         let mut held = self.changed.0.lock().unwrap_or_else(|p| p.into_inner());
         loop {
             let now = self.generation();
             let left = deadline.saturating_duration_since(std::time::Instant::now());
-            if now > since || left.is_zero() {
+            if now > since || left.is_zero() || self.nudged.load(Ordering::Relaxed) != nudged {
                 return now;
             }
             held = match self.changed.1.wait_timeout(held, left) {

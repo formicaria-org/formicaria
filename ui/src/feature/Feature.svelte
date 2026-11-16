@@ -225,7 +225,8 @@
             </ul>
           {/if}
         </div>
-        {#if tabs.length > 1}
+        <!-- A tracker (Food, Fitness, Health) shows its own views inside it: not repeated here. -->
+        {#if tabs.length > 1 && feed?.view?.renderer !== 'totals'}
           {#each tabs as t (t.label)}
             <button
               type="button"

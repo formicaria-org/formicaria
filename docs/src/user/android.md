@@ -88,18 +88,18 @@ yours, in one gesture — see [Backup & versioning](./backup.md).
 
 ## The one bar: your tabs
 
-At the bottom of the screen (or the top: **≡ → This bar at the top**) is formicaria's only bar:
+At the bottom of the screen (or the top: **Settings → Appearance → The bar**) is formicaria's only bar:
 
-- **≡**: formicaria's options: search your notes, Undo, Back up and sync, Settings, Help, and where
-  the bar sits.
+- **≡**: formicaria's options: search your notes, **Save this page** (when a web page is in front: its
+  article, with a copy, as a note of its own), Undo, Back up and sync, Settings, Help.
 - **Your tabs**, side by side in one row: each is one thing, a feature (Notes, Tasks, Agenda, Food
   journal, Fitness, Health, Music), a note, or a web page. Tap one to go to it; **×** on the tab in
   front closes it. Slide the row to see more.
 - **+**: a new tab. It suggests the features, a new note, and a field for a web address or a search
-  (the page opens inside formicaria).
+  (the page opens inside formicaria). A feature that is already open is not opened twice: + takes you
+  to its tab. A new note you leave without writing in goes away by itself.
 
-At the top of a feature's tab is its line: the feature's name (**Food ▾**) switches *this* tab to
-another feature, and its views follow (Day · Menu · Trends).
+Each feature shows its own views inside it (Food's Day, Menu, Trends).
 
 **Two together**: drag a tab from the bar up into the screen: it shows with the one in front, one
 above the other; tap either to work in it.

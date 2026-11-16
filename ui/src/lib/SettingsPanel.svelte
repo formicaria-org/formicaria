@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tabBar, barPosition, setBarPosition } from './shell.svelte';
   import BrowserSection from './BrowserSection.svelte';
   // Settings: what this installation is *actually* configured as.
   //
@@ -1212,6 +1213,25 @@
           </li>
         </ul>
       </section>
+
+      {#if tabBar()}
+        <!-- **Where the one bar sits** (`decisions.md` 2026-11-17; the owner: *"I like it on bottom but
+             someone might want top"*, and *"it can go into appearance of the settings"*). -->
+        <section data-cat="look" data-words="bar tabs top bottom position">
+          <h3>The bar</h3>
+          <ul class="caps">
+            <li>
+              <span class="k">{barPosition() === 'bottom' ? 'At the bottom' : 'At the top'}</span>
+              <button
+                class="binding"
+                onclick={() => setBarPosition(barPosition() === 'bottom' ? 'top' : 'bottom')}
+              >
+                Move it to the {barPosition() === 'bottom' ? 'top' : 'bottom'}
+              </button>
+            </li>
+          </ul>
+        </section>
+      {/if}
 
       <!-- Colours and type. Sits next to the dark/light switch because that is where a person
            looks for "how this looks", even though this one writes a file in the vault while its

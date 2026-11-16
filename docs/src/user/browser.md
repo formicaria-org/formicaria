@@ -90,6 +90,9 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 - **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, and again to come back.
 - Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click.
 - **Your tabs come back** when the browser starts again. An old whole-app tab becomes Notes.
+- **Updates restart the browser by themselves.** After formicaria updates, its browser saves what you
+  were typing in every open note, closes, and opens again on the same tabs within a minute, with the
+  update in place. Nothing to do by hand.
 - Prefer tabs down the side? **Settings → Browser → Tabs down the side**.
 
 ## Bring things in, or save the page

@@ -498,6 +498,15 @@ pub fn swap_in_prepared(d: &Path) -> bool {
     true
 }
 
+/// **The kit brought up to date in place**, while the browser is closed: formicaria's files written
+/// again and its name swapped in (safe on every system, since nothing holds them). `true` when done.
+pub fn refresh_kit(d: &Path) -> bool {
+    if running(d) || applied_stamp(d).as_deref() == Some(kit_stamp().as_str()) {
+        return false;
+    }
+    apply(&d.join("firefox")).is_ok()
+}
+
 /// The kit applied to the live copy, if any.
 pub fn applied_stamp(d: &Path) -> Option<String> {
     std::fs::read_to_string(res_dir(&d.join("firefox")).join("formicaria").join("kit-stamp"))

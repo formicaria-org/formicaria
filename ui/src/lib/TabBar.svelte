@@ -24,7 +24,7 @@
     onhelp,
     onbackup,
     onundo,
-    onposition,
+    onsavepage,
   }: {
     panes: Pane[];
     focused: number;
@@ -41,7 +41,8 @@
     onhelp: () => void;
     onbackup: () => void;
     onundo: () => void;
-    onposition: (p: 'top' | 'bottom') => void;
+    /** A web page is in front: *Save this page* (its article, in a note of its own). */
+    onsavepage?: () => void;
   } = $props();
 
   let menuOpen = $state(false);
@@ -74,6 +75,15 @@
   /** A tab dragged into the screen (up from a bottom bar, down from a top one) tiles with the one in front. */
   let drag: { id: string; y0: number; dy: number } | null = $state(null);
   const into = (dy: number) => (position === 'bottom' ? dy < -60 : dy > 60);
+
+  // The tab in front is kept in view as the row slides (+ on a feature already open lands there).
+  let row = $state<HTMLUListElement>();
+  $effect(() => {
+    void focused;
+    void panes.length;
+    const on = row?.querySelector('.tab.on') as HTMLElement | null;
+    on?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+  });
 </script>
 
 <nav class="tab-bar" class:top={position === 'top'} aria-label="formicaria">
@@ -101,20 +111,17 @@
             >{h.title}</button
           >
         {/each}
+        {#if onsavepage}
+          <button type="button" role="menuitem" onclick={act(onsavepage)}>Save this page</button>
+        {/if}
         <button type="button" role="menuitem" onclick={act(onundo)}>Undo</button>
         <button type="button" role="menuitem" onclick={act(onbackup)}>Back up and sync</button>
         <button type="button" role="menuitem" onclick={act(onsettings)}>Settings</button>
         <button type="button" role="menuitem" onclick={act(onhelp)}>Help</button>
-        <button
-          type="button"
-          role="menuitem"
-          onclick={act(() => onposition(position === 'bottom' ? 'top' : 'bottom'))}
-          >This bar at the {position === 'bottom' ? 'top' : 'bottom'}</button
-        >
       </div>
     {/if}
   </div>
-  <ul class="tabs" aria-label="open tabs">
+  <ul class="tabs" aria-label="open tabs" bind:this={row}>
     {#each panes as p, i (p.id)}
       {@const ic = icon(p)}
       <li

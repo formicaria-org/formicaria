@@ -514,6 +514,9 @@ fn hand_over(state: &Arc<crate::AppState>, app: &Path) -> Result<(), String> {
     if !staged.exists() {
         return Err("there is nothing downloaded to install".into());
     }
+    // Every open page writes what is typed (each feature and note is a tab of its own now, and only
+    // the one that pressed Update flushed its own editors), then what is on disk is recorded.
+    crate::save_everywhere(state);
     settle_briefly(state);
 
     // **Run the swap from a copy, not from `staged/program/` itself — this is a Windows

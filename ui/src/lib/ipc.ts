@@ -292,7 +292,11 @@ export function listenChanges(onChange: (generation: number) => void): () => voi
   const es = new EventSource('/api/changes');
   es.onmessage = (e) => {
     try {
-      const g = (JSON.parse(e.data) as { generation?: unknown }).generation;
+      const m = JSON.parse(e.data) as { generation?: unknown; save?: unknown };
+      // **Write what is typed, now**: the program or the browser is about to restart for an update.
+      // The same event the updater raises in its own page (`updater.svelte.ts`'s `SAVE_NOW`).
+      if (m.save === true) window.dispatchEvent(new CustomEvent('fm-save-now', { detail: [] }));
+      const g = m.generation;
       if (typeof g === 'number') onChange(g);
     } catch {
       /* a line that is not ours */
@@ -311,6 +315,16 @@ export type DeletedNote = { id: string; vault: string; file: string };
 export const deleteNote = (id: string) => invoke<DeletedNote>('delete', { id });
 /** **A note left as it came is not kept** (2026-10-27): deletes it only if the file holds nothing —
  *  no text, title or property. The server decides, against the file. */
+/** **Keep a page as a note** (`clip_save`): the page read (`lib/web/read.ts`, `buildClip`), with a copy. */
+export const clipSave = (c: {
+  url: string;
+  title: string;
+  body: string;
+  tags: string[];
+  props: Record<string, unknown>;
+  bibtex: string;
+  snapshot: string;
+}) => invoke<{ id: string }>('clip_save', c);
 export const discardIfBlank = (id: string) =>
   invoke<{ discarded: boolean }>('discard_if_blank', { id });
 /** Put a deleted note back. Refused if a note with that id exists again. */
