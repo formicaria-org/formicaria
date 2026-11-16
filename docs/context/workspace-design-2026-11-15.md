@@ -469,7 +469,9 @@ The web is one of formicaria's features, as notes, Music or Food are. So:
 > email). This section supersedes §12.1's *page layer* wording and the separate phone page screen.
 
 > **Status (0.41):** step 1 (the kind registry, `kind_key` on every note) and step 2 (one piece, `put`;
-> ⇥ on every note brings a passage into another) are built; the computer's quick switch (§13.7) too.
+> *Bring into another note…* in every note's ＋) are built; the computer's quick switch (§13.7) too.
+> **0.42:** steps 3 (Place on a shelf…, the views' source line) and 4 (Send by mail, Reply in Gmail,
+> Add to calendar / .ics, Share) are built. Next: step 5 on the phone (pages as items, the switch).
 
 ### 13.1 The cycle
 

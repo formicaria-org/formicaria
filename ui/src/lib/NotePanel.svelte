@@ -10,7 +10,9 @@
     replaced as replacedText,
     bridged,
     up as bridgeUp,
+    toast,
   } from './web/bridge.svelte';
+  import { calendarEvent, gmailCompose, icsEvent } from './handoff';
   import {
     getNote,
     updateBody,
@@ -1829,6 +1831,64 @@
 
   // Write one property via the existing set_property command, then reflect it in
   // the local note so the header/pills update without a refetch.
+  // ---- Placing and handing off (`workspace-design` §13.4, §13.6) ----
+  let placing = $state(false);
+  let newShelf = $state('');
+  let shelves = $state<string[]>([]);
+  /** The shelf a note of this kind belongs on by default (`kinds.rs`'s places). */
+  const suggestedShelf = $derived(
+    note?.kind_key === 'web' ? 'Web' : note?.kind_key === 'paper' ? 'Papers' : '',
+  );
+  const shelfChoices = $derived(
+    [...new Set([suggestedShelf, ...shelves].filter(Boolean))].slice(0, 12),
+  );
+  async function loadShelves() {
+    try {
+      const all = await recent();
+      shelves = [
+        ...new Set(
+          all.flatMap((n) => n.tags.filter((t) => t.startsWith('shelf:')).map((t) => t.slice(6))),
+        ),
+      ].sort();
+    } catch {
+      shelves = [];
+    }
+  }
+  /** On that shelf (its other shelves give way), and out of Today's Inbox. */
+  async function placeOn(shelf: string) {
+    if (!note) return;
+    const tags = note.tags.filter((t) => !t.startsWith('shelf:'));
+    tags.push(`shelf:${shelf}`);
+    await setProp('tags', tags.join(', '));
+    if (note.props?.source && !note.props?.filed) await setProp('filed', appToday());
+    toast.now = { text: `On the shelf ${shelf}` };
+  }
+  /** What goes out: the selection, else the note's text. */
+  function outText(): string {
+    const sel = String(getSelection() ?? '').trim();
+    return (sel || note?.body || '').slice(0, 6000);
+  }
+  /** A service's page, opened beside in formicaria's browser, elsewhere in a new tab. */
+  function openOutside(url: string) {
+    if (bridged()) bridgeUp({ up: 'open-beside', url });
+    else window.open(url, '_blank', 'noopener');
+  }
+  /** Android's share sheet on the phone (the shell's `__fmShare.out`); a copy elsewhere. */
+  function shareOut(subject: string, text: string) {
+    const out = (globalThis as { __fmShare?: { out?(t: string, s: string): void } }).__fmShare?.out;
+    if (out) return out(text, subject);
+    void navigator.clipboard?.writeText(text);
+    toast.now = { text: 'Copied' };
+  }
+  function download(name: string, text: string, type: string) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   async function setProp(key: string, value: string) {
     if (!note) return;
     try {
@@ -2909,26 +2969,105 @@
                   );
                 }}>Bring into another note…</button
               >
+              <!-- **Place on a shelf** (`workspace-design` §13.4): every note finds its place in the
+                   library; placing also files it out of Today's Inbox. -->
+              <button
+                class="opt"
+                onclick={() => {
+                  void loadShelves();
+                  placing = !placing;
+                }}
+                aria-expanded={placing}>Place on a shelf…</button
+              >
+              {#if placing}
+                <div class="place" role="group" aria-label="shelves">
+                  {#each shelfChoices as shelf (shelf)}
+                    <button
+                      class="opt shelf"
+                      onclick={() => {
+                        optionsOpen = false;
+                        placing = false;
+                        void placeOn(shelf);
+                      }}>{shelf}</button
+                    >
+                  {/each}
+                  <input
+                    class="new-shelf"
+                    type="text"
+                    placeholder="New shelf"
+                    aria-label="new shelf"
+                    bind:value={newShelf}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter' && newShelf.trim()) {
+                        optionsOpen = false;
+                        placing = false;
+                        void placeOn(newShelf.trim());
+                      }
+                    }}
+                  />
+                </div>
+              {/if}
+              <!-- **Out of the library, by hand-off** (`lib/handoff.ts`): the service opens with the
+                   content in it; the person finishes there. -->
+              <button
+                class="opt"
+                onclick={() => {
+                  optionsOpen = false;
+                  openOutside(gmailCompose(note!.title || '', outText()));
+                }}>Send by mail…</button
+              >
               {#if note.props?.gmail_thread && typeof note.props?.mail_link === 'string'}
                 <button
                   class="opt"
                   onclick={() => {
                     optionsOpen = false;
-                    const url = note!.props.mail_link as string;
-                    if (bridged()) bridgeUp({ up: 'open-beside', url });
-                    else window.open(url, '_blank', 'noopener');
+                    const sel = String(getSelection() ?? '').trim();
+                    if (sel) {
+                      void navigator.clipboard?.writeText(sel);
+                      toast.now = { text: 'Copied; paste it in the reply' };
+                    }
+                    openOutside(note!.props.mail_link as string);
                   }}>Reply in Gmail</button
                 >
               {/if}
-              {#if note.props?.source && !note.props?.filed}
+              {#if note.start}
                 <button
                   class="opt"
                   onclick={() => {
                     optionsOpen = false;
-                    void setProp('filed', appToday());
-                  }}>File it</button
+                    const u = calendarEvent({
+                      title: note!.title || 'Event',
+                      start: note!.start!,
+                      end: note!.due,
+                      details: outText(),
+                      location:
+                        typeof note!.props?.location === 'string' ? note!.props.location : '',
+                    });
+                    if (u) openOutside(u);
+                  }}>Add to calendar</button
+                >
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    const ics = icsEvent({
+                      title: note!.title || 'Event',
+                      start: note!.start!,
+                      end: note!.due,
+                      details: outText(),
+                      uid: `${note!.id}@formicaria`,
+                    });
+                    if (ics) download(`${note!.title || 'event'}.ics`, ics, 'text/calendar');
+                  }}>Save as calendar file (.ics)</button
                 >
               {/if}
+              <button
+                class="opt"
+                onclick={() => {
+                  optionsOpen = false;
+                  shareOut(note!.title || '', outText());
+                }}>Share…</button
+              >
               {#if bridged()}
                 <button
                   class="opt"
@@ -5055,5 +5194,18 @@
   }
   .err {
     color: var(--danger-fg);
+  }
+  .place {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+  }
+  .place .shelf {
+    flex: none;
+  }
+  .new-shelf {
+    flex: 1 1 8rem;
+    min-width: 0;
   }
 </style>

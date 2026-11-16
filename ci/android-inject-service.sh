@@ -283,6 +283,15 @@ class MainActivity : TauriActivity() {
       JSONObject().put("files", files).put("refused", no).put("texts", said).put("brought", got).toString()
     }
 
+    /// **A note handed to another app** (`workspace-design` §13.6): Android's share sheet with the note's
+    /// text; the person picks where it goes.
+    @JavascriptInterface
+    fun out(text: String, subject: String) {
+      val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+        .putExtra(Intent.EXTRA_TEXT, text.take(MAX_TEXT)).putExtra(Intent.EXTRA_SUBJECT, subject)
+      runOnUiThread { try { startActivity(Intent.createChooser(send, null)) } catch (e: Exception) { } }
+    }
+
     /// The page has the pieces brought from a page screen (by count).
     @JavascriptInterface
     fun doneBrought(n: Int) {

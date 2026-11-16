@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceLine from './SourceLine.svelte';
   // One pane of the workspace: a compact header (view picker, per-view controls, close) over
   // one of the existing renderers. The renderers are pure and already `height:100%`, so a pane
   // is a thin frame around them — the whole reason the flexible grid is cheap.
@@ -413,6 +414,9 @@
     </header>
   {/if}
 
+  {#if drawnPane.kind === 'view' && (drawnPane.viewName === 'Conversations' || drawnPane.viewName === 'Coming up')}
+    <SourceLine source={drawnPane.viewName === 'Conversations' ? 'mail' : 'calendar'} />
+  {/if}
   <div
     class="pane-body"
     class:note-body={pane.kind === 'note'}

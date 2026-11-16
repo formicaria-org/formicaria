@@ -15106,3 +15106,25 @@ of kinds, views navigate them, study produces notes filed back, content moves bo
 
 The withdrawn separate phone page screen is removed from the shell; its bring-back plumbing stays for
 the page painter (§13.7, a later step).
+
+## 2026-11-16 (evening, later) — placing, the views' sources, and hand-offs out of the notes `#ui` `#data`
+
+Steps 3 and 4 of `workspace-design` §13, approved: *"go ahead, build and release … release and keep
+building"*.
+
+**Built (0.42).**
+1. **Place on a shelf…** (a note's ＋): the shelf its kind suggests (`kinds.rs`), the person's shelves,
+   or a new one; one `shelf:` tag (the others give way); a note that came from a source is filed out of
+   Today's Inbox. *File it* is folded into it.
+2. **A view says where its notes come from**: Mail's *Conversations* and Today's *Coming up* show one
+   line (*Gmail · label · read at 14:32*, *3 calendars · read at …*) with **Read now**, through the
+   existing `mail_status` / `calendars` / `mail_read_now` / `calendar_pull`.
+3. **Hand-offs out** (`ui/src/lib/handoff.ts`), in the ＋: *Send by mail…* (Gmail compose with the title
+   and the selection or note), *Reply in Gmail* (the thread opened, the selection copied), *Add to
+   calendar* (Google Calendar's new-event page prefilled from `start`/`due`) and *Save as calendar file
+   (.ics)*, *Share…* (Android's share sheet through the shell's new `__fmShare.out`; a copy on a
+   computer). In formicaria's browser they open beside; the add-on opens only `mail.google.com` and
+   `calendar.google.com`. **Mail stays read-only**; nothing leaves without the person.
+
+**Widens what ships:** one shell call (`out`, Android's share chooser), the add-on's beside-list gains
+`calendar.google.com`.

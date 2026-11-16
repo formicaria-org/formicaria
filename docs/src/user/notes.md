@@ -423,3 +423,26 @@ authoring one yet.
 
 *(Reading and highlighting a PDF inside formicaria is not built yet — for now a PDF opens in your
 browser's own viewer, and a link can point at a page of it.)*
+
+## A note's place, and where it can go
+
+formicaria is a library: every note is of a kind (a study note, a saved web page, a paper, a recipe, a
+song, a meeting, a mail conversation, a discussion…), and each kind has the views that show it. A
+note's **＋** (Options) holds what you can do with it beyond writing:
+
+- **Place on a shelf…**: on the shelf its kind suggests (*Web* for a saved page, *Papers* for a paper),
+  on one of your shelves, or on a new one. A note that came in from outside (a saved page, a download)
+  leaves **Today**'s Inbox when it has its place.
+- **Bring into another note…**: the passage you selected (or a link to this note; for a mail, its
+  latest message) goes into a note you choose, quoted, with a link back here.
+- **Send by mail…**: Gmail opens a new mail with the note's title and the selected passage (or the
+  whole note); you send it there. formicaria never sends mail itself.
+- **Reply in Gmail** (a mail conversation): the conversation opens in Gmail; the passage you selected is
+  copied, ready to paste in your reply.
+- **Add to calendar** (a note with a date): Google Calendar opens a new event with its title, time and
+  text; **Save as calendar file (.ics)** gives the same event for any other calendar.
+- **Share…**: on the phone, Android's share sheet (any app); on a computer, the text is copied.
+- **Open as a tab** (in formicaria's browser), **Copy to…**, **Delete**, **Close**.
+
+The **Mail** and **Coming up** views say on one line where their notes come from and when they were
+last read, with **Read now**.

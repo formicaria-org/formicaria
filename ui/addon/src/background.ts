@@ -526,9 +526,14 @@ async function fromApp(m: Record<string, unknown>) {
         : null;
     void storage.local.set({ front: front?.title ?? '' });
     void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
-  } else if (m.up === 'open-beside' && typeof m.url === 'string' && /^https:\/\/mail\.google\.com\//.test(m.url)) {
-    // **Reply in Gmail, beside the conversation** (workspace-design §12, #2): a page tab; formicaria
-    // goes beside it (the panel's rule for a page chosen). Gmail's address only.
+  } else if (
+    m.up === 'open-beside' &&
+    typeof m.url === 'string' &&
+    /^https:\/\/(mail|calendar)\.google\.com\//.test(m.url)
+  ) {
+    // **A hand-off, beside the note** (workspace-design §13.6): Gmail (a reply, a new mail) or Google
+    // Calendar (a new event), opened with the note's content in it; the person finishes there. Those
+    // two addresses only.
     await browser.tabs.create({ url: m.url });
   } else if (m.up === 'open-tab' && typeof m.address === 'string' && /^(note|view):/.test(m.address)) {
     // **Open as a tab** (workspace-design §11): formicaria's address, which formicaria's browser turns
