@@ -68,3 +68,14 @@
   border-inline-start: none;
   border-top: 1px solid var(--chrome-content-separator-color, rgba(0, 0, 0, 0.15));
 }
+
+/* D3: where a dragged tab will go, beside the one shown. */
+#formicaria-drop {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: rgba(220, 38, 38, 0.12);
+  border: 2px dashed #dc2626;
+  border-radius: 6px;
+}

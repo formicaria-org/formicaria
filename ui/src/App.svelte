@@ -1908,7 +1908,18 @@
     };
     take();
     window.addEventListener('fm-share', take);
-    return () => window.removeEventListener('fm-share', take);
+    // **A passage of a section's item, brought into a study room** (a mail's, today): the same sheet
+    // asks which note, and the passage, already written with its source, goes there.
+    const bring = (e: Event) => {
+      const t = (e as CustomEvent<SharedText>).detail;
+      if (!t?.ready) return;
+      shared = { files: [], refused: [], texts: [...(shared?.texts ?? []), t] };
+    };
+    window.addEventListener('fm-bring-to-room', bring);
+    return () => {
+      window.removeEventListener('fm-share', take);
+      window.removeEventListener('fm-bring-to-room', bring);
+    };
   });
   /** The chosen note takes the files at its end, as a drop would; `null` makes a new note first. */
   async function placeShared(noteId: string | null) {
@@ -1926,7 +1937,9 @@
       if (texts.length) {
         // The app's clock, not the browser's (`appTime.ts`: one clock per device).
         const when = `${appToday()} ${clockText()}`;
-        const text = texts.map((t) => sharedPassage(t.text, t.subject, when)).join('\n\n');
+        const text = texts
+          .map((t) => t.ready ?? sharedPassage(t.text, t.subject, when))
+          .join('\n\n');
         await tick();
         bridgeInbox.insert = {
           id,
@@ -2056,6 +2069,21 @@
     // **A study room or a catalogue by its address** (workspace-design §11, D1–D2): what a tab of
     // the collection opens. `&tab` marks one opened from a tab: the tabs are then the list of what is
     // open, so the app keeps few windows of its own and lets the oldest go.
+    // **Two study rooms side by side** (workspace-design §12, D3): one tab dragged beside another.
+    const pair =
+      /^#pair=note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}),note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(
+        location.hash,
+      );
+    if (pair) {
+      history.replaceState(history.state, '', location.pathname + location.search);
+      const [a, b] = [pair[1].toUpperCase(), pair[2].toUpperCase()];
+      makeRoomFor(a);
+      openNoteInPane(a);
+      makeRoomFor(b);
+      openNoteInPane(b);
+      setLayout('tiled');
+      return;
+    }
     const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);
     const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})(&tab)?$/.exec(location.hash);
     if (!m && !v) return;

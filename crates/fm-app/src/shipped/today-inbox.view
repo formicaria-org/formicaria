@@ -1,0 +1,9 @@
+name: Inbox
+view: timeline
+group: Today
+filter:
+  - prop: source
+    exists: true
+  - not:
+      prop: filed
+      exists: true

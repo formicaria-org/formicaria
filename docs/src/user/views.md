@@ -18,7 +18,8 @@ The views are gathered into **sections** of the library, and they are all ways o
 | Group | What it is for | Its views |
 |---|---|---|
 | **Study rooms** (called *Library* before 0.38) | everything you have written: on shelves, or browsed by tag | Shelves, Timeline |
-| **Mail** | the conversations formicaria reads from Gmail, kept apart from what you write; bring a passage into a study room when you want it there | Conversations |
+| **Mail** | the conversations formicaria reads from Gmail, kept apart from what you write: **↩** replies in Gmail beside the conversation, **⇥** brings the selected passage (or the latest message) into a study room | Conversations |
+| **Today** | what came in and is not filed yet (pages you saved, downloads, and later a watch's workouts), and what is coming up; press ✓ on a note to file it | Inbox, Coming up |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |

@@ -293,13 +293,29 @@ fn every_shipped_view_parses_and_can_be_drawn() {
     );
     // Mail's conversations (2026-11-16, night): its own section, a timeline of the notes that carry
     // a Gmail thread, the only shipped timeline.
-    let mail: Vec<_> = all.iter().filter(|v| v.renderer == Some(Renderer::Timeline)).collect();
-    assert_eq!(mail.len(), 1);
-    assert_eq!((mail[0].name.as_str(), mail[0].group.as_deref()), ("Conversations", Some("Mail")));
-    assert!(mail[0].error.is_none(), "{:?}", mail[0]);
+    let lists: Vec<_> = all
+        .iter()
+        .filter(|v| matches!(v.renderer, Some(Renderer::Timeline) | Some(Renderer::Agenda)))
+        .map(|v| (v.name.as_str(), v.group.as_deref(), v.error.is_none()))
+        .collect();
+    // Mail's conversations (2026-11-16): its own section. Today's Inbox and what is coming up
+    // (2026-11-16, workspace-design §12): a section of their own.
+    assert_eq!(
+        lists,
+        vec![
+            ("Conversations", Some("Mail"), true),
+            ("Inbox", Some("Today"), true),
+            ("Coming up", Some("Today"), true)
+        ]
+    );
     let shipped: Vec<_> = all
         .iter()
-        .filter(|v| v.renderer != Some(Renderer::Shelf) && v.renderer != Some(Renderer::Timeline))
+        .filter(|v| {
+            !matches!(
+                v.renderer,
+                Some(Renderer::Shelf) | Some(Renderer::Timeline) | Some(Renderer::Agenda)
+            )
+        })
         .collect();
     // Day, Menu, Trends and Diet for food; Week, Exercises and Regime for training. A day's
     // session is opened from the week and the volume is a line of it: neither is a view. Diary,

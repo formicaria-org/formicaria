@@ -1013,6 +1013,11 @@ const SHIPPED: &[(&str, &str)] = &[
     // **Mail is its own section** (`decisions.md` 2026-11-16, night): the conversations, where they
     // already are, shown here rather than among the study rooms.
     ("mail-conversations", include_str!("shipped/mail-conversations.view")),
+    // **Today** (workspace-design §4, §12 #3): what came in and is not filed yet, from every source
+    // (the source contract's `source`), and what is coming up. A section one press away; the first
+    // screen stays the study rooms' timeline (the owner, 2026-11-12).
+    ("today-inbox", include_str!("shipped/today-inbox.view")),
+    ("today-coming", include_str!("shipped/today-coming.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

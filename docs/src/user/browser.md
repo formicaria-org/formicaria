@@ -88,6 +88,9 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
   Mail…). Such a tab costs almost nothing: choosing it shows formicaria at that note or section,
   filling the window; choosing a page puts formicaria back beside it. Together, your tabs are your
   **collection**: what you have out right now, of every kind.
+- **Put any two tabs side by side**: drag a tab onto the left or right half of the page. Two pages
+  share the window (Firefox's split view); a note or section and a page put formicaria beside the
+  page, on that side; two notes show side by side in formicaria.
 - **Your tabs come back** when the browser starts again, formicaria's ones too.
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.

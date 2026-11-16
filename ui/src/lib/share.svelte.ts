@@ -28,6 +28,8 @@ export interface Refused {
 export interface SharedText {
   text: string;
   subject: string;
+  /** Already note text (a passage of a mail, quoted with its link): placed as it is. */
+  ready?: string;
 }
 
 /** What the shell holds: the files it kept, any it could not take, and texts. */

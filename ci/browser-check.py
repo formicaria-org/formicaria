@@ -37,7 +37,7 @@ PAGES = [
 MEMORY_BUDGET = 1.10
 START_BUDGET = 1.15
 START_NOISE_MS = 100
-RUNS = 3
+RUNS = 5  # five, not three (2026-11-16): the memory margin is close enough that noise matters
 
 MEASURE_CFG = """// measurement only (no kit)
 try {
@@ -320,6 +320,47 @@ def lean_tabs(m: "Marionette") -> dict:
     return {"lean_tab": ok, "lean_kept": r.get("kept") is True, "lean_beside": r.get("beside") == "beside" and r.get("again") == "full"}
 
 
+def pairs(m: "Marionette") -> dict:
+    """D3: a tab dropped beside the one shown (workspace-design §12), by the function a drop calls."""
+    ids = [n["id"] for n in post("/api/create_notes", {"notes": [{"title": "Room A", "body": "a"}, {"title": "Room B", "body": "b"}]})]
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER, ids], "scriptTimeout": 60000, "script": """
+        const done = arguments[arguments.length - 1];
+        const [server, ids] = [arguments[0], arguments[1]];
+        const sp = Services.scriptSecurityManager.getSystemPrincipal();
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        const state = () => document.getElementById('browser').getAttribute('formicaria');
+        (async () => {
+          const out = {};
+          const p1 = gBrowser.addTab('https://example.org/?one', { triggeringPrincipal: sp });
+          const p2 = gBrowser.addTab('https://example.org/?two', { triggeringPrincipal: sp });
+          await wait(2500);
+          gBrowser.selectedTab = p1; await wait(500);
+          out.pages = window.formicariaPair(p2, 'left');
+          out.split = !!p1.splitview && !!p2.splitview;
+          for (const id of ids) gBrowser.addTab(server + '/#tab=' + encodeURIComponent('note:' + id) + '&title=R', { triggeringPrincipal: sp });
+          await wait(4000);
+          const rooms = gBrowser.tabs.filter(t => ids.some(id => t.getAttribute('formicaria-item') === 'note:' + id));
+          const page = gBrowser.tabs.find(t => t.linkedBrowser.currentURI.spec.includes('example.org') && !t.splitview);
+          gBrowser.selectedTab = page || p1; await wait(800);
+          out.mixed = window.formicariaPair(rooms[0], 'left');
+          out.mixedSide = document.getElementById('browser').getAttribute('formicaria-side');
+          out.mixedState = state();
+          gBrowser.selectedTab = rooms[0]; await wait(1500);
+          out.both = window.formicariaPair(rooms[1], 'right');
+          out.bothState = state();
+          window.formicariaPair(null, 'right');
+          document.getElementById('browser').setAttribute('formicaria-side', 'right');
+          done(out);
+        })().catch(e => done({ error: String(e) }));"""})["value"]
+    ok = {"pair_pages": r.get("pages") == "split" and r.get("split") is True,
+          "pair_room_page": r.get("mixed") == "beside" and r.get("mixedSide") == "left" and r.get("mixedState") == "beside",
+          "pair_rooms": r.get("both") == "rooms" and r.get("bothState") == "full"}
+    if not all(ok.values()):
+        print(f"browser-check: pairs seen {r}")
+    return ok
+
+
 def settings_page(ff: Path, work: Path) -> dict:
     """Open the real Settings page of formicaria's browser and say what a person would see there."""
     import base64
@@ -399,8 +440,12 @@ def settings_page(ff: Path, work: Path) -> dict:
             seen.update(lean_tabs(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: lean tabs: {e}")
+        try:
+            seen.update(pairs(m))
+        except Exception as e:  # noqa: BLE001 - reported as failed checks
+            print(f"browser-check: pairs: {e}")
         for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom",
-                  "lean_tab", "lean_kept", "lean_beside"):
+                  "lean_tab", "lean_kept", "lean_beside", "pair_pages", "pair_room_page", "pair_rooms"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -513,6 +558,9 @@ def main() -> None:
             "a study room opens as a lean tab, formicaria filling the window": page.get("lean_tab") is True,
             "the lean tab is kept by the session (back after a restart)": page.get("lean_kept") is True,
             "a page chosen puts formicaria beside it; the lean tab fills again": page.get("lean_beside") is True,
+            "D3: a page dropped beside a page makes a split view": page.get("pair_pages") is True,
+            "D3: a study room dropped beside a page puts formicaria on that side": page.get("pair_room_page") is True,
+            "D3: two study rooms dropped together show side by side": page.get("pair_rooms") is True,
             "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
         for name, ok in checks.items():
@@ -522,6 +570,10 @@ def main() -> None:
         base = [measure(base_ff, work / f"stock-profile-{i}", work / "stock.json", [SERVER, *PAGES], {})
                 for i in range(RUNS)]
         avg = lambda xs, k: sum(x.get(k) or 0 for x in xs) / len(xs)
+        # Every run, not only the averages: a slow first run (a cold disk, a busy machine) shows as one.
+        for name, runs in (("formicaria", kit), ("unmodified", base)):
+            print(f"browser-check: runs   {name}: " + ", ".join(
+                f"{(r.get('sessionRestored_ms') or 0):.0f} ms/{(r.get('pss_kb') or 0) / 1024:.0f} MB" for r in runs))
         km, bm = avg(kit, "pss_kb") / 1024, avg(base, "pss_kb") / 1024
         ks, bs = avg(kit, "sessionRestored_ms"), avg(base, "sessionRestored_ms")
         print(f"browser-check: memory  formicaria {km:.0f} MB  vs unmodified {bm:.0f} MB  ({(km / bm - 1) * 100:+.1f} %)")

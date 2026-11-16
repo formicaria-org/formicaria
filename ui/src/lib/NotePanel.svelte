@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
-  import { clockText, dayOfInstant } from './appTime';
+  import { appToday, clockText, dayOfInstant } from './appTime';
   import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
   import { SAVE_NOW } from './updater.svelte';
+  import { mailPassage } from './web/mail';
   import {
     inbox as bridgeInbox,
     appended as appendedText,
@@ -2922,6 +2923,54 @@
             </div>
           {/if}
         </div>
+      {/if}
+      {#if note && note.props?.source && !note.props?.filed}
+        <!-- **File it** (Today's Inbox, workspace-design §12 #3): one press takes it out of the Inbox;
+             the note stays where it is, with its date of filing. -->
+        <button
+          class="edit file-it"
+          onclick={(e) => {
+            e.stopPropagation();
+            void setProp('filed', appToday());
+          }}
+          aria-label="file it"
+          title="File it: out of the Inbox, kept where it is">✓</button
+        >
+      {/if}
+      {#if note && note.props?.gmail_thread}
+        <!-- **Mail, its own section, as a client** (workspace-design §12, #2): reply in Gmail beside
+             the conversation (formicaria stays read-only on mail), or bring a passage into a study
+             room, quoted with a link back to the conversation. -->
+        {#if typeof note.props?.mail_link === 'string'}
+          <button
+            class="edit mail-reply"
+            onclick={(e) => {
+              e.stopPropagation();
+              const url = note!.props.mail_link as string;
+              if (bridged()) bridgeUp({ up: 'open-beside', url });
+              else window.open(url, '_blank', 'noopener');
+            }}
+            aria-label="reply in Gmail"
+            title="Reply in Gmail, beside this conversation">↩</button
+          >
+        {/if}
+        <button
+          class="edit mail-bring"
+          onclick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(
+              new CustomEvent('fm-bring-to-room', {
+                detail: {
+                  text: '',
+                  subject: '',
+                  ready: mailPassage(note!, String(getSelection() ?? '')),
+                },
+              }),
+            );
+          }}
+          aria-label="bring into a study room"
+          title="Bring the selected passage (or the latest message) into a study room">⇥</button
+        >
       {/if}
       {#if note && bridged()}
         <!-- **Open as a tab** (workspace-design §11, D1): in formicaria's browser, this study room

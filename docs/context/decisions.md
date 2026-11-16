@@ -15020,3 +15020,20 @@ person chooses formicaria in those menus.
 the page, the ant as an eyedropper, tap-then-hold): GeckoView adds roughly 60–80 MB to a 46 MB APK,
 past the owner's 100 MB budget, and needs G0's measurements on a device. Until then the phone's pages
 open in its own browser and Share / the selection menu bring them in.
+
+## 2026-11-16 (night, after) — D3, Mail as a client, Today and its Inbox `#ui` `#data`
+
+The owner: *"build all that is left to build, plan it if necessary"* (`workspace-design` §12).
+
+**Built (0.40).**
+1. **D3**: a tab dropped on a half of the page area goes beside the one shown, whatever the engines
+   (two pages → Firefox's split view; a study room and a page → the panel on that side; two study
+   rooms → formicaria's two panes, `#pair=`). `formicaria.cfg`'s `pair`, checked by `browser-check`.
+2. **Mail as a client**: a conversation offers ↩ *Reply in Gmail* (a page tab beside it; the add-on
+   opens only `mail.google.com`; formicaria stays read-only on mail) and ⇥ *Bring into a study room*
+   (the selection or the latest message, quoted, linking back to the conversation, through the sheet
+   that asks which note).
+3. **Today**, a section: **Inbox** (notes carrying the source contract's `source` and no `filed`) and
+   **Coming up** (the agenda). ✓ *File it* on such a note sets `filed`. **The first screen is not
+   changed**: it stays the study rooms' timeline (the owner, 2026-11-12); making Today the first
+   screen is the owner's to choose (`workspace-design` §10, Q1).

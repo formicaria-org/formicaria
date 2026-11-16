@@ -399,6 +399,10 @@ no new machinery:
 
 ## 12. What is left, in the order it is built (plan, 2026-11-16)
 
+> **Status (0.40):** 1 (D3), 2 (Mail as a client) and 3 (Today and its Inbox, the first screen unchanged)
+> are built. Next: 4 (the phone's browser, phase A), then 8 (Windows and macOS). **Last, by the owner's
+> priority (2026-11-16): 5 (a watch, Gadgetbridge) and 6 (Myrme acting in sections)**; 7 waits on the owner.
+
 > **The owner:** *"plan D3 and the phone browser next"*, then *"build all that is left to build, plan
 > it if necessary"*. Each step ships when `browser-check` and `pixi run ci` pass; what cannot be
 > verified on this machine says so.
