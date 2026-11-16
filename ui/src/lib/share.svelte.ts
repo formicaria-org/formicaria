@@ -14,7 +14,22 @@ type Bridge = {
   done(files: number, refused: number): void;
   /** Texts taken (by count). Absent in a shell from before 0.39. */
   doneTexts?(n: number): void;
+  /** Pieces from the page screen taken (by count). Absent in a shell from before 0.41. */
+  doneBrought?(n: number): void;
 };
+
+/** A piece brought from the phone's page screen (`PageActivity`, phase A): the selection's HTML and
+ *  words, an image or a link, or the page itself, with the page's exact address and the note it goes
+ *  into (empty: the note in front, or a new one). */
+export interface Brought {
+  kind: 'selection' | 'image' | 'link' | 'page';
+  html?: string;
+  text?: string;
+  src?: string;
+  pageUrl: string;
+  pageTitle: string;
+  note: string;
+}
 const bridge = (): Bridge | null => (globalThis as { __fmShare?: Bridge }).__fmShare ?? null;
 
 /** What could not be taken, and why: `too large` or `could not be read`. */
@@ -28,8 +43,6 @@ export interface Refused {
 export interface SharedText {
   text: string;
   subject: string;
-  /** Already note text (a passage of a mail, quoted with its link): placed as it is. */
-  ready?: string;
 }
 
 /** What the shell holds: the files it kept, any it could not take, and texts. */
@@ -37,6 +50,23 @@ interface Pending {
   files: { name: string; mime: string }[];
   refused: Refused[];
   texts?: SharedText[];
+  brought?: Brought[];
+}
+
+/** What the phone's page screen brought in, taken from the shell. */
+export function takeBrought(): Brought[] {
+  const b = bridge();
+  if (!b) return [];
+  try {
+    const got = ((JSON.parse(b.pending()) as Pending).brought ?? []).filter(
+      (x) => x && typeof x.pageUrl === 'string' && /^https?:/.test(x.pageUrl),
+    );
+    const n = (JSON.parse(b.pending()) as Pending).brought?.length ?? 0;
+    if (n) b.doneBrought?.(n);
+    return got;
+  } catch {
+    return [];
+  }
 }
 
 /** Take what was shared, as files and texts, and let the shell forget it. Empty when nothing was. */

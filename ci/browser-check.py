@@ -351,11 +351,25 @@ def pairs(m: "Marionette") -> dict:
           out.bothState = state();
           window.formicariaPair(null, 'right');
           document.getElementById('browser').setAttribute('formicaria-side', 'right');
+          // The quick switch (Alt+Shift+X): back to the item chosen before, whatever its kind.
+          const before = gBrowser.selectedTab;
+          const other = gBrowser.tabs.find(t => t !== before && !t.closing);
+          gBrowser.selectedTab = other; await wait(400);
+          out.swap = window.formicariaSwap();
+          out.swapBack = gBrowser.selectedTab === before;
+          // The floating mark: shown only while that side is closed.
+          const fl = document.getElementById('formicaria-float');
+          document.getElementById('browser').setAttribute('formicaria', 'folded'); await wait(200);
+          out.floatShown = !!fl && getComputedStyle(fl).display !== 'none';
+          document.getElementById('browser').setAttribute('formicaria', 'beside'); await wait(200);
+          out.floatHidden = !!fl && getComputedStyle(fl).display === 'none';
           done(out);
         })().catch(e => done({ error: String(e) }));"""})["value"]
     ok = {"pair_pages": r.get("pages") == "split" and r.get("split") is True,
           "pair_room_page": r.get("mixed") == "beside" and r.get("mixedSide") == "left" and r.get("mixedState") == "beside",
-          "pair_rooms": r.get("both") == "rooms" and r.get("bothState") == "full"}
+          "pair_rooms": r.get("both") == "rooms" and r.get("bothState") == "full",
+          "quick_switch": r.get("swap") == "tab" and r.get("swapBack") is True,
+          "float_when_closed": r.get("floatShown") is True and r.get("floatHidden") is True}
     if not all(ok.values()):
         print(f"browser-check: pairs seen {r}")
     return ok
@@ -445,7 +459,8 @@ def settings_page(ff: Path, work: Path) -> dict:
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: pairs: {e}")
         for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom",
-                  "lean_tab", "lean_kept", "lean_beside", "pair_pages", "pair_room_page", "pair_rooms"):
+                  "lean_tab", "lean_kept", "lean_beside", "pair_pages", "pair_room_page", "pair_rooms",
+                  "quick_switch", "float_when_closed"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -561,6 +576,8 @@ def main() -> None:
             "D3: a page dropped beside a page makes a split view": page.get("pair_pages") is True,
             "D3: a study room dropped beside a page puts formicaria on that side": page.get("pair_room_page") is True,
             "D3: two study rooms dropped together show side by side": page.get("pair_rooms") is True,
+            "the quick switch returns to the item before, any kind": page.get("quick_switch") is True,
+            "a small mark shows what is beside, only when that side is closed": page.get("float_when_closed") is True,
             "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
         for name, ok in checks.items():

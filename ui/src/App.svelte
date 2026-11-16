@@ -8,7 +8,6 @@
     bridged,
     inbox as bridgeInbox,
   } from './lib/web/bridge.svelte';
-  import { sharedPassage } from './lib/web/shared';
   import BringToast from './lib/BringToast.svelte';
   import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
@@ -146,7 +145,15 @@
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
   import ShareSheet from './lib/ShareSheet.svelte';
-  import { incoming, takeShared, type Refused, type SharedText } from './lib/share.svelte';
+  import {
+    incoming,
+    takeBrought,
+    takeShared,
+    type Brought,
+    type Refused,
+    type SharedText,
+  } from './lib/share.svelte';
+  import { fromBrought, fromShared, piecesMarkdown, type Piece } from './lib/piece';
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
@@ -1895,7 +1902,12 @@
   // **A picture shared from another app** (Android's Share; `lib/share.svelte.ts`). Asked for at
   // start, since a share can be what launched the app, and again whenever the shell says more has
   // come. Several shares before one is placed are placed together.
-  let shared = $state<{ files: File[]; refused: Refused[]; texts: SharedText[] } | null>(null);
+  let shared = $state<{
+    files: File[];
+    refused: Refused[];
+    texts: SharedText[];
+    pieces?: Piece[];
+  } | null>(null);
   $effect(() => {
     const take = () => {
       const got = takeShared();
@@ -1908,47 +1920,94 @@
     };
     take();
     window.addEventListener('fm-share', take);
-    // **A passage of a section's item, brought into a study room** (a mail's, today): the same sheet
-    // asks which note, and the passage, already written with its source, goes there.
+    // **What the phone's page screen brought in** (phase A): into the note it was opened from, or the
+    // note in front, or a new note named after the page; through that note's own pane.
+    const fromPages = () => {
+      for (const b of takeBrought()) void placeBrought(b);
+    };
+    fromPages();
+    window.addEventListener('fm-share', fromPages);
+    // **Links open inside formicaria on the phone** (phase A): a web link in the app goes to the page
+    // screen, with the note in front as where *Bring in* goes.
+    const page = (globalThis as { __fmPage?: { open(u: string, n: string, t: string): void } })
+      .__fmPage;
+    const onLink = (e: MouseEvent) => {
+      if (!page || e.defaultPrevented || e.button !== 0) return;
+      const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!a || !/^https?:/.test(a.href) || a.origin === location.origin) return;
+      e.preventDefault();
+      const t = bringTarget();
+      page.open(a.href, t?.id ?? '', t?.title ?? '');
+    };
+    document.addEventListener('click', onLink, true);
+    // **A passage of any note, brought into another** (⇥ on a note; `lib/piece.ts`): the same sheet
+    // asks which note, and the piece goes there with its link back.
     const bring = (e: Event) => {
-      const t = (e as CustomEvent<SharedText>).detail;
-      if (!t?.ready) return;
-      shared = { files: [], refused: [], texts: [...(shared?.texts ?? []), t] };
+      const p = (e as CustomEvent<Piece>).detail;
+      if (!p?.md) return;
+      shared = {
+        files: [],
+        refused: [],
+        texts: shared?.texts ?? [],
+        pieces: [...(shared?.pieces ?? []), p],
+      };
     };
     window.addEventListener('fm-bring-to-room', bring);
     return () => {
       window.removeEventListener('fm-share', take);
+      window.removeEventListener('fm-share', fromPages);
       window.removeEventListener('fm-bring-to-room', bring);
+      document.removeEventListener('click', onLink, true);
     };
   });
+  /** **Put pieces into a note** (`lib/piece.ts`): the one way content arrives in a note from anywhere,
+   *  through that note's own pane, as one edit (`decisions.md` 2026-11-16, *one library of notes*). */
+  async function put(noteId: string, pieces: Piece[]) {
+    if (!pieces.length) return;
+    openNoteInPane(noteId);
+    await tick();
+    bridgeInbox.insert = {
+      id: noteId,
+      text: piecesMarkdown(pieces),
+      done: (a) => {
+        if (!a.ok) error = a.error ?? 'It could not be added.';
+      },
+    };
+  }
+  const now = () => `${appToday()} ${clockText()}`;
+
+  async function placeBrought(b: Brought) {
+    try {
+      const target = b.note
+        ? { id: b.note }
+        : (bringTarget() ??
+          (
+            await ipc.createNotes([
+              { title: b.pageTitle || 'From the web', body: '', tags: [], start: '', props: {} },
+            ])
+          )[0]);
+      if (target) await put(target.id, [fromBrought(b, now())]);
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
   /** The chosen note takes the files at its end, as a drop would; `null` makes a new note first. */
   async function placeShared(noteId: string | null) {
     const files = shared?.files ?? [];
-    const texts = shared?.texts ?? [];
+    // The app's clock, not the browser's (`appTime.ts`: one clock per device).
+    const pieces = [
+      ...(shared?.texts ?? []).map((t) => fromShared(t, now())),
+      ...(shared?.pieces ?? []),
+    ];
     shared = null;
-    if (!files.length && !texts.length) return;
+    if (!files.length && !pieces.length) return;
     try {
       const id = noteId ?? (await captureUndoable('', createTarget)).id;
       if (files.length) incoming.value = { noteId: id, files };
-      openNoteInPane(id, { editing: !texts.length });
+      openNoteInPane(id, { editing: !pieces.length });
       if (!noteId) scheduleCommit();
-      // **Text from another app, brought in** (the phone's *Bring in*): through the note's own pane,
-      // as the browser's passages arrive, so it is saved as typing is and Undo takes it back.
-      if (texts.length) {
-        // The app's clock, not the browser's (`appTime.ts`: one clock per device).
-        const when = `${appToday()} ${clockText()}`;
-        const text = texts
-          .map((t) => t.ready ?? sharedPassage(t.text, t.subject, when))
-          .join('\n\n');
-        await tick();
-        bridgeInbox.insert = {
-          id,
-          text,
-          done: (a) => {
-            if (!a.ok) error = a.error ?? 'It could not be added.';
-          },
-        };
-      }
+      await put(id, pieces);
     } catch (err) {
       error = String(err);
     }
@@ -2159,6 +2218,13 @@
   );
   // **Where "Bring in" goes, told to the browser** (its menu and chip name the note): sent when the
   // note in front changes, with its vault so a kept image lands beside it.
+  // **The document is titled by the item in front** (a study room's name, a section's): what a
+  // window list, a tab and formicaria's browser panel show (workspace-design §12.2).
+  $effect(() => {
+    const front = workspace.panes[focused];
+    const name = front ? paneTitle(front) : '';
+    document.title = name ? `${name} — formicaria` : 'formicaria';
+  });
   let toldFront = '';
   $effect(() => {
     // Only inside formicaria's browser: anywhere else nobody is listening, and asking costs a read.
@@ -3756,7 +3822,10 @@
     {#if shared}
       <ShareSheet
         files={shared.files}
-        texts={shared.texts}
+        texts={[
+          ...shared.texts,
+          ...(shared.pieces ?? []).map((p) => ({ text: p.md, subject: p.source.title })),
+        ]}
         refused={shared.refused}
         openNoteId={focusedPane?.kind === 'note' ? (focusedPane.noteId ?? null) : null}
         onchoose={placeShared}

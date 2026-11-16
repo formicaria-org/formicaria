@@ -173,75 +173,6 @@ fn shorten(s: &str, max: usize) -> String {
     format!("{cut}…")
 }
 
-/// One source, as the catalog describes it.
-#[derive(Debug, Serialize)]
-pub struct SourceEntry {
-    pub source: &'static str,
-    pub name: &'static str,
-    /// What it brings in.
-    pub kinds: &'static [&'static str],
-    /// The property that identifies its items.
-    pub identity: &'static str,
-    /// How its items are made (`RECORDED`).
-    pub recorded: &'static str,
-    /// Whether the original is kept in the vault.
-    pub raw_kept: bool,
-    /// `shipped` or `planned`.
-    pub status: &'static str,
-}
-
-/// **The catalog**: every source formicaria knows, what it brings and how its items are named. What
-/// Settings shows and what an assistant reads first (research §5, element 5).
-pub fn catalog() -> Vec<SourceEntry> {
-    vec![
-        SourceEntry {
-            source: "web",
-            name: "Web pages (formicaria's browser)",
-            kinds: &["article", "recipe", "paper", "video", "song", "bookmark"],
-            identity: SOURCE_ID,
-            recorded: "copied",
-            raw_kept: true,
-            status: "shipped",
-        },
-        SourceEntry {
-            source: "mail",
-            name: "Gmail, the labelled conversations",
-            kinds: &["conversation"],
-            identity: fm_core::mail::GMAIL_THREAD,
-            recorded: "copied",
-            raw_kept: false,
-            status: "shipped",
-        },
-        SourceEntry {
-            source: "calendar",
-            name: "Calendars",
-            kinds: &["meeting"],
-            identity: fm_core::calendar::ICS_UID,
-            recorded: "copied",
-            raw_kept: false,
-            status: "shipped",
-        },
-        SourceEntry {
-            source: "files",
-            name: "Files added to a note",
-            kinds: &["asset"],
-            identity: "sha256",
-            recorded: "copied",
-            raw_kept: true,
-            status: "shipped",
-        },
-        SourceEntry {
-            source: "watch",
-            name: "A smartwatch, through Gadgetbridge (FIT files)",
-            kinds: &["workout", "sleep", "heart rate"],
-            identity: SOURCE_ID,
-            recorded: "sensed",
-            raw_kept: true,
-            status: "planned",
-        },
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,14 +212,5 @@ mod tests {
         assert_eq!(p[SOURCE_ID], "https://a.org/");
         assert_eq!(p[RECORDED], "typed");
         assert!(p[CAPTURED].as_str().unwrap().ends_with('Z'));
-    }
-
-    #[test]
-    fn the_catalog_names_each_source_once() {
-        let c = catalog();
-        let mut names: Vec<_> = c.iter().map(|s| s.source).collect();
-        names.sort_unstable();
-        names.dedup();
-        assert_eq!(names.len(), c.len());
     }
 }

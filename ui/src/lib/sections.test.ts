@@ -12,6 +12,13 @@ describe('the library sections', () => {
     expect(sectionOf({ tags: ['lab'] }).label).toBe('Study rooms');
   });
 
+  it('follows the kind the server recognised, over any guess', () => {
+    expect(sectionOf({ kind_key: 'conversation' }).label).toBe('Mail');
+    expect(sectionOf({ kind_key: 'log', props: { log: 'workout' } }).label).toBe('Fitness');
+    expect(sectionOf({ kind_key: 'study', tags: ['web'] }).label).toBe('Study rooms');
+    expect(sectionOf({ kind_key: 'recipe' }).label).toBe('Food');
+  });
+
   it('keeps every section closed to the assistant until the person opens it', () => {
     expect(SECTIONS.every((s) => s.assistant.search === false)).toBe(true);
   });

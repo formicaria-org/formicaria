@@ -400,7 +400,8 @@ no new machinery:
 ## 12. What is left, in the order it is built (plan, 2026-11-16)
 
 > **Status (0.40):** 1 (D3), 2 (Mail as a client) and 3 (Today and its Inbox, the first screen unchanged)
-> are built. Next: 4 (the phone's browser, phase A), then 8 (Windows and macOS). **Last, by the owner's
+> are built. 4 (the phone's browser, phase A): a first version as a separate screen was withdrawn
+> before release (§12.1: a page is a layer of formicaria); 0.41 ships the layer. Next: 8 (Windows and macOS). **Last, by the owner's
 > priority (2026-11-16): 5 (a watch, Gadgetbridge) and 6 (Myrme acting in sections)**; 7 waits on the owner.
 
 > **The owner:** *"plan D3 and the phone browser next"*, then *"build all that is left to build, plan
@@ -417,6 +418,161 @@ no new machinery:
 | 6 | **D7: Myrme searching sections** | Myrme's side, in its repository: each section's search as a tool, the per-section switch in Settings (off), findings as proposals | Myrme's own evals |
 | 7 | **The phone's browser, phase B**: GeckoView with formicaria's add-on as a built-in extension (Firefox add-ons on the phone) | **needs the owner's decision**: a separate optional *formicaria browser* app (keeps formicaria under 100 MB), or a raised budget; and G0's measurements on a device. GeckoView is about 60 MB for arm64 ([bug 1727150](https://bugzilla.mozilla.org/show_bug.cgi?id=1727150): *"a big ask for non-browser apps"*); it loads built-in extensions with content scripts ([docs](https://firefox-source-docs.mozilla.org/mobile/android/geckoview/consumer/web-extensions.html)) | a device |
 | 8 | **Windows and macOS for formicaria's browser** | the kit applied to Mozilla's installers there (an unpack on Windows; a re-sign on macOS) | those systems (not here) |
+
+### 12.1 Minimal by default: one at a time, a quick switch, both only when there is room (2026-11-16)
+
+> **The owner:** *"I would keep things incredibly minimal. While browsing, I might want the note right
+> there, or I can have it only at command through a simple formicaria-like icon that makes it
+> apparent it is there. So yes, it can be over but only if space allows. In a phone, we can have a
+> quick mechanism to switch between them … too many things in a screen is not what people want on a
+> phone. Similar things apply to the desktop: we can also allow a quick switch on top of the
+> concurrent view."*
+
+- **Phone**: the page **fills the screen**; a small **floating formicaria icon** says the note is
+  there. **Tap** it: the note, at once; a small icon there goes back to the page where it was (both
+  stay alive, nothing reloads). The icon **follows the moment**: with text selected, a tap **brings
+  it in**; **pressed and dragged** onto the page, it is an **eyedropper** (the block under the finger
+  comes in); otherwise a tap **switches**. **The note over the page only when space allows** (a
+  tablet, a large phone in landscape). To switch instantly, the page lives **inside formicaria's own
+  screen** (a layer over it), not a separate screen.
+- **Why not a separate screen** (the owner: *"the entire app is now formicaria, you should not have two
+  copies"*): a page is an item of the collection; a separate page screen put it outside formicaria,
+  out of reach of the note. One formicaria, the page a layer of it.
+- **Computer**: *beside* stays; **a quick switch on top of it**: one key (and formicaria's icon)
+  flips between the page alone and formicaria alone; when formicaria is folded away, the same small
+  floating icon on the page shows it is there.
+
+### 12.2 Switching between formicaria's features, not between formicaria and a browser (2026-11-16)
+
+> **The owner:** *"We are not switching between fm and the browser. We are simply switching between fm
+> features."*
+
+The web is one of formicaria's features, as notes, Music or Food are. So:
+- **A web page is an item of the collection**, like a note or a section: on the phone among the
+  collection's cards, on the computer a tab among the others.
+- **The quick switch goes between the last two items, whatever their kinds** (a page and a note, two
+  notes, a note and Music). Its small floating button shows **the icon of the item it goes back to**.
+  Never "show formicaria" or "hide the browser".
+- **Together** is any two items side by side where there is room (D3 on the computer; a tablet or
+  landscape on the phone).
+- **Words on screen** name items, never "formicaria" as if it were a separate thing: the panel's head
+  names the item it shows; folding it is *close this side*.
+
+## 13. One library of notes (the detailed plan, 2026-11-16; approved, refined)
+
+> **The owner:** *"formicaria contains many features like browsing, it is not contained in them … fm
+> should accommodate many information sources … views were there exactly for this, to navigate in
+> intuitive ways different sorts of assets … Music, food, fitness, calendar and so on all rely on notes,
+> of special kinds, structured, just like special kinds of books … we can increase the library, improve
+> it by editing it, but also use it to study and produce other notes, which can themselves end up in
+> some place in the library"*; content goes **both ways** (a discussion with Myrme helps write an
+> email). This section supersedes §12.1's *page layer* wording and the separate phone page screen.
+
+> **Status (0.41):** step 1 (the kind registry, `kind_key` on every note) and step 2 (one piece, `put`;
+> ⇥ on every note brings a passage into another) are built; the computer's quick switch (§13.7) too.
+
+### 13.1 The cycle
+
+**Sources acquire → notes of kinds ← views navigate → study (alone, with Myrme) → new notes → filed in a
+place; hand-offs go out where the library ends.** Nothing here adds a store: notes stay files, views
+stay views, `dispatch` stays the one surface.
+
+### 13.2 The kind registry (step 1)
+
+One table, in Rust (`crates/fm-app/src/kinds.rs`, growing from `source.rs`), **recognising a note's
+kind once, on the server**; `ObjectMeta` carries it (`kind_key`), so the UI never guesses (today's
+`ui/src/lib/sections.ts` heuristics go). A read-only `kinds` command returns the table (for the UI and
+Myrme; it replaces `sources`).
+
+| Kind | Recognised by (today's markers) | View(s) | Source(s) | A passage of it, in another note | Out (hand-off) | Default place |
+|---|---|---|---|---|---|---|
+| **study note** | none of the below | Study rooms | — | quote + `note:` link | Mail (new), Share | Study rooms |
+| **web clip** | `source: web` / tag `web` | Study rooms (Web shelf), Today | the web (browser) | quote + page link at the passage | — | shelf *Web* |
+| **paper** | tag `paper` / `doi` | Study rooms (Papers) | the web, BibTeX | quote + citation | — | shelf *Papers* |
+| **recipe** | `recipe` | Food (Recipes) | the web, typed | ingredients/steps as text + link | — | Food |
+| **log entry** | `log: food\|workout\|health\|music` | Food, Fitness, Health, Music | typed, a watch (later) | the entry's values as a line | — | its view |
+| **song** | `log: music` + audio asset | Music | files, downloads | title, artist + link | — | Music |
+| **meeting** | tag `meeting` / `ics_uid` | Calendar (Agenda), Tasks | calendars, mail | title, time, place + link | Calendar (event) | Calendar |
+| **conversation** | `gmail_thread` | Mail | Gmail | the message, quoted + link | Mail (reply) | Mail |
+| **discussion** | `thread_of` / discussion root | Collaboration | Myrme, people | the message + link | Mail (new/reply) | Collaboration |
+| **asset** | `Kind::Asset` (a file, a photo, a video) | the notes using it | phone gallery (Share, 📎), files, downloads | embedded (`asset:`) | Share | where used |
+
+### 13.3 One piece (step 2)
+
+`Piece` (`ui/src/lib/web/bring.ts`, generalised to `ui/src/lib/piece.ts`): `kind` (text, image, link,
+table, code, audio, video, file, event, note) · `html` / `text` / `md` · `src` / `asset` · `time` · and its
+**source**: `{ kind, address, place, title, when }` (`address`: a page's URL, `note:<id>`, `asset:`).
+**One conversion** `pieceMarkdown(piece)` (today's `textPiece` / `imageKept` / `mediaLinked` …, plus
+note and event readings from §13.2); **one consumer** `put(noteId, pieces)` → `bridgeInbox.insert`
+(through the note's own pane, one undo, as now).
+
+Producers, re-expressed (their screens unchanged): the add-on (chip, snip, Pick, drop, Alt+Shift+A) →
+pieces; the phone's Share and selection menu (`SharedText`) → pieces; the phone page painter's bring
+(`Brought`) → pieces; the mail passage (`ui/src/lib/web/mail.ts`) → a piece of kind text with a
+conversation source; a discussion message (Myrme) → a piece. **New**: between two open notes (side by
+side), drag a selection from one into the other, or *Send to the note beside*.
+
+### 13.4 Filing as placing (step 3)
+
+A **place** = a section (from the kind) and, inside it, a **shelf** (`shelf:` tags, as today).
+- *File it* becomes **Place…**: a small picker in the note's head: the suggested place (§13.2's
+  default), the shelves of that section, a new shelf. It sets the `shelf:` tag and `filed`.
+- **Today's Inbox** = notes with a `source` and no `filed`: the new acquisitions.
+- A note produced while studying has **Place…** too; unplaced it stays in the Study rooms' timeline.
+
+### 13.5 Views and their sources (step 3)
+
+A view whose kind has a source shows one quiet line with that source's state and an action, through
+the existing commands: Mail (*Gmail · synced 2 min ago · Sync now* → `mail_sync`), Calendar
+(*3 calendars · refreshed … · Refresh* → `calendar_sync`), Music (*Add songs from files*), Study rooms'
+Web shelf (*n pages saved · open the browser*), the phone (📎 *from the gallery*). A generic
+`source_status` read for each.
+
+### 13.6 Out of the notes (step 4)
+
+**Send to…** in a note's head and on a selection in it (and on a discussion message):
+- **another open note** → `put` (§13.3);
+- **Mail, new** → Gmail's compose opened with the subject and body
+  (`https://mail.google.com/mail/?view=cm&fs=1&su=…&body=…`); in formicaria's browser as a tab beside;
+- **Mail, reply** (the note is a conversation, or quotes one) → the thread opened (`mail_link`) and the
+  text **copied**, said plainly (*Copied; paste it in the reply*): Gmail takes no prefilled reply;
+- **Calendar** (the note has `start`/`due`) → Google Calendar's new-event page prefilled
+  (`…/calendar/render?action=TEMPLATE&text=…&dates=…&details=…&location=…`), or an `.ics` file for other
+  calendars;
+- **Share** → the phone's Android share sheet (a new shell call `__fmShare.out(text, subject)`); the
+  computer copies.
+Mail stays read-only (`gmail.readonly`); nothing is sent without the person. The add-on opens only
+`mail.google.com` and `calendar.google.com` beside.
+
+### 13.7 The collection and the quick switch (step 5)
+
+- **Computer** (in formicaria's browser; written, uncommitted): Alt+Shift+X to the previous item, any
+  kind; the panel's head names the item (the app titles its document by it); *close this side*; a small
+  floating mark when that side is closed. To add: `browser-check` checks.
+- **Phone**: a web page is a pane kind (`page`: `url`, `pageTitle`) of the collection; the Android shell
+  only **paints** a WebView in the rect the app gives (`__fmPage.show/hide/close/bring/pickAt`), replacing
+  the withdrawn `PageActivity`; the bar's switch button (the previous item's icon); with a page in front
+  it also brings the selection, and as an eyedropper when dragged; cards list pages; two together when a
+  card is dragged to a side.
+- **Firefox kept bare**: the home and account buttons leave the toolbar; the tab row and the address
+  bar stay; formicaria's actions are in formicaria's own UI.
+
+### 13.8 Releases
+
+| Release | Steps | Checked by |
+|---|---|---|
+| 0.41 | 1 (kinds, `kind_key`) + 2 (one piece; note → note) | Rust tests per kind; UI tests per piece kind; `browser-check`'s bring/snip/chip unchanged |
+| 0.42 | 3 (Place…, Inbox, views' source line) + 4 (Send to…) | UI tests: placing, each hand-off's address and text |
+| 0.43 | 5 (collection + switch on both; Firefox bare) | phone app tests, the Kotlin compiled (pinned SDK), `browser-check` quick-switch checks |
+| later | the watch (a source of log entries), Myrme across the library | — |
+
+### 13.9 Risks
+
+- **Recognising kinds once** changes what `sections.ts` guessed: tests pin each marker (§13.2).
+- **Hand-offs depend on Google's URLs** (compose, calendar template): tested by their built addresses;
+  other mail or calendar services get the copy / `.ics` path.
+- **The phone painter** draws native views over the app: positions follow the app's layout (resize,
+  keyboard); checked in the app's tests by the calls it makes, on a device by the owner.
 
 ## Sources
 

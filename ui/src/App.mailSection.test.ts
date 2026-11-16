@@ -24,9 +24,10 @@ it('a passage of a conversation is brought into a study room, with a link back',
   })) as { id: string }[];
   location.hash = `#note=${made.id}`;
   render(App);
-  const bring = await screen.findByRole('button', { name: 'bring into a study room' });
-  expect(screen.getByRole('button', { name: 'reply in Gmail' })).toBeTruthy();
-  await fireEvent.click(bring);
+  // In the note's Options, so its head stays the title, one ＋ and a ×.
+  await fireEvent.click(await screen.findByRole('button', { name: 'note options' }));
+  expect(screen.getByRole('button', { name: 'Reply in Gmail' })).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Bring into another note…' }));
   const sheet = await screen.findByRole('dialog', { name: 'add what was shared to a note' });
   await fireEvent.click(within(sheet).getByRole('button', { name: /New note/ }));
   await waitFor(

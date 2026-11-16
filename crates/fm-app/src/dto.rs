@@ -66,6 +66,12 @@ pub struct ObjectMeta {
     /// telling the truth about who can see it. Empty in a single-vault setup, where
     /// there is no boundary to draw.
     pub vault: String,
+    /// **Which kind of note this is** (`kinds.rs`): `study`, `web`, `paper`, `recipe`, `log`, `song`,
+    /// `meeting`, `conversation`, `discussion`, `proposal`, `asset`. Recognised once, on the server,
+    /// from the markers the note already carries, so no view guesses (`decisions.md` 2026-11-16, *one
+    /// library of notes*).
+    #[serde(default)]
+    pub kind_key: String,
 }
 
 impl From<&Object> for ObjectMeta {
@@ -86,6 +92,7 @@ impl From<&Object> for ObjectMeta {
             assets: o.assets.clone(),
             props: o.extra.iter().map(|(k, v)| (k.clone(), prop_to_json(v))).collect(),
             vault: o.vault.clone(),
+            kind_key: crate::kinds::kind_of(o).to_string(),
         }
     }
 }

@@ -59,6 +59,7 @@ pub mod dispatch;
 pub mod dto;
 pub mod guidance;
 pub mod health;
+pub mod kinds;
 pub mod log;
 pub mod music;
 pub mod nutrients;

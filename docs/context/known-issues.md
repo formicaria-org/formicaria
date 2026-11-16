@@ -35,6 +35,9 @@ trap, add one. Newest concerns first within each section.
   device for G0); Gadgetbridge as a source (needs a watch's files; `training-coach-plan` P1); Myrme's
   per-source switches (in Myrme's repository). *Ask Myrme what matters here* uses the existing
   discussion → proposal path, so it writes nothing without the person's acceptance.
+- **Kinds (0.41)**: a note's kind is recognised from its markers (`kinds.rs`); a note carrying two
+  (a recipe tagged `web`) is the first in the table's order. Data listed before 0.41 carries no
+  `kind_key`; the UI falls back to its old guess for it.
 - **The phone's Bring in (0.39)**: the shell's Kotlin for text and `PROCESS_TEXT` was not compiled
   on the development machine (no Android SDK there); the release build compiles it. A selection
   from another app carries no address, so it says *shared from another app*; Share usually adds the

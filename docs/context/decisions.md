@@ -15037,3 +15037,72 @@ The owner: *"build all that is left to build, plan it if necessary"* (`workspace
    **Coming up** (the agenda). ✓ *File it* on such a note sets `filed`. **The first screen is not
    changed**: it stays the study rooms' timeline (the owner, 2026-11-12); making Today the first
    screen is the owner's to choose (`workspace-design` §10, Q1).
+
+## 2026-11-16 (later) — the phone's browser, phase A: pages inside formicaria on Android's own engine `#ui` `#track-m`
+
+> **SUPERSEDED** (2026-11-16, *a page is a layer of formicaria*): the separate `PageActivity` put the page
+> outside formicaria; it was never released.
+
+The owner: *"release and keep building the phone browser"* (`workspace-design` §12, item 4).
+
+**Built (0.41).** A web link tapped in the app opens **`PageActivity`** (System WebView, no added
+size): a bar with back, the title, formicaria's ant (*Bring in*: the selection, read when pressed by
+`evaluateJavascript`, or the page's link) and *Open in your browser*; a long-press on an image or a
+link offers *Bring into formicaria*; *Into "…"* names the note it was opened from. What is brought
+goes back through `MainActivity.bring` → `__fmShare.pending().brought`, and the app turns it into note
+text with the computer's code (`ui/src/lib/web/brought.ts` over `bring.ts`) and inserts it into that
+note through its own pane.
+
+**Safety.** No JavaScript interface is exposed to web pages (the selection is read on the person's
+press); the activity is not exported; only `http(s)` addresses load in it; anything else goes to
+Android.
+
+**Widens what ships:** one activity in the APK. **Not yet:** the note as a sheet over the page, the
+ant as an eyedropper, tap-then-hold, a kept copy of an image (it comes as a link), Firefox add-ons on
+the phone (phase B, GeckoView, waiting on the owner's size decision). Compiled here with the project's
+pinned SDK (`pixi run android-init`); not yet run on a device.
+
+## 2026-11-16 — a page is a layer of formicaria, not a separate screen `#ui` `#track-m`
+
+**The owner:** *"the entire app is now formicaria, you should not have two copies of fm if you put the
+sheet. This means something in the plan is wrong."* It was: the phone's page had been built as a
+separate screen (`PageActivity`), outside formicaria, so the note could not be beside it without a
+second formicaria.
+
+**Decided.** **formicaria is the whole app; a page is an item of the collection, opened inside
+formicaria's own screen** (a layer over it), like a note or a section. One formicaria, always.
+- By default **one thing at a time**: the page fills the screen; a small floating formicaria icon
+  switches to the note and back at once (both alive). The icon follows the moment: with a selection it
+  brings it in; pressed and dragged onto the page it is an eyedropper; otherwise it switches.
+- **Page and note together only where there is room** (a tablet, landscape): the same one formicaria,
+  arranged as a split.
+- **The computer** keeps *beside* and gains the same quick switch (a key and the icon) and the floating
+  icon when formicaria is folded away.
+- The separate page screen is **not released**; 0.41 ships the layer instead (`workspace-design`
+  §12.1).
+- **Switching is between features, not between formicaria and a browser** (the owner: *"we are not
+  switching between fm and the browser. We are simply switching between fm features"*): a web page
+  is an item of the collection like a note or a section; the quick switch goes between the last two
+  items of any kind, its button showing the item it returns to; on-screen words name items, not
+  "formicaria" (`workspace-design` §12.2).
+
+## 2026-11-16 (evening) — one library of notes, built: the kinds, one piece, the quick switch `#data` `#ui`
+
+The owner approved `workspace-design-2026-11-15.md` §13 (*one library of notes*: sources acquire notes
+of kinds, views navigate them, study produces notes filed back, content moves both ways) and said
+*"go ahead, build and release"*.
+
+**Built (0.41).**
+1. **The kind registry** (`crates/fm-app/src/kinds.rs`): each note's kind recognised once, on the
+   server, from the markers it already carries (no new property written), sent with every note as
+   `ObjectMeta.kind_key`; the `kinds` command (replacing 0.38's `sources`) lists each kind's views,
+   sources, default place and hand-offs. The UI's section of a note follows `kind_key`.
+2. **One piece** (`ui/src/lib/piece.ts`): content moving into a note is note text plus its source; the
+   phone's Share and selection menu, the phone page's bring, a passage of any note (and a mail's latest
+   message) all produce pieces, and one `put` places them through the note's own pane. **⇥ on every
+   note** brings the selection (or a link to the note) into another, with a link back.
+3. **The quick switch on the computer** (§13.7): Alt+Shift+X to the item before, any kind; the panel's
+   head names its item; *close this side*; a small mark while that side is closed.
+
+The withdrawn separate phone page screen is removed from the shell; its bring-back plumbing stays for
+the page painter (§13.7, a later step).

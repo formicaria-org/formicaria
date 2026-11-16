@@ -24,6 +24,10 @@ export interface ObjectMeta {
    *  file lives, never from what it says, so a badge reading "lab" is telling the truth
    *  about who can see it. Empty in a single-vault install: no boundary, no badge. */
   vault: string;
+  /** Which kind of note this is (`crates/fm-app/src/kinds.rs`): `study`, `web`, `paper`, `recipe`,
+   *  `log`, `song`, `meeting`, `conversation`, `discussion`, `proposal`, `asset`. Recognised by the
+   *  server; absent only from data made before 0.41. */
+  kind_key?: string;
 }
 
 /** One note's most-recent edit, read from git (`crates/fm-app/src/commands.rs::EditEvent`):

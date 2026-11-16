@@ -83,7 +83,7 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 - **Tabs are across the top**, as in any browser: click to switch, drag to reorder; **scroll over
   them** to move through them; **Ctrl+Tab** shows your recent tabs as cards to pick from. Prefer them
   down the side? **Settings → Browser → Tabs down the side** (always shown, never behind a button).
-- **Anything of formicaria can be a tab too**, beside your pages: press **⧉** at the top of a note to
+- **Anything of formicaria can be a tab too**, beside your pages: choose *Open as a tab* in a note's **＋** (Options) to
   open it as a tab, or **middle-click** a section in formicaria's list (Study rooms, Food, Music,
   Mail…). Such a tab costs almost nothing: choosing it shows formicaria at that note or section,
   filling the window; choosing a page puts formicaria back beside it. Together, your tabs are your
@@ -91,6 +91,9 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 - **Put any two tabs side by side**: drag a tab onto the left or right half of the page. Two pages
   share the window (Firefox's split view); a note or section and a page put formicaria beside the
   page, on that side; two notes show side by side in formicaria.
+- **Switch back quickly**: **Alt+Shift+X** goes to the item you had before (a page, a note, a
+  section), and again to come back. When the side beside the page is closed, a small mark in the
+  corner shows it is still there; click it to bring it back.
 - **Your tabs come back** when the browser starts again, formicaria's ones too.
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.

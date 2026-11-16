@@ -217,8 +217,11 @@ fn a_kept_page_carries_its_source_and_is_found_again() {
     let none =
         call(&app, "page_notes", json!({ "url": "https://example.org/walks/other" }), b"").unwrap();
     assert_eq!(none.as_array().unwrap().len(), 0);
-    let catalog = call(&app, "sources", json!({}), b"").unwrap();
-    assert!(catalog.as_array().unwrap().iter().any(|s| s["source"] == "web"));
+    let kinds = call(&app, "kinds", json!({}), b"").unwrap();
+    assert!(kinds.as_array().unwrap().iter().any(|k| k["key"] == "web"));
+    // The kept page is recognised as a web page, and says so with every listing of it.
+    let listed = call(&app, "search", json!({ "query": "walk" }), b"").unwrap();
+    assert!(listed.as_array().unwrap().iter().any(|n| n["kind_key"] == "web"), "{listed}");
 }
 
 /// **Mail is its own section** (`decisions.md` 2026-11-16, night): a conversation is not in the study

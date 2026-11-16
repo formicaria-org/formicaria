@@ -824,8 +824,9 @@ fn dispatch_inner(
         "page_notes" => {
             json(crate::source::page_notes(&lock()?.store(scope), &s("url"), 20).map_err(err)?)
         }
-        // The sources formicaria knows and how their items are named (`source.rs`): read-only.
-        "sources" => json(crate::source::catalog()),
+        // **The library's kinds of notes** (`kinds.rs`): each kind's views, sources, default place and
+        // hand-offs. Read-only; for the UI and Myrme. (Replaces 0.38's `sources`.)
+        "kinds" => json(crate::kinds::KINDS),
         "recent" => json(commands::recent(&lock()?.store(scope)).map_err(err)?),
         // The Collaboration surface's feed: every open proposal (a note carrying
         // `proposes: branch:<name>`), across vaults. A store query like `recent`, not a per-vault
@@ -888,6 +889,7 @@ fn dispatch_inner(
                             assets: Vec::new(),
                             props: Default::default(),
                             vault: cfg.name.clone(),
+                            kind_key: "study".into(),
                         },
                     };
                     out.push(crate::dto::ConflictInfo {

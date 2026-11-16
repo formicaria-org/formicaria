@@ -58,7 +58,7 @@ dispatch no longer has fails too.)
 | `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — parsed locally, never looked up online |
 | `clip_save`      | `url`, `title`, `body`, `tags`, `props`, `bibtex`, `snapshot`, `vault` | `ObjectMeta` | keeps a page from formicaria's browser: the note the add-on built, and the page's copy as an asset linked at its end; with `bibtex`, the note is made as `create_paper` makes one. Fetches nothing; only `http(s)` pages. Stamps the source contract (`source: web`, `source_id`, `captured`, `recorded: copied`) where the add-on did not |
 | `page_notes`     | `url` | `[{id, title, context}]` | the notes that name a page, matched by its address with the scheme, `www.`, fragment, tracking parameters and trailing slash ignored; `context` is the line that names it. Read-only; the browser's toolbar count |
-| `sources`        | — | `[{source, name, kinds, identity, recorded, raw_kept, status}]` | the catalog of the sources formicaria reads from and how their items are named (`fm_app::source`). Read-only |
+| `kinds`          | — | `[{key, label, mark, views, sources, place, out}]` | the library's kinds of notes (`fm_app::kinds`): each kind's views, sources, default place and hand-offs; every listed note carries its `kind_key`. Read-only |
 | `recipe_from_page` | `url` (query); body = the page | `WebRecipe`        | reads a recipe out of a page the browser already has — `recipe_from_link`'s reader with no fetch |
 | `paper_bibtex`   | `id`                         | `String`               | that note's frontmatter rendered back as a BibTeX entry |
 

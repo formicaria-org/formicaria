@@ -3,7 +3,7 @@
   import { appToday, clockText, dayOfInstant } from './appTime';
   import { arrivals, leftNote, startingToEdit } from './keepLevel.svelte';
   import { SAVE_NOW } from './updater.svelte';
-  import { mailPassage } from './web/mail';
+  import { fromNote } from './piece';
   import {
     inbox as bridgeInbox,
     appended as appendedText,
@@ -2892,6 +2892,56 @@
                   }}>Open externally</button
                 >
               {/if}
+              <!-- **Moving content, both ways** (`decisions.md` 2026-11-16, *one library of notes*): in
+                   Options, so the note's head stays the title, one ＋ and a ×. -->
+              <button
+                class="opt"
+                onclick={() => {
+                  optionsOpen = false;
+                  window.dispatchEvent(
+                    new CustomEvent('fm-bring-to-room', {
+                      detail: fromNote(
+                        note!,
+                        String(getSelection() ?? ''),
+                        `${appToday()} ${clockText()}`,
+                      ),
+                    }),
+                  );
+                }}>Bring into another note…</button
+              >
+              {#if note.props?.gmail_thread && typeof note.props?.mail_link === 'string'}
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    const url = note!.props.mail_link as string;
+                    if (bridged()) bridgeUp({ up: 'open-beside', url });
+                    else window.open(url, '_blank', 'noopener');
+                  }}>Reply in Gmail</button
+                >
+              {/if}
+              {#if note.props?.source && !note.props?.filed}
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    void setProp('filed', appToday());
+                  }}>File it</button
+                >
+              {/if}
+              {#if bridged()}
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    bridgeUp({
+                      up: 'open-tab',
+                      address: `note:${note!.id}`,
+                      title: note!.title || 'Untitled',
+                    });
+                  }}>Open as a tab</button
+                >
+              {/if}
               {#if canCopy}
                 <button
                   class="opt"
@@ -2923,71 +2973,6 @@
             </div>
           {/if}
         </div>
-      {/if}
-      {#if note && note.props?.source && !note.props?.filed}
-        <!-- **File it** (Today's Inbox, workspace-design §12 #3): one press takes it out of the Inbox;
-             the note stays where it is, with its date of filing. -->
-        <button
-          class="edit file-it"
-          onclick={(e) => {
-            e.stopPropagation();
-            void setProp('filed', appToday());
-          }}
-          aria-label="file it"
-          title="File it: out of the Inbox, kept where it is">✓</button
-        >
-      {/if}
-      {#if note && note.props?.gmail_thread}
-        <!-- **Mail, its own section, as a client** (workspace-design §12, #2): reply in Gmail beside
-             the conversation (formicaria stays read-only on mail), or bring a passage into a study
-             room, quoted with a link back to the conversation. -->
-        {#if typeof note.props?.mail_link === 'string'}
-          <button
-            class="edit mail-reply"
-            onclick={(e) => {
-              e.stopPropagation();
-              const url = note!.props.mail_link as string;
-              if (bridged()) bridgeUp({ up: 'open-beside', url });
-              else window.open(url, '_blank', 'noopener');
-            }}
-            aria-label="reply in Gmail"
-            title="Reply in Gmail, beside this conversation">↩</button
-          >
-        {/if}
-        <button
-          class="edit mail-bring"
-          onclick={(e) => {
-            e.stopPropagation();
-            window.dispatchEvent(
-              new CustomEvent('fm-bring-to-room', {
-                detail: {
-                  text: '',
-                  subject: '',
-                  ready: mailPassage(note!, String(getSelection() ?? '')),
-                },
-              }),
-            );
-          }}
-          aria-label="bring into a study room"
-          title="Bring the selected passage (or the latest message) into a study room">⇥</button
-        >
-      {/if}
-      {#if note && bridged()}
-        <!-- **Open as a tab** (workspace-design §11, D1): in formicaria's browser, this study room
-             becomes a tab of the collection, beside the pages. -->
-        <button
-          class="edit open-tab"
-          onclick={(e) => {
-            e.stopPropagation();
-            bridgeUp({
-              up: 'open-tab',
-              address: `note:${note!.id}`,
-              title: note!.title || 'Untitled',
-            });
-          }}
-          aria-label="open as a tab"
-          title="Open as a tab">⧉</button
-        >
       {/if}
       <!-- Outside `{#if note}`: a note that failed to load is still a window, and still closes. -->
       <button

@@ -92,7 +92,35 @@ export const SECTIONS: Section[] = [
   },
 ];
 
-/** The section an item belongs to. */
-export function sectionOf(n: ItemShape): Section {
+/** The section of each kind the server recognises (`crates/fm-app/src/kinds.rs`), by its key. */
+const BY_KIND: Record<string, string> = {
+  conversation: 'Mail',
+  song: 'Music',
+  recipe: 'Food',
+  web: 'Web',
+  paper: 'Library',
+  study: 'Library',
+  discussion: 'Library',
+  proposal: 'Library',
+  meeting: 'Library',
+  asset: 'Library',
+};
+const LOG_SECTION: Record<string, string> = {
+  food: 'Food',
+  workout: 'Fitness',
+  health: 'Health',
+  music: 'Music',
+};
+
+/** The section an item belongs to: **by the kind the server recognised** (`kind_key`); the markers
+ *  are read here only for data made before 0.41, which carries no kind. */
+export function sectionOf(n: ItemShape & { kind_key?: string }): Section {
+  const byKey = (k: string) => SECTIONS.find((s) => s.key === k);
+  if (n.kind_key === 'log') {
+    const log = typeof n.props?.log === 'string' ? LOG_SECTION[n.props.log] : undefined;
+    if (log) return byKey(log) ?? SECTIONS[SECTIONS.length - 1];
+  }
+  const key = n.kind_key ? BY_KIND[n.kind_key] : undefined;
+  if (key) return byKey(key) ?? SECTIONS[SECTIONS.length - 1];
   return SECTIONS.find((s) => s.owns(n)) ?? SECTIONS[SECTIONS.length - 1];
 }

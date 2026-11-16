@@ -98,8 +98,8 @@ The phone's way to bring something into a study room, from any app:
 - **Your collection**: the counted button at the bottom shows what you have open as cards; tap one to
   go to it, **swipe a note's card aside** to close it.
 
-formicaria's own browser is not on the phone yet: pages open in your phone's browser, and Share or the
-selection menu brings what you choose into formicaria.
+Web pages still open in your phone's browser; Share or the selection menu brings what you choose into
+formicaria. Web pages as items of your collection inside formicaria come in a later version.
 
 ## Attachments
 

@@ -278,7 +278,15 @@ class MainActivity : TauriActivity() {
       for ((name, why) in refused) no.put(JSONObject().put("name", name).put("why", why))
       val said = JSONArray()
       for (t in texts) said.put(JSONObject().put("text", t.text).put("subject", t.subject))
-      JSONObject().put("files", files).put("refused", no).put("texts", said).toString()
+      val got = JSONArray()
+      synchronized(brought) { for (b in brought) got.put(b) }
+      JSONObject().put("files", files).put("refused", no).put("texts", said).put("brought", got).toString()
+    }
+
+    /// The page has the pieces brought from a page screen (by count).
+    @JavascriptInterface
+    fun doneBrought(n: Int) {
+      synchronized(brought) { repeat(minOf(n, brought.size)) { brought.removeAt(0) } }
     }
 
     /// The page has the texts it was given (by count, as for files).
@@ -408,6 +416,8 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(UpdateDownload(), "__fmUpdate")
     // What another app shared: the page asks for it. See `takeShared`.
     webView.addJavascriptInterface(Share(), "__fmShare")
+    // The activity the page painter (step 5) hands what it brings back to.
+    current = java.lang.ref.WeakReference(this)
 
     // **Applied before the page's own CSS**, on every navigation, so there is no frame in which
     // the app is laid out against a zero inset. Feature-gated exactly as `RustWebView.kt` gates
@@ -445,6 +455,19 @@ class MainActivity : TauriActivity() {
   }
 
   companion object {
+    /// **What was brought in from a page** (the page painter, `workspace-design` §13.7), waiting for the app's page to take
+    /// it: the selection's HTML and words, or an image or link, with the page's exact address and
+    /// title, and the note it goes into. Held here, process-wide, since the page screen is another
+    /// activity.
+    val brought = mutableListOf<JSONObject>()
+    var current: java.lang.ref.WeakReference<MainActivity>? = null
+
+    fun bring(piece: JSONObject) {
+      synchronized(brought) { brought.add(piece) }
+      val a = current?.get() ?: return
+      a.runOnUiThread { a.wv?.evaluateJavascript("window.dispatchEvent(new Event('fm-share'))", null) }
+    }
+
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
     /// A passage brought in is text a person chose; a whole book pasted into Share is cut here.
@@ -478,6 +501,7 @@ class MainActivity : TauriActivity() {
   }
 }
 KT
+
 
 # 2b) **Do NOT try to patch anything under `generated/` from here — it will not survive.**
 #
