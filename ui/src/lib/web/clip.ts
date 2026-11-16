@@ -33,6 +33,8 @@ export interface PageFacts {
   };
   /** What the person had selected when they pressed Save. */
   selection?: string;
+  /** The page's own canonical address (`<link rel="canonical">`), when it declares one. */
+  canonical?: string;
 }
 
 export type ClipKind = 'recipe' | 'paper' | 'video' | 'song' | 'article';
@@ -104,15 +106,21 @@ export function kindOf(f: PageFacts): ClipKind {
 /** A link that reopens the page with `text` highlighted — the Text Fragments standard, which
  *  modern browsers follow. Long passages are anchored by their first and last words. */
 export function textFragment(url: string, text: string): string {
-  const base = url.split('#')[0];
+  // **The exact page, kept** (owner, 2026-11-16: *"make sure the exact citation url is saved"*): the
+  // address and its query as visited; a fragment that is a web app's route (`#/…`, `#!…`) stays, as it
+  // names the page; a plain anchor gives way to the passage, which says more.
+  const [head, frag = ''] = url.split('#', 2);
+  const route = /^[/!]/.test(frag) ? frag.split(':~:')[0] : '';
+  const base = route ? `${head}#${route}` : head;
+  const joiner = route ? ':~:text=' : '#:~:text=';
   const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  if (!words.length) return base;
+  if (!words.length) return route ? base : head;
   const enc = (s: string) => encodeURIComponent(s).replace(/-/g, '%2D');
   const spec =
     words.length <= 10
       ? enc(words.join(' '))
       : `${enc(words.slice(0, 5).join(' '))},${enc(words.slice(-5).join(' '))}`;
-  return `${base}#:~:text=${spec}`;
+  return `${base}${joiner}${spec}`;
 }
 
 /** The selection as a quote with its link back, or nothing. */
@@ -123,9 +131,24 @@ function quoted(f: PageFacts): string {
   return `${lines.join('\n>\n')}\n\n[↗ the passage on the page](${textFragment(f.url, sel)})\n\n`;
 }
 
-/** The credit line every kept page ends with. */
-function credit(f: PageFacts, site: string, today: string): string {
-  return `---\n\nFrom [${site}](${f.url}), kept on ${today}.`;
+/** The address to cite when the page declares one other than where it was read: its canonical
+ *  link, its `og:url`, or a paper's abstract page. `undefined` when it is the same page. */
+export function citable(f: PageFacts): string | undefined {
+  const c = (f.canonical || first(f.meta, 'citation_abstract_html_url', 'og:url') || '').trim();
+  if (!/^https?:\/\//.test(c)) return undefined;
+  const bare = (u: string) => u.split('#')[0].replace(/\/+$/, '');
+  return bare(c) === bare(f.url) ? undefined : c;
+}
+
+/** The credit line every saved page ends with: **the exact address it was read at**, visible, when,
+ *  and the address to cite when the page declares another. */
+function credit(f: PageFacts, site: string, today: string, time?: string): string {
+  const at = time ? `${today} at ${time}` : today;
+  const cite = citable(f);
+  return (
+    `---\n\nSaved from <${f.url}>${site ? ` (${site})` : ''} on ${at}.` +
+    (cite ? `\nAddress to cite: <${cite}>` : '')
+  );
 }
 
 const esc = (s: string) => s.replace(/[{}\\]/g, '');
@@ -135,7 +158,7 @@ const yearOf = (d?: string) => d?.match(/\b(1[5-9]\d\d|20\d\d|21\d\d)\b/)?.[1];
 
 /** A BibTeX entry from the page's `citation_*` tags (the Highwire tags Google Scholar asks
  *  publishers for), so `create_paper` makes the same note a pasted citation does. */
-export function citationBibtex(f: PageFacts): string | undefined {
+export function citationBibtex(f: PageFacts, today = ''): string | undefined {
   const m = f.meta;
   const title = first(m, 'citation_title');
   if (!title) return undefined;
@@ -160,7 +183,8 @@ export function citationBibtex(f: PageFacts): string | undefined {
     ['pages', firstPage ? (lastPage ? `${firstPage}--${lastPage}` : firstPage) : undefined],
     ['publisher', first(m, 'citation_publisher', 'dc.publisher')],
     ['doi', doi],
-    ['url', first(m, 'citation_abstract_html_url') ?? f.url],
+    ['url', first(m, 'citation_abstract_html_url') ?? f.canonical ?? f.url],
+    ['urldate', today],
   ];
   const body = fields
     .filter(([, v]) => v)
@@ -170,7 +194,12 @@ export function citationBibtex(f: PageFacts): string | undefined {
 }
 
 /** Build the note for a page. `recipe` is what `recipe_from_page` read, when the page is one. */
-export function buildClip(f: PageFacts, today: string, recipe?: WebRecipe | null): ClipDraft {
+export function buildClip(
+  f: PageFacts,
+  today: string,
+  recipe?: WebRecipe | null,
+  time?: string,
+): ClipDraft {
   const kind = recipe ? 'recipe' : kindOf(f);
   // The page's own name for its site, else its address — not Readability's guess, which on many
   // pages is the publisher's company.
@@ -184,6 +213,8 @@ export function buildClip(f: PageFacts, today: string, recipe?: WebRecipe | null
     hostOf(f.url)
   ).trim();
   const props: Record<string, string | number> = { source_url: f.url, saved: today };
+  const cite = citable(f);
+  if (cite) props.canonical_url = cite;
   if (site) props.site = site;
   const author = f.article?.byline?.trim();
   const published =
@@ -229,8 +260,8 @@ export function buildClip(f: PageFacts, today: string, recipe?: WebRecipe | null
   if (published && kind !== 'paper') props.published = published.slice(0, 10);
 
   if (kind === 'paper') {
-    const body = `${quoted(f)}${description ? `${description.trim()}\n\n` : ''}${credit(f, site, today)}`;
-    return { kind, title, body, tags: ['web'], props, bibtex: citationBibtex(f) };
+    const body = `${quoted(f)}${description ? `${description.trim()}\n\n` : ''}${credit(f, site, today, time)}`;
+    return { kind, title, body, tags: ['web'], props, bibtex: citationBibtex(f, today) };
   }
 
   if (kind === 'video' || kind === 'song') {
@@ -244,11 +275,11 @@ export function buildClip(f: PageFacts, today: string, recipe?: WebRecipe | null
     const own = typeof item?.description === 'string' ? item.description.trim() : '';
     const body =
       `${quoted(f)}[${verb} on ${site}](${f.url})\n\n` +
-      `${own ? `${own}\n\n` : ''}${credit(f, site, today)}`;
+      `${own ? `${own}\n\n` : ''}${credit(f, site, today, time)}`;
     return { kind, title, body, tags: ['web', kind, 'shelf:Web'], props };
   }
 
   const text = f.article?.markdown?.trim() || description?.trim() || '';
-  const body = `${quoted(f)}${text ? `${text}\n\n` : ''}${credit(f, site, today)}`;
+  const body = `${quoted(f)}${text ? `${text}\n\n` : ''}${credit(f, site, today, time)}`;
   return { kind, title, body, tags: ['web', 'shelf:Web'], props };
 }

@@ -15,6 +15,7 @@ export interface Answer {
   ok: boolean;
   title?: string;
   error?: string;
+  note?: string;
 }
 export interface Insert {
   id: string;
@@ -65,6 +66,8 @@ type Accepted =
       what: string;
       page: { title: string; url: string };
       alt?: { label: string; token: string };
+      /** Said on the page already (the bubble): formicaria shows no second line. */
+      quiet: boolean;
     }
   | { n: number; type: 'replace'; id: string; from: string; to: string }
   | { n: number; type: 'toast'; text: string; id?: string };
@@ -99,6 +102,7 @@ export function accepted(
         alt && str(alt.label, 100) && str(alt.token, 40)
           ? { label: alt.label as string, token: alt.token as string }
           : undefined,
+      quiet: m.quiet === true,
     };
   }
   if (m.type === 'replace' && typeof m.note === 'string' && ID.test(m.note)) {
@@ -163,7 +167,7 @@ export function listen(h: Handlers): () => void {
           if (answered) return;
           answered = true;
           const title = a.title ?? t.title;
-          if (a.ok) {
+          if (a.ok && !m.quiet) {
             toast.now = {
               text: `Brought ${m.what} into “${title}”`,
               note: t.id,
@@ -171,7 +175,7 @@ export function listen(h: Handlers): () => void {
               alt: m.alt,
             };
           }
-          reply(m.n, { title, ...a });
+          reply(m.n, { title, note: t.id, ...a });
         },
       };
       inbox.insert = insert;

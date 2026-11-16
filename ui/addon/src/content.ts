@@ -82,6 +82,7 @@ export function collect(): PageFacts & { snapshot: string } {
     meta: meta(),
     article: article(),
     selection: window.getSelection()?.toString() ?? '',
+    canonical: (document.querySelector('link[rel~="canonical"]') as HTMLLinkElement | null)?.href,
     snapshot: snapshot(),
   };
 }

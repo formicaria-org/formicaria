@@ -63,7 +63,7 @@ describe('what it becomes in the note', () => {
   it('an image kept or linked, a link, always with the page', () => {
     const img = classify('<img src="/a.jpg" alt="A ridge">', '', page);
     expect(imageKept(img, 'sha256-ab')).toBe(
-      '![A ridge](asset:sha256-ab)\n\n— [A walk in the hills](https://example.org/walks/hills)',
+      "![A ridge](asset:sha256-ab)\n\n— [A walk in the hills](https://example.org/walks/hills) · [the image's address](https://example.org/a.jpg)",
     );
     expect(imageLinked(img)).toContain('[Image: A ridge](https://example.org/a.jpg)');
     expect(linkPiece(classify('<a href="/next">Next walk</a>', 'Next walk', page))).toBe(
@@ -87,6 +87,13 @@ describe('what it becomes in the note', () => {
       time: 92,
     });
     expect(md).toBe('▶ [Ants at 1:32](https://www.youtube.com/watch?v=x&t=92s)');
+  });
+
+  it('says when it was brought in, beside where from', () => {
+    const p = { ...classify('<a href="/n">Next</a>', 'Next', page), when: '2026-11-16 14:32' };
+    expect(linkPiece(p)).toBe(
+      '[Next](https://example.org/n) — [A walk in the hills](https://example.org/walks/hills), 2026-11-16 14:32',
+    );
   });
 
   it('names a kept file after its address', () => {

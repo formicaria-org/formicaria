@@ -237,6 +237,26 @@ def bring_in(m: "Marionette") -> dict:
     time.sleep(5)
     body = post("/api/get", {"id": nid}).get("body", "")
     out["bring_chip"] = bool(has_chip.get("value") if isinstance(has_chip, dict) else has_chip) and "Ants carry leaves home" in body
+    # **Snip**: Ctrl+Shift+drag from the first paragraph to the table brings all three in, each as itself.
+    before = post("/api/get", {"id": nid}).get("body", "")
+    m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+        getSelection().removeAllRanges();
+        // Over the first paragraph's words, the image and the table, as a person would draw it.
+        const words = (id) => { const r = document.createRange(); r.selectNodeContents(document.getElementById(id)); return r.getBoundingClientRect(); };
+        const a = words('p');
+        const b = document.getElementById('t').getBoundingClientRect();
+        const right = Math.max(a.right, b.right) + 4;
+        const ev = (type, x, y) => document.body.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, ctrlKey: true, shiftKey: true }));
+        ev('mousedown', a.left - 4, a.top - 4);
+        ev('mousemove', right, b.bottom + 4);
+        ev('mouseup', right, b.bottom + 4);"""})
+    time.sleep(8)
+    body = post("/api/get", {"id": nid}).get("body", "")
+    new = body[len(before):] if body.startswith(before) else ""
+    out["snip"] = ("> The path **climbs**" in new and "![A pixel](asset:sha256-" in new
+                   and "| Day | Km |" in new and "Ants carry" not in new)
+    if not out["snip"]:
+        print(f"browser-check: the snip added {new!r}")
     if not all(out.values()):
         print(f"browser-check: the note read {body!r}")
     out["page_in_notes"] = any(n.get("id") == nid for n in post("/api/page_notes", {"url": TEST_PAGE}))
@@ -332,7 +352,7 @@ def settings_page(ff: Path, work: Path) -> dict:
             seen.update(bring_in(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: bring in: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "page_in_notes", "panel_left"):
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -436,6 +456,7 @@ def main() -> None:
             "bring in: an image arrives kept in the vault": page.get("bring_image") is True,
             "bring in: a table arrives as a table": page.get("bring_table") is True,
             "bring in: the chip after a selection brings it in": page.get("bring_chip") is True,
+            "snip: an area brings its text, image and table in, each as itself": page.get("snip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
             "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })

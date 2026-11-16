@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "formicaria",
   "description": "formicaria's browser actions: bring what you select on a page into the note open in formicaria, save whole pages, see which notes name a page, and keep downloads, in your formicaria notebook.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "browser@formicaria-org.github.io",
@@ -38,6 +38,12 @@
         "default": "Alt+Shift+A"
       },
       "description": "Bring the selection (or the page's link) into the note in front in formicaria"
+    },
+    "snip": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Snip an area of the page into the note in front in formicaria"
     }
   },
   "icons": {
@@ -74,8 +80,7 @@
   },
   "page_action": {
     "default_icon": "icon-page.svg",
-    "default_title": "Save this page in formicaria (Alt+Shift+K)",
-    "default_popup": "popup.html",
+    "default_title": "Snip what to bring into formicaria, or save the whole page (Alt+Shift+S)",
     "show_matches": [
       "http://*/*",
       "https://*/*"

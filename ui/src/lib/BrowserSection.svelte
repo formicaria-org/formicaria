@@ -7,6 +7,20 @@
   import ManualLink from './ManualLink.svelte';
   import { browserOpen, browserSet, browserSetup, browserStatus } from './ipc';
   import type { BrowserStatus } from './types';
+  import { bridged, up } from './web/bridge.svelte';
+
+  // **What follows a selection on a page** (`decisions.md` 2026-11-15, later still): kept by the
+  // browser's add-on, which formicaria tells through its bridge; remembered here to show it.
+  const AFTER_KEY = 'fm.browser.after';
+  type After = 'offer' | 'bring' | 'nothing';
+  let after = $state<After>(
+    ((typeof localStorage !== 'undefined' && localStorage.getItem(AFTER_KEY)) as After) || 'offer',
+  );
+  function setAfter(v: After) {
+    after = v;
+    localStorage.setItem(AFTER_KEY, v);
+    up({ up: 'after', value: v });
+  }
 
   let st = $state<BrowserStatus | null>(null);
   let said = $state('');
@@ -140,11 +154,30 @@
             <span>Let sites send notifications while their tab is closed</span>
           </label>
         </li>
+        {#if bridged()}
+          <li>
+            <fieldset class="after">
+              <legend>After you select something on a page</legend>
+              {#each [['offer', 'Show formicaria’s icon beside it, to bring it in'], ['bring', 'Bring it in at once (hold Alt to just select)'], ['nothing', 'Nothing']] as [v, label] (v)}
+                <label
+                  ><input
+                    type="radio"
+                    name="after"
+                    value={v}
+                    checked={after === v}
+                    onchange={() => setAfter(v as After)}
+                  />
+                  {label}</label
+                >
+              {/each}
+            </fieldset>
+          </li>
+        {/if}
       </ul>
       <p class="muted small">
-        formicaria is the pinned first tab; the formicaria button (or Alt+Shift+F) brings it
-        forward. Right-click a page to <em>Keep</em> or <em>Bookmark</em> it in formicaria. Changes take
-        effect the next time the browser starts.
+        formicaria sits beside the page; the formicaria button (or Alt+Shift+F) shows or folds it.
+        The ant in the address bar <em>snips</em> what to bring into your note, or saves the whole page.
+        Changes take effect the next time the browser starts.
       </p>
     {/if}
     {#if st.error}<p class="none">{st.error}</p>{/if}

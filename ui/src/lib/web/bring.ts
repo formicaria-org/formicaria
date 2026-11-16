@@ -25,6 +25,8 @@ export interface Piece {
   alt?: string;
   /** Video, audio: where it was playing, in seconds. */
   time?: number;
+  /** When it was brought in (`2026-11-16 14:32`), shown with its source. */
+  when?: string;
 }
 
 /** Images up to this size are kept in the vault by default; above it, a link, with keeping a copy
@@ -76,11 +78,12 @@ export function streamed(src: string | undefined): boolean {
 
 const clean = (s: string) => s.replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim();
 
-/** The line every piece ends with: where it came from. */
+/** The line every piece ends with: **exactly where it came from** (the page as it was read, at the
+ *  passage when there is one) and when. */
 export function source(p: Piece, passage?: string): string {
   const title = clean(p.pageTitle) || hostOf(p.pageUrl) || 'the page';
   const href = passage ? textFragment(p.pageUrl, passage) : p.pageUrl;
-  return `— [${title}](${href})`;
+  return `— [${title}](${href})${p.when ? `, ${p.when}` : ''}`;
 }
 
 function hostOf(url: string): string {
@@ -145,7 +148,8 @@ export function pagePiece(p: Piece): string {
 
 /** An image kept in the vault. */
 export function imageKept(p: Piece, asset: string): string {
-  return `![${clean(p.alt ?? '')}](asset:${asset})\n\n${source(p)}`;
+  const original = p.src && /^https?:/.test(p.src) ? ` · [the image's address](${p.src})` : '';
+  return `![${clean(p.alt ?? '')}](asset:${asset})\n\n${source(p)}${original}`;
 }
 
 /** An image as a link only. */

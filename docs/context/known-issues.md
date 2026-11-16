@@ -31,6 +31,9 @@ trap, add one. Newest concerns first within each section.
   kit loudly (the swap refuses) and the previous copy stays.
 - **A GET carrying no `Origin` is still accepted on loopback** (blob reads by content address); as
   before, not widened.
+- **Snip (0.36)**: the area's blocks are those at least half inside it, so a paragraph cut in half by
+  the edge comes whole or not at all; a picture of the area is the visible view only (no scrolling
+  while snipping); synthetic Ctrl+Shift events drive the gate's test, the real drag is by hand.
 - **Bring in (0.35)**: the chip's script runs on every web page's top frame (not in frames: a
   selection inside an embedded frame is brought in only by right-click or Alt+Shift+A). Pick's widen
   and narrow use the wheel; no touch version until the phone. An image the page made itself (a

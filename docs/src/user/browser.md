@@ -90,8 +90,16 @@ Two things you can do with what you find, and the same words everywhere:
 
 | You want | Do | What happens |
 |---|---|---|
-| **this piece in what you are writing** | **Bring in**: select it and press the **ant chip** that appears beside it; or right-click it → **Bring into "…"**; or drag it onto formicaria; or Alt+Shift+A | it goes into **the note in front** in formicaria, named on the button. With no note open, a new note named after the page is made and opened |
-| **the whole page, for later** | **Save page**: the **ant in the address bar**, or right-click the page → **Save page in formicaria**, or Alt+Shift+K | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
+| **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it. Or right-click it → **Bring into "…"**, or drag it onto formicaria | it goes into **the note in front** in formicaria (its name is on the icon's tooltip and the snip's bar). With no note open, a new note named after the page is made and opened |
+| **the whole page, for later** | **Save the whole page** in the snip's bar, or right-click the page → **Save page in formicaria**, or **Alt+Shift+K** | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
+
+**A snip brings everything in the area, each as itself**, in reading order: paragraphs, headings,
+lists, tables, code, images, links, a video at the moment it was playing. What has no text behind it
+(a chart drawn by the page, a map) comes as a **picture of the area**. If you would rather have the
+area as one picture, press **As a picture instead**.
+
+**What happened is said where you did it**: a small bubble on the page, with **Undo** and the one
+other choice.
 
 **What arrives is what you pointed at:**
 
@@ -104,31 +112,34 @@ Two things you can do with what you find, and the same words everywhere:
 - a **video or audio file** comes as a link, with *Keep the file* one press away; a **video on a
   streaming site** comes as a link to the page **at the moment it was playing**.
 
-After each one, a line at the bottom of formicaria says what came in, with **Undo** and the one
-other choice (*Link only instead*, *Keep the file*).
+After each one, the bubble on the page (or, from a menu or a drop, a line in formicaria) says what
+came in, with **Undo** and the one other choice (*Link only instead*, *Keep the file*).
 
 **What is hard to select** (an image in a slideshow, a whole table): right-click the page → **Pick
 from this page…**. What is under the pointer lights up and says what it is; **scroll** to widen it to
 what contains it, or narrow it back; **click** to bring it in (Shift+click to bring several); **Esc**
 to stop.
 
-**After you select something on a page**, formicaria does what you choose, in the address-bar ant's
-panel: **offer to bring it in** (the chip, the starting choice), **bring it in at once** (every
-selection goes in; hold Alt to just select; a double-click on a word never does), or **nothing**.
+**After you select something on a page**, formicaria does what you choose in **Settings → Browser**:
+**show formicaria's icon beside it** (the starting choice), **bring it in at once** (every selection
+goes in; hold Alt to just select; a double-click on a word never does), or **nothing**.
 
 **This page is in your notes**: when a note already names the page you are on, the ant in the
-address bar is **filled**; press it to see those notes, each with the line that names the page, and
-open one beside the page (**Save again** keeps a second copy if you want one).
+address bar is **filled red**; press it, and the snip's bar says **In 2 of your notes**: press that to
+see them, each with the line that names the page, and open one beside the page.
 
 **Search your notes from the address bar**: type **fm**, a space, and what you are looking for.
 
-What you bring in or save says where it came from: the note's **source** is `web`, with the page's
-address and when. Every source formicaria reads from (mail, calendars, files, and later a watch)
+**Exactly where it came from.** A saved page ends with the **full address it was read at**, with the
+date and time, and, when the page names a different address to cite (its canonical address, a
+paper's abstract page), **that one too**; a paper's citation records the date it was read. Every
+piece you bring in ends with a link to the page **at that passage**, and when. The note's **source**
+is `web`, with the exact address and the time. Every source formicaria reads from (mail, calendars, files, and later a watch)
 describes what it brings the same way.
 
 ## Bookmarks
 
-After saving a page, press **Just the link instead** in the ant's panel: a note with the page's title
+After saving a page, press **Just the link instead** in the bubble: a note with the page's title
 and link, on the **Bookmarks** shelf, without a copy of the page. Like every note, it travels to your
 other devices with your notebook.
 

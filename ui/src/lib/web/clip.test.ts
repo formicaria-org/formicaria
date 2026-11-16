@@ -81,9 +81,48 @@ describe('a paper', () => {
     expect(d.bibtex).toBeTruthy();
     expect(d.body).toContain('What the engine might do.');
     expect(d.body).toContain(
-      'From [Scientific Memoirs](https://journal.example/article/7), kept on 2026-11-15.',
+      'Saved from <https://journal.example/article/7> (Scientific Memoirs) on 2026-11-15.',
     );
     expect(d.props).toMatchObject({ source_url: paper.url, saved: '2026-11-15' });
+  });
+
+  it('cites the date it was read', () => {
+    expect(citationBibtex(paper, '2026-11-16')).toContain('urldate = {2026-11-16}');
+  });
+});
+
+describe('the exact address a page was saved from', () => {
+  it('is shown in full, with the time, and kept as it was visited', () => {
+    const f = page({ url: 'https://news.example/a/1?id=7&utm_source=x' });
+    const d = buildClip(f, '2026-11-16', null, '14:32');
+    expect(d.body).toContain('Saved from <https://news.example/a/1?id=7&utm_source=x>');
+    expect(d.body).toContain('on 2026-11-16 at 14:32.');
+    expect(d.props.source_url).toBe('https://news.example/a/1?id=7&utm_source=x');
+    expect(d.props.canonical_url).toBeUndefined();
+  });
+
+  it('adds the address to cite when the page declares another', () => {
+    const f = page({
+      url: 'https://m.news.example/a/1?ref=feed',
+      canonical: 'https://news.example/a/1',
+    });
+    const d = buildClip(f, '2026-11-16');
+    expect(d.props.canonical_url).toBe('https://news.example/a/1');
+    expect(d.body).toContain('Address to cite: <https://news.example/a/1>');
+    const same = page({
+      url: 'https://news.example/a/1#top',
+      canonical: 'https://news.example/a/1/',
+    });
+    expect(buildClip(same, '2026-11-16').props.canonical_url).toBeUndefined();
+  });
+
+  it("keeps a web app's route in the link back to a passage", () => {
+    expect(textFragment('https://app.example/#/doc/5', 'the plan')).toBe(
+      'https://app.example/#/doc/5:~:text=the%20plan',
+    );
+    expect(textFragment('https://app.example/#!/doc/5:~:text=old', 'new')).toBe(
+      'https://app.example/#!/doc/5:~:text=new',
+    );
   });
 
   it('is a conference paper when the page names a conference', () => {

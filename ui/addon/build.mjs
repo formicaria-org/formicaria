@@ -15,7 +15,7 @@ const stage = join(out, 'stage');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
-for (const name of ['content', 'background', 'popup', 'choose', 'bridge', 'select', 'pick']) {
+for (const name of ['content', 'background', 'choose', 'bridge', 'select', 'pick']) {
   await build({
     configFile: false,
     publicDir: false,
@@ -35,7 +35,7 @@ for (const name of ['content', 'background', 'popup', 'choose', 'bridge', 'selec
     },
   });
 }
-for (const f of ['manifest.json', 'popup.html', 'choose.html', 'icon.svg', 'icon-page.svg', 'icon-page-in.svg']) {
+for (const f of ['manifest.json', 'choose.html', 'icon.svg', 'icon-page.svg', 'icon-page-in.svg']) {
   writeFileSync(join(stage, f), readFileSync(join(here, f)));
 }
 

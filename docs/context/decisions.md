@@ -14888,3 +14888,30 @@ with the pointer what happens after it, we are not restricted by defaults"*. Pla
 **Widens what ships:** a content script on every web page (top frame, the chip), one injected on
 request (Pick), the add-on's `menus` permission (to read the clicked video's moment), and the add-on
 now writes attachments into the vault of the note in front through the existing `ingest` route.
+
+## 2026-11-16 — Snip; the icon beside the pointer; the exact address every time `#ui` `#data`
+
+**Context.** The owner, after trying 0.35: *"things we add to right click and down on the bottom are
+difficult to reach … what if the user could select an area like a snipping tool and everything in it
+can be ported appropriately?"*; *"make sure that the exact citation url is saved, so that we can
+understand exactly where it came from"*; *"in the address bar I see three vertical red dots not an
+ant, and the bring to note option … is far away from the cursor … not a text but a floating
+formicaria icon"*.
+
+**Decided.**
+1. **Snip** is the main way in: the ant in the address bar (one press), Alt+Shift+S, or Ctrl+Shift+drag
+   on the page. Everything mostly inside the area comes in, each as itself, in reading order, as one
+   insert ending with its source; what has no text behind it (canvas, a drawn chart) as a picture of
+   that part; *As a picture instead* always offered. The view is captured once at the snip, so a later
+   picture is of what was snipped, not of the bubble.
+2. **Feedback where it happened**: a bubble on the page (Undo, the alternative, Open) for the chip and
+   the snip; formicaria's own line only for what has no spot on the page (a menu, a drop).
+3. **After a selection, formicaria's icon floats at the pointer** (no text; the note's name in its
+   tooltip). The setting moves to Settings → Browser. The ant's popup is gone: its notes list and
+   *Save the whole page* are in the snip's bar. Pick stays on the right-click menu.
+4. **The exact address, every time**: a saved page's credit line shows the full address as visited
+   with date and time, and the address to cite when the page declares another (`canonical_url`:
+   canonical link, `og:url`, a paper's abstract page); a paper's BibTeX gets `urldate`; every piece
+   brought in ends with the page at the passage and when; a web app's `#/…` route is kept in those
+   links; a kept image also links its original address.
+5. **The address-bar icon is formicaria's mark** (outlined; filled red when notes name the page).

@@ -19,9 +19,12 @@ import {
   mediaLinked,
   pagePiece,
   streamed,
+  markdown,
+  source,
   textPiece,
   type Piece,
 } from '../../src/lib/web/bring';
+import type { Block } from './snip';
 // Exported for the end-to-end test's copy of the add-on, which answers the question itself.
 export { choose };
 
@@ -85,6 +88,12 @@ const KIND_WORDS: Record<string, string> = {
   bookmark: 'a bookmark, on the Bookmarks shelf',
 };
 
+/** The time now, `14:32`: when a page was saved or a piece brought in. */
+const clockNow = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 const today = () => {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
@@ -136,7 +145,7 @@ export async function keep(tab: number): Promise<Kept> {
         false,
       ).catch(() => null);
     }
-    const draft = buildClip(facts, today(), recipe);
+    const draft = buildClip(facts, today(), recipe, clockNow());
     const made = await call(
       c.server,
       c.key,
@@ -210,6 +219,11 @@ interface Reply {
   ok?: boolean;
   title?: string;
   error?: string;
+  /** The note it went into, what went in, and its one alternative: for Undo and the bubble. */
+  note?: string;
+  inserted?: string;
+  alt?: { label: string; token: string };
+  open?: string;
 }
 let bridge: Port | null = null;
 let asked = 0;
@@ -271,11 +285,13 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const mb = (n: number) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
 
 /** Hand the text to the note in front (or a new note named after the page), with its alternative. */
+let quietNow = false;
 async function deliver(
   p: Piece,
   text: string,
   what: string,
   alt?: { label: string; make: () => Promise<string> },
+  quiet = quietNow,
 ): Promise<Reply> {
   let token: string | undefined;
   if (alt) {
@@ -283,14 +299,17 @@ async function deliver(
     alternatives.set(token, alt.make);
     if (alternatives.size > 50) alternatives.delete(alternatives.keys().next().value as string);
   }
+  const offered = alt && token ? { label: alt.label, token } : undefined;
   try {
-    return await ask({
+    const r = await ask({
       type: 'insert',
       text,
       what,
+      quiet,
       page: { title: p.pageTitle, url: p.pageUrl },
-      alt: alt && token ? { label: alt.label, token } : undefined,
+      alt: offered,
     });
+    return { ...r, inserted: text, alt: offered };
   } catch (e) {
     return { ok: false, error: msg(e) };
   }
@@ -325,7 +344,9 @@ async function forget(id: string) {
 }
 
 /** **One pipeline, whatever started it**: what the piece is decides the content or a link. */
-export async function bringPiece(p: Piece): Promise<Reply> {
+export async function bringPiece(p: Piece, quiet = false): Promise<Reply> {
+  p = { ...p, when: p.when ?? `${today()} ${clockNow()}` };
+  quietNow = quiet;
   switch (p.kind) {
     case 'text':
       return deliver(p, textPiece(p), 'the passage');
@@ -397,12 +418,100 @@ async function selectionIn(tab: number, frameId?: number): Promise<{ html: strin
   return r ?? { html: '', text: '' };
 }
 
+/** What the tab shows now (`tabs.captureVisibleTab`), taken once, at the snip. */
+function capture(windowId: number | undefined): Promise<string> {
+  return (
+    browser.tabs as unknown as {
+      captureVisibleTab(w: number | undefined, o: { format: string }): Promise<string>;
+    }
+  ).captureVisibleTab(windowId, { format: 'png' });
+}
+
+/** An area of a captured view, as PNG bytes. */
+async function crop(
+  shot: Promise<string>,
+  area: { x: number; y: number; width: number; height: number },
+  dpr: number,
+): Promise<Uint8Array> {
+  const img = new Image();
+  img.src = await shot;
+  await img.decode();
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(area.width * dpr));
+  c.height = Math.max(1, Math.round(area.height * dpr));
+  c.getContext('2d')!.drawImage(img, area.x * dpr, area.y * dpr, c.width, c.height, 0, 0, c.width, c.height);
+  const blob = await new Promise<Blob>((ok, no) =>
+    c.toBlob((b) => (b ? ok(b) : no(new Error('no picture'))), 'image/png'),
+  );
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+/** **Snip**: everything in the area, each as itself, in reading order, as one insert ending with its
+ *  source; an area with nothing readable in it is a picture of the area. */
+async function snip(
+  p: Piece,
+  blocks: Block[],
+  shot: () => Promise<Uint8Array>,
+  sub: (area: NonNullable<Block['rect']>) => Promise<Uint8Array>,
+): Promise<Reply> {
+  const asPicture = async () => {
+    const bytes = await shot();
+    const kept = await store(bytes, 'snip.png');
+    return `![Part of ${p.pageTitle.replace(/[[\]]/g, '') || 'a page'}](asset:${kept.ref})\n\n${source(p)}`;
+  };
+  if (!blocks.some((b) => b.kind !== 'picture')) {
+    if (!blocks.length) {
+      // Nothing readable: the picture of the area, at once.
+      return deliver(p, await asPicture(), 'a picture of the area');
+    }
+  }
+  const out: string[] = [];
+  let run: string[] = [];
+  let firstWords = '';
+  const flush = () => {
+    if (!run.length) return;
+    const md = markdown(run.join(''));
+    out.push(md.split('\n').map((l) => (l.trim() ? `> ${l}` : '>')).join('\n'));
+    run = [];
+  };
+  for (const b of blocks) {
+    if (b.kind === 'text') {
+      if (!firstWords && b.text) firstWords = b.text.split(/\s+/).slice(0, 12).join(' ');
+      run.push(b.html ?? '');
+      continue;
+    }
+    flush();
+    if (b.kind === 'block') out.push(markdown(b.html ?? ''));
+    else if (b.kind === 'image' && b.src) {
+      try {
+        const { bytes, type } = await fetchBytes(b.src, p.pageUrl);
+        if ((type && !/^image\//.test(type)) || bytes.length > IMAGE_LIMIT) throw new Error('link');
+        const kept = await store(bytes, fileName(b.src, 'image'));
+        out.push(`![${(b.alt ?? '').replace(/[[\]]/g, '')}](asset:${kept.ref})`);
+      } catch {
+        out.push(`[Image${b.alt ? `: ${b.alt.replace(/[[\]]/g, '')}` : ''}](${b.src})`);
+      }
+    } else if (b.kind === 'video' || b.kind === 'audio') {
+      out.push(mediaLinked({ ...p, kind: b.kind, src: b.src, time: b.time }).replace(/ — \[.*$/, ''));
+    } else if (b.kind === 'picture' && b.rect) {
+      const kept = await store(await sub(b.rect), 'figure.png');
+      out.push(`![](asset:${kept.ref})`);
+    }
+  }
+  flush();
+  const text = `${out.join('\n\n')}\n\n${source(p, firstWords || undefined)}`;
+  return deliver(p, text, 'the area', { label: 'As a picture instead', make: asPicture });
+}
+
 /** Messages the app sends up the bridge: the note in front, an alternative chosen, a drop. */
 async function fromApp(m: Record<string, unknown>) {
   if (m.up === 'front') {
     front = typeof m.id === 'string' && m.id ? { id: m.id, title: String(m.title ?? ''), vault: String(m.vault ?? '') } : null;
     void storage.local.set({ front: front?.title ?? '' });
     void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
+  } else if (m.up === 'after' && ['offer', 'bring', 'nothing'].includes(String(m.value))) {
+    // Settings → Browser: what follows a selection on a page (`select.ts` reads it).
+    void storage.local.set({ after: String(m.value) });
   } else if (m.up === 'alt' && typeof m.token === 'string') {
     const make = alternatives.get(m.token);
     if (!make) return;
@@ -477,8 +586,8 @@ export async function pageNotes(tabId: number, url: string): Promise<PageNote[]>
     .setTitle({
       tabId,
       title: n
-        ? `In ${n === 1 ? 'one' : n} of your notes · Save this page in formicaria`
-        : 'Save this page in formicaria (Alt+Shift+K)',
+        ? `In ${n === 1 ? 'one' : n} of your notes · Snip what to bring in, or save the page`
+        : 'Snip what to bring into formicaria, or save the page (Alt+Shift+S)',
     })
     .catch(() => {});
   return found;
@@ -532,8 +641,53 @@ omnibox.onInputEntered.addListener((text) => {
   void config().then((c) => show(c.server, id));
 });
 
-browser.runtime.onMessage.addListener((m) => {
+(
+  browser.runtime.onMessage as unknown as {
+    addListener(f: (m: Record<string, unknown> & { type?: string; tab?: number; server?: string; id?: string }, sender: { tab?: { id?: number; windowId?: number; url?: string; title?: string } }) => Promise<unknown> | undefined): void;
+  }
+).addListener((m, sender) => {
   const d = m as { type?: string; where?: Where; p?: Pending };
+  const st = sender?.tab;
+  const here = { url: st?.url ?? '', title: st?.title ?? '' };
+  // --- from the page script (`select.ts`, `snip.ts`): the bubble on the spot shows the result ---
+  if (m?.type === 'snip-info' && st?.id != null) {
+    const id = st.id;
+    return pageNotes(id, here.url).then((notes) => ({ front: front?.title ?? '', notes }));
+  }
+  if (m?.type === 'snip' && st?.id != null) {
+    const area = m.area as { x: number; y: number; width: number; height: number };
+    const dpr = Number(m.dpr) || 1;
+    const p: Piece = { kind: 'text', pageUrl: here.url, pageTitle: here.title, when: `${today()} ${clockNow()}` };
+    // The view is captured once, now, before anything moves (or the bubble appears); a picture is
+    // cropped from it only when one is wanted.
+    const shot = capture(st.windowId);
+    shot.catch(() => {});
+    const cut = (a: { x: number; y: number; width: number; height: number }) => crop(shot, a, dpr);
+    quietNow = true;
+    return snip(p, (m.blocks as Block[]) ?? [], () => cut(area), cut).finally(() => (quietNow = false));
+  }
+  if (m?.type === 'save-page' && st?.id != null) {
+    const id = st.id;
+    return savePage(id).then((k) => ({ ok: k.ok, title: k.title, error: k.error, open: k.id }));
+  }
+  if (m?.type === 'alt' && typeof m.token === 'string') {
+    const make = alternatives.get(m.token);
+    if (!make) return Promise.resolve({ ok: false, error: 'It can no longer be changed.' });
+    alternatives.delete(m.token);
+    return make()
+      .then((to) => ask({ type: 'replace', note: m.note, from: m.from, to }))
+      .catch((e) => ({ ok: false, error: msg(e) }));
+  }
+  if (m?.type === 'undo') {
+    return ask({ type: 'replace', note: m.note, from: m.from, to: '' }).catch((e) => ({ ok: false, error: msg(e) }));
+  }
+  if (m?.type === 'open' && typeof m.id === 'string') {
+    const id = m.id;
+    return config().then((c) => show(c.server, id));
+  }
+  if (m?.type === 'link-instead-here' && typeof m.id === 'string' && st) {
+    return forget(m.id).then(() => bookmark(st));
+  }
   if (d?.type === 'download-choice' && d.where && d.p) return choose(d.where, d.p);
   if (m?.type === 'keep' && typeof m.tab === 'number') return keep(m.tab);
   if (m?.type === 'show' && m.server && m.id) return show(m.server, m.id);
@@ -561,7 +715,9 @@ browser.runtime.onMessage.addListener((m) => {
         from.type === 'bring-selection'
           ? classify(from.html ?? '', from.text ?? '', page)
           : ({ ...from.piece, pageUrl: page.url, pageTitle: page.title } as Piece);
-      failed(await bringPiece(p));
+      const r = await bringPiece(p, from.type === 'bring-selection');
+      if (from.type === 'bring-piece') failed(r);
+      return r;
     });
   }
   if (m?.type === 'notes' && typeof m.tab === 'number') {
@@ -585,6 +741,13 @@ void menus.removeAll().then(() => {
   });
   menus.create({ id: 'formicaria-save', title: 'Save page in formicaria', contexts: ['page'] });
   menus.create({ id: 'formicaria-pick', title: 'Pick from this page…', contexts: ['page'] });
+});
+
+/** **The ant in the address bar starts a snip** (its bar offers *Save the whole page* too). */
+(
+  browser as unknown as { pageAction: { onClicked: { addListener(f: (t: { id?: number }) => void): void } } }
+).pageAction.onClicked.addListener((t) => {
+  if (t.id != null) void browser.tabs.sendMessage(t.id, { type: 'snip' }).catch(() => {});
 });
 
 /** **Save page**: the page as its own note; formicaria says what it became. */
@@ -671,6 +834,7 @@ more.commands.onCommand.addListener((c) => {
     if (t?.id == null) return;
     const tt = t as { id: number; url?: string; title?: string };
     if (c === 'keep-page') return void savePage(tt.id);
+    if (c === 'snip') return void browser.tabs.sendMessage(tt.id, { type: 'snip' }).catch(() => {});
     if (c !== 'add-to-note') return;
     const page = { url: tt.url ?? '', title: tt.title ?? '' };
     if (!/^https?:/.test(page.url)) return failed({ ok: false, error: 'Only from a web page.' });

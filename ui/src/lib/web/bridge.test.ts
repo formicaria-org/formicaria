@@ -47,7 +47,9 @@ describe('the browser bridge', () => {
       what: 'the passage',
       page: { title: 'Ants', url: 'https://a.org/' },
       alt: { label: 'Link only instead', token: '3' },
+      quiet: false,
     });
+    expect(at({ n: 6, type: 'insert', text: 'x', quiet: true })).toMatchObject({ quiet: true });
     expect(at({ n: 7, type: 'replace', note: ID, from: 'a', to: 'b' })).toEqual({
       n: 7,
       type: 'replace',
