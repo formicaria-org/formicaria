@@ -59,6 +59,23 @@ describe('the browser bridge', () => {
     });
   });
 
+  it('reads a request to ask the assistant, with its page', () => {
+    expect(
+      at({
+        n: 8,
+        type: 'ask',
+        text: 'Ants carry leaves.',
+        page: { title: 'Ants', url: 'https://a.org/' },
+      }),
+    ).toEqual({
+      n: 8,
+      type: 'ask',
+      text: 'Ants carry leaves.',
+      page: { title: 'Ants', url: 'https://a.org/' },
+    });
+    expect(at({ n: 9, type: 'ask', text: '' })).toBeNull();
+  });
+
   it('adds a passage after a blank line, whatever the note ends with', () => {
     expect(appended('', 'x')).toBe('x\n');
     expect(appended('a', 'x')).toBe('a\n\nx\n');

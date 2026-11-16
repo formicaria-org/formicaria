@@ -275,6 +275,8 @@ interface Front {
   id: string;
   title: string;
   vault: string;
+  /** The assistant running now, by name (`Myrme`), or empty. */
+  assistant: string;
 }
 let front: Front | null = null;
 /** The one alternative each bring-in offers afterwards (*Link only instead*, *Keep the file*). */
@@ -451,16 +453,17 @@ async function crop(
 async function snip(
   p: Piece,
   blocks: Block[],
-  shot: () => Promise<Uint8Array>,
+  shot: (() => Promise<Uint8Array>) | null,
   sub: (area: NonNullable<Block['rect']>) => Promise<Uint8Array>,
 ): Promise<Reply> {
   const asPicture = async () => {
+    if (!shot) throw new Error('no area to picture');
     const bytes = await shot();
     const kept = await store(bytes, 'snip.png');
     return `![Part of ${p.pageTitle.replace(/[[\]]/g, '') || 'a page'}](asset:${kept.ref})\n\n${source(p)}`;
   };
   if (!blocks.some((b) => b.kind !== 'picture')) {
-    if (!blocks.length) {
+    if (!blocks.length && shot) {
       // Nothing readable: the picture of the area, at once.
       return deliver(p, await asPicture(), 'a picture of the area');
     }
@@ -500,13 +503,26 @@ async function snip(
   }
   flush();
   const text = `${out.join('\n\n')}\n\n${source(p, firstWords || undefined)}`;
-  return deliver(p, text, 'the area', { label: 'As a picture instead', make: asPicture });
+  return deliver(
+    p,
+    text,
+    shot ? 'the area' : 'it',
+    shot ? { label: 'As a picture instead', make: asPicture } : undefined,
+  );
 }
 
 /** Messages the app sends up the bridge: the note in front, an alternative chosen, a drop. */
 async function fromApp(m: Record<string, unknown>) {
   if (m.up === 'front') {
-    front = typeof m.id === 'string' && m.id ? { id: m.id, title: String(m.title ?? ''), vault: String(m.vault ?? '') } : null;
+    front =
+      typeof m.id === 'string' && m.id
+        ? {
+            id: m.id,
+            title: String(m.title ?? ''),
+            vault: String(m.vault ?? ''),
+            assistant: String(m.assistant ?? ''),
+          }
+        : null;
     void storage.local.set({ front: front?.title ?? '' });
     void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
   } else if (m.up === 'after' && ['offer', 'bring', 'nothing'].includes(String(m.value))) {
@@ -652,10 +668,14 @@ omnibox.onInputEntered.addListener((text) => {
   // --- from the page script (`select.ts`, `snip.ts`): the bubble on the spot shows the result ---
   if (m?.type === 'snip-info' && st?.id != null) {
     const id = st.id;
-    return pageNotes(id, here.url).then((notes) => ({ front: front?.title ?? '', notes }));
+    return pageNotes(id, here.url).then((notes) => ({
+      front: front?.title ?? '',
+      assistant: front?.assistant ?? '',
+      notes,
+    }));
   }
   if (m?.type === 'snip' && st?.id != null) {
-    const area = m.area as { x: number; y: number; width: number; height: number };
+    const area = m.area as { x: number; y: number; width: number; height: number } | null;
     const dpr = Number(m.dpr) || 1;
     const p: Piece = { kind: 'text', pageUrl: here.url, pageTitle: here.title, when: `${today()} ${clockNow()}` };
     // The view is captured once, now, before anything moves (or the bubble appears); a picture is
@@ -664,7 +684,21 @@ omnibox.onInputEntered.addListener((text) => {
     shot.catch(() => {});
     const cut = (a: { x: number; y: number; width: number; height: number }) => crop(shot, a, dpr);
     quietNow = true;
-    return snip(p, (m.blocks as Block[]) ?? [], () => cut(area), cut).finally(() => (quietNow = false));
+    return snip(p, (m.blocks as Block[]) ?? [], area ? () => cut(area) : null, cut).finally(
+      () => (quietNow = false),
+    );
+  }
+  if (m?.type === 'ask-assistant') {
+    const blocks = (m.blocks as Block[]) ?? [];
+    const text = blocks
+      .map((b) => (b.html ? markdown(b.html) : (b.text ?? '')))
+      .filter(Boolean)
+      .join('\n\n')
+      .slice(0, 12000);
+    return ask({ type: 'ask', text, page: { title: here.title, url: here.url } }).catch((e) => ({
+      ok: false,
+      error: msg(e),
+    }));
   }
   if (m?.type === 'save-page' && st?.id != null) {
     const id = st.id;

@@ -103,13 +103,19 @@ pub struct Prefs {
     /// (owner, 2026-11-15: "web push, a switch, off").
     #[serde(default)]
     pub web_push: bool,
+    /// Tabs down the side (Firefox's vertical tabs, always shown) instead of across the top. **Off**
+    /// (owner, 2026-11-16: *"why are we avoiding classic tabs … ideally the number of icons is minimal
+    /// and everything is intuitive"*): classic tabs on top, nothing behind a button. Read by the kit's
+    /// startup script from `browser.json` (Firefox's policies cannot set `sidebar.*`).
+    #[serde(default)]
+    pub side_tabs: bool,
 }
 fn yes() -> bool {
     true
 }
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { open_in_it: true, block_ads: false, web_push: false }
+        Prefs { open_in_it: true, block_ads: false, web_push: false, side_tabs: false }
     }
 }
 fn read_prefs(d: &Path) -> Prefs {
@@ -513,6 +519,7 @@ pub fn status(st: &BrowserState) -> Value {
         "pinned": crate::browser_kit::pin().version,
         "update_ready": d.as_deref().is_some_and(|d| d.join("firefox.next").join("firefox").is_file()),
         "web_push": prefs.web_push,
+        "side_tabs": prefs.side_tabs,
         "running": d.as_deref().is_some_and(crate::browser_kit::running),
         "folder": d.map(|p| p.display().to_string()),
     })
@@ -553,6 +560,9 @@ pub fn route(
             }
             if let Some(b) = v.get("block_ads").and_then(Value::as_bool) {
                 p.block_ads = b;
+            }
+            if let Some(b) = v.get("side_tabs").and_then(Value::as_bool) {
+                p.side_tabs = b;
             }
             if let Some(b) = v.get("web_push").and_then(Value::as_bool) {
                 p.web_push = b;
@@ -653,7 +663,7 @@ mod tests {
             Path::new("/x"),
             "K",
             "http://127.0.0.1:8765",
-            &Prefs { open_in_it: true, block_ads: true, web_push: false },
+            &Prefs { open_in_it: true, block_ads: true, web_push: false, side_tabs: false },
         );
         assert_eq!(
             off["policies"]["ExtensionSettings"][UBLOCK_ID]["installation_mode"],

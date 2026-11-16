@@ -599,6 +599,7 @@ let mockBrowser = {
   open_in_it: true,
   block_ads: false,
   web_push: false,
+  side_tabs: false,
   pinned: '153.7.0esr',
   update_ready: false,
   running: false,

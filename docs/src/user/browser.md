@@ -73,13 +73,16 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 
 - **formicaria sits beside the page**, and **the tabs are for the web**. Drag the line between them
   to make formicaria wider or narrower; the width is kept.
-- **⇆** at the top of formicaria moves it to the **other side** of the page. **⤢** makes it **fill the
+- **⇆** at the top of formicaria moves it around the page: **right, below, left, above**, in turn. **⤢** makes it **fill the
   window** (or double-click the line between them); choosing a page in the tab list puts it back
   beside. **✕ folds it away**; the **ant button** at the left of the toolbar, or **Alt+Shift+F**,
   brings it back.
 - There is **one formicaria**, in one window: opening formicaria again (double-clicking it, say)
   shows it there rather than opening a second one, and a link to a note opens in it. A link in a
   note opens as a tab beside it.
+- **Tabs are across the top**, as in any browser: click to switch, drag to reorder; **scroll over
+  them** to move through them; **Ctrl+Tab** shows your recent tabs as cards to pick from. Prefer them
+  down the side? **Settings → Browser → Tabs down the side** (always shown, never behind a button).
 - **Your tabs come back** when the browser starts again.
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.
@@ -92,6 +95,11 @@ Two things you can do with what you find, and the same words everywhere:
 |---|---|---|
 | **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it. Or right-click it → **Bring into "…"**, or drag it onto formicaria | it goes into **the note in front** in formicaria (its name is on the icon's tooltip and the snip's bar). With no note open, a new note named after the page is made and opened |
 | **the whole page, for later** | **Save the whole page** in the snip's bar, or right-click the page → **Save page in formicaria**, or **Alt+Shift+K** | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
+
+**The snip's bar also offers what the page plainly has**, one press each: **The main text**, **The
+images**, **The table**, or **Save as a recipe** / **Save as a paper** when the page is one. And when
+your assistant is running, **Ask Myrme what matters here**: it reads the page and proposes the
+passages that matter for the note in front, as proposals you accept; nothing is added until you do.
 
 **A snip brings everything in the area, each as itself**, in reading order: paragraphs, headings,
 lists, tables, code, images, links, a video at the moment it was playing. What has no text behind it

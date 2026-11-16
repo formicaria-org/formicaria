@@ -44,16 +44,27 @@
 #formicaria-panel-head > toolbarbutton {
   min-width: 24px;
 }
-#browser:not([formicaria]) > #formicaria-panel,
-#browser:not([formicaria]) > #formicaria-splitter,
-#browser[formicaria="folded"] > #formicaria-panel,
-#browser[formicaria="folded"] > #formicaria-splitter,
-#browser[formicaria="full"] > #tabbrowser-tabbox,
-#browser[formicaria="full"] > #formicaria-splitter {
+#browser:not([formicaria]) #formicaria-panel,
+#browser:not([formicaria]) #formicaria-splitter,
+#browser[formicaria="folded"] #formicaria-panel,
+#browser[formicaria="folded"] #formicaria-splitter,
+#browser[formicaria="full"]:not([formicaria-side="top"]):not([formicaria-side="bottom"]) > #tabbrowser-tabbox,
+#browser[formicaria="full"] #formicaria-splitter,
+#browser[formicaria="full"][formicaria-side="top"] #tabbrowser-tabpanels,
+#browser[formicaria="full"][formicaria-side="bottom"] #tabbrowser-tabpanels {
   visibility: collapse;
 }
-#browser[formicaria="full"] > #formicaria-panel {
+#browser[formicaria="full"] #formicaria-panel {
   flex: 1;
   width: auto !important;
+  height: auto !important;
+  border: none;
+}
+#browser[formicaria-side="top"] #formicaria-panel {
   border-inline-start: none;
+  border-bottom: 1px solid var(--chrome-content-separator-color, rgba(0, 0, 0, 0.15));
+}
+#browser[formicaria-side="bottom"] #formicaria-panel {
+  border-inline-start: none;
+  border-top: 1px solid var(--chrome-content-separator-color, rgba(0, 0, 0, 0.15));
 }

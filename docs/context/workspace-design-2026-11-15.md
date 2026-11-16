@@ -226,6 +226,136 @@ Items 1–3 carry most of the value; 4–6 depend on the browser's shell mode (`
 5. **Densities**: *Essential* and *Full*, chosen per device? Recommended: yes, *Essential* by default on
    the phone.
 
+## 11. One desk for everything: the library model (plan, 2026-11-16; build after 0.37)
+
+> **The owner:** *"Since we are creating an interface to other features (web search, smart devices
+> data…), the overall fm view can use a mixture of techniques in the back but appear uniform in the
+> front (like tabs) … a web feature will require a browser tab but a note feature can have a more
+> lean tab … food, fitness, music have dedicated views but can appear as separate tabs … I would use
+> the library analogy. A library allows to search books but also movies, music, and it allows to sit
+> and write using all that info close to you … we retain the customization and other features, we
+> need a cohesive model that allows them all to be accessed, swapped, edited from the same view."*
+
+### 11.1 The words (a proposal; the owner decides, `decisions.md#ui`: the names never differ by device)
+
+| Word | In the library | In formicaria | Today's word, if any |
+|---|---|---|---|
+| **formicaria** | the library itself | the whole app, every collection and the desk | — |
+| **Collection** | the books, the films, the records: each kind kept and catalogued its own way | Notes, Web, Music, Food, Fitness, Health, Mail, Calendar…, and whatever comes next (a watch) | the groups / places |
+| **View** (a collection's room) | the music room, with its own players and shelves | the dedicated screen of a collection, with its own search, layouts, saved views and settings | view (unchanged) |
+| **Item** | one book, one film | one note, page, song, recipe, workout, conversation, or a saved view | note, page… |
+| **The catalogue** | the one card index across every collection | one search over all collections (Ctrl+K and `fm` in the address bar), results grouped by collection | search |
+| **The desk** | the table you sit at, with what you took out | **the row of tabs**: everything open now, of any collection, side by side or one at a time | tabs, panes, windows |
+| **Shelf** | a shelf you arrange yourself | the person's own grouping inside a collection (unchanged) | shelf |
+| **Source** | where the library acquires from | where items come from (web, mail, calendars, files, a watch): the source contract | source (`data-sources-research` §5) |
+
+**One rename to decide:** the notes' view is called **Library** today. With formicaria itself the
+library, that view would become **Notes** (the collection of books). Recommended, since the analogy
+breaks otherwise; the person's saved views keep their names.
+
+### 11.2 The model: uniform in front, a fitting engine behind
+
+**Everything open is a tab on the desk**, and every tab behaves alike: a title and its collection's
+icon; open, close, reorder by dragging, pin, group, restore after a restart, put beside another. What
+differs is the **engine** behind it, chosen by what the item needs:
+
+| Item | Engine behind its tab | Cost |
+|---|---|---|
+| **A web page** | a real browser tab (Gecko) | a web page's (~65 MB measured) |
+| **A note, a saved view, a collection's view** (Notes, Music, Food, Fitness, Health…) | a **lean tab**: a tab that loads nothing (`about:blank`, never a copy of the app); selecting it shows **the one formicaria** at that item | about nothing per tab; formicaria itself runs once (§16 of `browser-plan`) |
+| **A mail conversation** | a note (it is one today), Reply opening Gmail in a web tab beside it | as a note, plus a page while replying |
+| **A future collection** (a watch's workouts, a mail client) | whichever fits: a lean tab onto its view in formicaria, or a web tab onto its service | declared by the collection |
+
+**Each collection keeps its own view and its own ways** (the Music deck, Food's recipes and day,
+Fitness, saved views, shelves, themes): the desk does not replace them, it **holds** them. A tab onto
+a view remembers the view's state (its filters, its layout), so two tabs can show the same collection
+two ways.
+
+### 11.3 How it looks and behaves (computer)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ [♪ Music] [▣ Food · Today] [📝 Reading] [🌐 Ant – Wikipedia] [🌐 arXiv 1706…] [+]      │ the desk
+│  ←  →  ⟳   [ search everything, or an address …                         ] 🐜  ☰       │
+├─────────────────────────────────────────────┬────────────────────────────────────────┤
+│  📝 Reading (a note: formicaria)             │  🌐 Ant – Wikipedia (a web page)        │
+│                                             │                                        │
+└─────────────────────────────────────────────┴────────────────────────────────────────┘
+```
+
+- **Opening** anything opens it as a tab: a note from a list (or *Open as a tab* on any item), a
+  collection from formicaria's side list, a catalogue result, a link. Middle-click and Ctrl+click
+  open in a new tab, as on the web.
+- **Beside**: drag a tab onto the left or right half of the window to put it beside the one shown:
+  a note beside a page (today's panel), a page beside a page (Firefox's split view), a note beside a
+  note or a view (formicaria's own two panes). One gesture, whatever the engines.
+- **Selecting a lean tab** shows formicaria at that item, filling the content area (or beside the page
+  it was paired with). Selecting a web tab shows the page, and formicaria beside it if the person
+  keeps one there.
+- **Closing a tab** puts the item away; nothing is deleted (as returning a book to its shelf).
+- **Restarting** restores the desk: web tabs as the browser does, lean tabs from their item's address.
+- **The catalogue** (Ctrl+K, or typing in the address bar) searches every collection at once, grouped
+  (Notes, Music, Food, Mail, saved pages…), then offers the web; each collection's own view keeps its
+  own, richer search.
+- **Organising the desk**: tab groups (Firefox's) for a project or a collection (*Research: 3 notes,
+  4 pages*); a group can be **kept as a note** (a reading list) and reopened whole.
+- **formicaria's own list of open windows** (its panes) is shown only outside formicaria's browser (a
+  plain browser, a paired tablet); inside it, **the desk is the list**, so there are never two.
+
+### 11.4 The phone
+
+The same words and the same desk, in a phone's shape (`browser-plan` §14.5, §16):
+- the desk is a **grid of cards** (one per open item, of any collection), swiped away to close,
+  dragged to reorder, the classic phone tab view;
+- one item at a time, full screen; **swipe sideways** between neighbours on the desk;
+- a note **beside a page** is the note as a sheet over the page (`data-sources-research` §11.4);
+- web pages run in GeckoView, started only when a page is opened; everything else is formicaria's
+  own screens.
+
+### 11.5 What each collection declares (the cohesive part)
+
+One small description per collection, in code, so a new one (Mail, a watch) plugs in without new
+desk machinery:
+- its **name and icon**;
+- its **view** (the screen) and how a tab onto it saves the view's state;
+- its **item kinds** and their **address** (`fm://notes/<id>`, `fm://music/<song>`, `fm://web/<url>`:
+  the same addresses the assistant uses, `data-sources-research` §7);
+- its **engine** (lean tab, or web tab and onto what);
+- its **catalogue provider** (how the one search asks it);
+- its **sources** (the source contract's catalog: what feeds it).
+
+### 11.6 Build order (after 0.37), each step measured and in `browser-check`
+
+| Step | What | Done when |
+|---|---|---|
+| D0 | **The words** decided (11.1), the Library → Notes rename if agreed | a `decisions.md` entry; the manual's terms |
+| D1 | **Lean tabs for notes**: *Open as a tab*, middle-click on a note link; a tab that loads nothing, its item kept across restarts (Firefox's session store keeps a tab attribute); selecting shows formicaria at the note | memory per lean tab ≈ 0 and switching under 100 ms, measured; restored after a restart |
+| D2 | **Collections as tabs**: Notes, Music, Food, Fitness, Health, saved views; each tab keeps its view's state; formicaria's own window list hidden inside its browser | each collection opens as a tab and comes back as it was |
+| D3 | **Beside, one gesture**: drag a tab to a half of the window, whatever the two engines | note+page, page+page, note+note |
+| D4 | **The catalogue**: one search over all collections, in Ctrl+K and the address bar | every collection answers; results open as tabs |
+| D5 | **The collection description** (11.5) in code; Mail as the first collection on it | a new collection needs no desk changes |
+| D6 | **The phone's desk** (11.4), with its browser (R2) | the same names, cards, swipe |
+
+### 11.7 Risks
+
+- **Firefox's tab internals** (lazy tabs, session attributes) can move between ESR majors: few hooks,
+  each exercised by `browser-check`, as for the panel.
+- **Two lists of what is open** is the failure to avoid: inside formicaria's browser the desk is the
+  only one.
+- **A rename confuses** people who know *Library*: the manual and a one-time line say it.
+- **Memory**: lean tabs must stay lean; a tab that silently loaded the app would multiply it (measured
+  per step).
+
+### 11.8 Questions for the owner
+
+1. **The words** of 11.1, and **Library → Notes**? Recommended: yes.
+2. **Selecting a note's tab**: fill the window with formicaria, or keep the page it was beside?
+   Recommended: fill; *beside* is one drag (11.3).
+3. **Collections in tab groups automatically** (a Food group, a Research group), or only when the
+   person makes one? Recommended: only when made; automatic grouping surprises.
+4. **The phone's bottom bar** (Today · Inbox · Search · Places · Tabs, §4) becomes **Today · Desk ·
+   Catalogue · Collections**? Recommended: yes, the same words everywhere.
+
 ## Sources
 
 [Vivaldi 4.0 mail, calendar, feeds](https://liliputing.com/vivaldi-web-browser-gains-translation-mail-calendar-and-feed-reader-functions-in-version-4-0/) ·

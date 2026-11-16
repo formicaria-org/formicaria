@@ -53,7 +53,12 @@
       said = e instanceof Error ? e.message : String(e);
     }
   }
-  async function set(p: { open_in_it?: boolean; block_ads?: boolean; web_push?: boolean }) {
+  async function set(p: {
+    open_in_it?: boolean;
+    block_ads?: boolean;
+    web_push?: boolean;
+    side_tabs?: boolean;
+  }) {
     st = await browserSet(p);
   }
   async function openNow() {
@@ -152,6 +157,17 @@
               onchange={(e) => set({ web_push: (e.currentTarget as HTMLInputElement).checked })}
             />
             <span>Let sites send notifications while their tab is closed</span>
+          </label>
+        </li>
+        <li>
+          <label class="switch-line">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={st.side_tabs ?? false}
+              onchange={(e) => set({ side_tabs: (e.currentTarget as HTMLInputElement).checked })}
+            />
+            <span>Tabs down the side instead of across the top</span>
           </label>
         </li>
         {#if bridged()}

@@ -1495,4 +1495,6 @@ export interface BrowserStatus {
   running?: boolean;
   /** Sites may notify while their tab is closed (off by default). */
   web_push?: boolean;
+  /** Tabs down the side (always shown) instead of across the top. */
+  side_tabs?: boolean;
 }

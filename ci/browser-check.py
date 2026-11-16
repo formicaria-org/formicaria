@@ -260,20 +260,32 @@ def bring_in(m: "Marionette") -> dict:
     if not all(out.values()):
         print(f"browser-check: the note read {body!r}")
     out["page_in_notes"] = any(n.get("id") == nid for n in post("/api/page_notes", {"url": TEST_PAGE}))
-    # The panel moves to the left of the page, and formicaria is still in it.
+    # The panel moves below the page, then to its left (⇆ steps right, below, left, above), and
+    # formicaria is still in it each time.
     m.cmd("Marionette:SetContext", {"value": "chrome"})
     side = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER], "script": """
         const done = arguments[arguments.length - 1];
-        document.getElementById('formicaria-panel-side').doCommand();
-        setTimeout(() => {
-          const b = document.getElementById('browser');
+        const press = () => document.getElementById('formicaria-panel-side').doCommand();
+        const look = () => {
           const p = document.getElementById('formicaria-panel').getBoundingClientRect();
-          const t = document.getElementById('tabbrowser-tabbox').getBoundingClientRect();
-          done({ side: b.getAttribute('formicaria-side'), left: p.left < t.left,
-                 ours: (document.getElementById('formicaria-browser').currentURI?.spec || '').startsWith(arguments[0]) });
-          document.getElementById('formicaria-panel-side').doCommand();
+          const t = document.getElementById('tabbrowser-tabpanels').getBoundingClientRect();
+          return { side: document.getElementById('browser').getAttribute('formicaria-side'),
+                   below: p.top >= t.bottom - 1, left: p.right <= t.left + 1,
+                   ours: (document.getElementById('formicaria-browser').currentURI?.spec || '').startsWith(arguments[0]) };
+        };
+        press();
+        setTimeout(() => {
+          const bottom = look();
+          press();
+          setTimeout(() => {
+            const left = look();
+            press(); press();
+            done({ bottom, left });
+          }, 3000);
         }, 3000);"""})["value"]
-    out["panel_left"] = side.get("side") == "left" and side.get("ours") is True
+    b, l = side.get("bottom", {}), side.get("left", {})
+    out["panel_bottom"] = b.get("side") == "bottom" and b.get("below") is True and b.get("ours") is True
+    out["panel_left"] = l.get("side") == "left" and l.get("left") is True and l.get("ours") is True
     return out
 
 
@@ -352,7 +364,7 @@ def settings_page(ff: Path, work: Path) -> dict:
             seen.update(bring_in(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: bring in: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left"):
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -430,6 +442,9 @@ def main() -> None:
             "only the add-on line is locked": first.get("signaturesLocked") is True,
             "Sync and the Mozilla account are available": first.get("accountsAvailable") is True,
             "split view is on": first.get("splitView") is True,
+            "tabs are classic, on top, in view": first.get("tabsOnTop") is True,
+            "scrolling over the tabs switches them": first.get("scrollSwitches") is True,
+            "the sidebar's button is gone": first.get("sidebarButtonGone") is True,
             "Mozilla's telemetry is off by policy": "DisableTelemetry" in first.get("policies", []),
             "Firefox's updater is off by policy": "DisableAppUpdate" in first.get("policies", []),
             "the Mozilla account is not disabled": "DisableFirefoxAccounts" not in first.get("policies", []),
@@ -458,6 +473,7 @@ def main() -> None:
             "bring in: the chip after a selection brings it in": page.get("bring_chip") is True,
             "snip: an area brings its text, image and table in, each as itself": page.get("snip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
+            "the panel moves below the page, formicaria still in it": page.get("panel_bottom") is True,
             "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
         for name, ok in checks.items():

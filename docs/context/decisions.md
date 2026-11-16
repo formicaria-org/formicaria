@@ -14915,3 +14915,25 @@ formicaria icon"*.
    brought in ends with the page at the passage and when; a web app's `#/…` route is kept in those
    links; a kept image also links its original address.
 5. **The address-bar icon is formicaria's mark** (outlined; filled red when notes name the page).
+
+## 2026-11-16 (later) — classic tabs on top; the panel on any side; the snip suggests; the assistant proposes `#ui` `#agent`
+
+**Context.** The owner: *"switching between tabs … I need to reach top right, toggle an icon and then
+see the list … why are we avoiding classic tabs … Ideally, the number of icons is minimal and
+everything is intuitive"*; then *"yes, then complete the full plan and release"*. The cause on their
+browser: vertical tabs (set by the kit for the old "notes as entries of the tab list" plan) with the
+sidebar left hidden by 0.32's sidebar, so every tab was behind a button.
+
+**Decided.**
+1. **Tabs across the top, classic**, by default; down the side only as a choice in Settings →
+   Browser (`side_tabs` in `browser.json`, read by the kit's startup script, since Firefox's policies
+   cannot set `sidebar.*`), and then always shown. Scrolling over the tabs switches them; Ctrl+Tab
+   shows recent tabs as cards. The sidebar's and Firefox View's buttons leave the toolbar (once; the
+   person can put them back).
+2. **formicaria's panel goes on any side**: ⇆ steps right, below, left, above. Above and below, it sits
+   inside the page area's own box beside the pages (which never move), so the divider resizes heights.
+3. **The snip's bar suggests** what a page plainly has (the main text, the images, the tables; *Save
+   as a recipe/paper* when it is one), one press each.
+4. **Ask the assistant what matters here** (only when one is running and a note is in front): a
+   discussion about that note, the page quoted as material and not as instructions; Myrme answers
+   with proposals the person accepts (the existing write path), so nothing is written unasked.

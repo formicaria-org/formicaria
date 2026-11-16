@@ -28,6 +28,8 @@ interface Result {
   alt?: { label: string; token: string };
   open?: string;
   what?: string;
+  /** A sentence of its own, instead of *Into "…"*. */
+  say?: string;
 }
 
 const CANDIDATES =
@@ -70,6 +72,11 @@ export function blocksIn(area: DOMRect): Block[] {
     if (kept.some((k) => k.contains(el))) continue;
     kept.push(el);
   }
+  return toBlocks(kept);
+}
+
+/** Elements, outermost and in reading order, as the blocks the background turns into the note. */
+function toBlocks(kept: Element[]): Block[] {
   const out: Block[] = [];
   const box = (el: Element) => {
     const r = el.getBoundingClientRect();
@@ -110,6 +117,53 @@ export function blocksIn(area: DOMRect): Block[] {
   return out;
 }
 
+/** The outermost of `els`, in document order. */
+function outermost(els: Element[]): Element[] {
+  const kept: Element[] = [];
+  for (const el of els) if (!kept.some((k) => k.contains(el))) kept.push(el);
+  return kept;
+}
+
+/** **Suggestions** (research §11.4): what a page plainly offers, one press each. */
+export function suggestions(): { label: string; blocks?: Block[]; save?: boolean }[] {
+  const out: { label: string; blocks?: Block[]; save?: boolean }[] = [];
+  const has = (q: string) => !!document.querySelector(q);
+  const ld = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+    .map((s) => s.textContent ?? '')
+    .join(' ');
+  if (/"@type"\s*:\s*(\[[^\]]*)?"Recipe"/.test(ld)) out.push({ label: 'Save as a recipe', save: true });
+  if (has('meta[name="citation_title"]')) out.push({ label: 'Save as a paper', save: true });
+  // The main text: the page's own <article>/<main>, else the element holding the most paragraph text.
+  let main = document.querySelector('article, main, [role="main"]');
+  if (!main) {
+    let best = 0;
+    for (const p of Array.from(document.querySelectorAll('p'))) {
+      const parent = p.parentElement;
+      if (!parent) continue;
+      const len = Array.from(parent.children)
+        .filter((c) => c.tagName === 'P')
+        .reduce((n, c) => n + (c.textContent ?? '').length, 0);
+      if (len > best) {
+        best = len;
+        main = parent;
+      }
+    }
+  }
+  if (main && (main.textContent ?? '').trim().length > 200) {
+    const parts = outermost(
+      Array.from(main.querySelectorAll('h1,h2,h3,h4,h5,h6,p,ul,ol,blockquote,pre,table,figure')),
+    );
+    if (parts.length) out.push({ label: 'The main text', blocks: toBlocks(parts) });
+  }
+  const images = Array.from(document.images).filter((i) => i.naturalWidth >= 120 && i.naturalHeight >= 120);
+  if (images.length)
+    out.push({ label: images.length === 1 ? 'The image' : `The ${images.length} images`, blocks: toBlocks(images) });
+  const tables = Array.from(document.querySelectorAll('table')).filter((t) => t.rows.length > 1);
+  if (tables.length)
+    out.push({ label: tables.length === 1 ? 'The table' : `The ${tables.length} tables`, blocks: toBlocks(tables) });
+  return out.slice(0, 4);
+}
+
 const STYLE = `
   :host { all: initial; }
   .veil { position: fixed; inset: 0; z-index: 2147483646; cursor: crosshair; background: rgba(0,0,0,.12); }
@@ -124,6 +178,7 @@ const STYLE = `
   button { all: initial; cursor: pointer; font: 13px/1 system-ui, sans-serif; color: #fff; background: #3a3a46;
     padding: 6px 10px; border-radius: 999px; }
   button:hover { background: #dc2626; }
+  .suggest { background: #5b2323; }
   .list { position: fixed; z-index: 2147483647; left: 50%; top: 48px; transform: translateX(-50%);
     width: min(420px, 90vw); max-height: 50vh; overflow: auto; font: 13px/1.35 system-ui, sans-serif;
     color: #1d1d22; background: #fff; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25); padding: 6px; }
@@ -151,7 +206,11 @@ const el = (tag: string, cls: string, text = '') => {
 export function bubble(at: { x: number; y: number }, r: Result) {
   const { host, root } = shadowHost('formicaria-bubble');
   const b = el('div', 'bubble');
-  const say = el('span', '', r.ok ? `Into “${r.title ?? 'your note'}”` : `Not brought in: ${r.error ?? ''}`);
+  const say = el(
+    'span',
+    '',
+    r.ok ? (r.say ?? `Into “${r.title ?? 'your note'}”`) : `Not brought in: ${r.error ?? ''}`,
+  );
   b.append(say);
   const close = () => host.remove();
   if (r.ok && r.alt) {
@@ -211,13 +270,54 @@ export function startSnip(from?: { x: number; y: number }) {
   const label = el('span', '', 'Drag over what to bring in');
   const save = el('button', '', 'Save the whole page');
   const cancel = el('button', '', 'Cancel');
-  bar.append(label, save, cancel);
+  bar.append(label);
+  // What the page plainly offers, one press each, before drawing anything.
+  for (const sg of suggestions()) {
+    const b = el('button', 'suggest', sg.label);
+    b.onclick = async () => {
+      stop();
+      if (sg.save) {
+        const r = await browser.runtime.sendMessage<Result>({ type: 'save-page' });
+        bubble({ x: innerWidth / 2 - 160, y: 12 }, r ?? { ok: false, error: 'no answer' });
+        return;
+      }
+      const r = await browser.runtime
+        .sendMessage<Result>({ type: 'snip', blocks: sg.blocks ?? [], area: null, dpr: devicePixelRatio })
+        .catch((e) => ({ ok: false, error: String(e) }) as Result);
+      bubble({ x: innerWidth / 2 - 160, y: 12 }, r ?? { ok: false, error: 'no answer' });
+    };
+    bar.append(b);
+  }
+  bar.append(save, cancel);
   root.append(veil, area, bar);
 
-  void browser.runtime.sendMessage<{ front?: string; notes?: { id: string; title: string; context: string }[] }>({
-    type: 'snip-info',
-  }).then((info) => {
+  void browser.runtime
+    .sendMessage<{
+      front?: string;
+      assistant?: string;
+      notes?: { id: string; title: string; context: string }[];
+    }>({ type: 'snip-info' })
+    .then((info) => {
     label.textContent = info?.front ? `Drag over what to bring into “${info.front}”` : 'Drag over what to bring into a new note';
+    // **Ask the assistant what matters here**: only when one is running and a note is in front.
+    if (info?.assistant && info.front) {
+      const main = suggestions().find((sg) => sg.label === 'The main text');
+      const asking = el('button', 'suggest', `Ask ${info.assistant} what matters here`);
+      asking.onclick = async () => {
+        stop();
+        const blocks: Block[] = main?.blocks ?? [
+          { kind: 'text', html: '', text: (document.body.innerText ?? '').slice(0, 12000) },
+        ];
+        const r = await browser.runtime.sendMessage<Result>({ type: 'ask-assistant', blocks });
+        bubble(
+          { x: innerWidth / 2 - 160, y: 12 },
+          r?.ok
+            ? { ok: true, say: `${info.assistant} is reading it; its suggestions will come as proposals to accept` }
+            : (r ?? { ok: false, error: 'no answer' }),
+        );
+      };
+      bar.insertBefore(asking, save);
+    }
     const notes = info?.notes ?? [];
     if (!notes.length) return;
     const inNotes = el('button', '', notes.length === 1 ? 'In one of your notes' : `In ${notes.length} of your notes`);

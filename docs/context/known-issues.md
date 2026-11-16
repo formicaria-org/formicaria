@@ -31,6 +31,10 @@ trap, add one. Newest concerns first within each section.
   kit loudly (the swap refuses) and the previous copy stays.
 - **A GET carrying no `Origin` is still accepted on loopback** (blob reads by content address); as
   before, not widened.
+- **Not built yet, on purpose** (2026-11-16): the phone's half of *Bring in* (its browser, R2, and a
+  device for G0); Gadgetbridge as a source (needs a watch's files; `training-coach-plan` P1); Myrme's
+  per-source switches (in Myrme's repository). *Ask Myrme what matters here* uses the existing
+  discussion → proposal path, so it writes nothing without the person's acceptance.
 - **Snip (0.36)**: the area's blocks are those at least half inside it, so a paragraph cut in half by
   the edge comes whole or not at all; a picture of the area is the visible view only (no scrolling
   while snipping); synthetic Ctrl+Shift events drive the gate's test, the real drag is by hand.
@@ -39,7 +43,8 @@ trap, add one. Newest concerns first within each section.
   and narrow use the wheel; no touch version until the phone. An image the page made itself (a
   `blob:` address) comes as a link. *Undo* and the alternatives find what came in by its text, so
   after the person edits it they say so rather than guess. The panel moving sides reloads formicaria
-  (a moved browser starts empty); top and bottom are not offered yet.
+  (a moved browser starts empty); above and below the page it sits inside the page area's own box
+  (its divider resizes heights).
 - **formicaria's panel lives in one window**: another window's ant button brings that window forward
   rather than moving the panel (moving a live page between windows is possible in Firefox, not done).
 - **The add-on's background page is persistent** now (it holds the bridge's port to the panel), a few

@@ -53,6 +53,9 @@ export interface Handlers {
   target(): { id: string; title: string } | null;
   /** Make a note named after the page and open it, for a bring-in with no note in front. */
   create(title: string): Promise<{ id: string; title: string } | null>;
+  /** Ask the assistant which parts of a page matter for the note in front (a discussion it answers
+   *  with proposals the person accepts). Answers the discussion's id. */
+  ask(page: { title: string; url: string }, text: string): Promise<string | null>;
 }
 
 const ID = /^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$/;
@@ -70,7 +73,8 @@ type Accepted =
       quiet: boolean;
     }
   | { n: number; type: 'replace'; id: string; from: string; to: string }
-  | { n: number; type: 'toast'; text: string; id?: string };
+  | { n: number; type: 'toast'; text: string; id?: string }
+  | { n: number; type: 'ask'; text: string; page: { title: string; url: string } };
 
 const str = (v: unknown, max = 100_000) => (typeof v === 'string' && v.length <= max ? v : null);
 
@@ -111,6 +115,17 @@ export function accepted(
     if (from == null || to == null || !from) return null;
     return { n, type: 'replace', id: m.note.toUpperCase(), from, to };
   }
+  if (m.type === 'ask') {
+    const text = str(m.text, 20_000);
+    const page = (m.page ?? {}) as Record<string, unknown>;
+    if (!text?.trim()) return null;
+    return {
+      n,
+      type: 'ask',
+      text,
+      page: { title: str(page.title, 500) ?? '', url: str(page.url, 4000) ?? '' },
+    };
+  }
   if (m.type === 'toast') {
     const text = str(m.text, 500);
     if (!text) return null;
@@ -142,6 +157,17 @@ export function listen(h: Handlers): () => void {
     if (m.type === 'open') {
       h.open(m.id);
       reply(m.n, { ok: true });
+      return;
+    }
+    if (m.type === 'ask') {
+      void h.ask(m.page, m.text).then(
+        (id) =>
+          reply(
+            m.n,
+            id ? { ok: true, note: id } : { ok: false, error: 'Open the note it is for first.' },
+          ),
+        (e) => reply(m.n, { ok: false, error: String(e) }),
+      );
       return;
     }
     if (m.type === 'toast') {

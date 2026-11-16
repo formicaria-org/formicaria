@@ -352,6 +352,10 @@ copy of Firefox ESR 153.7.0.
 > actual content through assets or just a link for the heavy ones … more than one action done in
 > different ways doing the same could help."*
 
+> **Status (2026-11-16, 0.37):** the computer's half is built: the two verbs, the chip at the
+> pointer, the snip (with suggestions and *Ask Myrme what matters here*), Pick, drops, the bubble with
+> Undo, the exact source, the panel on any side, classic tabs. The phone's half waits for its browser.
+
 ### 11.1 What exists (searched 2026-11-15)
 
 - **Firefox's screenshot tool** picks the element under the pointer and climbs to a sensible ancestor
