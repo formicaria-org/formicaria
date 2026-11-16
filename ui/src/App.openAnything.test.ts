@@ -71,3 +71,33 @@ it('an address chosen in Open… is said as a page for the browser to load', asy
     true,
   );
 });
+
+it('Ctrl+click or a middle click on a note opens it in a tab of its own', async () => {
+  const [made] = (await mock.handle('create_notes', {
+    notes: [{ title: 'Tabbed away', body: 'Here.', props: {} }],
+  })) as { id: string }[];
+  const sent: Record<string, unknown>[] = [];
+  const post = window.postMessage.bind(window);
+  window.postMessage = ((m: { formicaria_up?: Record<string, unknown> }, o: string) => {
+    if (m?.formicaria_up) sent.push(m.formicaria_up);
+    post(m, o);
+  }) as typeof window.postMessage;
+  try {
+    location.hash = '#open&tab';
+    render(App);
+    const field = await screen.findByRole('searchbox', { name: 'search your notes or the web' });
+    await fireEvent.keyDown(field, { key: 'Escape' });
+    // The search under the bar lists it; a Ctrl+click asks the browser for a tab.
+    const search = screen.getAllByRole('searchbox', { name: 'search notes' })[0];
+    await fireEvent.input(search, { target: { value: 'Tabbed' } });
+    const hit = await screen.findByRole('button', { name: /Tabbed away/ });
+    await fireEvent.click(hit, { ctrlKey: true });
+    await waitFor(() =>
+      expect(sent).toContainEqual({ up: 'open-tab', address: `note:${made.id}`, title: '' }),
+    );
+    // It opened in its own tab, not here.
+    expect(screen.queryByText('Here.')).toBeNull();
+  } finally {
+    window.postMessage = post;
+  }
+});

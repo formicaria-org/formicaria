@@ -99,12 +99,18 @@ The phone's way to bring something into a study room, from any app:
   go to it, **swipe a note's card aside** to close it.
 
 - **Web pages, inside formicaria**: a web link in a note opens the page as an item of your collection,
-  in the same place a note would be, with the bottom bar kept. **‹** goes back in the page; **⇥** brings
+  in the same place a note would be, with the bottom bar kept. **‹**, or Android's **Back**, goes back in
+  the page (Back leaves it once there is nowhere further back); **⇥** brings
   what you selected (or the page itself, as a link) into the note you came from, quoted with the page's
   exact address. The page stays where you left it while you go elsewhere; swipe its card aside to
   close it.
 - **Switch back in one press**: the button at the bottom beside your collection shows the item you had
   before (a note, a view, a page); press it to go there, and again to come back.
+- **Two together, when you ask**: in your collection, a card's **with this one** button shows that item
+  with the one in front, one above the other; tap either to work in it. **One at a time** at the top of
+  the cards (or choosing a card) goes back to one.
+- **Open a web page, or anything**: the views button at the bottom → **Open…**: type to find a note, or
+  a web address (*Go to …*), or words to search the web; the page opens inside formicaria.
 
 Share or the selection menu of any other app still brings what you choose into formicaria.
 

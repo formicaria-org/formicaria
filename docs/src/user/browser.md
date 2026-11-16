@@ -74,8 +74,9 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 - **Every tab is one thing**, of any kind: a web page, a note, a view (Board, Agenda, Shelves…), a
   section. Choosing a tab shows that one thing, filling the window. formicaria's tabs carry its icon.
 - **Moving inside formicaria moves its tab**: open a note from the board, and that tab is now the
-  note, as following a link moves a page's tab. To keep both, choose *Open as a tab* in a note's **＋**
-  (Options); a link to a web page in a note opens the page in a tab of its own.
+  note, as following a link moves a page's tab. To keep both, **Ctrl+click or middle-click** the note
+  (on a board, in a list, in search): it opens in a tab of its own, as a link would. *Open as a tab* in
+  a note's **＋** (Options) does the same; a link to a web page in a note opens the page in its own tab.
 - **＋ (or Ctrl+T) opens *Open…*** in a new tab: one field for your notes and the web. Type and pick a
   note; or a web address (*Go to …*), or *Search the web for …* with the browser's own search engine,
   and the tab becomes that page. With nothing typed, it offers a new note and the sections.

@@ -119,6 +119,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -431,6 +432,8 @@ class MainActivity : TauriActivity() {
   /// WebView per item, kept while the item is open, so a page switched away from and back is where
   /// it was. A page is the web's: no bridge into it, nothing of formicaria's inside it.
   private val pages = HashMap<String, WebView>()
+  /** The page item drawn last (the one in front when two are shown together). */
+  private var lastShown: String? = null
 
   private fun tellApp(id: String, page: WebView) {
     val d = JSONObject().put("id", id).put("title", page.title ?: "").put("url", page.url ?: "")
@@ -474,6 +477,7 @@ class MainActivity : TauriActivity() {
         page.layoutParams = lp
         page.visibility = View.VISIBLE
         page.bringToFront()
+        lastShown = id
       }
     }
 
@@ -527,6 +531,22 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(Share(), "__fmShare")
     // Web pages as items of the collection, drawn where the app says. See `Pages`.
     webView.addJavascriptInterface(Pages(), "__fmPage")
+    // **Back goes back in the page first**, as in any browser: while a page item is shown and has
+    // somewhere to go back to. Otherwise Back is the app's (wry's callback, registered before this
+    // one, so this one is asked first).
+    onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+      override fun handleOnBackPressed() {
+        val shown = pages.filter { it.value.visibility == View.VISIBLE }
+        val page = shown[lastShown] ?: shown.values.firstOrNull()
+        if (page != null && page.canGoBack()) {
+          page.goBack()
+          return
+        }
+        isEnabled = false
+        onBackPressedDispatcher.onBackPressed()
+        isEnabled = true
+      }
+    })
     current = java.lang.ref.WeakReference(this)
 
     // **Applied before the page's own CSS**, on every navigation, so there is no frame in which

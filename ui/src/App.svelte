@@ -241,6 +241,7 @@
    *  left implicit:** the phone picks windows from a menu, and closing that menu used to step history
    *  back onto the window you had just left (v0.6.2, reported on a user's phone the same day). */
   function selectWindow(i: number) {
+    besideId = null;
     focused = i;
     persistWorkspace();
     moved();
@@ -293,6 +294,7 @@
     const closing = workspace.panes.find((p) => p.id === id);
     if (!closing || isView(closing)) return;
     const wasFront = workspace.panes[focused]?.id === id;
+    if (wasFront || besideId === id) besideId = null;
     if (closing.kind === 'page')
       (globalThis as { __fmPage?: { close(id: string): void } }).__fmPage?.close(id);
     const filtered = workspace.panes.filter((p) => p.id !== id);
@@ -852,6 +854,15 @@
     const isGroup = (t: { key: string }) => t.key.startsWith('group:');
     // (A shipped view of Library or Tasks is in the group's own entry, added just below.)
     return [
+      // **Open…** (a note found, a section, a web page): the same screen as a new tab in formicaria's
+      // browser, first in the list on every device.
+      {
+        key: 'open',
+        label: 'Open…',
+        icon: 'search',
+        saved: false,
+        run: () => (launching = true),
+      },
       ...BUILTIN_SPACES.map((s) => ({
         key: `group:${s.name}`,
         label: s.label ?? s.name,
@@ -867,7 +878,7 @@
   /// icons cannot afford and a list you filter can (`decisions.md#ui`, 2026-10-12, *the names
   /// never differ*). The phone's view menu reads `viewTargets` itself.
   let paletteTargets = $derived([
-    ...viewTargets,
+    ...viewTargets.filter((t) => t.key !== 'open'),
     ...targetsFrom(OPENABLE_PANES.filter((b) => !RAIL_PANES.includes(b))).filter(
       (t) => !t.key.startsWith('group:') && !t.saved,
     ),
@@ -1786,11 +1797,21 @@
   const frontId = $derived(workspace.panes[focused]?.id);
   let prevId = $state<string | null>(null);
   let lastFront: string | undefined;
+  /** **Two together, only when asked** (the owner, 2026-11-16): the item shown with the one in
+   *  front, from a card's *With this one*; one at a time again from the cards or the switch. */
+  let besideId = $state<string | null>(null);
   $effect(() => {
     const id = frontId;
-    if (lastFront && id && id !== lastFront) prevId = lastFront;
+    if (lastFront && id && id !== lastFront) {
+      prevId = lastFront;
+      // A tap in the other of the two brings it in front; the two stay together.
+      if (besideId === id) besideId = lastFront;
+    }
     lastFront = id;
   });
+  const besideIndex = $derived(
+    workspace.panes.findIndex((p) => p.id === besideId && p.id !== frontId),
+  );
   const prevIndex = $derived(workspace.panes.findIndex((p) => p.id === prevId && p.id !== frontId));
   const focusedFeed = $derived(
     focusedPane && feedKey(focusedPane) ? feeds[feedKey(focusedPane) ?? ''] : undefined,
@@ -2150,8 +2171,36 @@
 
   // Open an existing note (from a card click) — as a pane, deduped.
   function openNote(id: string) {
+    // **A new tab, as a link would** (`decisions.md` 2026-11-16, night, last): Ctrl+click or a middle
+    // click in formicaria's browser opens the note in a tab of its own, beside this one.
+    if (bridged() && Date.now() - newTabClick < 800) {
+      newTabClick = 0;
+      bridgeUp({ up: 'open-tab', address: `note:${id}`, title: '' });
+      return;
+    }
     openNoteInPane(id);
   }
+  let newTabClick = 0;
+  $effect(() => {
+    if (!bridged()) return;
+    const mark = (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) newTabClick = Date.now();
+    };
+    // A middle click fires no click on a button: it is turned into a Ctrl+click on the same thing.
+    const middle = (e: MouseEvent) => {
+      if (e.button !== 1 || !(e.target instanceof Element) || e.target.closest('a[href]')) return;
+      e.preventDefault();
+      e.target.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }),
+      );
+    };
+    document.addEventListener('click', mark, true);
+    document.addEventListener('auxclick', middle, true);
+    return () => {
+      document.removeEventListener('click', mark, true);
+      document.removeEventListener('auxclick', middle, true);
+    };
+  });
 
   // **A note named in the address, `#note=<id>`** (`decisions.md` 2026-11-15): where formicaria's
   // browser add-on sends the person after it keeps a page — to the note it just wrote. Read at start
@@ -2294,8 +2343,13 @@
   });
   /** A web address or a web search chosen in *Open…*: this tab becomes that page. */
   function openWeb(at: string) {
-    sayAt(at, '');
     launching = false;
+    // In formicaria's browser the tab becomes the page; elsewhere (the phone) it is a page item.
+    if (bridged()) return sayAt(at, '');
+    const url = at.startsWith('web:')
+      ? at.slice(4)
+      : `https://duckduckgo.com/?q=${encodeURIComponent(at.slice(7))}`;
+    focusOrOpen('page', { url, pageTitle: null });
   }
   let toldFront = '';
   $effect(() => {
@@ -2961,7 +3015,12 @@
 {:else if !vaults}
   <Starting error={bootError} attempts={bootAttempts} waitedMs={bootWaited} onretry={loadVaults} />
 {:else}
-  <div class="app" data-layout={workspace.layout ?? 'single'} class:panel-collapsed={!panelOpen}>
+  <div
+    class="app"
+    data-layout={workspace.layout ?? 'single'}
+    class:panel-collapsed={!panelOpen}
+    class:paired={(workspace.layout ?? 'single') === 'single' && besideIndex >= 0}
+  >
     <!-- **One set of controls, two placements.** Wide: a vertical panel down the left, holding
        everything. Narrow: the same element as a bar along the bottom, where a thumb can reach it.
        Nothing is duplicated and nothing is platform-branched — it is the container that changes,
@@ -3236,6 +3295,19 @@
               aria-label="open windows"
               use:popup
             >
+              {#if besideIndex >= 0}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="window-pick"
+                    onclick={() => {
+                      windowsOpen = false;
+                      besideId = null;
+                    }}>One at a time</button
+                  >
+                </li>
+              {/if}
               {#each workspace.panes as pane, i (pane.id)}
                 {@const icon = paneIcon(pane)}
                 <li
@@ -3275,6 +3347,21 @@
                     {/if}
                     <span class="window-name">{paneTitle(pane)}</span>
                   </button>
+                  {#if i !== focused && (besideIndex < 0 || i !== besideIndex)}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="window-close"
+                      aria-label="show {paneTitle(pane)} with this one"
+                      title="Show it together with the one in front"
+                      onclick={() => {
+                        windowsOpen = false;
+                        besideId = pane.id;
+                      }}
+                    >
+                      <Icon name="list" size={14} />
+                    </button>
+                  {/if}
                   {#if !isView(pane)}
                     <button
                       type="button"
@@ -3787,7 +3874,7 @@
 
       {#if launching}
         <OpenAnything
-          places={viewTargets}
+          places={viewTargets.filter((t) => t.key !== 'open')}
           onnote={(id) => {
             launching = false;
             openNoteInPane(id);
@@ -3812,6 +3899,7 @@
           <div
             class="cell"
             class:active={i === focused}
+            class:beside={i === besideIndex}
             style="grid-column: span {Math.min(
               pane.colSpan,
               workspace.cols,
@@ -4215,6 +4303,25 @@
   }
   .cell:not(.active) {
     display: var(--cell);
+  }
+  /* **Two together** (`besideId`): the one in front and the one chosen, halves of the screen, top
+     and bottom on a phone, side by side on a wider one. */
+  .app.paired {
+    --ws-cols: minmax(0, 1fr);
+    --ws-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  @media (min-width: 40rem) {
+    .app.paired {
+      --ws-cols: repeat(2, minmax(0, 1fr));
+      --ws-rows: minmax(0, 1fr);
+    }
+  }
+  .app.paired .cell.beside {
+    display: flex;
+  }
+  .app.paired .cell {
+    grid-column: auto !important;
+    grid-row: auto !important;
   }
 
   .body {

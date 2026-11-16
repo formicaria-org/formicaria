@@ -15183,3 +15183,13 @@ ask"*; then *"go to the phone and unifying UI. Myrme last"*.
 4. A formicaria tab given a web address (typed in the address bar) becomes a page.
 
 Firefox stays the shell: the tab row, the address bar, the window.
+
+## 2026-11-16 (night, last, phone) — two together on the phone; *Open…* on the phone `#ui`
+
+The owner's answers on the phone layout (*two together only when I ask*) and *"keep building the phone part"*.
+1. **Two together**: a collection card's *with this one* shows that item with the one in front
+   (`besideId`): halves of the screen, top and bottom on a phone, side by side when wider. A tap in
+   either brings it in front and keeps the two; *One at a time*, choosing a card, the switch or closing
+   either goes back to one. Pages pair too: each draws itself over its own half.
+2. ***Open…* on the phone**, from the view menu: the same screen as a new tab in formicaria's browser;
+   a web address or a search opens a page item (the search on DuckDuckGo, the browser's default).
