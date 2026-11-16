@@ -48,7 +48,9 @@ test('the phone gets the same help, and the full manual from its own copy', asyn
   // `__TAURI_INTERNALS__`, but setting that without a bridge sends every command into nothing.
   asPhone();
   render(App);
-  await fireEvent.click(await screen.findByRole('button', { name: 'help' }));
+  // On the phone, Help is in the one bar's ≡ (`decisions.md` 2026-11-17, *one frame*).
+  await fireEvent.click(await screen.findByRole('button', { name: "formicaria's options" }));
+  await fireEvent.click(screen.getByRole('menuitem', { name: 'Help' }));
   const dialog = await screen.findByRole('dialog', { name: /how this works/i });
   expect(dialog.textContent).toMatch(/New note/);
   // Since 2026-10-18 the phone carries the book and serves it on `fmmanual:` — its own origin.

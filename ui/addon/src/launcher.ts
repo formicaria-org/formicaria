@@ -1,4 +1,5 @@
-// **formicaria's ant: the lean panel of its features** (`decisions.md` 2026-11-17, *formicaria uses the
+// **formicaria's ant: its options** (Settings, Help) and a search of your notes and the web; the
+// features come from + (`decisions.md` 2026-11-17, *one frame*). Formerly the panel of its features (`decisions.md` 2026-11-17, *formicaria uses the
 // browser*; the owner: *"fm is always there through an icon. If one clicks it they can open new
 // features … by selecting one feature they will see a new tab/view"*). Each choice opens one tab: a
 // feature's view, a note, a new note, or (only for the web) a web search or address.
@@ -8,17 +9,6 @@ declare const browser: {
   tabs: { create(o: { url: string }): Promise<unknown> };
 };
 
-/** The features, as formicaria's addresses (`App.svelte`'s `openAddress`). */
-const FEATURES: [mark: string, label: string, address: string][] = [
-  ['✎', 'Notes', 'view:group:Library'],
-  ['▦', 'Tasks', 'view:group:Tasks'],
-  ['◷', 'Agenda', 'view:agenda'],
-  ['◍', 'Food journal', 'view:group:Food'],
-  ['◆', 'Fitness', 'view:group:Fitness'],
-  ['✚', 'Health', 'view:group:Health'],
-  ['♪', 'Music', 'view:group:Music'],
-];
-
 const q = document.getElementById('q') as HTMLInputElement;
 const list = document.getElementById('list') as HTMLUListElement;
 
@@ -27,6 +17,9 @@ const open = (address: string, title: string) =>
 const web = (query: string) =>
   void browser.search.search({ query, disposition: 'NEW_TAB' }).then(() => window.close());
 const go = (url: string) => void browser.tabs.create({ url }).then(() => window.close());
+/** A page of formicaria's server, in a tab of its own. */
+const openPath = (path: string) =>
+  void browser.runtime.sendMessage({ type: 'open-path', path }).then(() => window.close());
 
 function row(label: string, act: () => void, cls = '', mark = '') {
   const li = document.createElement('li');
@@ -61,11 +54,9 @@ function draw() {
   const t = q.value.trim();
   list.replaceChildren();
   if (!t) {
-    list.append(row('New note', () => open('new:', 'New note'), '', '＋'));
-    list.append(sep());
-    for (const [mark, label, a] of FEATURES) list.append(row(label, () => open(a, label), '', mark));
-    list.append(sep());
-    list.append(row('Search the web', () => q.focus(), 'web', '⌕'));
+    // **formicaria's options** (`decisions.md` 2026-11-17, *one frame*): the features come from +.
+    list.append(row('Settings', () => openPath('/f/settings'), '', '⚙'));
+    list.append(row('Help', () => openPath('/manual/'), '', '?'));
     return;
   }
   for (const h of hits) list.append(row(h.title, () => open(`note:${h.id}`, h.title), '', '✎'));

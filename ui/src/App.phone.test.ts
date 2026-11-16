@@ -140,8 +140,9 @@ describe('a phone-sized vault', () => {
     await screen.findByText(/GAE lambda interacts badly/);
     bridge.reset();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'search notes' }));
-    const box = await screen.findByRole('searchbox').catch(() => screen.getByLabelText(/search/i));
+    // The phone's search is in the one bar's ≡ (`decisions.md` 2026-11-17, *one frame*).
+    await fireEvent.click(screen.getByRole('button', { name: "formicaria's options" }));
+    const box = await screen.findByRole('searchbox', { name: 'search your notes' });
     await fireEvent.input(box, { target: { value: 'gradients' } });
 
     await waitFor(() => expect(bridge.count('search')).toBeGreaterThan(0));

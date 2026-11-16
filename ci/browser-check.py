@@ -303,12 +303,24 @@ def tabs(m: "Marionette") -> dict:
           gb.selectedTab = p; await wait(300);
           out.swap = window.formicariaSwap();
           out.swapBack = gb.selectedTab === t1;
-          // + is the browser's own new tab: the web.
+          // + suggests: formicaria's new-tab page (the features, a new note, the web), and on it the
+          // tab row is the only row; a web page brings the address row back.
           const before = gb.tabs.length;
           BrowserCommands.openTab();
-          await wait(1500);
-          out.plus = { more: gb.tabs.length === before + 1, item: gb.selectedTab.getAttribute('formicaria-item') };
-          gb.removeTab(gb.selectedTab);
+          await wait(3000);
+          const navShown = () => document.getElementById('nav-bar').getBoundingClientRect().height > 0;
+          out.plus = { more: gb.tabs.length === before + 1, url: gb.selectedBrowser.currentURI.spec,
+                       marked: document.documentElement.hasAttribute('formicaria-page'),
+                       navHeight: document.getElementById('nav-bar').getBoundingClientRect().height,
+                       navCollapsed: document.getElementById('nav-bar').collapsed,
+                       oneRow: document.documentElement.hasAttribute('formicaria-page') && !navShown() };
+          gb.selectedTab = p; await wait(500);
+          out.webRow = !document.documentElement.hasAttribute('formicaria-page') && navShown();
+          gb.removeTab(gb.tabs[gb.tabs.length - 1]);
+          // The old whole-app page in a tab becomes Notes.
+          const whole = gb.addTab(server + '/', { triggeringPrincipal: sp });
+          await wait(5000);
+          out.wholeApp = whole.linkedBrowser.currentURI.spec;
           // A tab the panel years left becomes its item's page.
           const old = gb.addTab('about:blank', { triggeringPrincipal: sp });
           await wait(300);
@@ -328,7 +340,9 @@ def tabs(m: "Marionette") -> dict:
         "note_tab": str(n.get("url", "")).endswith("/f/note/" + nid) and str(n.get("title", "")).startswith("Kept room"),
         "split_formicaria_tabs": r.get("split") is True,
         "quick_switch": r.get("swap") == "tab" and r.get("swapBack") is True,
-        "plus_is_the_web": plus.get("more") is True and not plus.get("item"),
+        "plus_suggests": plus.get("more") is True and str(plus.get("url", "")).endswith("/f/new"),
+        "one_row": plus.get("oneRow") is True and r.get("webRow") is True,
+        "whole_app_to_notes": str(r.get("wholeApp", "")).endswith("/f/group/Library"),
         "old_tabs_carried": (r.get("carried") or 0) >= 2,
         "bare_toolbar": r.get("bare") is True,
     }
@@ -395,7 +409,7 @@ def settings_page(ff: Path, work: Path) -> dict:
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: tabs: {e}")
         for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "links_are_tabs",
-                  "feature_tab", "note_tab", "split_formicaria_tabs", "quick_switch", "plus_is_the_web",
+                  "feature_tab", "note_tab", "split_formicaria_tabs", "quick_switch", "plus_suggests", "one_row", "whole_app_to_notes",
                   "old_tabs_carried", "bare_toolbar"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
@@ -511,24 +525,29 @@ def main() -> None:
             "a note is a page in a tab of its own": page.get("note_tab") is True,
             "two of formicaria's tabs share the window in split view": page.get("split_formicaria_tabs") is True,
             "the quick switch returns to the tab before, whatever it holds": page.get("quick_switch") is True,
-            "+ is the browser's own new tab (the web)": page.get("plus_is_the_web") is True,
+            "+ opens formicaria's new tab, suggesting the features": page.get("plus_suggests") is True,
+            "one row on formicaria's tabs; the address row on web pages": page.get("one_row") is True,
+            "the old whole-app page in a tab becomes Notes": page.get("whole_app_to_notes") is True,
             "tabs from earlier versions become their items' pages": page.get("old_tabs_carried") is True,
             "the toolbar is bare: the address bar, no home or account button": page.get("bare_toolbar") is True,
         })
         avg = lambda xs, k: sum(x.get(k) or 0 for x in xs) / len(xs)
         # **What a feature tab costs** (`decisions.md` 2026-11-17: at most 20 MB each, against the
         # 35 MB a copy of the whole app measured per tab): one feature page against five, twice each.
+        # Nine against one (2026-11-17): with five, the ±50 MB a whole browser wobbles by between runs was
+        # divided by four and read 12 to 37 MB per tab for the same pages; nine divides it by eight.
         feats = [f"{SERVER}/f/group/Library", f"{SERVER}/f/group/Tasks", f"{SERVER}/f/agenda",
-                 f"{SERVER}/f/group/Food", f"{SERVER}/f/timeline"]
+                 f"{SERVER}/f/group/Food", f"{SERVER}/f/timeline", f"{SERVER}/f/group/Fitness",
+                 f"{SERVER}/f/group/Health", f"{SERVER}/f/group/Music", f"{SERVER}/f/board"]
         # In turn, three of each, and the median: two runs of each, one after the other, read the
         # machine's load as a change of 4.5 MB per tab between two runs of the same pages.
         one, five = [], []
         for i in range(3):
             one.append(measure(ff, work / f"feat1-{i}", work / "feat1.json", feats[:1], {}))
-            five.append(measure(ff, work / f"feat5-{i}", work / "feat5.json", feats, {}))
+            five.append(measure(ff, work / f"feat9-{i}", work / "feat9.json", feats, {}))
         med = lambda xs: sorted(x.get("pss_kb") or 0 for x in xs)[len(xs) // 2] / 1024
-        per_tab = (med(five) - med(one)) / 4
-        print(f"browser-check: memory  one feature tab {med(one):.0f} MB, five {med(five):.0f} MB (medians of 3): {per_tab:.1f} MB per extra tab")
+        per_tab = (med(five) - med(one)) / 8
+        print(f"browser-check: memory  one feature tab {med(one):.0f} MB, nine {med(five):.0f} MB (medians of 3): {per_tab:.1f} MB per extra tab")
         checks["each extra feature tab costs at most 20 MB"] = per_tab <= 20
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")

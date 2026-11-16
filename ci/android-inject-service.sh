@@ -111,6 +111,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -487,6 +489,25 @@ class MainActivity : TauriActivity() {
     }.show()
   }
 
+  /// **Bring into note, first in Android's selection bar** (`decisions.md` 2026-11-17, *one frame*;
+  /// the owner: *"on the phone I have it not as the main thing, only after scrolling the options"*).
+  /// For a selection in formicaria's own screens or in a page it draws, the item goes in ahead of the
+  /// system's; from other apps Android orders outside items late, which formicaria cannot change.
+  override fun onActionModeStarted(mode: android.view.ActionMode) {
+    super.onActionModeStarted(mode)
+    val menu = mode.menu
+    if (menu.findItem(BRING_ITEM) != null) return
+    val page = pages.entries.firstOrNull { it.value.visibility == View.VISIBLE && it.value.hasFocus() }?.key
+    menu.add(Menu.NONE, BRING_ITEM, 0, "Bring into note")
+      .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_ALWAYS)
+      .setOnMenuItemClickListener {
+        if (page != null) Pages().bring(page, "")
+        else wv?.evaluateJavascript("window.dispatchEvent(new Event('fm-bring-selection'))", null)
+        mode.finish()
+        true
+      }
+  }
+
   inner class Pages {
     /// Draw the item's page over that box (the app's CSS pixels), opening it at `url` the first time.
     @JavascriptInterface
@@ -625,6 +646,8 @@ class MainActivity : TauriActivity() {
 
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
+    /// The selection bar's *Bring into note*.
+    private const val BRING_ITEM = 0x666d
     /// What a page gives when brought in: its selection, or itself.
     private const val PICK = """
       (function () {

@@ -8,6 +8,8 @@
 import type { PaneKind } from '../lib/panes';
 
 export type Route =
+  | { kind: 'new' }
+  | { kind: 'settings' }
   | { kind: 'note'; id: string }
   | { kind: 'group'; name: string }
   | { kind: 'view'; name: string }
@@ -22,6 +24,8 @@ export function parseRoute(path: string): Route {
     .split('/')
     .map(decodeURIComponent);
   const [head, rest] = [parts[0] ?? '', parts.slice(1).join('/')];
+  if (head === 'new') return { kind: 'new' };
+  if (head === 'settings') return { kind: 'settings' };
   if (head === 'note' && ID.test(rest)) return { kind: 'note', id: rest.toUpperCase() };
   if (head === 'group' && rest) return { kind: 'group', name: rest };
   if (head === 'view' && rest) return { kind: 'view', name: rest };
@@ -32,6 +36,10 @@ export function parseRoute(path: string): Route {
 /** The address of an item, as formicaria's tabs and links know it (`note:<id>`, `view:…`). */
 export function itemUrl(r: Route): string {
   switch (r.kind) {
+    case 'new':
+      return '/f/new';
+    case 'settings':
+      return '/f/settings';
     case 'note':
       return `/f/note/${r.id}`;
     case 'group':

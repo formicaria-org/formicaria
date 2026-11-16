@@ -86,34 +86,37 @@ somewhere to go, the phone stops being the only place they exist, and a phone yo
 reset costs you nothing. Backing up fetches whatever your other devices have written and sends
 yours, in one gesture — see [Backup & versioning](./backup.md).
 
-## Bring things in from other apps
+## The one bar: your tabs
 
-The phone's way to bring something into a note, from any app:
+At the bottom of the screen (or the top: **≡ → This bar at the top**) is formicaria's only bar:
 
-- **Select text in any app**, and in the menu that appears (beside Copy and Share) choose
-  **formicaria**: it asks which note it goes into (the note you had open, a new note, or any other by
-  name), and the passage arrives quoted, saying it was shared and when.
-- **Share a page or a passage** (the Share button of your browser, or of any app): formicaria asks the
-  same; a page arrives as a link with its title, a passage quoted with the page it came from.
-- **Your collection**: the counted button at the bottom shows what you have open as cards; tap one to
-  go to it, **swipe a note's card aside** to close it.
+- **≡**: formicaria's options: search your notes, Undo, Back up and sync, Settings, Help, and where
+  the bar sits.
+- **Your tabs**, side by side in one row: each is one thing, a feature (Notes, Tasks, Agenda, Food
+  journal, Fitness, Health, Music), a note, or a web page. Tap one to go to it; **×** on the tab in
+  front closes it. Slide the row to see more.
+- **+**: a new tab. It suggests the features, a new note, and a field for a web address or a search
+  (the page opens inside formicaria).
 
-- **Web pages, inside formicaria**: a web link in a note opens the page as an item of your collection,
-  in the same place a note would be, with the bottom bar kept. **‹**, or Android's **Back**, goes back in
-  the page (Back leaves it once there is nowhere further back); **long-press an image or a link** to
-  bring it into your note, or to open the link as a page of its own; **⇥** brings
-  what you selected (or the page itself, as a link) into the note you came from, quoted with the page's
-  exact address. The page stays where you left it while you go elsewhere; swipe its card aside to
-  close it.
-- **Switch back in one press**: the button at the bottom beside your collection shows the item you had
-  before (a note, a view, a page); press it to go there, and again to come back.
-- **Two together, when you ask**: in your collection, a card's **with this one** button shows that item
-  with the one in front, one above the other; tap either to work in it. **One at a time** at the top of
-  the cards (or choosing a card) goes back to one.
-- **The web**: the views button at the bottom → **Web** (the globe): type an address or words to
-  search; the page opens inside formicaria.
+At the top of a feature's tab is its line: the feature's name (**Food ▾**) switches *this* tab to
+another feature, and its views follow (Day · Menu · Trends).
 
-Share or the selection menu of any other app still brings what you choose into formicaria.
+**Two together**: drag a tab from the bar up into the screen: it shows with the one in front, one
+above the other; tap either to work in it.
+
+**Web pages, inside formicaria** fill their tab, nothing over them: Android's **Back** goes back in the
+page; select text to bring it into a note (Android's selection bar has **Bring into note** first);
+**long-press an image or a link** to bring it in, or to open the link as a page of its own.
+
+## Moving what you select
+
+- **Inside formicaria** (a note, a feature, a web page it shows): select text, and **formicaria's icon**
+  appears beside it; press it and choose where it goes: the note you looked at last, any note (type to
+  find it), or a new note. It arrives quoted, with a link back to where it came from. Android's own
+  selection bar has **Bring into note** first, which does the same.
+- **From any other app**: select text, and in the menu that appears choose **formicaria** (Android puts
+  other apps' entries after its own, sometimes behind ⋮); or **Share** it to formicaria. It asks which
+  note it goes into.
 
 ## Attachments
 

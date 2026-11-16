@@ -62,9 +62,8 @@ it('Web on the phone: a web address opens the page as an item of the collection'
     const field = await screen.findByRole('searchbox', { name: 'a web address or a search' });
     await fireEvent.input(field, { target: { value: 'example.org/ants' } });
     await fireEvent.click(await screen.findByRole('button', { name: 'Go to example.org/ants' }));
-    expect(
-      await screen.findByRole('button', { name: 'bring the selection into a note' }),
-    ).toBeTruthy();
+    // A page item: the box the shell draws the page over, with nothing on top of it.
+    await waitFor(() => expect(document.querySelector('.page-box')).toBeTruthy());
   } finally {
     delete g.__fmPage;
   }

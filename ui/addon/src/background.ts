@@ -665,7 +665,7 @@ export async function pageNotes(tabId: number, url: string): Promise<PageNote[]>
 const tabsEvents = browser.tabs as unknown as {
   onActivated: { addListener(f: (i: { tabId: number }) => void): void };
   onUpdated: {
-    addListener(f: (id: number, c: { status?: string }, t: { url?: string }) => void): void;
+    addListener(f: (id: number, c: { status?: string; url?: string }, t: { url?: string }) => void): void;
   };
   onRemoved: { addListener(f: (id: number) => void): void };
   get(id: number): Promise<{ url?: string }>;
@@ -676,6 +676,17 @@ tabsEvents.onActivated.addListener(({ tabId }) => {
     void noteInFront(t as { url?: string; title?: string });
   });
 });
+async function wholeAppToNotes(id: number, url: string) {
+  const c = await config().catch(() => null);
+  if (!c) return;
+  const rest = url.startsWith(c.server) ? url.slice(c.server.length) : null;
+  if (rest === '/' || rest === '' || rest?.startsWith('/#') || rest?.startsWith('/?')) {
+    await (browser.tabs as unknown as { update(id: number, o: { url: string }): Promise<unknown> }).update(id, {
+      url: `${c.server}/f/group/Library`,
+    });
+  }
+}
+
 /** **The note in front is the note tab looked at last** (its `/f/note/<id>` page): where *Bring in*
  *  goes unless another note is chosen. */
 async function noteInFront(t: { url?: string; title?: string }) {
@@ -688,6 +699,9 @@ async function noteInFront(t: { url?: string; title?: string }) {
   void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
 }
 tabsEvents.onUpdated.addListener((id, change, t) => {
+  // **The old whole-app page in a tab becomes Notes** (`decisions.md` 2026-11-17, *one frame*): the
+  // app with its own bars and panes is not shown in formicaria's browser any more.
+  if (typeof change.url === 'string') void wholeAppToNotes(id, change.url);
   if (change.status === 'complete') {
     void pageNotes(id, t.url ?? '');
     if ((t as { active?: boolean }).active) void noteInFront(t as { url?: string; title?: string });
@@ -842,6 +856,10 @@ omnibox.onInputEntered.addListener((text) => {
       if (from.type === 'bring-piece') failed(r);
       return r;
     });
+  }
+  // **The ant's options** (`launcher.ts`): a page of formicaria's server (Settings, the manual).
+  if (m?.type === 'open-path' && typeof m.path === 'string' && /^\/(f\/settings|manual\/)/.test(m.path)) {
+    return config().then((c) => browser.tabs.create({ url: c.server + m.path }));
   }
   // **The ant's panel** (`launcher.ts`): a feature, a note or a new note, in a tab of its own.
   if (m?.type === 'open-item' && typeof m.address === 'string') {

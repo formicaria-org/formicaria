@@ -27,7 +27,9 @@ it('a feature shows its views as a strip, and a card opens its note in a tab of 
   const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
   render(Feature);
   const strip = await screen.findByRole('navigation', { name: /views/ });
-  const names = [...strip.querySelectorAll('button')].map((b) => b.textContent?.trim());
+  const names = [...strip.querySelectorAll('button:not(.feature-name)')].map((b) =>
+    b.textContent?.trim(),
+  );
   expect(names).toEqual(['Board', 'Agenda']);
   await fireEvent.click(screen.getByRole('button', { name: 'Agenda' }));
   expect(screen.getByRole('button', { name: 'Agenda' }).getAttribute('aria-current')).toBe('page');

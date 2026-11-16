@@ -15337,3 +15337,41 @@ The owner: *"remove emails from everywhere for now, one can keep it in a browser
 3. **No *Open…*** (the owner: *"why we need open? we have the views, a click on it opens it"*): the
    views list opens every feature and search finds notes; *Web* is the one entry they lacked, and its
    screen (`WebOpen.svelte`) asks for an address or a search and nothing else.
+
+## 2026-11-17 — one frame: one row of options, tabs of features, + suggests, the selection icon `#ui`
+
+> SUPERSEDED in part: the ant's panel of features (it is formicaria's options now; + suggests the
+> features), + as Firefox's web tab (it is formicaria's new-tab page), and on the phone the bottom bar
+> of views button, ＋, collection and switch (it is the one bar).
+
+The owner on 0.48: *"selecting a feature … you are not opening a feature but all the view of fm …
+adding a tab can suggest one of the feature views. When in a tab it should be easy to switch to
+another feature view without opening necessarily a new tab. There should be only one set of options
+on that top place. On the phone … a single row … with the plus … I like it on bottom but someone might
+want top … a small icon floating close to the selection … not only after scrolling the options"*.
+Plan, research and comparables (Safari's compact bar and bar position, Firefox Android, Arc's command
+bar, Vivaldi's Speed Dial and tiling, Teams' + picker, Chrome's tab strip, Android's selection order):
+`~/.claude/plans/one-frame.md`.
+
+**Built (0.49).**
+1. **A tab's line**: the feature's name as a chooser that moves *this* tab, then its views
+   (`Feature.svelte`, and the phone's tab).
+2. **+ suggests** (`/f/new`, `NewTab.svelte`): the features (`lib/features.ts`), New note, a web field.
+3. **Computer**: the ant is formicaria's options (Settings, Help, search); + opens `/f/new`; on a page
+   of formicaria's the address row is hidden (one row); an old whole-app tab becomes Notes.
+4. **Phone**: the one bar (`TabBar.svelte`): ≡ (search, Undo, Back up and sync, Settings, Help, the
+   bar's place), the tabs (every pane, a view closes like any tab), +; at the bottom, or the top by
+   choice (`lib/shell.svelte.ts`); a tab dragged into the screen tiles. The old bar stays only where
+   the whole app runs in another browser (a paired tablet, the computer's fallback).
+5. **Moving what is selected**: formicaria's icon by any selection inside formicaria
+   (`SelectionBring.svelte`), into the note looked at last (`lib/lastNote.ts`), any note, or a new one,
+   by `put`; Android's selection bar has *Bring into note* first (`onActionModeStarted`). Other apps'
+   selection menus order formicaria late; Android decides that.
+6. **Nothing over a web page on the phone** (the owner on 0.48: the ⇥ *"is weird and should be
+   removed"*, the ‹ *"why should I need it?"*): Android's Back goes back in the page, the selection bar's
+   *Bring into note* (first) brings what is selected, a long press brings an image or a link; the tab
+   in the bar names the page.
+7. **`browser-check` measures nine feature tabs against one** (medians of three, in turn): with five,
+   the ±50 MB a whole browser wobbles by between runs read 12 to 37 MB per tab for the same pages.
+   On formicaria's own tabs the address row is out of the layout (`display: none`): folded, it still
+   kept 20 px in ESR 153.

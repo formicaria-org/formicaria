@@ -1,4 +1,11 @@
 <script lang="ts">
+  import TabBar from './lib/TabBar.svelte';
+  import NewTab from './feature/NewTab.svelte';
+  import { tabBar, barPosition, setBarPosition } from './lib/shell.svelte';
+  import { FEATURES } from './lib/features';
+  import { parseRoute } from './feature/route';
+  import SelectionBring from './lib/SelectionBring.svelte';
+  import { noteShown } from './lib/lastNote';
   import { loadFeed as loadFeedShared, cardsOf } from './lib/feeds';
   import WebOpen from './lib/WebOpen.svelte';
   import ReminderBanner from './lib/ReminderBanner.svelte';
@@ -293,7 +300,8 @@
   function closePane(id: string) {
     // A view is not closed, only re-pointed: only notes are windows (2026-10-16).
     const closing = workspace.panes.find((p) => p.id === id);
-    if (!closing || isView(closing)) return;
+    // In the one bar a view is a tab like any other, and closes; elsewhere views are re-pointed.
+    if (!closing || (isView(closing) && !tabBar())) return;
     const wasFront = workspace.panes[focused]?.id === id;
     if (wasFront || besideId === id) besideId = null;
     if (closing.kind === 'page')
@@ -2240,8 +2248,47 @@
     const name = front ? paneTitle(front) : '';
     document.title = name ? `${name} — formicaria` : 'formicaria';
   });
+  // The note looked at last: where a selection goes by default (`lib/lastNote.ts`).
+  $effect(() => {
+    const front = workspace.panes[focused];
+    if (front?.kind === 'note' && front.noteId && front.noteTitle)
+      noteShown(front.noteId, front.noteTitle);
+  });
   /** *Web* (the views list's first entry): an address or a search, opened as a page. */
   let launching = $state(false);
+  /** **+ in the one bar** (`decisions.md` 2026-11-17, *one frame*): the new tab's suggestions. */
+  let newTabOpen = $state(false);
+  let featureMenuOpen = $state(false);
+  /** A feature's first view, as a pane: what a tab of it opens on. */
+  function featurePane(key: string): Partial<PaneT> & { kind: PaneKind } {
+    const space = spaces.find((x) => x.name === key);
+    const first = space?.tabs[0];
+    if (first)
+      return first.viewName ? { kind: 'view', viewName: first.viewName } : { kind: first.kind };
+    const group = groupsOf(views ?? []).find((g) => g.name === key);
+    if (group) return { kind: 'view', viewName: group.views[0] };
+    return { kind: (key as PaneKind) || 'timeline' };
+  }
+  /** What the new tab chose (`NewTab`'s addresses): a feature, a note, or the web, in a tab of its own. */
+  function goNewTab(url: string) {
+    newTabOpen = false;
+    if (/^https?:\/\//.test(url)) return focusOrOpen('page', { url, pageTitle: null });
+    const r = parseRoute(url);
+    if (r.kind === 'note') return openNoteInPane(r.id);
+    if (r.kind === 'group') {
+      const { kind, ...over } = featurePane(r.name);
+      return addPane(kind, over);
+    }
+    if (r.kind === 'builtin') return addPane(r.pane);
+  }
+  /** The tab's chooser (`Food ▾`): *this* tab moves to the feature. */
+  function switchFeature(key: string) {
+    featureMenuOpen = false;
+    const front = workspace.panes[focused];
+    if (!front) return;
+    const { kind, ...over } = featurePane(key);
+    changePane(front.id, { kind, viewName: null, noteId: null, ...over });
+  }
   /** A web address or a web search chosen in *Web*: a page item. */
   function openWeb(at: string) {
     launching = false;
@@ -2920,6 +2967,8 @@
     data-layout={workspace.layout ?? 'single'}
     class:panel-collapsed={!panelOpen}
     class:paired={(workspace.layout ?? 'single') === 'single' && besideIndex >= 0}
+    class:tab-shell={tabBar()}
+    class:bar-top={tabBar() && barPosition() === 'top'}
   >
     <!-- **One set of controls, two placements.** Wide: a vertical panel down the left, holding
        everything. Narrow: the same element as a bar along the bottom, where a thumb can reach it.
@@ -2930,8 +2979,28 @@
        vertical space"). That rail sat *beside* a top bar and displaced nothing; this one replaces
        the top bar, so the workspace gets that row's height back — and it collapses, which the old
        one could not. Reasoning in `decisions.md`, 2026-08-30. -->
-    <header class="topbar">
-      <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
+    {#if tabBar()}
+      <TabBar
+        panes={workspace.panes}
+        {focused}
+        {besideIndex}
+        position={barPosition()}
+        title={paneTitle}
+        icon={paneIcon}
+        onselect={selectWindow}
+        onclose={closePane}
+        onpair={(id) => (besideId = id)}
+        onnew={() => (newTabOpen = true)}
+        onopennote={openNoteInPane}
+        onsettings={() => (settingsOpen = true)}
+        onhelp={() => (helpOpen = true)}
+        onbackup={onBackup}
+        onundo={() => void runUndo('undo')}
+        onposition={setBarPosition}
+      />
+    {:else}
+      <header class="topbar">
+        <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
          *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
          and a wordmark saying one thing. The wordmark went too: the app does not need to tell
          you its name on every screen of its own window, and on a phone that space is the
@@ -2942,56 +3011,60 @@
          (lib/popup.ts), in the top layer, so no ancestor's overflow can clip it — and the alternative,
          routing every creation through a full-screen palette, is what made "new note" feel like
          a settings trip. -->
-      <div class="create-wrap">
-        <!-- **The tooltip is derived, because it was wrong.** It read "(Ctrl+K)" — which opens
+        <div class="create-wrap">
+          <!-- **The tooltip is derived, because it was wrong.** It read "(Ctrl+K)" — which opens
              Settings; the New-note binding is a bare `c` (`keys.ts` DEFAULTS). Bindings are
              user-editable too, so any key spelled out here is one rebind away from lying again;
              `describe` renders whatever is actually bound. Found by a docs audit on 2026-09-09,
              alongside the same wrong key in `first-note.md`. -->
-        <!-- **One plus, where it always is; what it makes follows the view in front**
+          <!-- **One plus, where it always is; what it makes follows the view in front**
              (`decisions.md#ui`, 2026-10-12). Over a view that logs — Food, Fitness — it adds to
              that; anywhere else it opens the menu of things to make. Its name says which. -->
-        <button
-          type="button"
-          class="plus-btn"
-          onclick={() => {
-            if (addsTo) {
-              groupAdd += 1;
-              return;
-            }
-            createOpen = !createOpen;
-            if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
-          }}
-          aria-expanded={addsTo ? undefined : createOpen}
-          aria-haspopup={addsTo ? undefined : 'menu'}
-          title={addsTo
-            ? `Add to ${addsTo}`
-            : `Make something new (${keys.describe(keymap.newNote)})`}
-          aria-label={addsTo ? `add to ${addsTo}` : 'make something new'}
-        >
-          <Icon name="plus" size={18} />
-        </button>
-        {#if createOpen}
-          <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
+          <button
+            type="button"
+            class="plus-btn"
+            onclick={() => {
+              if (addsTo) {
+                groupAdd += 1;
+                return;
+              }
+              createOpen = !createOpen;
+              if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
+            }}
+            aria-expanded={addsTo ? undefined : createOpen}
+            aria-haspopup={addsTo ? undefined : 'menu'}
+            title={addsTo
+              ? `Add to ${addsTo}`
+              : `Make something new (${keys.describe(keymap.newNote)})`}
+            aria-label={addsTo ? `add to ${addsTo}` : 'make something new'}
+          >
+            <Icon name="plus" size={18} />
+          </button>
+          {#if createOpen}
+            <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
              tap that would otherwise land on whatever is behind the menu. -->
-          <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
-          <ul class="create-menu" role="menu" use:popup>
-            {#each createItems as item, i (item.label)}
-              <!-- The rule falls where "make something" turns into "look at something", worked out
+            <div
+              class="menu-backdrop"
+              role="presentation"
+              onclick={() => (createOpen = false)}
+            ></div>
+            <ul class="create-menu" role="menu" use:popup>
+              {#each createItems as item, i (item.label)}
+                <!-- The rule falls where "make something" turns into "look at something", worked out
                  from the groups rather than flagged by hand — so it stays right when an item is
                  added on either side of it. -->
-              {#if i > 0 && item.group !== createItems[i - 1].group}
-                <li class="menu-sep" role="separator"></li>
-              {/if}
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onclick={() => ((createOpen = false), item.run())}>{item.label}</button
-                >
-              </li>
-            {/each}
-            <!-- **Where it lands, asked where you decide it** (2026-08-31). This was a permanent
+                {#if i > 0 && item.group !== createItems[i - 1].group}
+                  <li class="menu-sep" role="separator"></li>
+                {/if}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => ((createOpen = false), item.run())}>{item.label}</button
+                  >
+                </li>
+              {/each}
+              <!-- **Where it lands, asked where you decide it** (2026-08-31). This was a permanent
                `in <select>` in the chrome: a control on screen at all times for a choice you make
                only while creating something, and on a narrow bar it cost a whole row. It belongs
                to the ＋ menu, so it lives in the ＋ menu.
@@ -2999,57 +3072,57 @@
                **`menuitemradio`, and the click does not close.** One-of-many, unlike the vault
                *filter* beside it — and you almost always pick the destination and then pick what
                to make, so closing here would mean opening the menu twice for one note. -->
-            {#if allVaults.length > 1}
-              <li class="menu-sep" role="separator"></li>
-              <li class="menu-head" role="presentation">Create in</li>
-              {#each allVaults as v (v)}
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={(createTarget || defaultVault) === v}
-                    onclick={() => setCreateVault(v)}
-                  >
-                    <span class="tick" aria-hidden="true"
-                      >{(createTarget || defaultVault) === v ? '✓' : ''}</span
+              {#if allVaults.length > 1}
+                <li class="menu-sep" role="separator"></li>
+                <li class="menu-head" role="presentation">Create in</li>
+                {#each allVaults as v (v)}
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={(createTarget || defaultVault) === v}
+                      onclick={() => setCreateVault(v)}
                     >
-                    {labelFor(v)}
-                  </button>
-                </li>
-              {/each}
-            {/if}
-          </ul>
-        {/if}
-      </div>
+                      <span class="tick" aria-hidden="true"
+                        >{(createTarget || defaultVault) === v ? '✓' : ''}</span
+                      >
+                      {labelFor(v)}
+                    </button>
+                  </li>
+                {/each}
+              {/if}
+            </ul>
+          {/if}
+        </div>
 
-      <!-- Collapsed to its lens until wanted. A search field is the widest thing in the bar and
+        <!-- Collapsed to its lens until wanted. A search field is the widest thing in the bar and
          is used a fraction as often as it occupies space; open it and it takes the room it
          needs. `searchOpen` starts false on every load, deliberately — a bar that remembers
          being open is a bar that is usually open. -->
-      <div class="search-slot" class:open={searchOpen} bind:this={searchSlotEl}>
-        <label class="searchfield">
-          <Icon name="search" size={15} />
-          <input
-            bind:this={searchEl}
-            class="topbar-search"
-            type="search"
-            placeholder="Search…"
-            bind:value={searchQuery}
-            oninput={onSearchInput}
-            onfocus={() => {
-              if (searchQuery.trim()) searchPanelOpen = true;
-            }}
-            onkeydown={(e) => {
-              if (e.key === 'Escape') closeSearch();
-            }}
-            onblur={() => {
-              if (!searchQuery.trim()) searchOpen = false;
-            }}
-            spellcheck="false"
-            aria-label="search notes"
-          />
-        </label>
-        <!-- **Its own class, not `.icon-btn`.** Narrow layouts hide every `.icon-btn` in the top
+        <div class="search-slot" class:open={searchOpen} bind:this={searchSlotEl}>
+          <label class="searchfield">
+            <Icon name="search" size={15} />
+            <input
+              bind:this={searchEl}
+              class="topbar-search"
+              type="search"
+              placeholder="Search…"
+              bind:value={searchQuery}
+              oninput={onSearchInput}
+              onfocus={() => {
+                if (searchQuery.trim()) searchPanelOpen = true;
+              }}
+              onkeydown={(e) => {
+                if (e.key === 'Escape') closeSearch();
+              }}
+              onblur={() => {
+                if (!searchQuery.trim()) searchOpen = false;
+              }}
+              spellcheck="false"
+              aria-label="search notes"
+            />
+          </label>
+          <!-- **Its own class, not `.icon-btn`.** Narrow layouts hide every `.icon-btn` in the top
            bar, because those controls also live in the bottom `ViewBar` where the thumb is.
            Search does not, so reusing that class would have made the search button disappear on
            exactly the screen this collapsing is for.
@@ -3058,48 +3131,48 @@
            by "a search field is the widest thing in the bar" — true of a bar, and meaningless in a
            panel of fixed width, where the field costs one row of height. Choosing between them in
            script would mean measuring the viewport, which the layout ruling forbids outright. -->
-        <button
-          type="button"
-          class="search-btn"
-          onclick={openSearch}
-          aria-label="search notes"
-          aria-expanded={searchOpen}
-          title="Search"
-        >
-          <Icon name="search" size={16} />
-        </button>
-        <!-- **The passing panel** (2026-10-16): results over whatever is on screen, placed by `popup`
+          <button
+            type="button"
+            class="search-btn"
+            onclick={openSearch}
+            aria-label="search notes"
+            aria-expanded={searchOpen}
+            title="Search"
+          >
+            <Icon name="search" size={16} />
+          </button>
+          <!-- **The passing panel** (2026-10-16): results over whatever is on screen, placed by `popup`
              (below the field on a computer, above it in a phone's bottom bar). Picking one opens the
              note and puts the panel away; ×, Escape, Back or a tap outside dismiss it. -->
-        {#if searchPanelOpen && searchQuery.trim()}
-          <div class="menu-backdrop" role="presentation" onclick={() => closeSearch()}></div>
-          <div
-            class="search-panel"
-            role="dialog"
-            aria-label="search results"
-            use:popup={{ anchor: searchSlotEl, align: 'start' }}
-          >
-            <div class="search-panel-head">
-              <span
-                >{searchResults === null
-                  ? 'Searching…'
-                  : `${searchResults.length} ${searchResults.length === 1 ? 'note' : 'notes'}`}</span
-              >
-              <button
-                type="button"
-                class="search-panel-close"
-                onclick={() => closeSearch(true)}
-                aria-label="close search">✕</button
-              >
+          {#if searchPanelOpen && searchQuery.trim()}
+            <div class="menu-backdrop" role="presentation" onclick={() => closeSearch()}></div>
+            <div
+              class="search-panel"
+              role="dialog"
+              aria-label="search results"
+              use:popup={{ anchor: searchSlotEl, align: 'start' }}
+            >
+              <div class="search-panel-head">
+                <span
+                  >{searchResults === null
+                    ? 'Searching…'
+                    : `${searchResults.length} ${searchResults.length === 1 ? 'note' : 'notes'}`}</span
+                >
+                <button
+                  type="button"
+                  class="search-panel-close"
+                  onclick={() => closeSearch(true)}
+                  aria-label="close search">✕</button
+                >
+              </div>
+              {#if searchResults !== null}
+                <Search cards={searchResults} query={searchQuery} onopen={pickResult} />
+              {/if}
             </div>
-            {#if searchResults !== null}
-              <Search cards={searchResults} query={searchQuery} onopen={pickResult} />
-            {/if}
-          </div>
-        {/if}
-      </div>
+          {/if}
+        </div>
 
-      <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
+        <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
          a bar, so the rail is hidden and this opens the identical `viewTargets` in a menu. Without
          it a narrow window has no way to open a view at all, now that a pane header names its
          window instead of switching it.
@@ -3107,221 +3180,229 @@
          Not `.icon-btn`: the twin rules hide every `.icon-btn` in the bar, because those controls
          move to `ViewBar` there — the same trap `.search-btn` carries a comment about. This one
          has to be visible in exactly the place that rule would hide it. -->
-      <div class="create-wrap views-wrap">
-        <button
-          type="button"
-          class="views-btn"
-          onclick={() => (viewsOpen = !viewsOpen)}
-          aria-expanded={viewsOpen}
-          aria-haspopup="menu"
-          title="Open a view"
-          aria-label="open a view"
-        >
-          <Icon name={VIEWS_MENU_ICON} size={16} />
-        </button>
-        {#if viewsOpen}
-          <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
-          <ul class="create-menu" role="menu" use:popup>
-            <!-- **The switches of the view in front of you, first** — a phone only, by CSS: the top row
-               that carried them is hidden below 40rem (2026-09-11), and from 40rem it is back and these
-               are hidden, so exactly one copy is ever visible. A mode change puts the menu away; typing
-               a search pane's query does not. -->
-            {#if (workspace.layout ?? 'single') === 'single' && switchesHead && focusedPane}
-              <li class="menu-head view-switches" role="presentation">{switchesHead}</li>
-              <li class="view-switches switches-row" role="none">
-                <ViewControls
-                  pane={focusedPane}
-                  feed={focusedFeed}
-                  onchange={(patch) => {
-                    changePane(focusedPane.id, patch);
-                    if (!('query' in patch)) viewsOpen = false;
-                  }}
-                />
-              </li>
-              <li class="menu-sep view-switches" role="separator"></li>
-            {/if}
-            {#each viewTargets as t (t.key)}
-              <li role="none">
-                <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
-                  >{t.label}</button
-                >
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
-
-      <!-- **The open windows, on a phone** (2026-09-11). The top row that listed them is gone below
-         40rem, so their count sits here beside the view button, where the owner asked for it, and the
-         list opens from it like every other menu in this bar. Hidden by CSS from 40rem up, where the row
-         is back; mounted only in `single`, where the other windows are out of sight. -->
-      <!-- Counts the open **notes** — the only windows (2026-10-16) — and is there only while one is. -->
-      {#if (workspace.layout ?? 'single') === 'single' && prevIndex >= 0}
-        {@const prev = workspace.panes[prevIndex]}
-        <button
-          type="button"
-          class="switch-btn"
-          onclick={() => selectWindow(prevIndex)}
-          aria-label="switch to {paneTitle(prev)}"
-          title="Back to {paneTitle(prev)}"
-        >
-          <Icon name={paneIcon(prev) ?? 'list'} size={18} />
-        </button>
-      {/if}
-      {#if (workspace.layout ?? 'single') === 'single' && openNotes > 0}
-        <div class="create-wrap windows-wrap">
+        <div class="create-wrap views-wrap">
           <button
             type="button"
-            class="windows-btn"
-            onclick={() => (windowsOpen = !windowsOpen)}
-            aria-expanded={windowsOpen}
+            class="views-btn"
+            onclick={() => (viewsOpen = !viewsOpen)}
+            aria-expanded={viewsOpen}
             aria-haspopup="menu"
-            title="Open notes"
-            aria-label="open notes: {openNotes}"
+            title="Open a view"
+            aria-label="open a view"
           >
-            <span class="windows-count" aria-hidden="true">{openNotes}</span>
+            <Icon name={VIEWS_MENU_ICON} size={16} />
           </button>
-          {#if windowsOpen}
+          {#if viewsOpen}
             <div
               class="menu-backdrop"
               role="presentation"
-              onclick={() => (windowsOpen = false)}
+              onclick={() => (viewsOpen = false)}
             ></div>
-            <!-- **The collection, as cards** (workspace-design §11.4, D6): what is open, of any
-                 section, one card each; tap to go to it, swipe a note's card aside to close it. -->
-            <ul
-              class="create-menu windows-menu collection"
-              role="menu"
-              aria-label="open windows"
-              use:popup
-            >
-              {#if besideIndex >= 0}
+            <ul class="create-menu" role="menu" use:popup>
+              <!-- **The switches of the view in front of you, first** — a phone only, by CSS: the top row
+               that carried them is hidden below 40rem (2026-09-11), and from 40rem it is back and these
+               are hidden, so exactly one copy is ever visible. A mode change puts the menu away; typing
+               a search pane's query does not. -->
+              {#if (workspace.layout ?? 'single') === 'single' && switchesHead && focusedPane}
+                <li class="menu-head view-switches" role="presentation">{switchesHead}</li>
+                <li class="view-switches switches-row" role="none">
+                  <ViewControls
+                    pane={focusedPane}
+                    feed={focusedFeed}
+                    onchange={(patch) => {
+                      changePane(focusedPane.id, patch);
+                      if (!('query' in patch)) viewsOpen = false;
+                    }}
+                  />
+                </li>
+                <li class="menu-sep view-switches" role="separator"></li>
+              {/if}
+              {#each viewTargets as t (t.key)}
                 <li role="none">
                   <button
                     type="button"
                     role="menuitem"
-                    class="window-pick"
-                    onclick={() => {
-                      windowsOpen = false;
-                      besideId = null;
-                    }}>One at a time</button
+                    onclick={() => ((viewsOpen = false), t.run())}>{t.label}</button
                   >
-                </li>
-              {/if}
-              {#each workspace.panes as pane, i (pane.id)}
-                {@const icon = paneIcon(pane)}
-                <li
-                  class="window-row"
-                  class:current={i === focused}
-                  role="none"
-                  style:transform={swipe?.id === pane.id ? `translateX(${swipe.dx}px)` : undefined}
-                  style:opacity={swipe?.id === pane.id
-                    ? 1 - Math.min(Math.abs(swipe.dx) / 200, 0.7)
-                    : undefined}
-                  onpointerdown={(e) => {
-                    if (!isView(pane)) swipe = { id: pane.id, x0: e.clientX, dx: 0 };
-                  }}
-                  onpointermove={(e) => {
-                    if (swipe?.id === pane.id) swipe = { ...swipe, dx: e.clientX - swipe.x0 };
-                  }}
-                  onpointerup={() => {
-                    if (swipe?.id === pane.id && Math.abs(swipe.dx) > 80) closePane(pane.id);
-                    swipe = null;
-                  }}
-                  onpointercancel={() => (swipe = null)}
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="window-pick"
-                    aria-current={i === focused ? 'true' : undefined}
-                    onclick={() => {
-                      windowsOpen = false;
-                      selectWindow(i);
-                    }}
-                  >
-                    {#if icon}
-                      <Icon name={icon} size={16} />
-                    {:else}
-                      <span class="window-dot" aria-hidden="true">•</span>
-                    {/if}
-                    <span class="window-name">{paneTitle(pane)}</span>
-                  </button>
-                  {#if i !== focused && (besideIndex < 0 || i !== besideIndex)}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      class="window-close"
-                      aria-label="show {paneTitle(pane)} with this one"
-                      title="Show it together with the one in front"
-                      onclick={() => {
-                        windowsOpen = false;
-                        besideId = pane.id;
-                      }}
-                    >
-                      <Icon name="list" size={14} />
-                    </button>
-                  {/if}
-                  {#if !isView(pane)}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      class="window-close"
-                      aria-label="close {paneTitle(pane)}"
-                      title="Close this window"
-                      onclick={() => closePane(pane.id)}
-                    >
-                      <Icon name="close" size={14} />
-                    </button>
-                  {/if}
                 </li>
               {/each}
             </ul>
           {/if}
         </div>
-      {/if}
 
-      <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
+        <!-- **The open windows, on a phone** (2026-09-11). The top row that listed them is gone below
+         40rem, so their count sits here beside the view button, where the owner asked for it, and the
+         list opens from it like every other menu in this bar. Hidden by CSS from 40rem up, where the row
+         is back; mounted only in `single`, where the other windows are out of sight. -->
+        <!-- Counts the open **notes** — the only windows (2026-10-16) — and is there only while one is. -->
+        {#if (workspace.layout ?? 'single') === 'single' && prevIndex >= 0}
+          {@const prev = workspace.panes[prevIndex]}
+          <button
+            type="button"
+            class="switch-btn"
+            onclick={() => selectWindow(prevIndex)}
+            aria-label="switch to {paneTitle(prev)}"
+            title="Back to {paneTitle(prev)}"
+          >
+            <Icon name={paneIcon(prev) ?? 'list'} size={18} />
+          </button>
+        {/if}
+        {#if (workspace.layout ?? 'single') === 'single' && openNotes > 0}
+          <div class="create-wrap windows-wrap">
+            <button
+              type="button"
+              class="windows-btn"
+              onclick={() => (windowsOpen = !windowsOpen)}
+              aria-expanded={windowsOpen}
+              aria-haspopup="menu"
+              title="Open notes"
+              aria-label="open notes: {openNotes}"
+            >
+              <span class="windows-count" aria-hidden="true">{openNotes}</span>
+            </button>
+            {#if windowsOpen}
+              <div
+                class="menu-backdrop"
+                role="presentation"
+                onclick={() => (windowsOpen = false)}
+              ></div>
+              <!-- **The collection, as cards** (workspace-design §11.4, D6): what is open, of any
+                 section, one card each; tap to go to it, swipe a note's card aside to close it. -->
+              <ul
+                class="create-menu windows-menu collection"
+                role="menu"
+                aria-label="open windows"
+                use:popup
+              >
+                {#if besideIndex >= 0}
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="window-pick"
+                      onclick={() => {
+                        windowsOpen = false;
+                        besideId = null;
+                      }}>One at a time</button
+                    >
+                  </li>
+                {/if}
+                {#each workspace.panes as pane, i (pane.id)}
+                  {@const icon = paneIcon(pane)}
+                  <li
+                    class="window-row"
+                    class:current={i === focused}
+                    role="none"
+                    style:transform={swipe?.id === pane.id
+                      ? `translateX(${swipe.dx}px)`
+                      : undefined}
+                    style:opacity={swipe?.id === pane.id
+                      ? 1 - Math.min(Math.abs(swipe.dx) / 200, 0.7)
+                      : undefined}
+                    onpointerdown={(e) => {
+                      if (!isView(pane)) swipe = { id: pane.id, x0: e.clientX, dx: 0 };
+                    }}
+                    onpointermove={(e) => {
+                      if (swipe?.id === pane.id) swipe = { ...swipe, dx: e.clientX - swipe.x0 };
+                    }}
+                    onpointerup={() => {
+                      if (swipe?.id === pane.id && Math.abs(swipe.dx) > 80) closePane(pane.id);
+                      swipe = null;
+                    }}
+                    onpointercancel={() => (swipe = null)}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="window-pick"
+                      aria-current={i === focused ? 'true' : undefined}
+                      onclick={() => {
+                        windowsOpen = false;
+                        selectWindow(i);
+                      }}
+                    >
+                      {#if icon}
+                        <Icon name={icon} size={16} />
+                      {:else}
+                        <span class="window-dot" aria-hidden="true">•</span>
+                      {/if}
+                      <span class="window-name">{paneTitle(pane)}</span>
+                    </button>
+                    {#if i !== focused && (besideIndex < 0 || i !== besideIndex)}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        class="window-close"
+                        aria-label="show {paneTitle(pane)} with this one"
+                        title="Show it together with the one in front"
+                        onclick={() => {
+                          windowsOpen = false;
+                          besideId = pane.id;
+                        }}
+                      >
+                        <Icon name="list" size={14} />
+                      </button>
+                    {/if}
+                    {#if !isView(pane)}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        class="window-close"
+                        aria-label="close {paneTitle(pane)}"
+                        title="Close this window"
+                        onclick={() => closePane(pane.id)}
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
+
+        <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
          order, so it can be learned: every built-in, then every saved view. It is the same set the
          action list offers under "Open …", computed once (`viewTargets`) so the two cannot drift.
          Panel only: the bottom bar already has `ViewBar`, which answers a different question —
          which of your open windows to look at, rather than which view to open. -->
-      <nav class="panel-views" aria-label="views">
-        {#each viewTargets as t (t.key)}
-          <button
-            type="button"
-            class="view-item"
-            class:saved={t.saved}
-            onclick={t.run}
-            onauxclick={(e) => {
-              // **Middle-click opens it as a tab of the collection** (workspace-design §11, D2), as
-              // on the web; only inside formicaria's browser.
-              if (e.button !== 1 || !bridged()) return;
-              e.preventDefault();
-              const address = t.key.startsWith('group:')
-                ? t.key
-                : t.saved
-                  ? `saved:${t.key.replace(/^saved:|^view:/, '')}`
-                  : t.key;
-              bridgeUp({ up: 'open-tab', address: `view:${address}`, title: t.label });
-            }}
-            title={t.saved ? `Open “${t.label}” — a view you saved` : `Open ${t.label}`}
-            aria-label={`open ${t.label}`}
-          >
-            <Icon name={t.icon} size={16} />
-            <span class="lbl">{t.label}</span>
-          </button>
-        {/each}
-      </nav>
+        <nav class="panel-views" aria-label="views">
+          {#each viewTargets as t (t.key)}
+            <button
+              type="button"
+              class="view-item"
+              class:saved={t.saved}
+              onclick={t.run}
+              onauxclick={(e) => {
+                // **Middle-click opens it as a tab of the collection** (workspace-design §11, D2), as
+                // on the web; only inside formicaria's browser.
+                if (e.button !== 1 || !bridged()) return;
+                e.preventDefault();
+                const address = t.key.startsWith('group:')
+                  ? t.key
+                  : t.saved
+                    ? `saved:${t.key.replace(/^saved:|^view:/, '')}`
+                    : t.key;
+                bridgeUp({ up: 'open-tab', address: `view:${address}`, title: t.label });
+              }}
+              title={t.saved ? `Open “${t.label}” — a view you saved` : `Open ${t.label}`}
+              aria-label={`open ${t.label}`}
+            >
+              <Icon name={t.icon} size={16} />
+              <span class="lbl">{t.label}</span>
+            </button>
+          {/each}
+        </nav>
 
-      <!-- **Also whenever something is actually hidden, however few vaults there are.** This was
+        <!-- **Also whenever something is actually hidden, however few vaults there are.** This was
          `allVaults.length > 1` alone, and the hazard the label's own comment names — "how a vault
          hidden weeks ago comes to read as notes that have gone missing" — was reachable by exactly
          that gate: hide one of two vaults, remove the other, and the control that undoes it stops
          rendering while the filter keeps filtering. The app then looks like an empty notebook with
          no way back. Reported by the owner, 2026-09-08. -->
-      {#if allVaults.length > 1 || hidden.length}
-        <!-- **A menu, not a row of chips** (2026-08-31). One chip per vault does not survive a long
+        {#if allVaults.length > 1 || hidden.length}
+          <!-- **A menu, not a row of chips** (2026-08-31). One chip per vault does not survive a long
            list: it wrapped the bar onto extra rows and, collapsed, showed slivers of names. A menu
            costs one control whatever the list does.
 
@@ -3332,72 +3413,72 @@
 
            Keyed and toggled on the vault **name** (the identity, and what `hiddenVaults`
            persists), labelled with what the repository is called — see `vaults.svelte.ts`. -->
-        <div class="create-wrap vaults-wrap">
-          <button
-            type="button"
-            class="tb-chip vaults-btn"
-            class:filtering={hiddenVaults.length > 0}
-            onclick={() => (vaultMenuOpen = !vaultMenuOpen)}
-            aria-expanded={vaultMenuOpen}
-            aria-haspopup="menu"
-            title="Which vaults to show"
-            aria-label="which vaults to show"
-          >
-            <span class="lbl">{vaultFilterLabel}</span>
-            <Icon name="chevron-down" size={12} />
-          </button>
-          {#if vaultMenuOpen}
-            <div
-              class="menu-backdrop"
-              role="presentation"
-              onclick={() => (vaultMenuOpen = false)}
-            ></div>
-            <ul class="create-menu" role="menu" use:popup>
-              {#each allVaults as v (v)}
-                <li role="none">
-                  <!-- **`menuitemcheckbox`, and the click does not close.** Every other menu in this
+          <div class="create-wrap vaults-wrap">
+            <button
+              type="button"
+              class="tb-chip vaults-btn"
+              class:filtering={hiddenVaults.length > 0}
+              onclick={() => (vaultMenuOpen = !vaultMenuOpen)}
+              aria-expanded={vaultMenuOpen}
+              aria-haspopup="menu"
+              title="Which vaults to show"
+              aria-label="which vaults to show"
+            >
+              <span class="lbl">{vaultFilterLabel}</span>
+              <Icon name="chevron-down" size={12} />
+            </button>
+            {#if vaultMenuOpen}
+              <div
+                class="menu-backdrop"
+                role="presentation"
+                onclick={() => (vaultMenuOpen = false)}
+              ></div>
+              <ul class="create-menu" role="menu" use:popup>
+                {#each allVaults as v (v)}
+                  <li role="none">
+                    <!-- **`menuitemcheckbox`, and the click does not close.** Every other menu in this
                      app is single-shot because it runs one action; a filter is many-of-many and
                      closing after each vault would make setting two of them a chore. That is the
                      one place this diverges from the shared skeleton, so it is stated here. -->
-                  <button
-                    type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={!hiddenVaults.includes(v)}
-                    onclick={() => toggleVault(v)}
-                  >
-                    <span class="tick" aria-hidden="true"
-                      >{hiddenVaults.includes(v) ? '' : '✓'}</span
+                    <button
+                      type="button"
+                      role="menuitemcheckbox"
+                      aria-checked={!hiddenVaults.includes(v)}
+                      onclick={() => toggleVault(v)}
                     >
-                    {labelFor(v)}
-                  </button>
-                </li>
-              {/each}
-              <!-- **Where the vaults are listed, a way to make another** (`decisions.md#ui`,
+                      <span class="tick" aria-hidden="true"
+                        >{hiddenVaults.includes(v) ? '' : '✓'}</span
+                      >
+                      {labelFor(v)}
+                    </button>
+                  </li>
+                {/each}
+                <!-- **Where the vaults are listed, a way to make another** (`decisions.md#ui`,
                    2026-10-15). It closes the menu: unlike the ticks above, it is one action. -->
-              {#if !isRemote()}
-                <li class="menu-sep" role="separator"></li>
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={() => {
-                      vaultMenuOpen = false;
-                      newVaultOpen = true;
-                    }}
-                  >
-                    <span class="tick" aria-hidden="true"></span>
-                    New vault…
-                  </button>
-                </li>
-              {/if}
-            </ul>
-          {/if}
-        </div>
-      {/if}
+                {#if !isRemote()}
+                  <li class="menu-sep" role="separator"></li>
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onclick={() => {
+                        vaultMenuOpen = false;
+                        newVaultOpen = true;
+                      }}
+                    >
+                      <span class="tick" aria-hidden="true"></span>
+                      New vault…
+                    </button>
+                  </li>
+                {/if}
+              </ul>
+            {/if}
+          </div>
+        {/if}
 
-      <span class="tb-spacer"></span>
+        <span class="tb-spacer"></span>
 
-      <!-- **Not a button and not an alert.** It reports, it cannot be clicked, and it is gone the
+        <!-- **Not a button and not an alert.** It reports, it cannot be clicked, and it is gone the
            moment the work is — so it is not the sixth chip the 2026-08-31 ruling refused: the
            resting toolbar is unchanged. `role="status"` + `aria-live="polite"` so it is announced
            rather than merely drawn, which is the same information for someone who cannot see it
@@ -3407,67 +3488,67 @@
            row, which is the wrapped-toolbar failure the 2026-07-19 device note records. The wheel
            is what was actually asked for — *"some icon rotating like a wheel should be visually
            present"* — and it is the half that survives the trim. -->
-      {#if busy}
-        <span class="tb-chip working" role="status" aria-live="polite">
-          <span class="spinner" data-motion="essential" aria-hidden="true"></span>
-          <span class="lbl">{busy}</span>
-        </span>
-      {/if}
+        {#if busy}
+          <span class="tb-chip working" role="status" aria-live="polite">
+            <span class="spinner" data-motion="essential" aria-hidden="true"></span>
+            <span class="lbl">{busy}</span>
+          </span>
+        {/if}
 
-      {#if movedVaults.length}
-        <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
-        <button
-          class="tb-chip moved alert"
-          onclick={getTheirChanges}
-          title="Someone sent changes — get them"
-          aria-label={`${
-            movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`
-          }: get changes`}
-        >
-          <Icon name="inbox" size={14} />
-          <span class="lbl"
-            >{movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get
-            changes</span
+        {#if movedVaults.length}
+          <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
+          <button
+            class="tb-chip moved alert"
+            onclick={getTheirChanges}
+            title="Someone sent changes — get them"
+            aria-label={`${
+              movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`
+            }: get changes`}
           >
-        </button>
-      {/if}
+            <Icon name="inbox" size={14} />
+            <span class="lbl"
+              >{movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get
+              changes</span
+            >
+          </button>
+        {/if}
 
-      {#if skippedNotes.length}
-        <!-- Notes that are on disk but absent from every view because they do not parse.
+        {#if skippedNotes.length}
+          <!-- Notes that are on disk but absent from every view because they do not parse.
            A chip rather than only a banner: the banner is dismissible and this condition
            is not transient — it persists until a human resolves the file. -->
-        <button
-          class="tb-chip moved alert"
-          onclick={() => (skippedOpen = true)}
-          title="Notes that could not be read — usually a conflicted merge"
-          aria-label={`${skippedNotes.length} unreadable`}
-        >
-          {skippedNotes.length}{' '}<span class="lbl">unreadable</span>
-        </button>
-      {/if}
+          <button
+            class="tb-chip moved alert"
+            onclick={() => (skippedOpen = true)}
+            title="Notes that could not be read — usually a conflicted merge"
+            aria-label={`${skippedNotes.length} unreadable`}
+          >
+            {skippedNotes.length}{' '}<span class="lbl">unreadable</span>
+          </button>
+        {/if}
 
-      {#if unrecordedTotal}
-        <!-- **Notes that exist and are not in history.** A chip for the same reason "unreadable" is
+        {#if unrecordedTotal}
+          <!-- **Notes that exist and are not in history.** A chip for the same reason "unreadable" is
            one: this condition is not transient, and its whole failure mode was silence. `commit_all`
            stages only the paths the app remembers writing, and that memory dies with the process —
            so a note written before the last restart could never be staged by it, and nothing said
            so. Ninety-five had accumulated over a week before anyone noticed (2026-07-31). -->
-        <!-- **Opens the panel rather than committing blind.** It used to record on one click, which is
+          <!-- **Opens the panel rather than committing blind.** It used to record on one click, which is
            the right *action* and the wrong *first* step: the count alone cannot say whether these are
            notes that exist nowhere else or notes something is rewriting, and those want opposite
            responses. The panel says which, then offers the button. -->
-        <button
-          class="tb-chip moved alert"
-          onclick={() => (unrecordedOpen = true)}
-          title="Notes on disk that git does not have yet — click to see which, and why"
-          aria-label={`${unrecordedTotal} not in history`}
-        >
-          {unrecordedTotal}{' '}<span class="lbl">not in history</span>
-        </button>
-      {/if}
+          <button
+            class="tb-chip moved alert"
+            onclick={() => (unrecordedOpen = true)}
+            title="Notes on disk that git does not have yet — click to see which, and why"
+            aria-label={`${unrecordedTotal} not in history`}
+          >
+            {unrecordedTotal}{' '}<span class="lbl">not in history</span>
+          </button>
+        {/if}
 
-      {#if quiet.length}
-        <!-- **Nothing has been saved here in weeks.** The only chip that reports an *absence*, and
+        {#if quiet.length}
+          <!-- **Nothing has been saved here in weeks.** The only chip that reports an *absence*, and
            the reason it exists: for thirty-nine days a vault could not commit, and the screen it
            was on looked exactly like a notebook nobody had opened. Every other alert here names
            something a detector found, so every other alert is silent when the detector is the
@@ -3478,35 +3559,35 @@
            It opens the panel rather than backing up on the click: weeks of silence has more than
            one cause — a merge waiting on a person, a remote that never got set, or simply nobody
            writing — and the panel is where those are told apart. -->
-        <button
-          class="tb-chip moved alert"
-          onclick={onBackup}
-          title={quietTitle(quiet, labelFor)}
-          aria-label={quietLabel(quiet, labelFor)}
-        >
-          <Icon name="clock" size={14} />
-          <span class="lbl">{quietLabel(quiet, labelFor)}</span>
-        </button>
-      {/if}
+          <button
+            class="tb-chip moved alert"
+            onclick={onBackup}
+            title={quietTitle(quiet, labelFor)}
+            aria-label={quietLabel(quiet, labelFor)}
+          >
+            <Icon name="clock" size={14} />
+            <span class="lbl">{quietLabel(quiet, labelFor)}</span>
+          </button>
+        {/if}
 
-      {#if unsentNow.length}
-        <!-- **Changes that are not leaving this device** (2026-10-17, `decisions.md#sync`). Filled
+        {#if unsentNow.length}
+          <!-- **Changes that are not leaving this device** (2026-10-17, `decisions.md#sync`). Filled
            like the quiet chip: it is an invitation to act, and Back up is where the reason is seen
            and the send can be made now. The label is short; the hover says why — the failure in
            plain words, or how long the changes have waited. -->
-        <button
-          class="tb-chip moved alert"
-          onclick={onBackup}
-          title={unsentTitle(unsentNow, labelFor, plainError)}
-          aria-label={unsentLabel(unsentNow, labelFor)}
-        >
-          <Icon name="backup" size={14} />
-          <span class="lbl">{unsentLabel(unsentNow, labelFor)}</span>
-        </button>
-      {/if}
+          <button
+            class="tb-chip moved alert"
+            onclick={onBackup}
+            title={unsentTitle(unsentNow, labelFor, plainError)}
+            aria-label={unsentLabel(unsentNow, labelFor)}
+          >
+            <Icon name="backup" size={14} />
+            <span class="lbl">{unsentLabel(unsentNow, labelFor)}</span>
+          </button>
+        {/if}
 
-      {#if settledNotes}
-        <!-- **Everything the merge settled on your behalf**, in one chip and one panel: a field the
+        {#if settledNotes}
+          <!-- **Everything the merge settled on your behalf**, in one chip and one panel: a field the
            two devices set differently (both answers kept, `decisions.md` 2026-09-07) and a note one
            device deleted while the other was editing it (the note kept, same date). Two shapes, one
            category — *they disagreed, the merge chose, nothing is blocked* — and the panel keeps
@@ -3518,17 +3599,17 @@
            **Deliberately the quietest chip** (no `moved` class): "unreadable" means a note is
            missing from every view and "not in history" means a note exists in one place only. This
            one means everything is fine and a choice is waiting. -->
-        <button
-          class="tb-chip alert"
-          onclick={() => (demotedOpen = true)}
-          title="Notes the two devices disagreed about — the merge chose, and you can change it"
-          aria-label={`${settledNotes} decided for you`}
-        >
-          {settledNotes}{' '}<span class="lbl">decided for you</span>
-        </button>
-      {/if}
+          <button
+            class="tb-chip alert"
+            onclick={() => (demotedOpen = true)}
+            title="Notes the two devices disagreed about — the merge chose, and you can change it"
+            aria-label={`${settledNotes} decided for you`}
+          >
+            {settledNotes}{' '}<span class="lbl">decided for you</span>
+          </button>
+        {/if}
 
-      <!-- **One control, and it opens the choices.**
+        <!-- **One control, and it opens the choices.**
          It was a split button: a wide half that sent on the spot, and a narrow chevron opening the
          four choices. Two small targets side by side, which on a phone is the owner's report —
          *"the button is small and the down arrow to, and the user will have to select more often
@@ -3542,109 +3623,109 @@
          whose behaviour depends on the device is one nobody can be taught once.
          Sending stays user-triggered rather than timed, which is unchanged: it is a visible act
          with an audience, and a cadence that fires on its own makes it one nobody chose. -->
-      <div class="create-wrap">
-        <button
-          type="button"
-          class="save-btn"
-          onclick={() => (backupMenuOpen = !backupMenuOpen)}
-          disabled={savingLabel !== null}
-          aria-expanded={backupMenuOpen}
-          aria-haspopup="menu"
-          title="Back up, get their changes, or open the backup options"
-          aria-label="back up"
-        >
-          <Icon name="backup" size={14} />
-          <!-- **No idle label.** Help and Settings beside it carry none, and one labelling rule per
+        <div class="create-wrap">
+          <button
+            type="button"
+            class="save-btn"
+            onclick={() => (backupMenuOpen = !backupMenuOpen)}
+            disabled={savingLabel !== null}
+            aria-expanded={backupMenuOpen}
+            aria-haspopup="menu"
+            title="Back up, get their changes, or open the backup options"
+            aria-label="back up"
+          >
+            <Icon name="backup" size={14} />
+            <!-- **No idle label.** Help and Settings beside it carry none, and one labelling rule per
              state is what makes a column of controls read as a column rather than a list of
              exceptions. The word returns while it is *working*, because "is anything happening?"
              is the one moment an icon alone cannot answer (heuristic 1, visibility of system
              status); the tooltip carries the meaning the rest of the time. -->
-          {#if savingLabel}<span class="save-label">{savingLabel}</span>{/if}
-        </button>
-        {#if backupMenuOpen}
-          <div
-            class="menu-backdrop"
-            role="presentation"
-            onclick={() => (backupMenuOpen = false)}
-          ></div>
-          <ul class="create-menu" role="menu" use:popup>
-            {#each BACKUP_MENU as item (item.label)}
+            {#if savingLabel}<span class="save-label">{savingLabel}</span>{/if}
+          </button>
+          {#if backupMenuOpen}
+            <div
+              class="menu-backdrop"
+              role="presentation"
+              onclick={() => (backupMenuOpen = false)}
+            ></div>
+            <ul class="create-menu" role="menu" use:popup>
+              {#each BACKUP_MENU as item (item.label)}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => ((backupMenuOpen = false), item.run())}
+                  >
+                    <span class="mi-label">{item.label}</span>
+                    <span class="mi-note">{item.note}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+
+        <!-- **Undo, in a menu** (owner's choice, 2026-10-09: no pop-up bar). It names what it would undo,
+         so nothing happens by surprise; Ctrl+Z / Ctrl+Shift+Z reach the same stack on a keyboard.
+         Recently deleted lives here too, because "I deleted that" is the moment both are wanted. -->
+        <div class="create-wrap">
+          <button
+            type="button"
+            class="icon-btn"
+            onclick={() => (undoMenuOpen = !undoMenuOpen)}
+            aria-expanded={undoMenuOpen}
+            aria-haspopup="menu"
+            aria-label="undo"
+            title={undo.nextUndo()
+              ? `Undo ${undo.nextUndo()?.label}`
+              : 'Undo, redo, recently deleted'}
+          >
+            <Icon name="undo" size={16} />
+          </button>
+          {#if undoMenuOpen}
+            <div
+              class="menu-backdrop"
+              role="presentation"
+              onclick={() => (undoMenuOpen = false)}
+            ></div>
+            <ul class="create-menu" role="menu" use:popup>
               <li role="none">
                 <button
                   type="button"
                   role="menuitem"
-                  onclick={() => ((backupMenuOpen = false), item.run())}
+                  disabled={!undo.nextUndo() || undo.busy()}
+                  onclick={() => ((undoMenuOpen = false), void runUndo('undo'))}
                 >
-                  <span class="mi-label">{item.label}</span>
-                  <span class="mi-note">{item.note}</span>
+                  <span class="mi-label">Undo</span>
+                  <span class="mi-note">{undo.nextUndo()?.label ?? 'Nothing to undo yet'}</span>
                 </button>
               </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!undo.nextRedo() || undo.busy()}
+                  onclick={() => ((undoMenuOpen = false), void runUndo('redo'))}
+                >
+                  <span class="mi-label">Redo</span>
+                  <span class="mi-note">{undo.nextRedo()?.label ?? 'Nothing to redo'}</span>
+                </button>
+              </li>
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onclick={() => ((undoMenuOpen = false), (deletedOpen = true))}
+                >
+                  <span class="mi-label">Recently deleted…</span>
+                  <span class="mi-note">Bring back a note deleted in the last 30 days</span>
+                </button>
+              </li>
+            </ul>
+          {/if}
+        </div>
 
-      <!-- **Undo, in a menu** (owner's choice, 2026-10-09: no pop-up bar). It names what it would undo,
-         so nothing happens by surprise; Ctrl+Z / Ctrl+Shift+Z reach the same stack on a keyboard.
-         Recently deleted lives here too, because "I deleted that" is the moment both are wanted. -->
-      <div class="create-wrap">
-        <button
-          type="button"
-          class="icon-btn"
-          onclick={() => (undoMenuOpen = !undoMenuOpen)}
-          aria-expanded={undoMenuOpen}
-          aria-haspopup="menu"
-          aria-label="undo"
-          title={undo.nextUndo()
-            ? `Undo ${undo.nextUndo()?.label}`
-            : 'Undo, redo, recently deleted'}
-        >
-          <Icon name="undo" size={16} />
-        </button>
-        {#if undoMenuOpen}
-          <div
-            class="menu-backdrop"
-            role="presentation"
-            onclick={() => (undoMenuOpen = false)}
-          ></div>
-          <ul class="create-menu" role="menu" use:popup>
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                disabled={!undo.nextUndo() || undo.busy()}
-                onclick={() => ((undoMenuOpen = false), void runUndo('undo'))}
-              >
-                <span class="mi-label">Undo</span>
-                <span class="mi-note">{undo.nextUndo()?.label ?? 'Nothing to undo yet'}</span>
-              </button>
-            </li>
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                disabled={!undo.nextRedo() || undo.busy()}
-                onclick={() => ((undoMenuOpen = false), void runUndo('redo'))}
-              >
-                <span class="mi-label">Redo</span>
-                <span class="mi-note">{undo.nextRedo()?.label ?? 'Nothing to redo'}</span>
-              </button>
-            </li>
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                onclick={() => ((undoMenuOpen = false), (deletedOpen = true))}
-              >
-                <span class="mi-label">Recently deleted…</span>
-                <span class="mi-note">Bring back a note deleted in the last 30 days</span>
-              </button>
-            </li>
-          </ul>
-        {/if}
-      </div>
-
-      <!-- The manual, one click from anywhere in the app.
+        <!-- The manual, one click from anywhere in the app.
          The first non-technical tester's verdict was that it was "difficult to find and click on"
          — it shipped in the archive as a folder, and nothing in the running app ever mentioned
          it. It is baked into the binary, so this works offline and still works when someone has
@@ -3652,38 +3733,39 @@
 
          **Not on the phone.** There the UI is served by the Tauri shell, not `fm-serve`, so
          `/manual/` resolves to nothing; a Help button that 404s is worse than no Help button. -->
-      <button
-        class="icon-btn help"
-        onclick={() => (helpOpen = true)}
-        aria-label="help"
-        title="Help — how this works"
-      >
-        <Icon name="help" size={16} />
-      </button>
+        <button
+          class="icon-btn help"
+          onclick={() => (helpOpen = true)}
+          aria-label="help"
+          title="Help — how this works"
+        >
+          <Icon name="help" size={16} />
+        </button>
 
-      <button
-        class="icon-btn"
-        onclick={() => openSettings()}
-        aria-label="settings"
-        title="Settings — what this install is configured as"
-      >
-        <Icon name="gear" size={16} />
-      </button>
+        <button
+          class="icon-btn"
+          onclick={() => openSettings()}
+          aria-label="settings"
+          title="Settings — what this install is configured as"
+        >
+          <Icon name="gear" size={16} />
+        </button>
 
-      <!-- Last, with the other system controls, rather than above the ＋ where it started: the first
+        <!-- Last, with the other system controls, rather than above the ＋ where it started: the first
          thing in a panel should be the thing you came to do. Hidden where the chrome is a bar,
          because a bar is already as small as it gets. -->
-      <button
-        type="button"
-        class="icon-btn panel-toggle"
-        onclick={togglePanel}
-        aria-expanded={panelOpen}
-        aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
-        title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand the panel'}
-      >
-        <Icon name="chevron-down" size={16} />
-      </button>
-    </header>
+        <button
+          type="button"
+          class="icon-btn panel-toggle"
+          onclick={togglePanel}
+          aria-expanded={panelOpen}
+          aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
+          title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand the panel'}
+        >
+          <Icon name="chevron-down" size={16} />
+        </button>
+      </header>
+    {/if}
 
     <div class="body">
       <!-- **"The app has stopped" is a different sentence from "something went wrong".**
@@ -3760,7 +3842,59 @@
          pane header would both be in the DOM, giving two elements labelled `group by` — ambiguous
          to a screen reader and to `getByLabelText`. This branches on the layout *preference*, not
          on the viewport, so the rule it has to respect is untouched. -->
-      {#if (workspace.layout ?? 'single') === 'single'}
+      {#if tabBar() && workspace.panes[focused] && isView(workspace.panes[focused])}
+        <!-- **The tab's line** (`decisions.md` 2026-11-17, *one frame*): the feature as a chooser that
+             moves this tab, its views, and how they are shown — the same line as a feature page. -->
+        <div class="tab-line">
+          <div class="chooser">
+            <button
+              type="button"
+              class="feature-name"
+              aria-haspopup="menu"
+              aria-expanded={featureMenuOpen}
+              aria-label="switch this tab to another feature"
+              onclick={() => (featureMenuOpen = !featureMenuOpen)}
+              >{focusedSpace
+                ? sectionLabel(focusedSpace.name)
+                : paneTitle(workspace.panes[focused])} ▾</button
+            >
+            {#if featureMenuOpen}
+              <ul class="feature-menu" role="menu" aria-label="features" use:popup>
+                {#each FEATURES as f (f.key)}
+                  <li role="none">
+                    <button type="button" role="menuitem" onclick={() => switchFeature(f.key)}
+                      >{f.label}</button
+                    >
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+          {#if focusedSpace && focusedSpace.tabs.length > 1}
+            {#each focusedSpace.tabs as t (t.key)}
+              {@const on = showsTab(workspace.panes[focused], t)}
+              <button
+                type="button"
+                class="view-tab"
+                class:on
+                aria-current={on ? 'page' : undefined}
+                onclick={() =>
+                  changePane(workspace.panes[focused].id, {
+                    kind: t.viewName ? 'view' : t.kind,
+                    viewName: t.viewName ?? null,
+                  })}>{t.label}</button
+              >
+            {/each}
+          {/if}
+          <ViewControls
+            pane={workspace.panes[focused]}
+            feed={feedKey(workspace.panes[focused])
+              ? feeds[feedKey(workspace.panes[focused]) ?? '']
+              : undefined}
+            onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
+          />
+        </div>
+      {:else if !tabBar() && (workspace.layout ?? 'single') === 'single'}
         <ViewBar
           panes={workspace.panes}
           active={focused}
@@ -3774,6 +3908,17 @@
 
       {#if launching}
         <WebOpen onweb={openWeb} onclose={() => (launching = false)} />
+      {/if}
+      {#if newTabOpen}
+        <div class="new-tab-sheet" role="dialog" aria-label="new tab">
+          <button
+            type="button"
+            class="new-tab-close"
+            aria-label="close the new tab"
+            onclick={() => (newTabOpen = false)}>✕</button
+          >
+          <NewTab go={goNewTab} />
+        </div>
       {/if}
       <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
          spans some columns; panes flow into rows. The renderers are pure and height:100%, so
@@ -3996,6 +4141,13 @@
     {/if}
   </div>
 {/if}
+
+<SelectionBring
+  source={() => {
+    const f = workspace.panes[focused];
+    return f?.kind === 'note' && f.noteId ? { id: f.noteId, title: f.noteTitle || 'a note' } : null;
+  }}
+/>
 
 <style>
   /* The new-vault dialog. Genuinely modal — a form, not a peer view — so it keeps the
@@ -5117,5 +5269,74 @@
     position: absolute;
     top: 2px;
     right: 2px;
+  }
+  /* **The one bar** (`decisions.md` 2026-11-17, *one frame*): the bar and the tab, nothing else. */
+  .app.tab-shell {
+    display: flex;
+    flex-direction: column;
+  }
+  .app.tab-shell > :global(.tab-bar) {
+    order: 2;
+    flex: none;
+  }
+  .app.tab-shell.bar-top > :global(.tab-bar) {
+    order: 0;
+  }
+  .app.tab-shell > .body {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+  }
+  .tab-line {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    overflow-x: auto;
+    flex: none;
+  }
+  .tab-line .chooser {
+    position: relative;
+    flex: none;
+  }
+  .feature-name {
+    font-weight: 700;
+  }
+  .feature-menu {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 4px;
+    min-width: 12rem;
+    background: var(--bg, Canvas);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  }
+  .feature-menu button {
+    width: 100%;
+    text-align: start;
+  }
+  .view-tab {
+    flex: none;
+    border-radius: 999px;
+    padding: var(--space-1) var(--space-3);
+  }
+  .view-tab.on {
+    background: color-mix(in srgb, #dc2626 18%, transparent);
+    font-weight: 600;
+  }
+  .new-tab-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: var(--bg, Canvas);
+    overflow: auto;
+    padding-top: var(--safe-top, 0px);
+  }
+  .new-tab-close {
+    position: absolute;
+    top: max(var(--safe-top, 0px), var(--space-2));
+    right: var(--space-2);
+    min-width: 2.6rem;
+    min-height: 2.6rem;
   }
 </style>

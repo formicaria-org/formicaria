@@ -18,11 +18,10 @@
 
   let {
     pane,
-    target,
   }: {
     pane: Pane;
-    /** The note a brought passage goes into (the note before this page), if any. */
-    target: () => { id: string; title: string } | null;
+    /** No longer used: what is brought in from a page goes by Android's selection bar. */
+    target?: () => { id: string; title: string } | null;
   } = $props();
 
   const shell = pageShell();
@@ -81,18 +80,10 @@
 
 <div class="page-item">
   {#if shell}
-    <div class="page-head">
-      <button type="button" aria-label="back in this page" onclick={() => shell.back(pane.id)}
-        >‹</button
-      >
-      <span class="page-title">{pane.pageTitle || host}</span>
-      <button
-        type="button"
-        aria-label="bring the selection into a note"
-        title="Bring the selection (or this page) into your note"
-        onclick={() => shell.bring(pane.id, target()?.id ?? '')}>⇥</button
-      >
-    </div>
+    <!-- **Nothing over the page** (the owner on 0.48: the ⇥ "is weird and should be removed", the ‹
+         "why should I need it?"): Android's Back goes back in the page; what is selected is brought in
+         from Android's selection bar (*Bring into note*, first), an image or a link by a long press;
+         the tab in the bar names the page. -->
     <div class="page-box" bind:this={box}></div>
   {:else}
     <div class="page-link">
@@ -108,27 +99,6 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-  }
-  .page-head {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: 0 var(--space-1);
-    min-height: 2.4rem;
-  }
-  .page-head button {
-    flex: none;
-    min-width: 2.4rem;
-    min-height: 2.4rem;
-    font-size: 1.1rem;
-  }
-  .page-title {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-sm);
   }
   .page-box {
     flex: 1;

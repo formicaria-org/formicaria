@@ -72,33 +72,25 @@ reopens the page with that passage highlighted.
 
 Then press **Open in formicaria** to go to the note. It is yours: edit it, tag it, move it.
 
-## The ant, and your tabs
+## One row: your tabs
 
-- **The ant at the start of the tab row is formicaria.** Press it: a small panel with a search field
-  (your notes, or the web), **New note**, and formicaria's features: **Notes**, **Tasks**, **Agenda**,
-  **Food journal**, **Fitness**, **Health**, **Music**. Choose one and it opens in **a tab of
-  its own**, filling the window.
-- **Every tab is one thing**: a feature (with its own views as a row of buttons at the top: Notes'
-  *Shelves* and *Timeline*, Food's *Day*, *Menu*, *Trends*…), a single note, or a web page. formicaria's
-  tabs have no bars or windows inside them: the browser's tabs are the windows.
-- **Opening a note from a feature opens it in a tab of its own**, beside the feature, as a link would.
-- **Your webmail** is a web page like any other: open it in a tab, and bring what you select into a
-  note.
-- **+ (or Ctrl+T) is a new web tab**, as in any browser. The browser is for the web; formicaria's
-  features come from the ant.
+- **On formicaria's own tabs there is one row**: formicaria's button (the ant: its options, Settings
+  and Help, and a search of your notes and the web), your tabs, and **+**. The address row appears
+  only on web pages, which need one.
+- **Every tab is one thing**: a feature (Notes, Tasks, Agenda, Food journal, Fitness, Health, Music), a
+  single note, or a web page. A feature's tab starts with its line: the feature's name (**Food ▾**)
+  switches *this* tab to another feature (Back returns), and its views follow (Day · Menu · Trends).
+- **+ (or Ctrl+T) suggests**: a new tab offers the features, a new note, and a field for a web address
+  or a search. What you choose fills the tab.
+- **Opening a note from a feature opens it in a tab of its own**, as a link would.
+- **Select text inside formicaria** and its icon appears beside it: bring the passage into the note you
+  looked at last, any note, or a new one. (On web pages, the same icon; see below.)
 - **Two tabs side by side**: drag a tab onto the left or right half of the page (Firefox's split
-  view). It works for any two: two pages, a note and a page, two notes, a feature and a note.
-- **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, whatever it is, and
-  again to come back.
-- Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click. A note's own **×**
-  closes its tab.
-- **Tabs are across the top**, as in any browser: click to switch, drag to reorder; **scroll over
-  them** to move through them; **Ctrl+Tab** shows your recent tabs as cards to pick from. Prefer them
-  down the side? **Settings → Browser → Tabs down the side** (always shown, never behind a button).
-- **Your tabs come back** when the browser starts again, formicaria's ones too (tabs from versions
-  before 0.47 become their notes' and features' pages).
-- The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
-  in the dock and Alt+Tab.
+  view), for any two tabs.
+- **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, and again to come back.
+- Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click.
+- **Your tabs come back** when the browser starts again. An old whole-app tab becomes Notes.
+- Prefer tabs down the side? **Settings → Browser → Tabs down the side**.
 
 ## Bring things in, or save the page
 

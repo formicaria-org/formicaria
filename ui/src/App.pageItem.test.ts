@@ -53,7 +53,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it('a link opens a page item drawn by the shell; the switch goes back; ⇥ brings into the note', async () => {
+it('a link opens a page item drawn by the shell, with nothing over it; what is brought lands in the note', async () => {
   const [made] = (await mock.handle('create_notes', {
     notes: [{ title: 'Reading', body: 'Start. [Ants](https://example.org/ants)', props: {} }],
   })) as { id: string }[];
@@ -74,9 +74,9 @@ it('a link opens a page item drawn by the shell; the switch goes back; ⇥ bring
   );
   expect((await screen.findAllByText('All about ants')).length).toBeGreaterThan(0);
 
-  // ⇥ asks the shell for the selection, for the note before the page.
-  await fireEvent.click(screen.getByRole('button', { name: 'bring the selection into a note' }));
-  expect(calls).toContainEqual(['bring', pageId, made.id]);
+  // Nothing over the page: Back is Android's, bringing in is from Android's selection bar.
+  expect(screen.queryByRole('button', { name: 'bring the selection into a note' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'back in this page' })).toBeNull();
 
   // What the shell brings back lands in that note, with the page's exact address.
   brought = [

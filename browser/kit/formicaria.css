@@ -26,3 +26,11 @@
 #fxa-toolbar-menu-button {
   display: none !important;
 }
+
+/* **One row on formicaria's own tabs** (`decisions.md` 2026-11-17, *one frame*): the address row is for
+   web pages; on a page of formicaria's the tab row is the only row. */
+:root[formicaria-page] #nav-bar,
+:root[formicaria-page] #PersonalToolbar {
+  /* Out of the layout: folded (`collapsed`), the toolbar still kept 20 px in ESR 153. */
+  display: none !important;
+}

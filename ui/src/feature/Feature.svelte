@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { popup } from '../lib/popup';
   // **One feature, or one note, filling a tab** (`decisions.md` 2026-11-17, *one server, many
   // views*). The address says which (`route.ts`); the page holds no state beyond what is on screen:
   // it reads by commands, writes by commands, and re-reads when the server says something moved
@@ -13,6 +14,12 @@
   import { parseRoute, itemUrl, type Route } from './route';
   import { setPropertyUndoable } from '../lib/undo.svelte';
   import { trackersShown } from '../lib/trackers.svelte';
+  import { FEATURES, featureOf } from '../lib/features';
+  import NewTab from './NewTab.svelte';
+  import SelectionBring from '../lib/SelectionBring.svelte';
+  import { noteShown } from '../lib/lastNote';
+
+  let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
 
   const route: Route = parseRoute(location.pathname);
 
@@ -55,6 +62,24 @@
     const first = tabs[0].to;
     pane = newPane(first.kind, first.viewName ? { viewName: first.viewName } : {});
   });
+
+  /** The feature this tab shows, for its chooser (`Food ▾`). */
+  const here = featureOf(location.pathname);
+  let choosing = $state(false);
+  // Settings as a page: its theme and the new-vault form, as the app keeps them.
+  let theme = $state(
+    typeof document !== 'undefined' ? (document.documentElement.dataset.theme ?? 'dark') : 'dark',
+  );
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem('fm-theme', theme);
+    } catch {
+      /* this device keeps no choice */
+    }
+  }
+  let newVaultOpen = $state(false);
 
   async function read() {
     // A feature reads once its first view is chosen, not the placeholder before it.
@@ -144,56 +169,119 @@
 </script>
 
 <div class="feature">
-  {#if tabs.length > 1}
-    <nav class="strip" aria-label="{route.kind === 'group' ? sectionLabel(route.name) : ''} views">
-      {#each tabs as t (t.label)}
-        <button
-          type="button"
-          class:on={active(t)}
-          aria-current={active(t) ? 'page' : undefined}
-          onclick={() =>
-            (pane = newPane(
-              t.to.kind as PaneT['kind'],
-              t.to.viewName ? { viewName: t.to.viewName } : {},
-            ))}>{t.label}</button
-        >
-      {/each}
-    </nav>
+  {#if route.kind === 'new'}
+    <NewTab {go} />
+  {:else if route.kind === 'settings'}
+    {#await import('../lib/SettingsPanel.svelte') then { default: SettingsPanel }}
+      <SettingsPanel
+        layout="single"
+        onlayout={() => {}}
+        onclose={() => (history.length > 1 ? history.back() : window.close())}
+        onkeyschanged={() => {}}
+        commands={[]}
+        columns="auto"
+        oncolumns={() => {}}
+        {theme}
+        ontheme={toggleTheme}
+        onnewvault={() => (newVaultOpen = true)}
+      />
+    {/await}
+    {#if newVaultOpen}
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
+        {#await import('../lib/NewVault.svelte') then { default: NewVault }}
+          <NewVault
+            oncreated={() => (newVaultOpen = false)}
+            oncancel={() => (newVaultOpen = false)}
+          />
+        {/await}
+      </div>
+    {/if}
+  {:else}
+    {#if route.kind !== 'note'}
+      <!-- **The tab's line** (`decisions.md` 2026-11-17, *one frame*): which feature this tab shows, as
+         a chooser that moves *this* tab (Back returns), then the feature's own views. -->
+      <nav
+        class="strip"
+        aria-label="{route.kind === 'group' ? sectionLabel(route.name) : ''} views"
+      >
+        <div class="chooser">
+          <button
+            type="button"
+            class="feature-name"
+            aria-haspopup="menu"
+            aria-expanded={choosing}
+            aria-label="switch this tab to another feature"
+            onclick={() => (choosing = !choosing)}
+            >{here?.label ??
+              (route.kind === 'group' ? sectionLabel(route.name) : (pane.viewName ?? pane.kind))} ▾</button
+          >
+          {#if choosing}
+            <ul class="menu" role="menu" aria-label="features" use:popup>
+              {#each FEATURES as f (f.key)}
+                <li role="none">
+                  <button type="button" role="menuitem" onclick={() => go(f.url)}>{f.label}</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+        {#if tabs.length > 1}
+          {#each tabs as t (t.label)}
+            <button
+              type="button"
+              class:on={active(t)}
+              aria-current={active(t) ? 'page' : undefined}
+              onclick={() =>
+                (pane = newPane(
+                  t.to.kind as PaneT['kind'],
+                  t.to.viewName ? { viewName: t.to.viewName } : {},
+                ))}>{t.label}</button
+            >
+          {/each}
+        {/if}
+      </nav>
+    {/if}
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+    <div class="body">
+      <Pane
+        {pane}
+        index={0}
+        cols={1}
+        {feed}
+        statuses={statusesOf(feed)}
+        shown={() => true}
+        focused={true}
+        startEditing={false}
+        {vaults}
+        onopen={openNote}
+        onresolve={async () => {}}
+        onmove={(g, id, v) => void move(g, id, v)}
+        onstatus={(id, v) => void move('status', id, v ?? '')}
+        onnavigate={openNote}
+        onsaved={saved}
+        onchange={(patch) => {
+          // Only a real change: a new object for the same pane would draw it again, and again.
+          const changed = Object.entries(patch).some(([k, v]) => pane[k as keyof PaneT] !== v);
+          if (changed) pane = { ...pane, ...patch };
+        }}
+        ontitle={(t) => {
+          if (t !== pane.noteTitle) pane = { ...pane, noteTitle: t };
+          if (route.kind === 'note') noteShown(route.id, t || 'Untitled');
+        }}
+        onreorder={() => {}}
+        onresize={() => {}}
+        onclose={() => window.close()}
+        onfocus={() => {}}
+        headed={false}
+      />
+    </div>
   {/if}
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
-  <div class="body">
-    <Pane
-      {pane}
-      index={0}
-      cols={1}
-      {feed}
-      statuses={statusesOf(feed)}
-      shown={() => true}
-      focused={true}
-      startEditing={false}
-      {vaults}
-      onopen={openNote}
-      onresolve={async () => {}}
-      onmove={(g, id, v) => void move(g, id, v)}
-      onstatus={(id, v) => void move('status', id, v ?? '')}
-      onnavigate={openNote}
-      onsaved={saved}
-      onchange={(patch) => {
-        // Only a real change: a new object for the same pane would draw it again, and again.
-        const changed = Object.entries(patch).some(([k, v]) => pane[k as keyof PaneT] !== v);
-        if (changed) pane = { ...pane, ...patch };
-      }}
-      ontitle={(t) => {
-        if (t !== pane.noteTitle) pane = { ...pane, noteTitle: t };
-      }}
-      onreorder={() => {}}
-      onresize={() => {}}
-      onclose={() => window.close()}
-      onfocus={() => {}}
-      headed={false}
-    />
-  </div>
 </div>
+
+<SelectionBring
+  source={() =>
+    route.kind === 'note' ? { id: route.id, title: pane.noteTitle || 'a note' } : null}
+/>
 
 <style>
   .feature {
@@ -214,6 +302,37 @@
     padding: var(--space-1) var(--space-3);
     border-radius: 999px;
     min-height: 2rem;
+  }
+  .chooser {
+    position: relative;
+    flex: none;
+  }
+  .feature-name {
+    font-weight: 700;
+  }
+  .menu {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 4px;
+    min-width: 12rem;
+    background: var(--bg, Canvas);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  }
+  .menu button {
+    width: 100%;
+    text-align: start;
+    border-radius: 6px;
+  }
+  .sheet {
+    position: fixed;
+    inset: 5vh 5vw;
+    z-index: 30;
+    overflow: auto;
+    background: var(--bg, Canvas);
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+    padding: var(--space-3);
   }
   .strip button.on {
     background: var(--accent-soft, color-mix(in srgb, #dc2626 18%, transparent));
