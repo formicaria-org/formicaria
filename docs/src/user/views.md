@@ -17,7 +17,7 @@ The views are gathered into **sections** of the library, and they are all ways o
 
 | Group | What it is for | Its views |
 |---|---|---|
-| **Study rooms** (called *Library* before 0.38) | everything you have written: on shelves, or browsed by tag | Shelves, Timeline |
+| **Notes** (called *Library* before 0.38) | everything you have written: on shelves, or browsed by tag | Shelves, Timeline |
 | **Mail** | the conversations formicaria reads from Gmail, kept apart from what you write: in a conversation's **＋** (Options), *Reply in Gmail* opens it beside, and *Bring into another note…* takes the selected passage (or the latest message) into another note | Conversations |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
@@ -42,19 +42,19 @@ The views are gathered into **sections** of the library, and they are all ways o
   step to walk back through; a day picked from Trends does (see
   [Going back](./notes.md#going-back)).
 
-**Study rooms open on their shelves** — the place to come back to. Each note is a book, lying on its
+**Notes open on their shelves** — the place to come back to. Each note is a book, lying on its
 side so its title reads across. **A shelf is a tag that starts with `shelf:`**: a note tagged
 `shelf:Recipes` stands on the **Recipes** shelf, one with two such tags stands on both, and the ones
 with none are on **Other** (its newest thirty; every note is in the Timeline). Other tags make no
-shelf, so the study rooms do not fill up with every tag you use. To put a book on a shelf, add the tag
+shelf, so your notes do not fill up with every tag you use. To put a book on a shelf, add the tag
 in the note's **＋ → Details → Tags** (a new name is a new shelf); with a mouse you can also drag it
 onto another shelf, which swaps its `shelf:` tag for that one. Every notebook starts with five short
 guides on **Tutorials** — the same pages as this manual's [Tutorials](../tutorials/1-start-here.md).
 Notes from an earlier version kept their shelf in a `shelf` property; the app turns it into the tag
 the next time it starts.
 
-In the study rooms, the row of tags above the timeline shows every tag on your notes and how many
-carry it; tap one to see only those notes, and again to see them all. Otherwise the study rooms are
+In Notes, the row of tags above the timeline shows every tag on your notes and how many
+carry it; tap one to see only those notes, and again to see them all. Otherwise Notes is
 the timeline, and the board and the agenda in Tasks are the ones described below.
 
 ![The Board: three columns — todo, doing, done — of note cards, each showing its tags, its due

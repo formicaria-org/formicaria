@@ -196,11 +196,16 @@ def bring_in(m: "Marionette") -> dict:
     out: dict = {}
     nid = post("/api/create_notes", {"notes": [{"title": "Reading", "body": "Start."}]})[0]["id"]
     m.cmd("Marionette:SetContext", {"value": "chrome"})
-    m.cmd("WebDriver:ExecuteScript", {"args": [SERVER + "/#note=" + nid, TEST_PAGE], "script": """
+    # The note in a tab of its own, looked at (the add-on takes it as the note in front), then the page:
+    # every piece goes into the note while it is not on screen (`put`).
+    m.cmd("WebDriver:ExecuteScript", {"args": [SERVER + "/f/note/" + nid], "script": """
         const sp = Services.scriptSecurityManager.getSystemPrincipal();
-        document.getElementById('formicaria-browser').fixupAndLoadURIString(arguments[0], { triggeringPrincipal: sp });
-        gBrowser.selectedTab = gBrowser.addTab(arguments[1], { triggeringPrincipal: sp });"""})
-    time.sleep(6)
+        gBrowser.selectedTab = gBrowser.addTab(arguments[0], { triggeringPrincipal: sp });"""})
+    time.sleep(5)
+    m.cmd("WebDriver:ExecuteScript", {"args": [TEST_PAGE], "script": """
+        const sp = Services.scriptSecurityManager.getSystemPrincipal();
+        gBrowser.selectedTab = gBrowser.addTab(arguments[0], { triggeringPrincipal: sp });"""})
+    time.sleep(5)
     handles = m.cmd("WebDriver:GetWindowHandles")
     handles = handles if isinstance(handles, list) else handles.get("value", handles)
     m.cmd("WebDriver:SwitchToWindow", {"handle": handles[-1]})
@@ -265,142 +270,71 @@ def bring_in(m: "Marionette") -> dict:
     if not all(out.values()):
         print(f"browser-check: the note read {body!r}")
     out["page_in_notes"] = any(n.get("id") == nid for n in post("/api/page_notes", {"url": TEST_PAGE}))
-    # The panel moves below the page, then to its left (⇆ steps right, below, left, above), and
-    # formicaria is still in it each time.
-    m.cmd("Marionette:SetContext", {"value": "chrome"})
-    side = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER], "script": """
-        const done = arguments[arguments.length - 1];
-        const press = () => document.getElementById('formicaria-panel-side').doCommand();
-        const look = () => {
-          const p = document.getElementById('formicaria-panel').getBoundingClientRect();
-          const t = document.getElementById('tabbrowser-tabpanels').getBoundingClientRect();
-          return { side: document.getElementById('browser').getAttribute('formicaria-side'),
-                   below: p.top >= t.bottom - 1, left: p.right <= t.left + 1,
-                   ours: (document.getElementById('formicaria-browser').currentURI?.spec || '').startsWith(arguments[0]) };
-        };
-        press();
-        setTimeout(() => {
-          const bottom = look();
-          press();
-          setTimeout(() => {
-            const left = look();
-            press(); press();
-            done({ bottom, left });
-          }, 3000);
-        }, 3000);"""})["value"]
-    b, l = side.get("bottom", {}), side.get("left", {})
-    out["panel_bottom"] = b.get("side") == "bottom" and b.get("below") is True and b.get("ours") is True
-    out["panel_left"] = l.get("side") == "left" and l.get("left") is True and l.get("ours") is True
     return out
 
 
-def lean_tabs(m: "Marionette") -> dict:
-    """A study room as a lean tab of the collection (workspace-design §11, D1)."""
-    nid = post("/api/create_notes", {"notes": [{"title": "Lean room", "body": "Here."}]})[0]["id"]
+def tabs(m: "Marionette") -> dict:
+    """formicaria's features and notes as tabs (`decisions.md` 2026-11-17, *one server, many views*)."""
+    nid = post("/api/create_notes", {"notes": [{"title": "Kept room", "body": "Here."}]})[0]["id"]
     m.cmd("Marionette:SetContext", {"value": "chrome"})
-    r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER, nid], "scriptTimeout": 60000, "script": """
+    r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER, nid], "scriptTimeout": 90000, "script": """
         const done = arguments[arguments.length - 1];
         const [server, id] = [arguments[0], arguments[1]];
         const sp = Services.scriptSecurityManager.getSystemPrincipal();
         const wait = (ms) => new Promise(r => setTimeout(r, ms));
-        (async () => {
-          gBrowser.addTab(server + '/#tab=' + encodeURIComponent('note:' + id) + '&title=Lean%20room', { triggeringPrincipal: sp });
-          await wait(4000);
-          const lean = gBrowser.tabs.find(t => t.getAttribute('formicaria-item') === 'note:' + id);
-          const out = { made: !!lean, label: lean?.label, selected: gBrowser.selectedTab === lean,
-                        full: document.getElementById('browser').getAttribute('formicaria'),
-                        light: !lean?.linkedBrowser?.currentURI || lean.linkedBrowser.currentURI.spec === 'about:blank' };
-          const web = gBrowser.tabs.find(t => /^https?:/.test(t.linkedBrowser.currentURI.spec) && !t.getAttribute('formicaria-item'));
-          if (web) { gBrowser.selectedTab = web; await wait(1000); out.beside = document.getElementById('browser').getAttribute('formicaria'); }
-          gBrowser.selectedTab = lean; await wait(1500);
-          out.again = document.getElementById('browser').getAttribute('formicaria');
-          out.labelAfter = lean.label;
-          try { out.kept = JSON.parse(SessionStore.getTabState(lean)).extData?.['formicaria-item'] === 'note:' + id; } catch (e) { out.kept = String(e); }
-          // **The tab follows formicaria's item**: the app saying it moved to the board moves this tab.
-          const panel = document.getElementById('formicaria-browser');
-          panel.fixupAndLoadURIString(server + '/#at=' + encodeURIComponent('view:board') + '&title=Board', { triggeringPrincipal: sp });
-          await wait(1500);
-          out.followed = lean.getAttribute('formicaria-item');
-          out.followedLabel = lean.label;
-          // **+ opens formicaria's Open...** in a new formicaria tab, which fills the window.
-          const before = gBrowser.tabs.length;
-          BrowserCommands.openTab();
-          await wait(2500);
-          const nt = gBrowser.selectedTab;
-          out.plus = { more: gBrowser.tabs.length === before + 1, item: nt.getAttribute('formicaria-item'),
-                       state: document.getElementById('browser').getAttribute('formicaria') };
-          gBrowser.removeTab(nt);
-          done(out);
-        })().catch(e => done({ error: String(e) }));"""})["value"]
-    ok = (r.get("made") is True and r.get("selected") is True and r.get("full") == "full"
-          and r.get("label") == "Lean room" and r.get("labelAfter") == "Lean room" and r.get("light") is True)
-    plus = r.get("plus") or {}
-    out = {"lean_tab": ok, "lean_kept": r.get("kept") is True,
-           "lean_fills": r.get("beside") == "folded" and r.get("again") == "full",
-           "tab_follows": r.get("followed") == "view:board" and r.get("followedLabel") == "Board",
-           "plus_opens": plus.get("more") is True and plus.get("item") == "open:" and plus.get("state") == "full"}
-    if not all(out.values()):
-        print(f"browser-check: lean tab seen {r}")
-    return out
-
-
-def pairs(m: "Marionette") -> dict:
-    """D3: a tab dropped beside the one shown (workspace-design §12), by the function a drop calls."""
-    ids = [n["id"] for n in post("/api/create_notes", {"notes": [{"title": "Room A", "body": "a"}, {"title": "Room B", "body": "b"}]})]
-    m.cmd("Marionette:SetContext", {"value": "chrome"})
-    r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER, ids], "scriptTimeout": 60000, "script": """
-        const done = arguments[arguments.length - 1];
-        const [server, ids] = [arguments[0], arguments[1]];
-        const sp = Services.scriptSecurityManager.getSystemPrincipal();
-        const wait = (ms) => new Promise(r => setTimeout(r, ms));
-        const state = () => document.getElementById('browser').getAttribute('formicaria');
+        const gb = gBrowser;
         (async () => {
           const out = {};
-          const p1 = gBrowser.addTab('https://example.org/?one', { triggeringPrincipal: sp });
-          const p2 = gBrowser.addTab('https://example.org/?two', { triggeringPrincipal: sp });
-          await wait(2500);
-          gBrowser.selectedTab = p1; await wait(500);
-          out.pages = window.formicariaPair(p2, 'left');
-          out.split = !!p1.splitview && !!p2.splitview;
-          for (const id of ids) gBrowser.addTab(server + '/#tab=' + encodeURIComponent('note:' + id) + '&title=R', { triggeringPrincipal: sp });
-          await wait(4000);
-          const rooms = gBrowser.tabs.filter(t => ids.some(id => t.getAttribute('formicaria-item') === 'note:' + id));
-          const page = gBrowser.tabs.find(t => t.linkedBrowser.currentURI.spec.includes('example.org') && !t.splitview);
-          gBrowser.selectedTab = page || p1; await wait(800);
-          out.mixed = window.formicariaPair(rooms[0], 'left');
-          out.mixedSide = document.getElementById('browser').getAttribute('formicaria-side');
-          out.mixedState = state();
-          gBrowser.selectedTab = rooms[0]; await wait(1500);
-          out.both = window.formicariaPair(rooms[1], 'right');
-          out.bothState = state();
-          window.formicariaPair(null, 'right');
-          document.getElementById('browser').setAttribute('formicaria-side', 'right');
-          // The quick switch (Alt+Shift+X): back to the item chosen before, whatever its kind.
-          const before = gBrowser.selectedTab;
-          const other = gBrowser.tabs.find(t => t !== before && !t.closing);
-          gBrowser.selectedTab = other; await wait(400);
+          // A feature page stays a page, in a tab of its own, titled by what it shows.
+          const t1 = gb.addTab(server + '/f/group/Tasks', { triggeringPrincipal: sp });
+          const t2 = gb.addTab(server + '/f/note/' + id, { triggeringPrincipal: sp });
+          gb.selectedTab = t1;
+          await wait(6000);
+          out.feature = { url: t1.linkedBrowser.currentURI.spec, title: t1.linkedBrowser.contentTitle, alive: !t1.closing && gb.tabs.includes(t1) };
+          out.note = { url: t2.linkedBrowser.currentURI.spec, title: t2.linkedBrowser.contentTitle };
+          // Two of formicaria's tabs side by side: Firefox's own split view.
+          gb.addTabSplitView([t1, t2]);
+          await wait(500);
+          out.split = !!t1.splitview && !!t2.splitview;
+          // The quick switch (Alt+Shift+X): back to the tab chosen before, whatever it holds.
+          const p = gb.addTab('https://example.org/?q', { triggeringPrincipal: sp });
+          await wait(1500);
+          gb.selectedTab = t1; await wait(300);
+          gb.selectedTab = p; await wait(300);
           out.swap = window.formicariaSwap();
-          out.swapBack = gBrowser.selectedTab === before;
-          // The floating mark: shown only while that side is closed.
-          const fl = document.getElementById('formicaria-float');
-          document.getElementById('browser').setAttribute('formicaria', 'folded'); await wait(200);
-          out.floatShown = !!fl && getComputedStyle(fl).display !== 'none';
-          document.getElementById('browser').setAttribute('formicaria', 'beside'); await wait(200);
-          out.floatHidden = !!fl && getComputedStyle(fl).display === 'none';
+          out.swapBack = gb.selectedTab === t1;
+          // + is the browser's own new tab: the web.
+          const before = gb.tabs.length;
+          BrowserCommands.openTab();
+          await wait(1500);
+          out.plus = { more: gb.tabs.length === before + 1, item: gb.selectedTab.getAttribute('formicaria-item') };
+          gb.removeTab(gb.selectedTab);
+          // A tab the panel years left becomes its item's page.
+          const old = gb.addTab('about:blank', { triggeringPrincipal: sp });
+          await wait(300);
+          SessionStore.setCustomTabValue(old, 'formicaria-item', 'note:' + id);
+          window.formicariaCarryOver(old);
+          await wait(2000);
+          out.carried = gb.tabs.filter(t => t.linkedBrowser.currentURI.spec === server + '/f/note/' + id).length;
           // Firefox kept bare: no home or account button on the toolbar (the tab row and address bar stay).
           const gone = id => { const b = document.getElementById(id); return !b || getComputedStyle(b).display === 'none'; };
           out.bare = gone('home-button') && gone('fxa-toolbar-menu-button') && !!document.getElementById('urlbar');
           done(out);
         })().catch(e => done({ error: String(e) }));"""})["value"]
-    ok = {"pair_pages": r.get("pages") == "split" and r.get("split") is True,
-          "pair_room_page": r.get("mixed") == "beside" and r.get("mixedSide") == "left" and r.get("mixedState") == "beside",
-          "pair_rooms": r.get("both") == "rooms" and r.get("bothState") == "full",
-          "quick_switch": r.get("swap") == "tab" and r.get("swapBack") is True,
-          "float_when_closed": r.get("floatShown") is True and r.get("floatHidden") is True,
-          "bare_toolbar": r.get("bare") is True}
-    if not all(ok.values()):
-        print(f"browser-check: pairs seen {r}")
-    return ok
+    f, n, plus = r.get("feature") or {}, r.get("note") or {}, r.get("plus") or {}
+    out = {
+        "feature_tab": f.get("alive") is True and str(f.get("url", "")).endswith("/f/group/Tasks")
+        and str(f.get("title", "")).startswith("Tasks"),
+        "note_tab": str(n.get("url", "")).endswith("/f/note/" + nid) and str(n.get("title", "")).startswith("Kept room"),
+        "split_formicaria_tabs": r.get("split") is True,
+        "quick_switch": r.get("swap") == "tab" and r.get("swapBack") is True,
+        "plus_is_the_web": plus.get("more") is True and not plus.get("item"),
+        "old_tabs_carried": (r.get("carried") or 0) >= 2,
+        "bare_toolbar": r.get("bare") is True,
+    }
+    if not all(out.values()):
+        print(f"browser-check: tabs seen {r}")
+    return out
 
 
 def settings_page(ff: Path, work: Path) -> dict:
@@ -440,55 +374,29 @@ def settings_page(ff: Path, work: Path) -> dict:
             fetch('chrome://global/skin/illustrations/kit-concerned.svg').then(r => r.text()).then(done, e => done('ERR ' + e));"""})["value"]
         ours = (ROOT / "browser" / "kit" / "branding" / "about-logo.svg").read_text()
         seen["mascot_is_formicarias"] = mascot.strip() == ours.strip()
-        # The panel: formicaria's address opened in a tab goes to the panel (a note's address too) and
-        # the tab goes away; a link formicaria opens in a new window becomes a tab of this window.
-        tabs = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [SERVER], "scriptTimeout": 60000, "script": """
+        # A link a page opens in a new window becomes a tab of this window.
+        links = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "scriptTimeout": 30000, "script": """
             const done = arguments[arguments.length - 1];
-            const url = arguments[0];
             const gb = window.gBrowser;
             const sp = Services.scriptSecurityManager.getSystemPrincipal();
-            const wait = (ms) => new Promise(r => setTimeout(r, ms));
-            const ours = () => gb.tabs.filter(t => (t.linkedBrowser.currentURI.spec || '').startsWith(url)).length;
-            const panel = () => document.getElementById('formicaria-browser');
-            const state = () => document.getElementById('browser').getAttribute('formicaria');
-            (async () => {
-              gb.addTab('https://example.org/', { triggeringPrincipal: sp });
-              gb.addTab(url, { triggeringPrincipal: sp }); await wait(5000);
-              const r = { first: (panel()?.currentURI?.spec || '').startsWith(url), tabs1: ours(), state1: state() };
-              gb.addTab(url + '/#note=check', { triggeringPrincipal: sp }); await wait(5000);
-              r.note = panel()?.currentURI?.spec || ''; r.tabs2 = ours();
-              const n = gb.tabs.length;
-              panel().fixupAndLoadURIString('data:text/html,<a id=a target=_blank href="https://example.org/?from=panel">x</a><script>setTimeout(()=>document.getElementById("a").click(),300)</script>', { triggeringPrincipal: sp });
-              await wait(4000);
-              r.linkTab = gb.tabs.some(t => t.linkedBrowser.currentURI.spec.includes('from=panel'));
-              r.windows = [...Services.wm.getEnumerator('navigator:browser')].length;
-              document.getElementById('formicaria-panel-fold').doCommand(); await wait(300);
-              r.folded = state();
-              done(r);
-            })().catch(e => done({ error: String(e) }));"""})["value"]
-        seen["panel_takes_address"] = tabs.get("first") is True and tabs.get("tabs1") == 0
-        seen["panel_takes_note"] = str(tabs.get("note", "")).endswith("#note=check") and tabs.get("tabs2") == 0
-        seen["panel_links_are_tabs"] = tabs.get("linkTab") is True and tabs.get("windows") == 1
-        seen["panel_folds"] = tabs.get("folded") == "folded"
-        if not all(seen[k] for k in ("panel_takes_address", "panel_takes_note", "panel_links_are_tabs", "panel_folds")):
-            print(f"browser-check: panel seen {tabs}")
-        # **Bring in**, end to end (research §11): a note open in the panel, then from a page each kind
+            const t = gb.addTab('data:text/html,<a id=a target=_blank href="https://example.org/?from=page">x</a><script>setTimeout(()=>document.getElementById("a").click(),300)</script>', { triggeringPrincipal: sp });
+            gb.selectedTab = t;
+            setTimeout(() => done({ linkTab: gb.tabs.some(x => x.linkedBrowser.currentURI.spec.includes('from=page')),
+                                    windows: [...Services.wm.getEnumerator('navigator:browser')].length }), 4000);"""})["value"]
+        seen["links_are_tabs"] = links.get("linkTab") is True and links.get("windows") == 1
+        # **Bring in**, end to end (research §11): a note in a tab of its own, then from a page each kind
         # of thing, and each must arrive in the note on disk as itself, with where it came from.
         try:
             seen.update(bring_in(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: bring in: {e}")
         try:
-            seen.update(lean_tabs(m))
+            seen.update(tabs(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
-            print(f"browser-check: lean tabs: {e}")
-        try:
-            seen.update(pairs(m))
-        except Exception as e:  # noqa: BLE001 - reported as failed checks
-            print(f"browser-check: pairs: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "panel_left", "panel_bottom",
-                  "lean_tab", "lean_kept", "lean_fills", "tab_follows", "plus_opens", "pair_pages", "pair_room_page", "pair_rooms",
-                  "quick_switch", "float_when_closed", "bare_toolbar"):
+            print(f"browser-check: tabs: {e}")
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "links_are_tabs",
+                  "feature_tab", "note_tab", "split_formicaria_tabs", "quick_switch", "plus_is_the_web",
+                  "old_tabs_carried", "bare_toolbar"):
             seen.setdefault(k, False)
         m.cmd("WebDriver:DeleteSession")
         return seen
@@ -560,16 +468,15 @@ def main() -> None:
         base_ff = stock_esr(version, sha)
         kit, base = [], []
         for i in range(RUNS):
-            kit.append(measure(ff, work / f"kit-profile-{i}", work / "kit.json", [SERVER, *PAGES], {}))
+            kit.append(measure(ff, work / f"kit-profile-{i}", work / "kit.json", [f"{SERVER}/f/group/Library", *PAGES], {}))
             base.append(measure(base_ff, work / f"stock-profile-{i}", work / "stock.json", [SERVER, *PAGES], {}))
         first = kit[0]
         checks = {
             "the window is titled formicaria": str(first.get("title", "")).endswith("formicaria")
             and "Firefox" not in str(first.get("title", "")),
             "the brand strings are formicaria's": first.get("brand") == "formicaria",
-            "the formicaria button is in the toolbar": first.get("widget") is True,
-            "formicaria is in its panel": first.get("panel") is True,
-            "the panel keeps formicaria's own storage": first.get("partitionKey") == "",
+            "the ant is first in the tab row": first.get("ant") == "TabsToolbar" and first.get("antFirst") is True,
+            "the browser opens on the notes": str(first.get("home", "")).endswith("/f/group/Library"),
             "only the add-on line is locked": first.get("signaturesLocked") is True,
             "Sync and the Mozilla account are available": first.get("accountsAvailable") is True,
             "split view is on": first.get("splitView") is True,
@@ -580,7 +487,6 @@ def main() -> None:
             "Firefox's updater is off by policy": "DisableAppUpdate" in first.get("policies", []),
             "the Mozilla account is not disabled": "DisableFirefoxAccounts" not in first.get("policies", []),
             "the startup script raised nothing": not first.get("errors"),
-            "no tab holds formicaria": first.get("formicariaTabs") == 0,
         }
         testpage = serve_test_page(work)
         try:
@@ -594,34 +500,34 @@ def main() -> None:
             "Settings: no link to Mozilla's support": page.get("support_link_hidden") is True,
             "Settings: 'About formicaria' is there": page.get("about_formicaria") is True,
             "Settings: formicaria's mark instead of Firefox's mascot": page.get("mascot_is_formicarias") is True,
-            "the panel: formicaria's address opened in a tab goes to it": page.get("panel_takes_address") is True,
-            "the panel: a note's address opens in it": page.get("panel_takes_note") is True,
-            "the panel: a link it opens becomes a tab of the window": page.get("panel_links_are_tabs") is True,
-            "the panel: it folds away": page.get("panel_folds") is True,
+            "a link a page opens becomes a tab of this window": page.get("links_are_tabs") is True,
             "bring in: a passage arrives quoted, with its source": page.get("bring_text") is True,
             "bring in: an image arrives kept in the vault": page.get("bring_image") is True,
             "bring in: a table arrives as a table": page.get("bring_table") is True,
             "bring in: the icon after a selection opens the chooser, and Enter brings it into the note in front": page.get("bring_chip") is True,
             "snip: an area brings its text, image and table in, each as itself": page.get("snip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
-            "the panel moves below the page, formicaria still in it": page.get("panel_bottom") is True,
-            "a study room opens as a lean tab, formicaria filling the window": page.get("lean_tab") is True,
-            "the lean tab is kept by the session (back after a restart)": page.get("lean_kept") is True,
-            "one item fills the window: a page chosen shows the page alone; formicaria's tab fills again": page.get("lean_fills") is True,
-            "formicaria's tab follows the item formicaria moves to": page.get("tab_follows") is True,
-            "+ opens formicaria's Open... in a new formicaria tab": page.get("plus_opens") is True,
-            "D3: a page dropped beside a page makes a split view": page.get("pair_pages") is True,
-            "D3: a study room dropped beside a page puts formicaria on that side": page.get("pair_room_page") is True,
-            "D3: two study rooms dropped together show side by side": page.get("pair_rooms") is True,
-            "the quick switch returns to the item before, any kind": page.get("quick_switch") is True,
-            "a small mark shows what is beside, only when that side is closed": page.get("float_when_closed") is True,
+            "a feature is a page in a tab of its own, named by what it shows": page.get("feature_tab") is True,
+            "a note is a page in a tab of its own": page.get("note_tab") is True,
+            "two of formicaria's tabs share the window in split view": page.get("split_formicaria_tabs") is True,
+            "the quick switch returns to the tab before, whatever it holds": page.get("quick_switch") is True,
+            "+ is the browser's own new tab (the web)": page.get("plus_is_the_web") is True,
+            "tabs from earlier versions become their items' pages": page.get("old_tabs_carried") is True,
             "the toolbar is bare: the address bar, no home or account button": page.get("bare_toolbar") is True,
-            "the panel moves to the left, formicaria still in it": page.get("panel_left") is True,
         })
+        avg = lambda xs, k: sum(x.get(k) or 0 for x in xs) / len(xs)
+        # **What a feature tab costs** (`decisions.md` 2026-11-17: at most 20 MB each, against the
+        # 35 MB a copy of the whole app measured per tab): one feature page against five, twice each.
+        feats = [f"{SERVER}/f/group/Library", f"{SERVER}/f/group/Tasks", f"{SERVER}/f/agenda",
+                 f"{SERVER}/f/group/Food", f"{SERVER}/f/timeline"]
+        one = [measure(ff, work / f"feat1-{i}", work / "feat1.json", feats[:1], {}) for i in range(2)]
+        five = [measure(ff, work / f"feat5-{i}", work / "feat5.json", feats, {}) for i in range(2)]
+        per_tab = (avg(five, "pss_kb") - avg(one, "pss_kb")) / 4 / 1024
+        print(f"browser-check: memory  one feature tab {avg(one, 'pss_kb') / 1024:.0f} MB, five {avg(five, 'pss_kb') / 1024:.0f} MB: {per_tab:.1f} MB per extra tab")
+        checks["each extra feature tab costs at most 20 MB"] = per_tab <= 20
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")
 
-        avg = lambda xs, k: sum(x.get(k) or 0 for x in xs) / len(xs)
         # Every run, not only the averages: a slow first run (a cold disk, a busy machine) shows as one.
         for name, runs in (("formicaria", kit), ("unmodified", base)):
             print(f"browser-check: runs   {name}: " + ", ".join(

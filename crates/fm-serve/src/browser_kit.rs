@@ -384,7 +384,9 @@ fn self_check(ff: &Path, work: &Path) -> Result<(), String> {
     let _ = std::fs::remove_file(&shot);
     std::fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
     let mut child = Command::new(bin(ff))
-        .args(["--headless", "--no-remote", "--profile"])
+        .args(["--headless", "--no-remote"])
+        .args(WAIT_FOR_BROWSER)
+        .arg("--profile")
         .arg(&profile)
         .arg("--screenshot")
         .arg(&shot)
@@ -395,17 +397,31 @@ fn self_check(ff: &Path, work: &Path) -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("formicaria's browser could not be started: {e}"))?;
     let start = Instant::now();
+    let limit = Duration::from_secs(90);
+    // **The picture is the proof, not the exit** (2026-11-17): on Windows `firefox.exe` may be a
+    // launcher that hands over to the browser and exits at once, so its exit says nothing about the
+    // browser; the picture appears when the browser drew the page.
     let ok = loop {
+        if shot.is_file() {
+            break true;
+        }
         match child.try_wait() {
-            Ok(Some(status)) => break status.success() && shot.is_file(),
-            Ok(None) if start.elapsed() > Duration::from_secs(90) => {
+            Ok(Some(status)) if !status.success() => break false,
+            Ok(_) if start.elapsed() > limit => {
                 let _ = child.kill();
                 break false;
             }
-            Ok(None) => std::thread::sleep(Duration::from_millis(200)),
+            Ok(_) => std::thread::sleep(Duration::from_millis(200)),
             Err(_) => break false,
         }
     };
+    // It exits by itself once the picture is written; never left running either way.
+    let until = Instant::now() + Duration::from_secs(20);
+    while matches!(child.try_wait(), Ok(None)) && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
     let _ = std::fs::remove_dir_all(&profile);
     let _ = std::fs::remove_file(&shot);
     if ok {
@@ -414,6 +430,10 @@ fn self_check(ff: &Path, work: &Path) -> Result<(), String> {
         Err("formicaria's browser did not start in the check, so it was not installed.".into())
     }
 }
+
+/// **Firefox, wait for the browser** on Windows, where `firefox.exe` is otherwise a launcher that exits
+/// as soon as it has handed over (Firefox's `-wait-for-browser`); nothing elsewhere.
+const WAIT_FOR_BROWSER: &[&str] = if cfg!(windows) { &["-wait-for-browser"] } else { &[] };
 
 /// Is formicaria's browser running from `d`? Firefox's profile lock names the process holding it.
 #[cfg(not(windows))]
@@ -569,20 +589,37 @@ mod tests {
         }
         let dir = tempfile::tempdir().unwrap();
         let work = dir.path().join("work");
-        let ff = acquire(&work, &pin().version, &|m| eprintln!("{m}"), &|_, _| {})
-            .expect("the pinned ESR is set up");
+        // **What went wrong is said where the release can show it**: a `::error::` line becomes a note
+        // on the job that anyone can read, where the job's log needs an admin to open.
+        let fail = |what: &str, why: &str| -> ! {
+            println!("::error title=formicaria's browser on this platform::{what}: {why}");
+            panic!("{what}: {why}");
+        };
+        let last = std::sync::Mutex::new(String::new());
+        let ff = acquire(
+            &work,
+            &pin().version,
+            &|m| {
+                eprintln!("{m}");
+                *last.lock().unwrap() = m.to_string();
+            },
+            &|_, _| {},
+        )
+        .unwrap_or_else(|e| fail(&format!("setting it up ({})", last.lock().unwrap()), &e));
         let profile = dir.path().join("profile");
         std::fs::create_dir_all(&profile).unwrap();
         let report = dir.path().join("report.json");
         let mut child = Command::new(bin(&ff))
-            .args(["--headless", "--no-remote", "--profile"])
+            .args(["--headless", "--no-remote"])
+            .args(WAIT_FOR_BROWSER)
+            .arg("--profile")
             .arg(&profile)
             .arg("about:blank")
             .env("FM_BROWSER_CHECK", &report)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .expect("it starts");
+            .unwrap_or_else(|e| fail("starting it", &e.to_string()));
         let start = Instant::now();
         while !report.is_file() && start.elapsed() < Duration::from_secs(180) {
             std::thread::sleep(Duration::from_millis(500));
@@ -590,11 +627,14 @@ mod tests {
         std::thread::sleep(Duration::from_secs(1));
         let _ = child.kill();
         let _ = child.wait();
-        let text = std::fs::read_to_string(&report).expect("the kit's startup script reported");
+        let text = std::fs::read_to_string(&report).unwrap_or_else(|e| {
+            fail("reading the kit's report (did its startup script run?)", &e.to_string())
+        });
         eprintln!("report: {text}");
-        let r: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(r["brand"], "formicaria", "{text}");
-        assert_eq!(r["errors"].as_array().map(|a| a.len()), Some(0), "{text}");
+        let r: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+        if r["brand"] != "formicaria" || r["errors"].as_array().map(|a| a.len()) != Some(0) {
+            fail("the kit's report", &text.chars().take(600).collect::<String>());
+        }
     }
 
     #[test]

@@ -14816,6 +14816,9 @@ The person saw the old Firefox and, on each double-click, a second formicaria ta
 
 ## 2026-11-15 (late night) — formicaria docks beside the page; the web becomes the first source on one contract `#ui` `#data` `#seams` `#agent`
 
+> SUPERSEDED in part (2026-11-17 → see *2026-11-17, one server, many views: feature pages in tabs*): the docked panel (point 1) is gone; formicaria's features and notes are pages in tabs. The bridge, the source contract and the linking commands stand.
+
+
 **Context.** The owner: *"the tabs are to browse the internet, and not the notes … we would need to
 clearly link the web with the notes, through simple commands"*; *"the web is a data source, same as
 health info from a smartwatch … make it easy to connect with data sources"*; *"plan and execute"*.
@@ -14974,6 +14977,9 @@ location and no need to bring it into the study notes necessarily."*
    (off by default), results as proposals; step D7, with Myrme's repository.
 
 ## 2026-11-16 (night, later) — the library model, built: Study rooms, lean tabs, sections, the library search `#ui` `#data`
+
+> SUPERSEDED in part (2026-11-17 → see *2026-11-17, one server, many views: feature pages in tabs*): lean tabs (point 2) are gone; a tab holds a feature page or a note page (`/f/…`).
+
 
 The owner: *"refine and execute the plan"* (`workspace-design-2026-11-15.md` §11). The four open
 questions were taken on the recommendations, the owner having said to go on: the notes' group is
@@ -15162,6 +15168,9 @@ The owner, on 0.41: *"the study rooms does nothing and there is a not requested 
 
 ## 2026-11-16 (night, last) — formicaria contains the browser: every item a tab, one item fills the window `#ui` `#seams`
 
+> SUPERSEDED in part (2026-11-17 → see *2026-11-17, one server, many views: feature pages in tabs*): the tab that follows formicaria's item (`#at=`) and + opening *Open…* are gone: tabs are real pages, + is the web, the ant opens formicaria's features.
+
+
 > Supersedes, for the computer, the 2026-11-15 (late night) *formicaria docks beside the page* rule
 > that "tabs are web pages only" and that choosing a page while formicaria fills the window puts
 > formicaria beside it.
@@ -15195,6 +15204,9 @@ The owner's answers on the phone layout (*two together only when I ask*) and *"k
    a web address or a search opens a page item (the search on DuckDuckGo, the browser's default).
 
 ## 2026-11-17 — any two of formicaria's items together; a long press in a phone page `#ui`
+
+> SUPERSEDED in part (2026-11-17 → see *2026-11-17, one server, many views: feature pages in tabs*): point 1 (`#pair=`) is gone: two tabs side by side are Firefox's split view, for any two tabs.
+
 
 1. **Two formicaria tabs dragged together show both, whatever they are** (notes, views, sections):
    `#pair=<item>,<item>` opens each and shows the first with the second through the same `besideId`
@@ -15235,3 +15247,62 @@ day the start-time budget failed (1.4 s against 0.8 s) with the kit unchanged: t
 during the first batch and quiet by the second, and the check read the load as formicaria's. The runs
 now alternate (formicaria, unmodified, formicaria, …), so both are measured under the same load. The
 budgets are unchanged.
+
+## 2026-11-17 — one server, many views: the actions table, `put`, and the change stream `#seams` `#ui` `#agent`
+
+The owner: *"keep things simple to maintain, with a clear and tested structure, and yet allow as much
+customization to the user … the server can do classic things, as long as we keep it computationally
+efficient and low memory"*; and the frame: *formicaria is its own agent, with a person and an
+assistant sharing control; the server is the central nervous system; perception and action through
+clear interfaces*. Plan: `~/.claude/plans/one-server-many-views.md` (steps 1–5); comparables
+(Jupyter's document-per-tab on one codebase, SilverBullet, Home Assistant's actions and exposure,
+Zotero's connector, Obsidian's web viewer) in the conversation of this date.
+
+**Step 1, built.**
+1. **The actions table** (`crates/fm-app/src/actions.rs`, command `actions`): every action once —
+   what it takes, what it makes, where it runs (server, hand-off, open) — with the assistant's
+   permission **off** for each. The screen and (step 5) the assistant read the same table.
+2. **`put`** — the one way content moves into a note: into an existing note (its end, or the end of a
+   heading's section) under the version guard, or a new note on a shelf. Works whether the note is
+   open or not. The bridge now uses it for a note chosen on a page that is not on screen: the piece
+   lands without opening the note, and the person stays on the page.
+3. **The change stream** (`/api/changes`, Server-Sent Events): each open tab holds one; the server
+   wakes it on every write (`App::wait_changed`, a condition variable beside the generation), and the
+   tab re-reads at once instead of at its next 15-second beat (kept, for edits made outside
+   formicaria). Cost: one parked thread per open tab (tens of KB), at most 64.
+
+## 2026-11-17 — one server, many views: feature pages in tabs; the ant; the panel removed `#ui` `#seams`
+
+Steps 2–3 of the plan (`~/.claude/plans/one-server-many-views.md`). The owner: *"fm is always there
+through an icon. If one clicks it they can open new features … by selecting one feature they will see
+a new tab/view … I do not like fm in a tab, and its view in it, if I open notes they go side by side in
+new tabs inside this tab, a little confusing"*; *"keep things simple to maintain, with a clear and
+tested structure"*.
+
+**Built.**
+1. **Feature pages** (`ui/feature.html`, `ui/src/feature/`): one feature or one note filling a tab, at
+   `/f/group/<name>` (a feature, its views as a strip), `/f/view/<name>`, `/f/<kind>`, `/f/note/<id>`.
+   The same parts as the app (`Pane`, the renderers, the note; the feeds in `lib/feeds.ts`, shared),
+   none of the app's bars, panes or windows. A page re-reads on the change stream; a note opened from a
+   feature opens in a tab of its own. The server answers `/f/…` with the page (`static_file`).
+2. **The ant**: formicaria's add-on's button, placed once at the start of the tab row; its panel
+   (`launcher.html`) searches notes and the web and opens New note and the features. **Mail** there is
+   the person's webmail (Gmail unless changed in the panel); the read-only Gmail copy stays for search.
+3. **Bring-in = `put`** from the add-on straight to the server, into the note chosen on the page, else
+   the note tab looked at last, else a new note named after the page; Undo and the alternatives swap
+   what was put (`put` with `replace`). `/api/put` joins the add-on's routes.
+4. **Removed**: the docked panel, lean tabs, the item-following tab, `#at=`, `#tab=` (still read by the
+   add-on's carry-over only through `formicaria.cfg`), `#pair=`, the drop zones, the floater, Alt+Shift+F,
+   + as *Open…*. `formicaria.cfg` 735 → 222 lines, `formicaria.css` 112 → 28. Tabs from the panel years
+   are carried over to their pages at restore. The browser opens on Notes (`/f/group/Library`).
+5. **The phone keeps its single app** (its own one level of items; Jupyter keeps JupyterLab beside
+   its Notebook the same way), on the same parts underneath (feeds, `put`).
+6. ***Study rooms* is called Notes** again.
+
+**Budget**: an extra feature tab at most 20 MB (`browser-check`, one feature page against five).
+
+**Also in this release (2026-11-17):** *Mail* opens the person's webmail on every surface
+(`lib/webmail.ts`; on the phone a page item, elsewhere a tab; the address in Settings → Mail or the
+ant's panel); and the browser's start-up check on Windows waits for the browser, not for
+`firefox.exe` (a launcher that exits at once there: `-wait-for-browser`, and the check judges by the
+picture the browser draws), the likely reason the first Windows run failed.

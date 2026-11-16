@@ -26,6 +26,7 @@ import {
 } from '../../src/lib/web/bring';
 import type { Block } from './snip';
 import { sectionOf } from '../../src/lib/sections';
+import { addressUrl } from '../../src/feature/route';
 // Exported for the end-to-end test's copy of the add-on, which answers the question itself.
 export { choose };
 
@@ -197,12 +198,36 @@ export async function bookmark(tab: { url?: string; title?: string }): Promise<K
   }
 }
 
-/** Show a note in formicaria's panel: through the bridge when the app is open, otherwise by opening
- *  its address, which formicaria's browser hands to the panel (`formicaria.cfg` §4). */
+/** **Show a note: its own tab** (`decisions.md` 2026-11-17, *one server, many views*). */
 export async function show(server: string, id: string) {
-  const r = await ask({ type: 'open', id }).catch(() => null);
-  if (r?.ok) return;
-  await browser.tabs.create({ url: `${server}/#note=${id}` });
+  await browser.tabs.create({ url: `${server}/f/note/${id}` });
+}
+
+/** **Open one of formicaria's items in a tab of its own**: a note, a feature, a view
+ *  (`note:<id>`, `view:group:<name>`, …), or `new:` for a new note. */
+async function openItem(address: string) {
+  const c = await config();
+  if (address === 'new:') {
+    const made = (await call(c.server, c.key, 'create_notes', JSON.stringify({ notes: [{ title: '', body: '' }] }), true)) as
+      | { id: string }[]
+      | null;
+    if (made?.[0]?.id) await browser.tabs.create({ url: `${c.server}/f/note/${made[0].id}` });
+    return;
+  }
+  await browser.tabs.create({ url: `${c.server}${addressUrl(address)}` });
+}
+
+/** **Put a piece into a note, on the server** (`actions.rs`): the one way content moves in, whether
+ *  or not the note is open anywhere. `replace` swaps what an earlier put wrote (Undo, an
+ *  alternative). */
+async function putPiece(args: Record<string, unknown>): Promise<{ id?: string } | null> {
+  const c = await config();
+  return (await call(c.server, c.key, 'put', JSON.stringify(args), true)) as { id?: string } | null;
+}
+async function replaceIn(note: unknown, from: unknown, to: string): Promise<Reply> {
+  if (typeof note !== 'string' || typeof from !== 'string') return { ok: false, error: 'nothing to change' };
+  await putPiece({ to: { note }, md: to, replace: from });
+  return { ok: true };
 }
 
 // --- the bridge into formicaria's panel (`bridge.ts`) ----------------------------------------
@@ -305,17 +330,24 @@ async function deliver(
     if (alternatives.size > 50) alternatives.delete(alternatives.keys().next().value as string);
   }
   const offered = alt && token ? { label: alt.label, token } : undefined;
+  void quiet;
   try {
-    const r = await ask({
-      type: 'insert',
-      text,
-      what,
-      quiet,
-      page: { title: p.pageTitle, url: p.pageUrl },
-      alt: offered,
-      ...aimNow,
-    });
-    return { ...r, inserted: text, alt: offered };
+    // Into the note chosen on the page, else the note tab looked at last, else a new note named
+    // after the page.
+    const into = aimNow.note
+      ? { id: aimNow.note, title: aimNow.noteTitle || 'your note' }
+      : !aimNow.fresh && front
+        ? { id: front.id, title: front.title || 'your note' }
+        : null;
+    if (into) {
+      await putPiece({ to: { note: into.id }, md: text });
+      return { ok: true, title: into.title, note: into.id, inserted: text, alt: offered };
+    }
+    const title = p.pageTitle || 'From the web';
+    const made = await putPiece({ to: { new: { title } }, md: text });
+    if (made?.id) front = { id: made.id, title, vault: '', assistant: front?.assistant ?? '' };
+    void what;
+    return { ok: true, title, note: made?.id, inserted: text, alt: offered };
   } catch (e) {
     return { ok: false, error: msg(e) };
   }
@@ -544,11 +576,8 @@ async function fromApp(m: Record<string, unknown>) {
     // two addresses only.
     await browser.tabs.create({ url: m.url });
   } else if (m.up === 'open-tab' && typeof m.address === 'string' && /^(note|view):/.test(m.address)) {
-    // **Open as a tab** (workspace-design §11): formicaria's address, which formicaria's browser turns
-    // into a lean tab of the collection (`formicaria.cfg`).
-    const c = await config();
-    const url = `${c.server}/#tab=${encodeURIComponent(m.address)}&title=${encodeURIComponent(String(m.title ?? ''))}`;
-    await browser.tabs.create({ url });
+    // **Open as a tab**: the item's own page (`/f/…`).
+    await openItem(m.address);
   } else if (m.up === 'after' && ['offer', 'bring', 'nothing'].includes(String(m.value))) {
     // Settings → Browser: what follows a selection on a page (`select.ts` reads it).
     void storage.local.set({ after: String(m.value) });
@@ -558,7 +587,7 @@ async function fromApp(m: Record<string, unknown>) {
     alternatives.delete(m.token);
     try {
       const to = await make();
-      await ask({ type: 'replace', note: m.note, from: m.from, to });
+      await replaceIn(m.note, m.from, to);
     } catch (e) {
       failed({ ok: false, error: msg(e) });
     }
@@ -642,10 +671,27 @@ const tabsEvents = browser.tabs as unknown as {
   get(id: number): Promise<{ url?: string }>;
 };
 tabsEvents.onActivated.addListener(({ tabId }) => {
-  void tabsEvents.get(tabId).then((t) => pageNotes(tabId, t.url ?? ''));
+  void tabsEvents.get(tabId).then((t) => {
+    void pageNotes(tabId, t.url ?? '');
+    void noteInFront(t as { url?: string; title?: string });
+  });
 });
+/** **The note in front is the note tab looked at last** (its `/f/note/<id>` page): where *Bring in*
+ *  goes unless another note is chosen. */
+async function noteInFront(t: { url?: string; title?: string }) {
+  const c = await config().catch(() => null);
+  const m = c && t.url ? new RegExp(`^${c.server.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/f/note/([0-9A-Z]{26})`).exec(t.url) : null;
+  if (!m) return;
+  const title = (t.title ?? '').replace(/ — formicaria$/, '');
+  front = { id: m[1], title, vault: '', assistant: front?.assistant ?? '' };
+  void storage.local.set({ front: title });
+  void menus.update('formicaria-bring', { title: bringTitle() }).catch(() => {});
+}
 tabsEvents.onUpdated.addListener((id, change, t) => {
-  if (change.status === 'complete') void pageNotes(id, t.url ?? '');
+  if (change.status === 'complete') {
+    void pageNotes(id, t.url ?? '');
+    if ((t as { active?: boolean }).active) void noteInFront(t as { url?: string; title?: string });
+  }
 });
 tabsEvents.onRemoved.addListener((id) => seen.delete(id));
 
@@ -744,11 +790,11 @@ omnibox.onInputEntered.addListener((text) => {
     if (!make) return Promise.resolve({ ok: false, error: 'It can no longer be changed.' });
     alternatives.delete(m.token);
     return make()
-      .then((to) => ask({ type: 'replace', note: m.note, from: m.from, to }))
+      .then((to) => replaceIn(m.note, m.from, to))
       .catch((e) => ({ ok: false, error: msg(e) }));
   }
   if (m?.type === 'undo') {
-    return ask({ type: 'replace', note: m.note, from: m.from, to: '' }).catch((e) => ({ ok: false, error: msg(e) }));
+    return replaceIn(m.note, m.from, '').catch((e) => ({ ok: false, error: msg(e) }));
   }
   if (m?.type === 'open' && typeof m.id === 'string') {
     const id = m.id;
@@ -796,6 +842,10 @@ omnibox.onInputEntered.addListener((text) => {
       if (from.type === 'bring-piece') failed(r);
       return r;
     });
+  }
+  // **The ant's panel** (`launcher.ts`): a feature, a note or a new note, in a tab of its own.
+  if (m?.type === 'open-item' && typeof m.address === 'string') {
+    return openItem(m.address).then(() => ({ ok: true }));
   }
   // **The chooser's search** (formicaria's icon by a selection): the notes a word finds, to bring into.
   if (m?.type === 'search-notes' && typeof m.q === 'string' && m.q.trim()) {

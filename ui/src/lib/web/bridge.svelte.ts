@@ -10,6 +10,7 @@
 // An insert is handed to the note's own pane (`NotePanel`), which adds it to its text and saves it the
 // way typing does, so it lands in the editor and through the same conflict checks. Up to the add-on
 // (`up`): the note in front (where *Bring in* goes), an alternative chosen, a drop.
+import { put } from '../ipc';
 
 export interface Answer {
   ok: boolean;
@@ -51,6 +52,8 @@ export interface Handlers {
   open(id: string): void;
   /** The note an insert goes to: the one in front, or `null` when no note is open. */
   target(): { id: string; title: string } | null;
+  /** Is this note open on screen (a pane holding it, which takes an insert as one undoable edit)? */
+  onScreen?(id: string): boolean;
   /** Make a note named after the page and open it, for a bring-in with no note in front. */
   create(title: string): Promise<{ id: string; title: string } | null>;
   /** Ask the assistant which parts of a page matter for the note in front (a discussion it answers
@@ -189,10 +192,21 @@ export function listen(h: Handlers): () => void {
     }
     void (async () => {
       const fresh = () => h.create(m.page.title || 'From the web');
-      // The note chosen on the page is opened, so its pane takes the insert as the one in front would.
-      const chosen = m.note
-        ? (h.open(m.note), { id: m.note, title: m.noteTitle || 'your note' })
-        : null;
+      // **A note not on screen takes the piece by `put`** (`actions.rs`): straight into its file,
+      // without opening it, so the person stays on the page. On screen, its pane takes it as one
+      // undoable edit, as before.
+      if (m.note && !h.onScreen?.(m.note)) {
+        const title = m.noteTitle || 'your note';
+        try {
+          await put({ note: m.note }, m.text);
+          if (!m.quiet) toast.now = { text: `Brought ${m.what} into “${title}”`, open: m.note };
+          reply(m.n, { ok: true, title, note: m.note });
+        } catch (e) {
+          reply(m.n, { ok: false, error: String(e) });
+        }
+        return;
+      }
+      const chosen = m.note ? { id: m.note, title: m.noteTitle || 'your note' } : null;
       const t = chosen ?? (m.fresh ? await fresh() : (h.target() ?? (await fresh())));
       if (!t) {
         reply(m.n, { ok: false, error: 'formicaria could not make a note for it.' });

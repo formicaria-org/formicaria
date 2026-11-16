@@ -84,7 +84,7 @@ test('the panel offers every view you can open, and opening one shows it', async
   // The list is fixed so it can be learned.
   // Since 2026-10-12 a built-in view that belongs to a group is reached inside it, so the rail
   // names the groups and then what is in none.
-  for (const v of ['Study rooms', 'Tasks', 'Food', 'Fitness', 'Collaboration', 'Discussions']) {
+  for (const v of ['Notes', 'Tasks', 'Food', 'Fitness', 'Collaboration', 'Discussions']) {
     expect(names, `${v} missing from the rail`).toContain(v);
   }
   // **And two absences that are decisions, not omissions.** `Search` is not a place: it is the
@@ -100,7 +100,7 @@ test('the panel offers every view you can open, and opening one shows it', async
   // Clicking shows it **in the one view** — only notes are windows (2026-10-16), so the view you
   // were on is re-pointed rather than a window added beside it.
   const before = document.querySelectorAll('.pane').length;
-  await fireEvent.click(screen.getByRole('button', { name: 'open Study rooms' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Notes' }));
   await waitFor(() =>
     expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe(
       'Shelves',
@@ -112,8 +112,8 @@ test('the panel offers every view you can open, and opening one shows it', async
   // time, tapping a name means "show me that"; appending a second agenda answers a question
   // nobody asked and, on a phone, spends a feed and a scroll position. jsdom applies no CSS, so
   // "showing" is asserted structurally — which cell carries `.active` — not by visibility.
-  await fireEvent.click(screen.getByRole('button', { name: 'open Study rooms' }));
-  await fireEvent.click(screen.getByRole('button', { name: 'open Study rooms' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Notes' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Notes' }));
   expect(document.querySelectorAll('.pane').length).toBe(before);
   expect(document.querySelectorAll('.cell.active').length, 'one active window').toBe(1);
   // The name is read off the bar that names it — a pane has no header of its own when one view
@@ -177,12 +177,12 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   expect(names).toEqual(
     Array.from(rail.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim()),
   );
-  expect(names).toContain('Study rooms');
+  expect(names).toContain('Notes');
   expect(names).toContain('Active'); // a saved view, not just the built-ins
   expect(names).not.toContain('Search'); // nowhere offers an empty search pane
 
   const before = document.querySelectorAll('.pane').length;
-  await fireEvent.click(screen.getByRole('menuitem', { name: 'Study rooms' }));
+  await fireEvent.click(screen.getByRole('menuitem', { name: 'Notes' }));
   await waitFor(() =>
     expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe(
       'Shelves',
@@ -193,7 +193,7 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   // The bar's menu is the other consumer of the same list, so it re-points too — one edit
   // covers both, and this is what proves they did not drift.
   await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
-  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Study rooms' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Notes' }));
   expect(document.querySelectorAll('.pane').length).toBe(before);
 });
 

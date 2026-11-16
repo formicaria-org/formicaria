@@ -29,7 +29,7 @@ here. Status: ✅ shipped · 🟚 partial · 📋 planned. "the code wins" — v
 | **Reminders** | 🟚 | an unfinished note said at its `start`/`due`. A computer rests for them, no model; on a phone only a line in the open app (0.24.5) | `reminders.rs` · `known-issues.md` (*Reminders…*) |
 | **Health** | 🟚 | trackers you name, a doctor's page, 12 cards, Yours, a cycle that counts; phone untried | `health-plan-2026-10-22.md` |
 | **Music** | 🟚 | songs as logged notes; a deck + Songs/Albums/Artists/Playlists | `music-plan-2026-11-13.md` |
-| **formicaria's browser** | 🟚 | Linux ESR, kit-made; every item a tab, one at a time; ＋ = *Open…*; snip / Bring in / Save | `browser-plan-2026-11-15.md` |
+| **formicaria's browser** | 🟚 | ESR kit (Linux; Win/mac on release); the ant; feature and note tabs; Bring in = put | `browser-plan-2026-11-15.md` |
 | **Image → LaTeX** (a *dedicated* recogniser) | 📋 | a measured spike, behind an onnxruntime NOTICE gate; no defensible phone path yet. | `archive/ai-agents-plan-superseded-2026-09-02.md` (Part III) · `outstanding.md` |
 
 **Forward work queue:** [outstanding.md](./outstanding.md). **Why anything is the way it is:**

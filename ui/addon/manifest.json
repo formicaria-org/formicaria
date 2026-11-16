@@ -18,7 +18,8 @@
     "downloads",
     "theme",
     "<all_urls>",
-    "menus"
+    "menus",
+    "search"
   ],
   "background": {
     "scripts": [
@@ -86,5 +87,11 @@
       "https://*/*"
     ],
     "pinned": true
+  },
+  "browser_action": {
+    "default_icon": "icon.svg",
+    "default_title": "formicaria",
+    "default_popup": "launcher.html",
+    "default_area": "tabstrip"
   }
 }

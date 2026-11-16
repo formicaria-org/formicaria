@@ -1,5 +1,5 @@
 // **Mail as its own section, as a client** (workspace-design §12, #2): a conversation offers Reply in
-// Gmail and *Bring into a study room*; the passage goes into the note chosen, quoted, with a link back
+// Gmail and *Bring into a note*; the passage goes into the note chosen, quoted, with a link back
 // to the conversation. The conversation itself stays where it is.
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import * as mock from './lib/mock';
 
 beforeEach(() => mock.reset());
 
-it('a passage of a conversation is brought into a study room, with a link back', async () => {
+it('a passage of a conversation is brought into a note, with a link back', async () => {
   const [made] = (await mock.handle('create_notes', {
     notes: [
       {

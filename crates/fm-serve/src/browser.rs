@@ -42,6 +42,9 @@ pub const EXTENSION_ROUTES: &[&str] = &[
     // (`decisions.md` 2026-11-15, late night): both read-only.
     "/api/page_notes",
     "/api/search",
+    // **Bring in = put** (`actions.rs`, `decisions.md` 2026-11-17): the add-on writes a piece into a
+    // note on the server, the one way content moves in; open or not.
+    "/api/put",
 ];
 
 /// The origin of formicaria's own add-on in this browser (`moz-extension://<uuid>`), learnt the first
@@ -282,7 +285,8 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
         // **The previous session comes back** (0.33.1): restarting formicaria's browser, to finish an
         // update for one, must not lose the person's tabs. The formicaria tab is pinned and restored
         // with them; the startup script opens it if it is missing.
-        "Homepage": { "URL": server, "StartPage": "previous-session" },
+        // The browser opens on the notes, a feature page (`/f/…`, `decisions.md` 2026-11-17).
+        "Homepage": { "URL": format!("{server}/f/group/Library"), "StartPage": "previous-session" },
         "EnableTrackingProtection": {
             "Value": true, "Cryptomining": true, "Fingerprinting": true, "EmailTracking": true
         },

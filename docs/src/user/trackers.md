@@ -157,7 +157,7 @@ foods from the list by weight.
   leave, such as salt to taste, is simply not counted.
 - **Remove this recipe** takes the recipe and its ingredients away in one step, and can be undone.
 
-**A recipe is a note, and the same one from both sides.** It is in the study rooms, tagged `recipe`, so
+**A recipe is a note, and the same one from both sides.** It is in your notes, tagged `recipe`, so
 searching the library finds it by anything you wrote in it, and you can tag it further like any
 other note. Opened as a note, it has **Ingredients and servings** at the top, which takes you here,
 to that recipe. Started here or from the template, it begins the same way: a *Method*, *Times* and

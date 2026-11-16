@@ -88,7 +88,7 @@ yours, in one gesture — see [Backup & versioning](./backup.md).
 
 ## Bring things in from other apps
 
-The phone's way to bring something into a study room, from any app:
+The phone's way to bring something into a note, from any app:
 
 - **Select text in any app**, and in the menu that appears (beside Copy and Share) choose
   **formicaria**: it asks which note it goes into (the note you had open, a new note, or any other by
@@ -110,6 +110,9 @@ The phone's way to bring something into a study room, from any app:
 - **Two together, when you ask**: in your collection, a card's **with this one** button shows that item
   with the one in front, one above the other; tap either to work in it. **One at a time** at the top of
   the cards (or choosing a card) goes back to one.
+- **Mail is your webmail**: *Mail* in the views list opens it as a page inside formicaria (Gmail
+  unless you set another address in Settings → Mail → *Mail opens*). Select something in a mail and
+  bring it into a note as from any page.
 - **Open a web page, or anything**: the views button at the bottom → **Open…**: type to find a note, or
   a web address (*Go to …*), or words to search the web; the page opens inside formicaria.
 

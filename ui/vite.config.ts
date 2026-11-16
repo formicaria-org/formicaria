@@ -26,5 +26,17 @@ export default defineConfig({
       'cytoscape-fcose': cytoscapeStub,
     },
   },
-  build: { target: 'es2022', outDir: 'dist', emptyOutDir: true },
+  // Two pages from one codebase (`decisions.md` 2026-11-17, *one server, many views*): the app, and
+  // a feature page (`/f/…`), one feature or one note filling a tab of its own.
+  build: {
+    target: 'es2022',
+    outDir: 'dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: new URL('./index.html', import.meta.url).pathname,
+        feature: new URL('./feature.html', import.meta.url).pathname,
+      },
+    },
+  },
 });

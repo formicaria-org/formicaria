@@ -54,7 +54,7 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -1289,6 +1289,13 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
         return write_response(reader.get_mut(), "204 No Content", "text/plain", b"");
     }
 
+    // **The change stream** (`decisions.md` 2026-11-17, *one server, many views*): each open tab
+    // holds one, and hears the vaults' generation the moment it moves (`App::wait_changed`), where it
+    // used to ask every few seconds. After the gates above, like every route.
+    if path == "/api/changes" {
+        return changes_stream(reader.get_mut(), state);
+    }
+
     if path == "/api/alive" {
         // Carries the build id as well, so a launcher can tell *which* formicaria is here. Added
         // to the object rather than to `status_json`, which has a branch per sharing state — one
@@ -1509,6 +1516,44 @@ fn probe(addr: &str) -> Running {
     Running::Ours(id)
 }
 
+/// At most this many change streams at once: each is a parked thread, a few tens of KB.
+const MAX_STREAMS: usize = 64;
+static STREAMS: AtomicUsize = AtomicUsize::new(0);
+
+/// **Server-Sent Events of the vaults' generation**: one line when the stream opens and one each time
+/// it moves; a comment every 25 s keeps the line open through anything that closes idle ones. Ends
+/// when the tab has gone (the write fails).
+fn changes_stream(conn: &mut dyn Conn, state: &AppState) -> std::io::Result<()> {
+    if STREAMS.fetch_add(1, Ordering::SeqCst) >= MAX_STREAMS {
+        STREAMS.fetch_sub(1, Ordering::SeqCst);
+        return write_response(conn, "503 Service Unavailable", "text/plain", b"too many streams");
+    }
+    struct Release;
+    impl Drop for Release {
+        fn drop(&mut self) {
+            STREAMS.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+    let _release = Release;
+    conn.write_all(
+        b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n\
+          X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
+    )?;
+    let mut g = state.app.generation();
+    conn.write_all(format!("data: {{\"generation\":{g}}}\n\n").as_bytes())?;
+    conn.flush()?;
+    loop {
+        let now = state.app.wait_changed(g, Duration::from_secs(25));
+        if now > g {
+            g = now;
+            conn.write_all(format!("data: {{\"generation\":{g}}}\n\n").as_bytes())?;
+        } else {
+            conn.write_all(b": still here\n\n")?;
+        }
+        conn.flush()?;
+    }
+}
+
 /// Where the browser add-on sits among the built UI's files (`ui/addon/build.mjs` writes it).
 #[cfg_attr(not(feature = "browser"), allow(dead_code))]
 const ADDON_ASSET: &str = "addon/formicaria.xpi";
@@ -1518,7 +1563,10 @@ const ADDON_ASSET: &str = "addon/formicaria.xpi";
 /// to start our browser falls back to the default one: the notebook opening matters more.
 fn open_formicaria(url: &str, dist: Option<&Path>) {
     #[cfg(feature = "browser")]
-    if browser::opens_in_it() && browser::launch(url, &addon_xpi(dist), url).is_ok() {
+    // On the notes: a feature page in a tab of its own (`decisions.md` 2026-11-17).
+    if browser::opens_in_it()
+        && browser::launch(&format!("{url}/f/group/Library"), &addon_xpi(dist), url).is_ok()
+    {
         return;
     }
     let _ = dist;
@@ -1611,7 +1659,15 @@ fn open_native(target: &std::ffi::OsStr) -> std::io::Result<()> {
 /// single-page app owns client-side routing. Guards against `..` path traversal.
 fn static_file(path: &str, state: &AppState) -> (&'static str, String, Vec<u8>) {
     let clean = path.split('?').next().unwrap_or("/");
-    let rel = if clean == "/" { "index.html" } else { clean.trim_start_matches('/') };
+    // **A feature page** (`/f/…`, `decisions.md` 2026-11-17): one feature or one note in a tab of
+    // its own; the page reads which from its address.
+    let rel = if clean == "/" {
+        "index.html"
+    } else if clean == "/f" || clean.starts_with("/f/") {
+        "feature.html"
+    } else {
+        clean.trim_start_matches('/')
+    };
     // Only reachable on the on-disk path, but checked for both: a guard that applies
     // sometimes is a guard nobody can reason about.
     if rel.split('/').any(|seg| seg == "..") {
@@ -2026,6 +2082,70 @@ mod tests {
         let _ = reader.read_to_end(&mut body);
         server.join().unwrap();
         (status.trim().to_string(), String::from_utf8_lossy(&body).to_string(), state)
+    }
+
+    /// **The change stream says the generation, then each change, at once** (`/api/changes`): what
+    /// every open tab holds instead of asking every few seconds.
+    #[test]
+    fn the_change_stream_says_each_change_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state = std::sync::Arc::new(AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            ours(),
+            0,
+        ));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let for_thread = std::sync::Arc::clone(&state);
+        // Not joined: the stream ends at its next keep-alive once the client has gone.
+        std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().unwrap();
+            let _ = handle(&mut sock, Peer { loopback: true, tls: false }, &for_thread);
+        });
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        client.write_all(b"GET /api/changes HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").unwrap();
+        let mut reader = _BufReader::new(&mut client);
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        assert!(line.starts_with("HTTP/1.1 200"), "{line}");
+        let mut ctype = String::new();
+        loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            if line.to_ascii_lowercase().starts_with("content-type:") {
+                ctype = line.clone();
+            }
+            if line.trim().is_empty() {
+                break;
+            }
+        }
+        assert!(ctype.contains("text/event-stream"), "{ctype}");
+        let mut next = || loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            if let Some(d) = line.strip_prefix("data: ") {
+                let v: serde_json::Value = serde_json::from_str(d.trim()).unwrap();
+                return v["generation"].as_u64().unwrap();
+            }
+        };
+        let first = next();
+        let t = Instant::now();
+        fm_app::dispatch(
+            "create_notes",
+            &serde_json::json!({ "notes": [{ "title": "Ants", "body": "x" }] }),
+            b"",
+            &state.app,
+            &Desktop,
+        )
+        .unwrap();
+        assert!(next() > first);
+        assert!(t.elapsed() < Duration::from_secs(5), "at once, not at the keep-alive");
     }
 
     /// **A launcher has to be able to tell which build is holding the port.**

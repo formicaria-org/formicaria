@@ -97,6 +97,10 @@ pub struct App {
     /// that is not on [`READ_ONLY`]. Not a lock, because it is only ever read and incremented
     /// — a client that misses one increment sees the next.
     generation: AtomicU64,
+    /// **Wakes whoever waits for the next change** (`wait_changed`, the server's change stream):
+    /// notified on every [`App::bump`], so an open tab hears of a change at once instead of asking
+    /// every few seconds (`decisions.md` 2026-11-17, *one server, many views*).
+    changed: (Mutex<()>, std::sync::Condvar),
     /// **The app's clock** (2026-10-24, *one app clock*) — the same handle the stores read and write
     /// on, so a choice made in Settings applies to every vault at once.
     clock: fm_core::zone::Clock,
@@ -356,6 +360,7 @@ impl App {
             config,
             config_writable,
             generation: AtomicU64::new(0),
+            changed: (Mutex::new(()), std::sync::Condvar::new()),
             clock,
         }
     }
@@ -367,7 +372,33 @@ impl App {
 
     /// Record that the vaults moved, and return the new generation.
     fn bump(&self) -> u64 {
-        self.generation.fetch_add(1, Ordering::Relaxed) + 1
+        let g = self.generation.fetch_add(1, Ordering::Relaxed) + 1;
+        let _held = self.changed.0.lock().unwrap_or_else(|p| p.into_inner());
+        self.changed.1.notify_all();
+        g
+    }
+
+    /// How many times the vaults have moved so far.
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Relaxed)
+    }
+
+    /// **Wait until the vaults move past `since`**, or `timeout` passes; answers the generation then.
+    /// What the server's change stream holds each open tab on: a parked thread, woken by a write.
+    pub fn wait_changed(&self, since: u64, timeout: std::time::Duration) -> u64 {
+        let deadline = std::time::Instant::now() + timeout;
+        let mut held = self.changed.0.lock().unwrap_or_else(|p| p.into_inner());
+        loop {
+            let now = self.generation();
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if now > since || left.is_zero() {
+                return now;
+            }
+            held = match self.changed.1.wait_timeout(held, left) {
+                Ok((h, _)) => h,
+                Err(p) => p.into_inner().0,
+            };
+        }
     }
 
     /// An owned snapshot of the configured vaults — what a shell prints at startup.
@@ -694,6 +725,8 @@ fn takes_history(cmd: &str) -> bool {
 }
 
 const READ_ONLY: &[&str] = &[
+    // The actions table (`actions.rs`): a constant.
+    "actions",
     // The app's clock (2026-10-24): a read, and the one the UI and the assistant poll.
     "clock",
     "deleted_notes",
@@ -827,6 +860,63 @@ fn dispatch_inner(
         // **The library's kinds of notes** (`kinds.rs`): each kind's views, sources, default place and
         // hand-offs. Read-only; for the UI and Myrme. (Replaces 0.38's `sources`.)
         "kinds" => json(crate::kinds::KINDS),
+        "actions" => json(crate::actions::ACTIONS),
+        // **Put a piece into a note** (`actions.rs`): the one way content moves in, from any gesture
+        // and (later) the assistant; into an existing note (`to.note`, at its end or after a heading)
+        // or a new one (`to.new`: a title, and a shelf). `base`, when given, guards the version read.
+        "put" => {
+            let to = args.get("to").cloned().unwrap_or(Value::Null);
+            let md = s("md");
+            // **What an earlier put wrote, swapped** (Undo: for nothing; an alternative: for another
+            // form of the same piece). Only its first occurrence; nothing written when it is gone.
+            let replace = s("replace");
+            if !replace.is_empty() {
+                let id = to.get("note").and_then(Value::as_str).ok_or("put: which note")?;
+                let version = crate::actions::replace(
+                    &mut lock()?.store(scope),
+                    id,
+                    &replace,
+                    &md,
+                    &s("base"),
+                )
+                .map_err(err)?;
+                return json(serde_json::json!({ "id": id, "version": version }));
+            }
+            if md.trim().is_empty() {
+                return Err("nothing to put".into());
+            }
+            if let Some(id) = to.get("note").and_then(Value::as_str) {
+                let at = crate::actions::At::parse(
+                    to.get("at").and_then(Value::as_str).unwrap_or("end"),
+                );
+                let version =
+                    crate::actions::put(&mut lock()?.store(scope), id, &md, &at, &s("base"))
+                        .map_err(err)?;
+                json(serde_json::json!({ "id": id, "version": version }))
+            } else if let Some(new) = to.get("new") {
+                let title = new.get("title").and_then(Value::as_str).unwrap_or("").to_string();
+                let tags = new
+                    .get("shelf")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.trim().is_empty())
+                    .map(|s| vec![format!("shelf:{}", s.trim())])
+                    .unwrap_or_default();
+                let mut g = lock()?;
+                let into = g.config(scope, &s("vault"))?;
+                let draft = crate::log::NoteDraft {
+                    title,
+                    body: format!("{}\n", md.trim()),
+                    tags,
+                    start: String::new(),
+                    props: Default::default(),
+                };
+                let made = crate::log::create_notes(&mut g.store(scope), &into.name, &[draft])
+                    .map_err(err)?;
+                json(made.into_iter().next().ok_or("the note was not made")?)
+            } else {
+                Err("put: say where (to.note or to.new)".into())
+            }
+        }
         "recent" => json(commands::recent(&lock()?.store(scope)).map_err(err)?),
         // The Collaboration surface's feed: every open proposal (a note carrying
         // `proposes: branch:<name>`), across vaults. A store query like `recent`, not a per-vault

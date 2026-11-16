@@ -72,32 +72,31 @@ reopens the page with that passage highlighted.
 
 Then press **Open in formicaria** to go to the note. It is yours: edit it, tag it, move it.
 
-## Your tabs: notes, views and pages together
+## The ant, and your tabs
 
-- **Every tab is one thing**, of any kind: a web page, a note, a view (Board, Agenda, Shelves…), a
-  section. Choosing a tab shows that one thing, filling the window. formicaria's tabs carry its icon.
-- **Moving inside formicaria moves its tab**: open a note from the board, and that tab is now the
-  note, as following a link moves a page's tab. To keep both, **Ctrl+click or middle-click** the note
-  (on a board, in a list, in search): it opens in a tab of its own, as a link would. *Open as a tab* in
-  a note's **＋** (Options) does the same; a link to a web page in a note opens the page in its own tab.
-- **＋ (or Ctrl+T) opens *Open…*** in a new tab: one field for your notes and the web. Type and pick a
-  note; or a web address (*Go to …*), or *Search the web for …* with the browser's own search engine,
-  and the tab becomes that page. With nothing typed, it offers a new note and the sections.
-- **Two things side by side only when you ask**: drag a tab onto the left or right half of the page.
-  Two pages share the window (Firefox's split view); a note or section and a page put formicaria
-  beside the page, on that side; two of formicaria's (notes, views, sections) show together in
-  formicaria. **Alt+Shift+F** shows
-  formicaria beside the page you are on; **✕** on its side puts it away again. Drag the line between
-  them to make either wider; **⇆** moves formicaria right, below, left or above the page.
+- **The ant at the start of the tab row is formicaria.** Press it: a small panel with a search field
+  (your notes, or the web), **New note**, and formicaria's features: **Notes**, **Tasks**, **Agenda**,
+  **Mail**, **Food journal**, **Fitness**, **Health**, **Music**. Choose one and it opens in **a tab of
+  its own**, filling the window.
+- **Every tab is one thing**: a feature (with its own views as a row of buttons at the top: Notes'
+  *Shelves* and *Timeline*, Food's *Day*, *Menu*, *Trends*…), a single note, or a web page. formicaria's
+  tabs have no bars or windows inside them: the browser's tabs are the windows.
+- **Opening a note from a feature opens it in a tab of its own**, beside the feature, as a link would.
+- **Mail is your webmail, in a tab** (Gmail unless you change it at the foot of the ant's panel).
+  Select something in a mail and bring it into a note as from any page.
+- **+ (or Ctrl+T) is a new web tab**, as in any browser. The browser is for the web; formicaria's
+  features come from the ant.
+- **Two tabs side by side**: drag a tab onto the left or right half of the page (Firefox's split
+  view). It works for any two: two pages, a note and a page, two notes, a feature and a note.
 - **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, whatever it is, and
   again to come back.
-- Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click.
+- Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click. A note's own **×**
+  closes its tab.
 - **Tabs are across the top**, as in any browser: click to switch, drag to reorder; **scroll over
   them** to move through them; **Ctrl+Tab** shows your recent tabs as cards to pick from. Prefer them
   down the side? **Settings → Browser → Tabs down the side** (always shown, never behind a button).
-- There is **one formicaria** behind all its tabs, in one window: opening formicaria again shows it
-  there rather than starting a second one.
-- **Your tabs come back** when the browser starts again, formicaria's ones too.
+- **Your tabs come back** when the browser starts again, formicaria's ones too (tabs from versions
+  before 0.47 become their notes' and features' pages).
 - The window takes **formicaria's colours**, dark or light as your system is, and shows **formicaria**
   in the dock and Alt+Tab.
 
@@ -107,7 +106,7 @@ Two things you can do with what you find, and the same words everywhere:
 
 | You want | Do | What happens |
 |---|---|---|
-| **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it, and choose where it goes: **the note in front** (first, so Enter is enough), **another note** (type to find it), or **a new note**. Or right-click it → **Bring into "…"**, or drag it onto formicaria | it goes into **the note in front** in formicaria (its name is on the icon's tooltip and the snip's bar). With no note open, a new note named after the page is made and opened |
+| **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it, and choose where it goes: **the note in front** (first, so Enter is enough), **another note** (type to find it; it goes in without the note opening, so you stay on the page), or **a new note**. Or right-click it → **Bring into "…"** | it goes into **the note in front**: the note whose tab you looked at last (its name is on the icon's tooltip and the snip's bar), straight into the note, open or not. With no note looked at yet, a new note named after the page is made |
 | **the whole page, for later** | **Save the whole page** in the snip's bar, or right-click the page → **Save page in formicaria**, or **Alt+Shift+K** | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
 
 **The snip's bar also offers what the page plainly has**, one press each: **The main text**, **The
@@ -151,7 +150,7 @@ address bar is **filled red**; press it, and the snip's bar says **In 2 of your 
 see them, each with the line that names the page, and open one beside the page.
 
 **Search the whole library from the address bar**: type **fm**, a space, and what you are looking
-for. Each result says its section (✎ Study rooms, ✉ Mail, ♪ Music, ◍ Food, ◎ Web…) and opens as a
+for. Each result says its section (✎ Notes, ✉ Mail, ♪ Music, ◍ Food, ◎ Web…) and opens as a
 tab.
 
 **Exactly where it came from.** A saved page ends with the **full address it was read at**, with the

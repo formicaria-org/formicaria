@@ -15,8 +15,8 @@ export type SpaceTab = { key: string; label: string; kind: PaneKind; viewName?: 
  *  what a person reads, when it differs (`decisions.md` 2026-11-16, night: *the library's words*). */
 export type Space = { name: string; label?: string; icon: string; tabs: SpaceTab[] };
 
-/** What a section is called on screen: the notes' group reads **Study rooms** (formicaria is the
- *  library; its notes are the study rooms), every other group its own name. */
+/** What a section is called on screen: the notes' group reads **Notes** (formicaria is the
+ *  library; its notes are the Notes section), every other group its own name. */
 export const sectionLabel = (name: string): string =>
   BUILTIN_SPACES.find((s) => s.name === name)?.label ?? name;
 
@@ -29,7 +29,7 @@ const tab = (kind: PaneKind): SpaceTab => ({ key: kind, label: paneLabel(kind), 
 export const BUILTIN_SPACES: Space[] = [
   {
     name: 'Library',
-    label: 'Study rooms',
+    label: 'Notes',
     icon: paneIcon({ kind: 'timeline' } as Pane) ?? 'timeline',
     tabs: [tab('timeline')],
   },

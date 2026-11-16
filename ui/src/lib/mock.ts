@@ -1993,6 +1993,44 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // The browser's add-on asks these (`fm_app::source`); the app itself never does.
     case 'page_notes':
       return [] as T;
+    case 'actions':
+      return [
+        {
+          key: 'put',
+          label: 'Bring into a note',
+          takes: '',
+          makes: '',
+          runs: 'server',
+          agent: 'off',
+        },
+      ] as T;
+    // As the server's (`actions.rs`): into a note at its end, or a new note on a shelf.
+    case 'put': {
+      const to = (args.to ?? {}) as { note?: string; new?: { title?: string; shelf?: string } };
+      const md = String(args.md ?? '').trim();
+      if (!md) throw new Error('nothing to put');
+      if (to.note) {
+        const cur = noteDetail(to.note);
+        if (!cur) throw new Error('not found');
+        const body = cur.body.trim() ? `${cur.body.trimEnd()}\n\n${md}\n` : `${md}\n`;
+        await handle('update_body', { id: to.note, body, base: String(args.base ?? '') });
+        return { id: to.note } as T;
+      }
+      if (to.new) {
+        const [made] = (await handle('create_notes', {
+          notes: [
+            {
+              title: to.new.title ?? '',
+              body: `${md}\n`,
+              tags: to.new.shelf ? [`shelf:${to.new.shelf}`] : [],
+              props: {},
+            },
+          ],
+        })) as { id: string }[];
+        return made as T;
+      }
+      throw new Error('put: say where');
+    }
     case 'kinds':
       return [] as T;
     // The vault list the mock models. Two, so the sidebar's vault chips and filter are
@@ -2415,6 +2453,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // The views that come with the app are always listed, as the server lists them; whether
       // their groups are *shown* is the device's choice (`trackersShown` in `App.svelte`).
       views.push(...tracker.TRACKER_VIEWS);
+      // Mail's conversations, as `crates/fm-app/src/shipped/mail-conversations.view` ships them.
+      views.push({
+        name: 'Conversations',
+        renderer: 'timeline',
+        group_by: null,
+        group: 'Mail',
+        shipped: true,
+      });
       // The Library's shelves, as `crates/fm-app/src/shipped/library-shelves.view` ships them.
       views.push({
         name: 'Shelves',

@@ -22,7 +22,7 @@ export interface Section {
   mark: string;
   /** The collection's tab for its catalogue: a lean tab onto formicaria at this address. */
   address: string;
-  /** Does an item belong here? The first section that claims it wins; the study rooms take the rest. */
+  /** Does an item belong here? The first section that claims it wins; the notes take the rest. */
   owns: (n: ItemShape) => boolean;
   /** **What the assistant may do here** (workspace-design §11.5, D7): off until the person turns it
    *  on for this section, and then reads (search) before any write, its findings as proposals. */
@@ -84,7 +84,7 @@ export const SECTIONS: Section[] = [
   },
   {
     key: 'Library',
-    label: 'Study rooms',
+    label: 'Notes',
     mark: '✎',
     address: 'view:group:Library',
     owns: () => true,

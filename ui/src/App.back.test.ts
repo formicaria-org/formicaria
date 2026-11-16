@@ -103,7 +103,7 @@ test('a view picked from a menu stays picked, and Back returns from it', async (
   await screen.findByText(/GAE lambda interacts badly/);
   await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
   // The menu names the same places the panel does: the Library opens on its shelves.
-  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Study rooms' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Notes' }));
   await waitFor(() => expect(showing()).toMatch(/Shelves/));
   await new Promise((r) => setTimeout(r, 100));
   expect(showing()).toMatch(/Shelves/);

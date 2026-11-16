@@ -216,9 +216,7 @@ test('the Music view is a player: pressing a song plays it, and the list is the 
 
   // It keeps playing in another view, where the slim bar takes over.
   const rail = screen.getByRole('navigation', { name: 'views' });
-  await fireEvent.click(
-    within(rail).getByRole('button', { name: /open Timeline|open Study rooms/ }),
-  );
+  await fireEvent.click(within(rail).getByRole('button', { name: /open Timeline|open Notes/ }));
   const bar = await screen.findByRole('region', { name: 'player' });
   expect(within(bar).getByRole('button', { name: 'now playing: Arrival' })).toBeTruthy();
   await fireEvent.click(within(bar).getByRole('button', { name: 'stop and close the player' }));

@@ -6,6 +6,11 @@ date you choose, and it can **only read**: Google gives it no way to send, delet
 **Label a conversation once and formicaria follows all of it** — the replies you send and receive
 afterwards are read too, even though Gmail does not put the label on them.
 
+
+**Mail is your webmail.** *Mail* (in formicaria's browser, the ant's panel; on the phone and
+elsewhere, the views list) opens your webmail, Gmail unless you set another address (the ant's
+panel, or Settings → Mail → *Mail opens*). What follows on this page is the other half: formicaria
+reading the mail you label, so your conversations are in your notes and found by search.
 ## What it does to your notes
 
 - **One note per conversation**, tagged `mail`, titled by its subject (without `Re:`, `R:`, `Fwd:`).

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { webmail } from './lib/webmail';
+  import { loadFeed as loadFeedShared, cardsOf } from './lib/feeds';
   import OpenAnything from './lib/OpenAnything.svelte';
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
@@ -840,9 +842,16 @@
         label: g.name,
         icon: 'chart',
         saved: false,
-        run: () => openGroupView(g.views[0]),
+        // **Mail is your webmail** (`lib/webmail.ts`): a page inside formicaria on the phone, a tab
+        // elsewhere. The conversations it reads stay in your notes, found by search.
+        run: () => (g.name === 'Mail' ? openWebmail() : openGroupView(g.views[0])),
       })),
   ];
+  function openWebmail() {
+    const url = webmail();
+    if (isPhone()) focusOrOpen('page', { url, pageTitle: 'Mail' });
+    else window.open(url, '_blank', 'noopener');
+  }
 
   /// The rail: what you are invited to open, minus the rare one. **With the four groups it is the
   /// groups first** — a built-in view that belongs to one is reached inside it, exactly as a
@@ -1042,54 +1051,12 @@
   }
 
   // Fetch one feed by its key. Panes sharing a key share this result.
+  /** What a view shows (`lib/feeds.ts`, shared with the feature pages), and the statuses its notes
+   *  use learnt on the way. */
   async function loadFeed(key: string): Promise<Feed> {
-    const sep = key.indexOf(':');
-    const type = sep === -1 ? key : key.slice(0, sep);
-    const arg = sep === -1 ? '' : key.slice(sep + 1);
-    if (type === 'board') {
-      const board = await getBoard(arg);
-      learnStatuses(board.columns.flatMap((c) => c.cards));
-      return { board };
-    }
-    if (type === 'agenda') {
-      const cards = await getAgenda();
-      learnStatuses(cards);
-      return { cards };
-    }
-    if (type === 'timeline') {
-      const cards = await recent();
-      learnStatuses(cards);
-      return { cards };
-    }
-    if (type === 'collaboration') {
-      // Two things that need a person: proposals (branch + note) and notes still in conflict (both
-      // versions marked in the body). Both are derived scans — no git read here. Conflicts render
-      // above proposals as "needs resolution", so an unresolved merge is findable, not just a toast.
-      const [cards, confl] = await Promise.all([proposals(), conflicts()]);
-      learnStatuses(cards);
-      return { cards, conflicts: confl };
-    }
-    if (type === 'discussions') {
-      // The ongoing discussions, most-active-first, each with its participants. Its own feed field
-      // because a discussion summary is richer than an ObjectMeta card.
-      return { discussions: await fetchDiscussions() };
-    }
-    if (type === 'view') {
-      const r = await runView(arg);
-      // What the view leaves out travels with what it returned — a saved view draws through the
-      // same renderer as the built-in it shadows, so the pane needs this to explain a column (or a
-      // note) that a filter removed. Carried here rather than looked up in `views`, which is
-      // fetched once per vault change and can arrive late or not at all.
-      const view = {
-        filters: r.filters ?? [],
-        renderer: r.renderer,
-        group_by: r.group_by,
-        totals: r.totals,
-        group: r.group,
-      };
-      return r.board ? { board: r.board, view } : { cards: r.rows ?? [], view };
-    }
-    return {};
+    const f = await loadFeedShared(key);
+    learnStatuses(cardsOf(f));
+    return f;
   }
 
   let lastRoots: unknown = null;
@@ -1599,7 +1566,13 @@
       .then((c) => setAppClock(c) && void refresh())
       .catch(() => {});
     void beat();
-    if (!import.meta.env.PROD) return;
+    // **Heard at once** (`/api/changes`, `decisions.md` 2026-11-17): a write anywhere (another tab,
+    // the phone, the browser's add-on, a put) moves the generation, and this tab re-reads straight
+    // away instead of at its next beat. The beat stays for edits made outside formicaria.
+    const stopChanges = ipc.listenChanges((g) => {
+      if (g > generation) void beat();
+    });
+    if (!import.meta.env.PROD) return stopChanges;
 
     // Coming back to the tab beats immediately rather than waiting out the interval, so a tab
     // you just returned to is current before you have finished looking at it.
@@ -1629,6 +1602,7 @@
       void beat();
     }, 15000);
     return () => {
+      stopChanges();
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pagehide', flushPendingCommit);
@@ -2178,36 +2152,8 @@
 
   // Open an existing note (from a card click) — as a pane, deduped.
   function openNote(id: string) {
-    // **A new tab, as a link would** (`decisions.md` 2026-11-16, night, last): Ctrl+click or a middle
-    // click in formicaria's browser opens the note in a tab of its own, beside this one.
-    if (bridged() && Date.now() - newTabClick < 800) {
-      newTabClick = 0;
-      bridgeUp({ up: 'open-tab', address: `note:${id}`, title: '' });
-      return;
-    }
     openNoteInPane(id);
   }
-  let newTabClick = 0;
-  $effect(() => {
-    if (!bridged()) return;
-    const mark = (e: MouseEvent) => {
-      if (e.ctrlKey || e.metaKey) newTabClick = Date.now();
-    };
-    // A middle click fires no click on a button: it is turned into a Ctrl+click on the same thing.
-    const middle = (e: MouseEvent) => {
-      if (e.button !== 1 || !(e.target instanceof Element) || e.target.closest('a[href]')) return;
-      e.preventDefault();
-      e.target.dispatchEvent(
-        new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }),
-      );
-    };
-    document.addEventListener('click', mark, true);
-    document.addEventListener('auxclick', middle, true);
-    return () => {
-      document.removeEventListener('click', mark, true);
-      document.removeEventListener('auxclick', middle, true);
-    };
-  });
 
   // **A note named in the address, `#note=<id>`** (`decisions.md` 2026-11-15): where formicaria's
   // browser add-on sends the person after it keeps a page — to the note it just wrote. Read at start
@@ -2216,31 +2162,10 @@
     // **A study room or a catalogue by its address** (workspace-design §11, D1–D2): what a tab of
     // the collection opens. `&tab` marks one opened from a tab: the tabs are then the list of what is
     // open, so the app keeps few windows of its own and lets the oldest go.
-    // **Two study rooms side by side** (workspace-design §12, D3): one tab dragged beside another.
     // **A new tab** (＋ or Ctrl+T in formicaria's browser): *Open…* fills it.
     if (/^#open(&tab)?$/.test(location.hash)) {
       history.replaceState(history.state, '', location.pathname + location.search);
       launching = true;
-      return;
-    }
-    // **Two items together** (a formicaria tab dragged beside another; `formicaria.cfg`'s `pair`): any
-    // two, notes or views; the first shown with the second (`besideId`).
-    const pair = /^#pair=([^,]+),([^,]+)$/.exec(location.hash);
-    if (pair) {
-      launching = false;
-      history.replaceState(history.state, '', location.pathname + location.search);
-      const open = (item: string) => {
-        const at = decodeURIComponent(item);
-        const note = /^note:([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})$/.exec(at);
-        if (note) {
-          makeRoomFor(note[1].toUpperCase());
-          openNoteInPane(note[1].toUpperCase());
-        } else if (at.startsWith('view:')) openAddress(at.slice(5));
-        return workspace.panes[focused]?.id ?? null;
-      };
-      const first = open(pair[1]);
-      const second = open(pair[2]);
-      if (first && second && first !== second) besideId = first;
       return;
     }
     const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);
@@ -2288,6 +2213,7 @@
     listenBridge({
       open: (id) => openNoteInPane(id),
       target: bringTarget,
+      onScreen: (id) => workspace.panes.some((p) => p.kind === 'note' && p.noteId === id),
       // **No note in front: a new one, named after the page, opened** so the person goes on writing.
       create: async (title) => {
         const [made] = await ipc.createNotes([{ title, body: '', tags: [], start: '', props: {} }]);
@@ -2328,36 +2254,12 @@
     const name = front ? paneTitle(front) : '';
     document.title = name ? `${name} — formicaria` : 'formicaria';
   });
-  // **formicaria's tab follows its item** (`decisions.md` 2026-11-16, night, last): inside formicaria's
-  // browser the app writes the item in front into its own address (`#at=<item>&title=<name>`), and
-  // the browser keeps the formicaria tab shown on it, as a page's tab follows its links.
+  /** *Open…* (the views list's first entry): a note found, a section, a new note, a web page. */
   let launching = $state(false);
-  const frontAddress = $derived.by(() => {
-    const p = workspace.panes[focused];
-    if (!p) return '';
-    if (p.kind === 'note') return p.noteId ? `note:${p.noteId}` : '';
-    if (p.kind === 'page') return '';
-    if (p.kind === 'view') return p.viewName ? `view:saved:${p.viewName}` : '';
-    return `view:${p.kind}`;
-  });
-  const sayAt = (at: string, title: string) => {
-    const hash = `#at=${encodeURIComponent(at)}&title=${encodeURIComponent(title)}`;
-    // Never over an address not yet read (`#note=`, `#view=`, `#open`, `#pair=`): that is what to open.
-    if (location.hash && !location.hash.startsWith('#at=')) return;
-    if (location.hash !== hash)
-      history.replaceState(history.state, '', location.pathname + location.search + hash);
-  };
-  $effect(() => {
-    if (!bridged()) return;
-    const front = workspace.panes[focused];
-    if (launching) return sayAt('open:', 'New tab');
-    if (frontAddress) sayAt(frontAddress, front ? paneTitle(front) : 'formicaria');
-  });
-  /** A web address or a web search chosen in *Open…*: this tab becomes that page. */
+  /** A web address or a web search chosen in *Open…*: a page item. */
   function openWeb(at: string) {
     launching = false;
-    // In formicaria's browser the tab becomes the page; elsewhere (the phone) it is a page item.
-    if (bridged()) return sayAt(at, '');
+    // A page item (the phone draws it; elsewhere it is its address, to open).
     const url = at.startsWith('web:')
       ? at.slice(4)
       : `https://duckduckgo.com/?q=${encodeURIComponent(at.slice(7))}`;

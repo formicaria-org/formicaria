@@ -80,9 +80,9 @@ test('a group is opened from the list of views, and Back returns to the one befo
   await screen.findByRole('group', { name: 'Tasks' });
   const rail = await screen.findByRole('navigation', { name: 'views' });
 
-  await fireEvent.click(within(rail).getByRole('button', { name: 'open Study rooms' }));
+  await fireEvent.click(within(rail).getByRole('button', { name: 'open Notes' }));
   // The Library opens on its shelves; its timeline, with the tags to browse by, is the next tab.
-  const library = await screen.findByRole('group', { name: 'Study rooms' });
+  const library = await screen.findByRole('group', { name: 'Notes' });
   await fireEvent.click(within(library).getByRole('button', { name: 'Timeline' }));
   const tags = await screen.findByRole('list', { name: 'tags' });
   const first = within(tags).getAllByRole('button')[0];

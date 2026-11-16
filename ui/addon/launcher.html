@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>formicaria</title>
+    <style>
+      :root { color-scheme: light dark; font: 14px/1.35 system-ui, sans-serif; }
+      body { margin: 0; width: 300px; padding: 8px; }
+      input { box-sizing: border-box; width: 100%; padding: 8px 10px; font: inherit; border-radius: 8px;
+        border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: Field; color: FieldText; }
+      ul { list-style: none; margin: 8px 0 0; padding: 0; }
+      button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 7px 10px; border-radius: 6px;
+        cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      button:hover, button:focus-visible { background: color-mix(in srgb, #dc2626 16%, transparent); outline: none; }
+      .sep { height: 1px; margin: 6px 4px; background: color-mix(in srgb, currentColor 15%, transparent); }
+      .web { color: LinkText; }
+      .muted { opacity: 0.65; padding: 7px 10px; }
+      .mark { display: inline-block; width: 1.4em; opacity: 0.8; }
+    </style>
+  </head>
+  <body>
+    <input id="q" type="search" placeholder="Search your notes or the web" aria-label="search your notes or the web" autofocus />
+    <ul id="list" aria-label="formicaria"></ul>
+    <script src="launcher.js"></script>
+  </body>
+</html>

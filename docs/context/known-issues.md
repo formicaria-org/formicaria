@@ -42,19 +42,11 @@ trap, add one. Newest concerns first within each section.
   on the development machine (no Android SDK there); the release build compiles it. A selection
   from another app carries no address, so it says *shared from another app*; Share usually adds the
   page's address. GeckoView (formicaria's browser on the phone) is not built: APK budget and G0.
-- **Every item a tab (0.43, computer)**: the app says its item in its address (`#at=`) and the
-  browser moves the shown formicaria tab to it; one formicaria behind every formicaria tab, so two
-  formicaria tabs side by side go through formicaria's own two halves (`#pair=`). *Open…*
-  searches notes by text; a section or view is reached from its places row, not by typing its name.
 - **Pages on the phone (0.43)**: the shell draws each page's WebView *above* the app, over the item's
   box; the app hides it whenever a dialog or a menu is up (`PageItem`), so an app overlay that is
   neither (a toast, a popover without a role) is covered by the page. Pages are the system WebView:
   no add-on, no tracking protection beyond Android's, no pinch-to-select tool; ⇥ takes the selection
   or the page. Not tried on a device before release; the Kotlin compiles with the pinned SDK.
-- **The library model (0.38)**: a lean tab opens formicaria at its item; a note's tab whose note was
-  deleted shows formicaria's notice and can be closed. The collection's *beside* for any two tabs by
-  one drag (D3) is not built. The Mail section is a timeline of conversations, not yet a mail client
-  of its own. Section of an item is guessed from its tags and properties (`sections.ts`).
 - **Snip (0.36)**: the area's blocks are those at least half inside it, so a paragraph cut in half by
   the edge comes whole or not at all; a picture of the area is the visible view only (no scrolling
   while snipping); synthetic Ctrl+Shift events drive the gate's test, the real drag is by hand.
@@ -62,17 +54,16 @@ trap, add one. Newest concerns first within each section.
   selection inside an embedded frame is brought in only by right-click or Alt+Shift+A). Pick's widen
   and narrow use the wheel; no touch version until the phone. An image the page made itself (a
   `blob:` address) comes as a link. *Undo* and the alternatives find what came in by its text, so
-  after the person edits it they say so rather than guess. The panel moving sides reloads formicaria
-  (a moved browser starts empty); above and below the page it sits inside the page area's own box
-  (its divider resizes heights).
-- **formicaria's panel lives in one window**: another window's ant button brings that window forward
-  rather than moving the panel (moving a live page between windows is possible in Firefox, not done).
-- **The add-on's background page is persistent** now (it holds the bridge's port to the panel), a few
-  MB; measured within the budget by `browser-check`.
+  after the person edits it they say so rather than guess.
+- **The add-on's background page is persistent**, a few MB; measured within the budget by
+  `browser-check`.
+- **Feature pages (0.47)**: each holds its own copy of the parts it shows; an extra one is held to
+  20 MB by `browser-check`. The note in front is the note tab looked at last (the add-on watches tab
+  changes); a note that was never looked at in a tab is not offered as the note in front. *Ask Myrme
+  what matters here* still needs the app's bridge, which feature pages do not use: it says formicaria
+  is not open.
 - **"This page is in your notes" scans the vault** (like `backlinks`) when a tab is shown or loads; fine
   at thousands of notes, not indexed.
-- **A panel that fills the window keeps the content area's tab selected but hidden**; choosing a tab
-  in the list brings it back beside.
 - **The phone (G0/R2)** needs a device to measure; not started.
 
 ## A swipe between views — what is left (2026-11-05)

@@ -267,6 +267,39 @@ export const setProperty = (id: string, key: string, value: string) =>
 // it. A stamp never equals a hash, so once they had conflicted they conflicted forever and the
 // note stopped reaching disk entirely. The field is `version` — keep it that way here, because
 // this line is what callers read.
+/** **Where a piece goes** (`actions.rs`): into a note (at its end, or `after:<heading>`), or a new
+ *  note with a title, on a shelf. */
+export type PutTo = { note: string; at?: string } | { new: { title: string; shelf?: string } };
+/** **Put a piece into a note** — the one way content moves in, whether or not the note is open. */
+export const put = (to: PutTo, md: string, base = '') =>
+  invoke<{ id: string; version?: string }>('put', { to, md, base });
+/** What formicaria can do, declared once (`actions.rs`): the same table for the screen and the
+ *  assistant. */
+export interface ActionSpec {
+  key: string;
+  label: string;
+  takes: string;
+  makes: string;
+  runs: 'server' | 'hand-off' | 'open';
+  agent: 'off' | 'propose' | 'act';
+}
+export const actions = () => invoke<ActionSpec[]>('actions');
+/** **The change stream** (`/api/changes`): `onChange(generation)` each time the vaults move, from any
+ *  tab, device, the add-on or a put. Only where the app talks to its server over HTTP (not inside the
+ *  phone app, not in tests). Answers a stop. */
+export function listenChanges(onChange: (generation: number) => void): () => void {
+  if (isPhone() || !import.meta.env.PROD || typeof EventSource === 'undefined') return () => {};
+  const es = new EventSource('/api/changes');
+  es.onmessage = (e) => {
+    try {
+      const g = (JSON.parse(e.data) as { generation?: unknown }).generation;
+      if (typeof g === 'number') onChange(g);
+    } catch {
+      /* a line that is not ours */
+    }
+  };
+  return () => es.close();
+}
 export const updateBody = (id: string, body: string, base = '') =>
   invoke<string>('update_body', { id, body, base });
 // Destructive: unlink the note's file + index rows. Named `deleteNote` because

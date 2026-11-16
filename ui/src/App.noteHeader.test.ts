@@ -171,7 +171,7 @@ test('switching to another window ends editing', async () => {
   await fireEvent.click(await screen.findByTitle('Click to edit'));
   expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 
-  await fireEvent.click(await screen.findByRole('button', { name: 'open Study rooms' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'open Notes' }));
   await waitFor(() => expect(editor()).toBeNull());
 });
 
