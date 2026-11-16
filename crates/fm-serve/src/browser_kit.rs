@@ -106,13 +106,102 @@ pub fn platform() -> Option<&'static str> {
         Some("linux-x86_64")
     } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
         Some("linux-aarch64")
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        Some("win64")
+    } else if cfg!(target_os = "macos") {
+        // One universal build for Intel and Apple silicon.
+        Some("mac")
     } else {
         None
     }
 }
 
-fn tar_name(version: &str, platform: &str) -> String {
-    format!("{platform}/en-US/firefox-{version}.tar.xz")
+/// Mozilla's file for `platform` in a release folder, as its `SHA512SUMS` names it: an archive on
+/// Linux, the installer on Windows (unpacked, never run as an installer), the disk image on macOS.
+pub fn archive_name(version: &str, platform: &str) -> String {
+    match platform {
+        "win64" => format!("win64/en-US/Firefox Setup {version}.exe"),
+        "mac" => format!("mac/en-US/Firefox {version}.dmg"),
+        p => format!("{p}/en-US/firefox-{version}.tar.xz"),
+    }
+}
+
+/// Where formicaria's files go inside a Firefox folder: the folder itself, or on macOS the app's
+/// `Contents/Resources` (where Firefox reads `defaults/pref`, `distribution` and `browser/omni.ja`).
+pub fn res_dir(ff: &Path) -> PathBuf {
+    if cfg!(target_os = "macos") {
+        ff.join("Firefox.app").join("Contents").join("Resources")
+    } else {
+        ff.to_path_buf()
+    }
+}
+
+/// The program inside a Firefox folder.
+pub fn bin(ff: &Path) -> PathBuf {
+    if cfg!(target_os = "windows") {
+        ff.join("firefox.exe")
+    } else if cfg!(target_os = "macos") {
+        ff.join("Firefox.app").join("Contents").join("MacOS").join("firefox")
+    } else {
+        ff.join("firefox")
+    }
+}
+
+/// Can Mozilla's signature be checked here? Without `gpgv` (Windows and macOS usually), only the
+/// version this formicaria release pinned is taken, by its sum.
+pub fn gpgv_available() -> bool {
+    Command::new("gpgv")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// Unpack Mozilla's download into `stage/firefox`.
+fn unpack(archive: &Path, stage: &Path) -> Result<PathBuf, String> {
+    let ff = stage.join("firefox");
+    let run = |c: &mut Command, what: &str| -> Result<(), String> {
+        let out = c.output().map_err(|e| format!("{what} could not be run: {e}"))?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Firefox could not be unpacked: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ))
+        }
+    };
+    if cfg!(target_os = "windows") {
+        // The installer unpacks itself and exits, installing nothing (`/ExtractDir`, Mozilla's).
+        let x = stage.join("x");
+        run(
+            Command::new(archive).arg(format!("/ExtractDir={}", x.display())),
+            "Firefox's installer",
+        )?;
+        let core = if x.join("core").join("firefox.exe").is_file() { x.join("core") } else { x };
+        std::fs::rename(&core, &ff).map_err(|e| e.to_string())?;
+    } else if cfg!(target_os = "macos") {
+        let mnt = stage.join("mnt");
+        std::fs::create_dir_all(&mnt).map_err(|e| e.to_string())?;
+        run(
+            Command::new("hdiutil")
+                .args(["attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint"])
+                .arg(&mnt)
+                .arg(archive),
+            "hdiutil",
+        )?;
+        std::fs::create_dir_all(&ff).map_err(|e| e.to_string())?;
+        let copied = run(
+            Command::new("ditto").arg(mnt.join("Firefox.app")).arg(ff.join("Firefox.app")),
+            "ditto",
+        );
+        let _ = Command::new("hdiutil").arg("detach").arg(&mnt).arg("-force").output();
+        copied?;
+    } else {
+        run(Command::new("tar").arg("-xJf").arg(archive).arg("-C").arg(stage), "`tar`")?;
+    }
+    Ok(ff)
 }
 
 /// `153.7.0esr` → (153, 7, 0).
@@ -165,7 +254,7 @@ pub fn acquire(
         .map_err(|e| format!("Mozilla's checksums could not be read: {e}"))?;
     let sig = fm_fetch::get(&(base.clone() + "SHA512SUMS.asc"), 64 * 1024)
         .map_err(|e| format!("Mozilla's signature could not be read: {e}"))?;
-    let file = tar_name(version, plat);
+    let file = archive_name(version, plat);
     let want = crate::browser::sum_for(&String::from_utf8_lossy(&sums), &file)
         .ok_or("Mozilla's checksums do not list this file, so it was not downloaded.")?;
     let pinned_sum = pin.sha512.iter().find(|(p, _)| p == plat).map(|(_, s)| s.as_str());
@@ -186,10 +275,15 @@ pub fn acquire(
     if version == pin.version && pinned_sum.is_some_and(|s| s != want) {
         return Err("Mozilla's sum differs from the one this formicaria release pinned.".into());
     }
-    let archive = work.join(format!("firefox-{version}.tar.xz"));
+    let ext = file.rsplit('.').next().unwrap_or("bin");
+    let archive = work.join(format!("firefox-{version}.{ext}"));
     say(&format!("Downloading Firefox {version} from Mozilla…"));
     fm_fetch::fetch(
-        &fm_fetch::Download { url: &(base + &file), dest: &archive, sha256: None },
+        &fm_fetch::Download {
+            url: &(base + &file.replace(' ', "%20")),
+            dest: &archive,
+            sha256: None,
+        },
         progress,
         &|| false,
     )
@@ -205,21 +299,9 @@ pub fn acquire(
     let stage = work.join("stage");
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(&stage).map_err(|e| e.to_string())?;
-    let out = Command::new("tar")
-        .arg("-xJf")
-        .arg(&archive)
-        .arg("-C")
-        .arg(&stage)
-        .output()
-        .map_err(|e| format!("`tar` could not be run to unpack Firefox: {e}"))?;
+    let unpacked = unpack(&archive, &stage);
     let _ = std::fs::remove_file(&archive);
-    if !out.status.success() {
-        return Err(format!(
-            "Firefox could not be unpacked: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
-    }
-    let ff = stage.join("firefox");
+    let ff = unpacked?;
     say("Making it formicaria's…");
     apply(&ff)?;
     say("Checking it starts…");
@@ -231,15 +313,33 @@ pub fn acquire(
 /// Apply the kit to a Firefox folder: formicaria's files beside it, and the brand file swapped inside
 /// its packed interface with every other entry copied raw.
 pub fn apply(ff: &Path) -> Result<(), String> {
+    let res = res_dir(ff);
     for (rel, bytes) in KIT {
-        let p = ff.join(rel);
+        let p = res.join(rel);
         if let Some(dir) = p.parent() {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         }
         std::fs::write(&p, bytes).map_err(|e| format!("{}: {e}", p.display()))?;
     }
-    swap_entry(&ff.join("browser").join("omni.ja"), BRAND_FTL_ENTRY, BRAND_FTL)?;
-    std::fs::write(ff.join("formicaria").join("kit-stamp"), kit_stamp()).map_err(|e| e.to_string())
+    swap_entry(&res.join("browser").join("omni.ja"), BRAND_FTL_ENTRY, BRAND_FTL)?;
+    std::fs::write(res.join("formicaria").join("kit-stamp"), kit_stamp())
+        .map_err(|e| e.to_string())?;
+    if cfg!(target_os = "macos") {
+        // **Changing files inside the app breaks Apple's seal**: an ad-hoc signature makes it run on
+        // this Mac (`browser-plan` §13.4). Not valid on another Mac, which it never goes to.
+        let out = Command::new("codesign")
+            .args(["--force", "--deep", "--sign", "-"])
+            .arg(ff.join("Firefox.app"))
+            .output()
+            .map_err(|e| format!("codesign could not be run: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "macOS refused the changed browser: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Rewrite the zip at `jar` with `entry` replaced by `bytes` (stored) and every other entry copied raw.
@@ -283,8 +383,8 @@ fn self_check(ff: &Path, work: &Path) -> Result<(), String> {
     let _ = std::fs::remove_dir_all(&profile);
     let _ = std::fs::remove_file(&shot);
     std::fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
-    let mut child = Command::new(ff.join("firefox"))
-        .args(["--headless", "--no-remote", "--name", "formicaria-check", "--profile"])
+    let mut child = Command::new(bin(ff))
+        .args(["--headless", "--no-remote", "--profile"])
         .arg(&profile)
         .arg("--screenshot")
         .arg(&shot)
@@ -316,10 +416,29 @@ fn self_check(ff: &Path, work: &Path) -> Result<(), String> {
 }
 
 /// Is formicaria's browser running from `d`? Firefox's profile lock names the process holding it.
+#[cfg(not(windows))]
 pub fn running(d: &Path) -> bool {
     let Ok(target) = std::fs::read_link(d.join("profile").join("lock")) else { return false };
     let Some(pid) = lock_pid(&target.to_string_lossy()) else { return false };
-    std::fs::read_link(format!("/proc/{pid}/exe")).map(|exe| exe.starts_with(d)).unwrap_or(false)
+    if cfg!(target_os = "linux") {
+        return std::fs::read_link(format!("/proc/{pid}/exe"))
+            .map(|exe| exe.starts_with(d))
+            .unwrap_or(false);
+    }
+    // macOS has no `/proc`: the process the lock names is alive and is a Firefox.
+    Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "comm="])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("firefox"))
+        .unwrap_or(false)
+}
+
+/// Windows: Firefox holds `parent.lock` open while it runs, so it cannot be removed then; a lock left
+/// by a browser that has gone is removed, which is harmless.
+#[cfg(windows)]
+pub fn running(d: &Path) -> bool {
+    let lock = d.join("profile").join("parent.lock");
+    lock.exists() && std::fs::remove_file(&lock).is_err()
 }
 
 /// `127.0.1.1:+12345` → 12345.
@@ -331,7 +450,7 @@ pub fn lock_pid(target: &str) -> Option<u32> {
 /// is not running. Two renames; nothing heavy.
 pub fn swap_in_prepared(d: &Path) -> bool {
     let next = d.join("firefox.next");
-    if !next.join("firefox").is_file() || running(d) {
+    if !bin(&next).is_file() || running(d) {
         return false;
     }
     let live = d.join("firefox");
@@ -352,7 +471,7 @@ pub fn swap_in_prepared(d: &Path) -> bool {
 
 /// The kit applied to the live copy, if any.
 pub fn applied_stamp(d: &Path) -> Option<String> {
-    std::fs::read_to_string(d.join("firefox").join("formicaria").join("kit-stamp"))
+    std::fs::read_to_string(res_dir(&d.join("firefox")).join("formicaria").join("kit-stamp"))
         .ok()
         .map(|s| s.trim().to_string())
 }
@@ -372,7 +491,7 @@ pub fn prepare_in_background(d: PathBuf) {
 }
 
 fn prepare(d: &Path) -> Result<(), String> {
-    if !d.join("firefox").join("firefox").is_file() || d.join("firefox.next").exists() {
+    if !bin(&d.join("firefox")).is_file() || d.join("firefox.next").exists() {
         return Ok(());
     }
     // One preparation across processes too: a second formicaria started by a double-click must not
@@ -391,7 +510,7 @@ fn prepare(d: &Path) -> Result<(), String> {
         .map(|t| t.elapsed().unwrap_or_default() > Duration::from_secs(24 * 3600))
         .unwrap_or(true);
     let mut target: Option<String> = None;
-    if due {
+    if due && gpgv_available() {
         let _ = std::fs::write(&stamp, "");
         if let Some(latest) = latest_esr() {
             if is_newer_point(&installed, &latest, pin.major) {
@@ -425,6 +544,8 @@ fn prepare(d: &Path) -> Result<(), String> {
 pub fn latest_esr() -> Option<String> {
     let os = match platform()? {
         "linux-aarch64" => "linux64-aarch64",
+        "win64" => "win64",
+        "mac" => "osx",
         _ => "linux64",
     };
     let url =
@@ -436,6 +557,55 @@ pub fn latest_esr() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **On demand, on each platform** (`FM_BROWSER_REAL=1`; `desktop.yml` on Windows and macOS):
+    /// the pinned ESR for this computer downloaded from Mozilla and checked, the kit applied, and the
+    /// browser started once with the kit's own report (`formicaria.cfg`, step 5): formicaria's name,
+    /// no errors in its startup script.
+    #[test]
+    fn the_kit_applies_and_reports_on_this_platform() {
+        if std::env::var("FM_BROWSER_REAL").is_err() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let work = dir.path().join("work");
+        let ff = acquire(&work, &pin().version, &|m| eprintln!("{m}"), &|_, _| {})
+            .expect("the pinned ESR is set up");
+        let profile = dir.path().join("profile");
+        std::fs::create_dir_all(&profile).unwrap();
+        let report = dir.path().join("report.json");
+        let mut child = Command::new(bin(&ff))
+            .args(["--headless", "--no-remote", "--profile"])
+            .arg(&profile)
+            .arg("about:blank")
+            .env("FM_BROWSER_CHECK", &report)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("it starts");
+        let start = Instant::now();
+        while !report.is_file() && start.elapsed() < Duration::from_secs(180) {
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        std::thread::sleep(Duration::from_secs(1));
+        let _ = child.kill();
+        let _ = child.wait();
+        let text = std::fs::read_to_string(&report).expect("the kit's startup script reported");
+        eprintln!("report: {text}");
+        let r: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(r["brand"], "formicaria", "{text}");
+        assert_eq!(r["errors"].as_array().map(|a| a.len()), Some(0), "{text}");
+    }
+
+    #[test]
+    fn each_platform_names_mozillas_own_file() {
+        assert_eq!(archive_name("153.7.0esr", "win64"), "win64/en-US/Firefox Setup 153.7.0esr.exe");
+        assert_eq!(archive_name("153.7.0esr", "mac"), "mac/en-US/Firefox 153.7.0esr.dmg");
+        assert_eq!(
+            archive_name("153.7.0esr", "linux-x86_64"),
+            "linux-x86_64/en-US/firefox-153.7.0esr.tar.xz"
+        );
+    }
     use std::io::{Read, Write};
 
     #[test]

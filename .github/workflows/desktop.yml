@@ -95,6 +95,20 @@ jobs:
           echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
       - run: pixi run build
 
+      # **formicaria's browser on this platform** (`browser_kit.rs`): the pinned ESR from Mozilla,
+      # checked by its pinned sum, unpacked, the kit applied (re-signed ad hoc on macOS), started once
+      # headless, and its startup script's own report read. Linux is checked before every release by
+      # `pixi run browser-check`. **Reports without stopping the release** while Windows and macOS are
+      # new (`decisions.md` 2026-11-17): its result is read after each release, and it becomes a
+      # gate once it has passed.
+      - name: formicaria's browser on this platform
+        if: runner.os != 'Linux'
+        continue-on-error: true
+        shell: bash
+        env:
+          FM_BROWSER_REAL: "1"
+        run: pixi run cargo test -p fm-serve --release the_kit_applies_and_reports_on_this_platform -- --nocapture
+
       # **Three devices share a vault, with the binaries this release ships** (2026-10-17): Ana's
       # laptop, Ana's phone and Ben's laptop, each a real `fm-serve`, back up and get through a
       # bare repo in a temp dir, and each finds the others' notes in search. Seconds, because the

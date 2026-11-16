@@ -15202,3 +15202,36 @@ The owner's answers on the phone layout (*two together only when I ask*) and *"k
 2. **A long press on an image or a link in a phone page** offers *Bring … into your note* (the piece
    goes through the pending-pieces path, into the note before the page) and, for a link, *Open it as a
    page*. Text keeps Android's own selection. The image is brought as a link: the phone keeps no copy.
+
+## 2026-11-17 — formicaria runs in its own browser: set up by the first start, not offered `#ui` `#toolchain`
+
+> Supersedes the 2026-11-15 rule that formicaria's browser is *"asked for, never assumed: nothing is
+> downloaded until the person presses Set up"*, and the switch *Open formicaria in its own browser
+> when it starts*.
+
+The owner: *"we need to go toward browser as default, no more an option … it would allow to not
+require local browsers and be more self sufficient, and the dep we picked is probably maintained for
+many OSs"*.
+
+**Ruling.** On a computer where it runs (64-bit Linux, Windows, macOS), formicaria's browser is how
+formicaria runs:
+1. The **first start sets it up** (Firefox ESR from Mozilla, checked: Mozilla's signature where
+   `gpgv` is present, else the sum pinned by this release) before opening anything, saying so in the
+   console and a desktop notification; then formicaria opens in it.
+2. **Every start opens in it**; the switch is gone (`open_in_it` is no longer read).
+3. **The computer's browser is only the fallback**: setup failed (Settings says why, with Try again),
+   or an unsupported system.
+4. Windows and macOS (`browser_kit.rs`: the installer's `/ExtractDir`, the disk image, an ad-hoc
+   re-sign) are checked by the release's own Windows and macOS jobs (`desktop.yml`), reporting
+   without blocking until they have passed once.
+
+**Widens what ships:** a ~90 MB download at the first start without a press; on macOS, `codesign`
+and `hdiutil` are run; on Windows, Mozilla's installer is run with `/ExtractDir` (it installs nothing).
+
+## 2026-11-17 — browser-check measures the two browsers in turn `#toolchain`
+
+`browser-check` ran formicaria's five measuring runs, then the unmodified browser's five. Twice in a
+day the start-time budget failed (1.4 s against 0.8 s) with the kit unchanged: the machine was busy
+during the first batch and quiet by the second, and the check read the load as formicaria's. The runs
+now alternate (formicaria, unmodified, formicaria, …), so both are measured under the same load. The
+budgets are unchanged.

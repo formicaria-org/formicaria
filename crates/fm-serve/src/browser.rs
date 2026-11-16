@@ -81,7 +81,7 @@ pub fn dir() -> Option<PathBuf> {
     fm_app::vaults::config_dir().map(|c| c.join("formicaria").join("browser"))
 }
 fn firefox_bin(d: &Path) -> PathBuf {
-    d.join("firefox").join("firefox")
+    crate::browser_kit::bin(&d.join("firefox"))
 }
 fn installed(d: &Path) -> bool {
     firefox_bin(d).is_file()
@@ -334,7 +334,7 @@ fn prepare(d: &Path, xpi: &[u8], server: &str) -> Result<(), String> {
     let profile = d.join("profile");
     std::fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
     std::fs::write(profile.join("user.js"), user_js()).map_err(|e| e.to_string())?;
-    let dist = d.join("firefox").join("distribution");
+    let dist = crate::browser_kit::res_dir(&d.join("firefox")).join("distribution");
     std::fs::create_dir_all(&dist).map_err(|e| e.to_string())?;
     let pol = policies(&xpi_path, &key, server, &read_prefs(d));
     // `0600`: it carries the key.
@@ -357,15 +357,18 @@ pub fn parse_release(url: &str) -> Option<(String, String)> {
     let ok_version = !version.is_empty()
         && version.ends_with("esr")
         && version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.');
-    let ok_file = file.ends_with(".tar.xz") && !file.contains("..") && !file.contains('?');
+    let ok_file = [".tar.xz", ".exe", ".dmg"].iter().any(|x| file.ends_with(x))
+        && !file.contains("..")
+        && !file.contains('?');
     (ok_version && ok_file).then(|| (version.to_string(), file.to_string()))
 }
 
 /// The SHA-512 Mozilla publishes for `file`, from the text of `SHA512SUMS`.
 pub fn sum_for(sums: &str, file: &str) -> Option<String> {
+    // The file name may hold spaces (`win64/en-US/Firefox Setup 153.7.0esr.exe`): all after the sum.
     sums.lines().find_map(|l| {
-        let mut it = l.split_whitespace();
-        let (h, f) = (it.next()?, it.next()?);
+        let (h, f) = l.split_once(char::is_whitespace)?;
+        let f = f.trim();
         (f == file && h.len() == 128 && h.chars().all(|c| c.is_ascii_hexdigit()))
             .then(|| h.to_ascii_lowercase())
     })
@@ -385,7 +388,10 @@ fn setup(st: &BrowserState, xpi: &[u8], server: &str) -> Result<(), String> {
     std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
     let pin = crate::browser_kit::pin();
     set_phase(st, "Asking Mozilla for its newest security release…");
-    let version = crate::browser_kit::latest_esr()
+    // A newer point release only where Mozilla's signature can be checked (`gpgv`).
+    let version = crate::browser_kit::gpgv_available()
+        .then(crate::browser_kit::latest_esr)
+        .flatten()
         .filter(|v| crate::browser_kit::is_newer_point(&pin.version, v, pin.major))
         .unwrap_or_else(|| pin.version.clone());
     let work = d.join("work");
@@ -443,9 +449,39 @@ pub fn start_setup(st: Arc<BrowserState>, xpi: Vec<u8>, server: String) {
 // Opening formicaria in it.
 // ---------------------------------------------------------------------------------------------
 
-/// Should formicaria open in its own browser? Set up, and the person has not turned it off.
+/// Should formicaria open in its own browser? **Whenever it is set up**: it is how formicaria runs on
+/// a computer, not an option (`decisions.md` 2026-11-17). `open_in_it` is no longer read.
 pub fn opens_in_it() -> bool {
-    dir().is_some_and(|d| installed(&d) && read_prefs(&d).open_in_it)
+    dir().is_some_and(|d| installed(&d))
+}
+
+/// Is formicaria's browser missing where it could be set up? Then the first start sets it up.
+pub fn needs_setup() -> bool {
+    supported() && dir().is_some_and(|d| !installed(&d))
+}
+
+/// **Set it up and wait** (the first start): what it is doing said as it changes (`say`), until it is
+/// ready or has failed. `true` when it is ready.
+pub fn set_up_and_wait(
+    st: &Arc<BrowserState>,
+    xpi: Vec<u8>,
+    server: String,
+    say: &dyn Fn(&str),
+) -> bool {
+    start_setup(Arc::clone(st), xpi, server);
+    let mut last = String::new();
+    let start = std::time::Instant::now();
+    while st.busy.load(Ordering::SeqCst)
+        && start.elapsed() < std::time::Duration::from_secs(30 * 60)
+    {
+        let now = st.phase.lock().map(|p| p.clone()).unwrap_or_default();
+        if !now.is_empty() && now != last {
+            say(&now);
+            last = now;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    dir().is_some_and(|d| installed(&d))
 }
 
 /// **The window is formicaria's, by name** (owner, 2026-11-15: *"when double clicking on fm, it would
@@ -455,15 +491,14 @@ pub fn opens_in_it() -> bool {
 /// icon (`formicaria.desktop`, `StartupWMClass=formicaria`), apart from any other Firefox. Firefox
 /// hands a second launch to the running one by the same name.
 pub fn launch_args(profile: &Path, url: &str) -> Vec<std::ffi::OsString> {
-    vec![
-        "--name".into(),
-        "formicaria".into(),
-        "--class".into(),
-        "formicaria".into(),
-        "--profile".into(),
-        profile.as_os_str().to_owned(),
-        url.into(),
-    ]
+    // `--name` and `--class` are the Linux desktop's (X11, Wayland); elsewhere they are not options.
+    let mut a: Vec<std::ffi::OsString> = if cfg!(target_os = "linux") {
+        vec!["--name".into(), "formicaria".into(), "--class".into(), "formicaria".into()]
+    } else {
+        Vec::new()
+    };
+    a.extend(["--profile".into(), profile.as_os_str().to_owned(), url.into()]);
+    a
 }
 
 /// Open `url` in formicaria's browser. Refreshes the profile and the policies first, so the add-on
@@ -517,7 +552,7 @@ pub fn status(st: &BrowserState) -> Value {
         "total": total,
         "error": st.error.lock().ok().and_then(|e| e.clone()),
         "pinned": crate::browser_kit::pin().version,
-        "update_ready": d.as_deref().is_some_and(|d| d.join("firefox.next").join("firefox").is_file()),
+        "update_ready": d.as_deref().is_some_and(|d| crate::browser_kit::bin(&d.join("firefox.next")).is_file()),
         "web_push": prefs.web_push,
         "side_tabs": prefs.side_tabs,
         "running": d.as_deref().is_some_and(crate::browser_kit::running),
@@ -623,6 +658,18 @@ mod tests {
         let sneaky =
             "https://download-installer.cdn.mozilla.net/pub/firefox/releases/153esr/../../x.tar.xz";
         assert_eq!(parse_release(sneaky), None);
+    }
+
+    #[test]
+    fn a_file_name_with_spaces_is_read_whole() {
+        let h = "a".repeat(128);
+        let sums = format!(
+            "{h}  win64/en-US/Firefox Setup 153.7.0esr.exe\n{}  mac/en-US/Firefox 153.7.0esr.dmg\n",
+            "b".repeat(128)
+        );
+        assert_eq!(sum_for(&sums, "win64/en-US/Firefox Setup 153.7.0esr.exe"), Some(h));
+        assert_eq!(sum_for(&sums, "mac/en-US/Firefox 153.7.0esr.dmg"), Some("b".repeat(128)));
+        assert_eq!(sum_for(&sums, "win64/en-US/Firefox"), None);
     }
 
     #[test]

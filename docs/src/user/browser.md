@@ -3,20 +3,23 @@
 Browse the web inside formicaria and keep what you find as a note, in one press: a recipe, a paper,
 an article, a video or a song, with a copy of the page as it was.
 
-On a computer, this is **Linux for now**. The phone gets its own browser built in, in a later
-version.
+**It is how formicaria runs on a computer** (Linux, Windows and macOS): formicaria brings its own
+browser, so it needs no other. On the phone, web pages open inside the app (see the phone's page).
 
-## Set it up
+## The first start
 
-**Settings → Browser → Set up formicaria's browser.** formicaria downloads **Firefox ESR**, Mozilla's
-long-term-support browser engine, **from Mozilla**, checks it against **Mozilla's signature**, and makes
-it formicaria's: its name, its icon and its look, with formicaria beside the page you are reading. It is not a
-fork of Firefox: Mozilla's own build, with formicaria's touches added on this computer. It is about 90 MB to download and 320 MB on your computer. It goes in formicaria's
-settings folder (`~/.config/formicaria/browser/`), with a profile of its own, so it is separate from
-any Firefox you already use.
+The first time formicaria starts, it gets its browser ready by itself, then opens in it: about a
+minute or two, said in the window formicaria starts from and, where the computer can, in a
+notification. formicaria downloads **Firefox ESR**, Mozilla's long-term-support browser engine,
+**from Mozilla**, checks it (against **Mozilla's signature** where the computer can check one,
+otherwise against the sum this formicaria release recorded), and makes it formicaria's: its name,
+its icon and its look. It is not a fork of Firefox: Mozilla's own build, with formicaria's touches
+added on this computer. It is about 90 MB to download and 320 MB on your computer, in formicaria's
+settings folder (`~/.config/formicaria/browser/` on Linux), with a profile of its own, so it is
+separate from any Firefox you already use.
 
-From then on formicaria opens in it when it starts. To go back to your usual browser, turn off
-**Open formicaria in its own browser when it starts**.
+If it cannot be set up (no connection, say), formicaria opens in the computer's own browser for that
+time, and **Settings → Browser** says why, with **Try again**.
 
 It starts out private:
 

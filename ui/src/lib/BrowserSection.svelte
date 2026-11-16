@@ -2,7 +2,8 @@
   // **formicaria's own browser, on a computer** (`decisions.md` 2026-11-15). Firefox ESR from Mozilla,
   // set up in formicaria's settings folder with formicaria's add-on: a *Keep* button on every page
   // that turns the page into a note — a recipe, a paper, an article, a video or a song — with a copy
-  // of the page. Asked for, never assumed: nothing is downloaded until the person presses Set up.
+  // of the page. **How formicaria runs on a computer** (`decisions.md` 2026-11-17): set up by the first
+  // start, not offered; here only what it is doing, or why it failed, with Try again.
   import { onDestroy, onMount } from 'svelte';
   import ManualLink from './ManualLink.svelte';
   import { browserOpen, browserSet, browserSetup, browserStatus } from './ipc';
@@ -53,12 +54,7 @@
       said = e instanceof Error ? e.message : String(e);
     }
   }
-  async function set(p: {
-    open_in_it?: boolean;
-    block_ads?: boolean;
-    web_push?: boolean;
-    side_tabs?: boolean;
-  }) {
+  async function set(p: { block_ads?: boolean; web_push?: boolean; side_tabs?: boolean }) {
     st = await browserSet(p);
   }
   async function openNow() {
@@ -82,8 +78,8 @@
     </p>
     {#if !st.supported}
       <p class="muted">
-        Not available on this computer yet: it is set up on Linux first, where it was tried. Your
-        notes are unaffected.
+        Not available on this computer: formicaria's browser runs on 64-bit Linux, Windows and
+        macOS. formicaria opens in this computer's browser instead; your notes are unaffected.
       </p>
     {:else if !st.installed}
       <p class="muted">
@@ -104,7 +100,10 @@
           {/if}
         </p>
       {:else}
-        <p><button class="btn" onclick={setUp}>Set up formicaria’s browser</button></p>
+        <p>
+          It is set up the next time formicaria starts{st.error ? ', or now' : ''}.
+          {#if st.error}<button class="btn" onclick={setUp}>Try again</button>{/if}
+        </p>
       {/if}
     {:else}
       <ul class="caps">
@@ -112,17 +111,6 @@
           <span class="k">browser</span>
           <code>Firefox {st.version}</code>
           <button class="btn" onclick={openNow}>Open formicaria in it</button>
-        </li>
-        <li>
-          <label class="switch-line">
-            <input
-              type="checkbox"
-              role="switch"
-              checked={st.open_in_it}
-              onchange={(e) => set({ open_in_it: (e.currentTarget as HTMLInputElement).checked })}
-            />
-            <span>Open formicaria in its own browser when it starts</span>
-          </label>
         </li>
         <li>
           <span class="k">updates</span>
@@ -191,9 +179,9 @@
         {/if}
       </ul>
       <p class="muted small">
-        formicaria sits beside the page; the formicaria button (or Alt+Shift+F) shows or folds it.
-        The ant in the address bar <em>snips</em> what to bring into your note, or saves the whole page.
-        Changes take effect the next time the browser starts.
+        Your notes, views and pages are tabs, one at a time; ＋ opens <em>Open…</em>. The ant in the
+        address bar <em>snips</em> what to bring into your note, or saves the whole page. Changes take
+        effect the next time the browser starts.
       </p>
     {/if}
     {#if st.error}<p class="none">{st.error}</p>{/if}

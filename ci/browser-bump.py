@@ -23,7 +23,13 @@ KEY_ASC = ROOT / "browser" / "mozilla-release-key.asc"
 FINGERPRINT = "14F26682D0916CDD81E37B6D61B7B526D98F0353"  # Mozilla Software Releases
 LATEST = "https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=linux64&lang=en-US"
 RELEASES = "https://archive.mozilla.org/pub/firefox/releases/{v}/"
-PLATFORMS = {"linux-x86_64": "linux-x86_64", "linux-aarch64": "linux-aarch64"}
+# formicaria's platform name -> Mozilla's file in the release folder (`browser_kit::archive_name`).
+PLATFORMS = {
+    "linux-x86_64": "linux-x86_64/en-US/firefox-{v}.tar.xz",
+    "linux-aarch64": "linux-aarch64/en-US/firefox-{v}.tar.xz",
+    "win64": "win64/en-US/Firefox Setup {v}.exe",
+    "mac": "mac/en-US/Firefox {v}.dmg",
+}
 UA = {"User-Agent": "formicaria-release-tools"}
 
 
@@ -83,9 +89,10 @@ def main() -> None:
             sys.exit("browser-bump: Mozilla's signature on SHA512SUMS did not verify:\n" + ok.stderr)
     lines = sums.decode().splitlines()
     out = {}
-    for name, folder in PLATFORMS.items():
-        want = f"{folder}/en-US/firefox-{v}.tar.xz"
-        hit = [ln.split()[0] for ln in lines if ln.split()[1:2] == [want]]
+    for name, pattern in PLATFORMS.items():
+        want = pattern.format(v=v)
+        # The name may hold spaces: everything after the sum.
+        hit = [ln.split(None, 1)[0] for ln in lines if len(ln.split(None, 1)) == 2 and ln.split(None, 1)[1].strip() == want]
         if not hit:
             sys.exit(f"browser-bump: Mozilla lists no {want}")
         out[name] = hit[0]

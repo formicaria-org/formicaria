@@ -392,7 +392,25 @@ fn main() {
     if env_flag("FM_OPEN", true) {
         let url = format!("http://{addr}");
         let dist = state.dist.clone();
+        #[cfg(feature = "browser")]
+        let st = Arc::clone(&state.browser);
         std::thread::spawn(move || {
+            // **formicaria runs in its own browser** (`decisions.md` 2026-11-17): the first start sets
+            // it up from Mozilla before opening anything, so no browser of the computer's is needed.
+            // Only if that fails does formicaria open in the computer's browser, which says why.
+            #[cfg(feature = "browser")]
+            if browser::needs_setup() {
+                let msg = "Getting formicaria's browser ready (about 90 MB from Mozilla). formicaria opens in it by itself when it is done.";
+                println!("{msg}");
+                notify(msg);
+                let ready =
+                    browser::set_up_and_wait(&st, addon_xpi(dist.as_deref()), url.clone(), &|m| {
+                        println!("  {m}")
+                    });
+                if !ready {
+                    println!("formicaria's browser could not be set up; opening formicaria in this computer's browser instead.");
+                }
+            }
             open_formicaria(&url, dist.as_deref());
         });
     }
@@ -1500,21 +1518,48 @@ const ADDON_ASSET: &str = "addon/formicaria.xpi";
 /// to start our browser falls back to the default one: the notebook opening matters more.
 fn open_formicaria(url: &str, dist: Option<&Path>) {
     #[cfg(feature = "browser")]
-    if browser::opens_in_it() {
-        let xpi = match dist {
-            Some(d) => std::fs::read(d.join(ADDON_ASSET)).unwrap_or_default(),
-            None => UI_ASSETS
-                .iter()
-                .find(|(n, _)| *n == ADDON_ASSET)
-                .map(|(_, b)| b.to_vec())
-                .unwrap_or_default(),
-        };
-        if browser::launch(url, &xpi, url).is_ok() {
-            return;
-        }
+    if browser::opens_in_it() && browser::launch(url, &addon_xpi(dist), url).is_ok() {
+        return;
     }
     let _ = dist;
     let _ = open_native(std::ffi::OsStr::new(url));
+}
+
+/// formicaria's add-on, from the built interface beside the binary or compiled in.
+#[cfg(feature = "browser")]
+fn addon_xpi(dist: Option<&Path>) -> Vec<u8> {
+    match dist {
+        Some(d) => std::fs::read(d.join(ADDON_ASSET)).unwrap_or_default(),
+        None => UI_ASSETS
+            .iter()
+            .find(|(n, _)| *n == ADDON_ASSET)
+            .map(|(_, b)| b.to_vec())
+            .unwrap_or_default(),
+    }
+}
+
+/// A line on the desktop, where the system has a way to say one: the first start is a minute or two
+/// of download with no window yet. The console says it too.
+#[cfg(feature = "browser")]
+fn notify(msg: &str) {
+    #[cfg(target_os = "linux")]
+    let _ = std::process::Command::new("notify-send")
+        .args(["--app-name=formicaria", "formicaria", msg])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(format!(
+            "display notification \"{}\" with title \"formicaria\"",
+            msg.replace('"', "'")
+        ))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    let _ = msg;
 }
 
 /// Hand a file or URL to the OS to open with whatever it thinks owns it — the one place

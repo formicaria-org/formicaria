@@ -553,8 +553,15 @@ def main() -> None:
         browser = work / "config" / "formicaria" / "browser"
         ff = browser / "firefox"
 
-        kit = [measure(ff, work / f"kit-profile-{i}", work / "kit.json", [SERVER, *PAGES], {})
-               for i in range(RUNS)]
+        # **The two browsers measured in turn** (2026-11-17): formicaria's five runs used to come first and
+        # the unmodified five minutes later, so a machine busy at the start and quiet at the end read as
+        # formicaria starting slower (twice in a day, 1.4 s against 0.8 s, with the kit unchanged).
+        # Alternating them puts both under the same load.
+        base_ff = stock_esr(version, sha)
+        kit, base = [], []
+        for i in range(RUNS):
+            kit.append(measure(ff, work / f"kit-profile-{i}", work / "kit.json", [SERVER, *PAGES], {}))
+            base.append(measure(base_ff, work / f"stock-profile-{i}", work / "stock.json", [SERVER, *PAGES], {}))
         first = kit[0]
         checks = {
             "the window is titled formicaria": str(first.get("title", "")).endswith("formicaria")
@@ -614,9 +621,6 @@ def main() -> None:
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")
 
-        base_ff = stock_esr(version, sha)
-        base = [measure(base_ff, work / f"stock-profile-{i}", work / "stock.json", [SERVER, *PAGES], {})
-                for i in range(RUNS)]
         avg = lambda xs, k: sum(x.get(k) or 0 for x in xs) / len(xs)
         # Every run, not only the averages: a slow first run (a cold disk, a busy machine) shows as one.
         for name, runs in (("formicaria", kit), ("unmodified", base)):
