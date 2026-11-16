@@ -12,6 +12,8 @@ type Bridge = {
   pending(): string;
   read(i: number): string;
   done(files: number, refused: number): void;
+  /** Texts taken (by count). Absent in a shell from before 0.39. */
+  doneTexts?(n: number): void;
 };
 const bridge = (): Bridge | null => (globalThis as { __fmShare?: Bridge }).__fmShare ?? null;
 
@@ -21,23 +23,34 @@ export interface Refused {
   why: string;
 }
 
-/** What the shell holds: the files it kept, and any it could not take. */
+/** Text brought in from another app: Share's text (a link, a passage), or a selection whose menu
+ *  offered formicaria (`decisions.md` 2026-11-16, *the phone's Bring in*). */
+export interface SharedText {
+  text: string;
+  subject: string;
+}
+
+/** What the shell holds: the files it kept, any it could not take, and texts. */
 interface Pending {
   files: { name: string; mime: string }[];
   refused: Refused[];
+  texts?: SharedText[];
 }
 
-/** Take what was shared, as files, and let the shell forget it. Empty when nothing was. */
-export function takeShared(): { files: File[]; refused: Refused[] } {
+/** Take what was shared, as files and texts, and let the shell forget it. Empty when nothing was. */
+export function takeShared(): { files: File[]; refused: Refused[]; texts: SharedText[] } {
+  const none = { files: [], refused: [], texts: [] };
   const b = bridge();
-  if (!b) return { files: [], refused: [] };
+  if (!b) return none;
   let pending: Pending;
   try {
     pending = JSON.parse(b.pending());
   } catch {
-    return { files: [], refused: [] };
+    return none;
   }
-  if (!pending.files.length && !pending.refused?.length) return { files: [], refused: [] };
+  const texts = (pending.texts ?? []).filter((t) => typeof t?.text === 'string' && t.text.trim());
+  if (pending.texts?.length) b.doneTexts?.(pending.texts.length);
+  if (!pending.files.length && !pending.refused?.length) return { files: [], refused: [], texts };
   const files = pending.files.map((f, i) => {
     const bin = atob(b.read(i));
     const bytes = new Uint8Array(bin.length);
@@ -46,7 +59,7 @@ export function takeShared(): { files: File[]; refused: Refused[] } {
   });
   // By count: a second share still being copied in the shell is not thrown away with this one.
   b.done(pending.files.length, pending.refused?.length ?? 0);
-  return { files, refused: pending.refused ?? [] };
+  return { files, refused: pending.refused ?? [], texts };
 }
 
 /** Files on their way into a note. The note panel showing `noteId` takes them, at the end of the

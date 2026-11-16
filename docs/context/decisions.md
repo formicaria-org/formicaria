@@ -14998,3 +14998,25 @@ phone's bar uses the same words (with its browser).
 
 **Not yet:** D3 (any two tabs beside each other by one drag; today: the panel beside a page, and
 Firefox's split view for two pages), D6 (the phone), D7's assistant side (Myrme's repository).
+
+## 2026-11-16 (night, last) — the phone's Bring in: text from any app; the collection as cards `#ui` `#track-m`
+
+The owner: *"build also the phone"*.
+
+**Decided and built (0.39).**
+1. **Text from any app comes in**: Share with text (a page's link, a passage) and the **selection menu
+   of every app** (`PROCESS_TEXT`, the entry labelled *formicaria*) reach the activity
+   (`ci/android-inject-service.sh`, the shell's source), held like shared pictures and handed to the
+   page (`__fmShare.pending().texts`, `doneTexts`). The same sheet asks where (*Bring this into…*: the
+   note open, a new note, any other), and the passage arrives through the note's own pane, quoted with
+   its source (`ui/src/lib/web/shared.ts`).
+2. **The collection as cards** on the phone: the counted button's list is a grid of cards; a note's
+   card swiped aside closes it.
+
+**Widens what ships:** two intent filters (text `SEND`, `PROCESS_TEXT`); nothing is read unless the
+person chooses formicaria in those menus.
+
+**Not built, and why.** formicaria's own browser on the phone (GeckoView: the note as a sheet over
+the page, the ant as an eyedropper, tap-then-hold): GeckoView adds roughly 60–80 MB to a 46 MB APK,
+past the owner's 100 MB budget, and needs G0's measurements on a device. Until then the phone's pages
+open in its own browser and Share / the selection menu bring them in.

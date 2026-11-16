@@ -2,11 +2,17 @@
   import ReminderBanner from './lib/ReminderBanner.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import BrowserRestartBanner from './lib/BrowserRestartBanner.svelte';
-  import { listen as listenBridge, up as bridgeUp, bridged } from './lib/web/bridge.svelte';
+  import {
+    listen as listenBridge,
+    up as bridgeUp,
+    bridged,
+    inbox as bridgeInbox,
+  } from './lib/web/bridge.svelte';
+  import { sharedPassage } from './lib/web/shared';
   import BringToast from './lib/BringToast.svelte';
   import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
-  import { setAppClock } from './lib/appTime';
+  import { appToday, clockText, setAppClock } from './lib/appTime';
   import { clock as readClock } from './lib/ipc';
   import { tick, untrack } from 'svelte';
   import { popup } from './lib/popup';
@@ -140,7 +146,7 @@
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
   import ShareSheet from './lib/ShareSheet.svelte';
-  import { incoming, takeShared, type Refused } from './lib/share.svelte';
+  import { incoming, takeShared, type Refused, type SharedText } from './lib/share.svelte';
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
@@ -1889,14 +1895,15 @@
   // **A picture shared from another app** (Android's Share; `lib/share.svelte.ts`). Asked for at
   // start, since a share can be what launched the app, and again whenever the shell says more has
   // come. Several shares before one is placed are placed together.
-  let shared = $state<{ files: File[]; refused: Refused[] } | null>(null);
+  let shared = $state<{ files: File[]; refused: Refused[]; texts: SharedText[] } | null>(null);
   $effect(() => {
     const take = () => {
       const got = takeShared();
-      if (!got.files.length && !got.refused.length) return;
+      if (!got.files.length && !got.refused.length && !got.texts.length) return;
       shared = {
         files: [...(shared?.files ?? []), ...got.files],
         refused: [...(shared?.refused ?? []), ...got.refused],
+        texts: [...(shared?.texts ?? []), ...got.texts],
       };
     };
     take();
@@ -1906,13 +1913,29 @@
   /** The chosen note takes the files at its end, as a drop would; `null` makes a new note first. */
   async function placeShared(noteId: string | null) {
     const files = shared?.files ?? [];
+    const texts = shared?.texts ?? [];
     shared = null;
-    if (!files.length) return;
+    if (!files.length && !texts.length) return;
     try {
       const id = noteId ?? (await captureUndoable('', createTarget)).id;
-      incoming.value = { noteId: id, files };
-      openNoteInPane(id, { editing: true });
+      if (files.length) incoming.value = { noteId: id, files };
+      openNoteInPane(id, { editing: !texts.length });
       if (!noteId) scheduleCommit();
+      // **Text from another app, brought in** (the phone's *Bring in*): through the note's own pane,
+      // as the browser's passages arrive, so it is saved as typing is and Undo takes it back.
+      if (texts.length) {
+        // The app's clock, not the browser's (`appTime.ts`: one clock per device).
+        const when = `${appToday()} ${clockText()}`;
+        const text = texts.map((t) => sharedPassage(t.text, t.subject, when)).join('\n\n');
+        await tick();
+        bridgeInbox.insert = {
+          id,
+          text,
+          done: (a) => {
+            if (!a.ok) error = a.error ?? 'It could not be added.';
+          },
+        };
+      }
     } catch (err) {
       error = String(err);
     }
@@ -2132,6 +2155,8 @@
   // browser's add-on, which works out what it is and brings it into the note in front. A drag that
   // started inside formicaria (a card on a board) is formicaria's own and left alone.
   let draggingInside = false;
+  /** A collection card being swiped aside (the phone's windows menu): which, from where, how far. */
+  let swipe = $state<{ id: string; x0: number; dx: number } | null>(null);
   let dropHint = $state('');
   $effect(() => {
     const start = () => (draggingInside = true);
@@ -3025,10 +3050,36 @@
               role="presentation"
               onclick={() => (windowsOpen = false)}
             ></div>
-            <ul class="create-menu windows-menu" role="menu" aria-label="open windows" use:popup>
+            <!-- **The collection, as cards** (workspace-design §11.4, D6): what is open, of any
+                 section, one card each; tap to go to it, swipe a note's card aside to close it. -->
+            <ul
+              class="create-menu windows-menu collection"
+              role="menu"
+              aria-label="open windows"
+              use:popup
+            >
               {#each workspace.panes as pane, i (pane.id)}
                 {@const icon = paneIcon(pane)}
-                <li class="window-row" class:current={i === focused} role="none">
+                <li
+                  class="window-row"
+                  class:current={i === focused}
+                  role="none"
+                  style:transform={swipe?.id === pane.id ? `translateX(${swipe.dx}px)` : undefined}
+                  style:opacity={swipe?.id === pane.id
+                    ? 1 - Math.min(Math.abs(swipe.dx) / 200, 0.7)
+                    : undefined}
+                  onpointerdown={(e) => {
+                    if (!isView(pane)) swipe = { id: pane.id, x0: e.clientX, dx: 0 };
+                  }}
+                  onpointermove={(e) => {
+                    if (swipe?.id === pane.id) swipe = { ...swipe, dx: e.clientX - swipe.x0 };
+                  }}
+                  onpointerup={() => {
+                    if (swipe?.id === pane.id && Math.abs(swipe.dx) > 80) closePane(pane.id);
+                    swipe = null;
+                  }}
+                  onpointercancel={() => (swipe = null)}
+                >
                   <button
                     type="button"
                     role="menuitem"
@@ -3677,6 +3728,7 @@
     {#if shared}
       <ShareSheet
         files={shared.files}
+        texts={shared.texts}
         refused={shared.refused}
         openNoteId={focusedPane?.kind === 'note' ? (focusedPane.noteId ?? null) : null}
         onchoose={placeShared}
@@ -4831,5 +4883,40 @@
     color: white;
     border-radius: 999px;
     pointer-events: none;
+  }
+  /* The collection as cards (the phone's windows menu): two columns of cards, swiped aside to close. */
+  .windows-menu.collection {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    width: min(92vw, 26rem);
+    padding: var(--space-2);
+  }
+  .collection .window-row {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    min-height: 4.5rem;
+    border: 1px solid var(--border, rgb(0 0 0 / 0.12));
+    border-radius: var(--radius-md, 8px);
+    background: var(--surface);
+    touch-action: pan-y;
+    transition: opacity 0.15s;
+  }
+  .collection .window-row.current {
+    border-color: var(--accent);
+  }
+  .collection .window-pick {
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: var(--space-2);
+    text-align: start;
+  }
+  .collection .window-close {
+    position: absolute;
+    top: 2px;
+    right: 2px;
   }
 </style>

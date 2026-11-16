@@ -397,6 +397,23 @@ no new machinery:
    is only where they are *shown* (the Mail section's own view, not among the study notes). A
    separate store would be a core change, so it is not proposed.
 
+## 12. What is left, in the order it is built (plan, 2026-11-16)
+
+> **The owner:** *"plan D3 and the phone browser next"*, then *"build all that is left to build, plan
+> it if necessary"*. Each step ships when `browser-check` and `pixi run ci` pass; what cannot be
+> verified on this machine says so.
+
+| # | What | How | Verified by |
+|---|---|---|---|
+| 1 | **D3: any two tabs beside each other, one drag** | drag a tab onto the left or right half of the page area: two pages → Firefox's split view; a study room/catalogue and a page → formicaria's panel beside the page, on that side; two study rooms → formicaria's own two panes (`#pair=`) | `browser-check` (the pairing, by its function) |
+| 2 | **Mail as a client view** | the Mail section as a list and a reading pane (the conversation), *Reply* opening the thread in Gmail beside it (a web tab, formicaria stays read-only on mail), *Bring in* of a passage into a study room | app tests |
+| 3 | **Today and one Inbox** (§10, Q1–Q2 on their recommendations) | *Today* (meetings and what is due, conversations that need you, what came in unsorted) as the first screen; *Inbox*: everything that came in (kept pages, passages, shared items, downloads, proposals), each with its source, one press to file it | app tests |
+| 4 | **The phone's browser, phase A**: pages inside formicaria on Android's own engine (System WebView: 0 MB) | a page screen beside the collection's cards; formicaria's page script (the selection icon, the snip) injected into pages; the note as a **sheet over the page**; the ant as an **eyedropper**; tap-then-hold. No Firefox add-ons in this phase | compiled with the Android SDK (bootstrapped by the project's own pinned script), the app's tests; on a device: by the owner |
+| 5 | **A watch as a source** (Gadgetbridge's FIT files, `training-coach-plan` P1) | a FIT file shared or added becomes a workout in Fitness, the file kept raw, the source contract's fields | tests on public sample FIT files |
+| 6 | **D7: Myrme searching sections** | Myrme's side, in its repository: each section's search as a tool, the per-section switch in Settings (off), findings as proposals | Myrme's own evals |
+| 7 | **The phone's browser, phase B**: GeckoView with formicaria's add-on as a built-in extension (Firefox add-ons on the phone) | **needs the owner's decision**: a separate optional *formicaria browser* app (keeps formicaria under 100 MB), or a raised budget; and G0's measurements on a device. GeckoView is about 60 MB for arm64 ([bug 1727150](https://bugzilla.mozilla.org/show_bug.cgi?id=1727150): *"a big ask for non-browser apps"*); it loads built-in extensions with content scripts ([docs](https://firefox-source-docs.mozilla.org/mobile/android/geckoview/consumer/web-extensions.html)) | a device |
+| 8 | **Windows and macOS for formicaria's browser** | the kit applied to Mozilla's installers there (an unpack on Windows; a re-sign on macOS) | those systems (not here) |
+
 ## Sources
 
 [Vivaldi 4.0 mail, calendar, feeds](https://liliputing.com/vivaldi-web-browser-gains-translation-mail-calendar-and-feed-reader-functions-in-version-4-0/) ·

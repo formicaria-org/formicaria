@@ -86,6 +86,21 @@ somewhere to go, the phone stops being the only place they exist, and a phone yo
 reset costs you nothing. Backing up fetches whatever your other devices have written and sends
 yours, in one gesture — see [Backup & versioning](./backup.md).
 
+## Bring things in from other apps
+
+The phone's way to bring something into a study room, from any app:
+
+- **Select text in any app**, and in the menu that appears (beside Copy and Share) choose
+  **formicaria**: it asks which note it goes into (the note you had open, a new note, or any other by
+  name), and the passage arrives quoted, saying it was shared and when.
+- **Share a page or a passage** (the Share button of your browser, or of any app): formicaria asks the
+  same; a page arrives as a link with its title, a passage quoted with the page it came from.
+- **Your collection**: the counted button at the bottom shows what you have open as cards; tap one to
+  go to it, **swipe a note's card aside** to close it.
+
+formicaria's own browser is not on the phone yet: pages open in your phone's browser, and Share or the
+selection menu brings what you choose into formicaria.
+
 ## Attachments
 
 **A screenshot goes into a note with Share**: tap Share under the screenshot, choose formicaria,

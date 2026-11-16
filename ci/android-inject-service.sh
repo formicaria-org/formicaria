@@ -180,7 +180,28 @@ class MainActivity : TauriActivity() {
   /// What could not be taken, and why: `too large` or `could not be read`.
   private val refused = mutableListOf<Pair<String, String>>()
 
+  /// **Text brought in from another app** (`decisions.md` 2026-11-16, *the phone's Bring in*): what
+  /// Share hands over as text (a page's link, a passage), and what a person selected in any app and
+  /// chose *formicaria* for in the selection menu (`PROCESS_TEXT`). Held for the page like files.
+  private class SharedText(val text: String, val subject: String)
+  private val texts = mutableListOf<SharedText>()
+
   private fun takeShared(intent: Intent?) {
+    val said: CharSequence? = when (intent?.action) {
+      Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
+      Intent.ACTION_SEND ->
+        if (intent.type?.startsWith("text/") == true && streamOf(intent) == null) intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+        else null
+      else -> null
+    }
+    if (said != null) {
+      setIntent(Intent(this, MainActivity::class.java))
+      val subject = intent?.getStringExtra(Intent.EXTRA_SUBJECT) ?: ""
+      val text = said.toString().take(MAX_TEXT)
+      if (text.isNotBlank()) synchronized(shared) { texts.add(SharedText(text, subject)) }
+      wv?.evaluateJavascript("window.dispatchEvent(new Event('fm-share'))", null)
+      return
+    }
     val uris: List<Uri> = when (intent?.action) {
       Intent.ACTION_SEND -> listOfNotNull(streamOf(intent))
       Intent.ACTION_SEND_MULTIPLE -> streamsOf(intent)
@@ -255,7 +276,15 @@ class MainActivity : TauriActivity() {
       for (f in shared) files.put(JSONObject().put("name", f.name).put("mime", f.mime))
       val no = JSONArray()
       for ((name, why) in refused) no.put(JSONObject().put("name", name).put("why", why))
-      JSONObject().put("files", files).put("refused", no).toString()
+      val said = JSONArray()
+      for (t in texts) said.put(JSONObject().put("text", t.text).put("subject", t.subject))
+      JSONObject().put("files", files).put("refused", no).put("texts", said).toString()
+    }
+
+    /// The page has the texts it was given (by count, as for files).
+    @JavascriptInterface
+    fun doneTexts(n: Int) {
+      synchronized(shared) { repeat(minOf(n, texts.size)) { texts.removeAt(0) } }
     }
 
     @JavascriptInterface
@@ -418,6 +447,8 @@ class MainActivity : TauriActivity() {
   companion object {
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
+    /// A passage brought in is text a person chose; a whole book pasted into Share is cut here.
+    private const val MAX_TEXT = 100_000
     /// The newest release's APK — the address `docs/src/user/android.md` gives for the first install.
     private const val LATEST_APK =
       "https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk"
@@ -565,6 +596,29 @@ if ! grep -q 'android.intent.action.SEND"' "$manifest"; then
             print "                <data android:mimeType=\"image/*\" />"
             print "            </intent-filter>"
             sh=1
+        }
+        { print }
+    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
+fi
+
+# Bring in (2026-11-16): formicaria in Share for text (a page's link, a passage), and in **the
+# text-selection menu of every app** (`PROCESS_TEXT`, labelled with the app's name). Separate from the
+# pictures' block, so a manifest written before still gets it. Idempotent.
+if ! grep -q 'android.intent.action.PROCESS_TEXT' "$manifest"; then
+    tmpf=$(mktemp)
+    awk '
+        /<\/activity>/ && !tx {
+            print "            <intent-filter>"
+            print "                <action android:name=\"android.intent.action.SEND\" />"
+            print "                <category android:name=\"android.intent.category.DEFAULT\" />"
+            print "                <data android:mimeType=\"text/plain\" />"
+            print "            </intent-filter>"
+            print "            <intent-filter>"
+            print "                <action android:name=\"android.intent.action.PROCESS_TEXT\" />"
+            print "                <category android:name=\"android.intent.category.DEFAULT\" />"
+            print "                <data android:mimeType=\"text/plain\" />"
+            print "            </intent-filter>"
+            tx=1
         }
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"

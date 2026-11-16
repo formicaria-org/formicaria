@@ -35,6 +35,10 @@ trap, add one. Newest concerns first within each section.
   device for G0); Gadgetbridge as a source (needs a watch's files; `training-coach-plan` P1); Myrme's
   per-source switches (in Myrme's repository). *Ask Myrme what matters here* uses the existing
   discussion → proposal path, so it writes nothing without the person's acceptance.
+- **The phone's Bring in (0.39)**: the shell's Kotlin for text and `PROCESS_TEXT` was not compiled
+  on the development machine (no Android SDK there); the release build compiles it. A selection
+  from another app carries no address, so it says *shared from another app*; Share usually adds the
+  page's address. GeckoView (formicaria's browser on the phone) is not built: APK budget and G0.
 - **The library model (0.38)**: a lean tab opens formicaria at its item; a note's tab whose note was
   deleted shows formicaria's notice and can be closed. The collection's *beside* for any two tabs by
   one drag (D3) is not built. The Mail section is a timeline of conversations, not yet a mail client

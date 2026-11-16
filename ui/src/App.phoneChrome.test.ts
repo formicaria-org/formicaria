@@ -156,3 +156,20 @@ test('a note window is named by its title, not "Note"', async () => {
   const row = screen.getByRole('navigation', { name: 'open views' });
   expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Seeded 0');
 });
+
+/// **The collection as cards** (workspace-design §11.4): a note's card swiped aside closes it; the
+/// view's card does not move away (a view is re-pointed, never closed).
+test('a note card swiped aside closes it', async () => {
+  render(App);
+  await screen.findByRole('button', { name: 'open a view' });
+  await openView('Tasks');
+  await openGaeNote();
+  await fireEvent.click(windowsButton());
+  const menu = await screen.findByRole('menu', { name: 'open windows' });
+  const close = within(menu).getByRole('menuitem', { name: /^close / });
+  const card = close.closest('li') as HTMLElement;
+  await fireEvent.pointerDown(card, { clientX: 200 });
+  await fireEvent.pointerMove(card, { clientX: 60 });
+  await fireEvent.pointerUp(card, { clientX: 60 });
+  await waitFor(() => expect(panes()).toBe(1));
+});

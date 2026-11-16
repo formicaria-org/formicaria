@@ -8,16 +8,19 @@
   import { getNote, recent, search } from './ipc';
   import { noteName } from './noteName';
   import type { ObjectMeta } from './types';
-  import type { Refused } from './share.svelte';
+  import type { Refused, SharedText } from './share.svelte';
 
   let {
     files,
+    texts = [],
     refused = [],
     openNoteId = null,
     onchoose,
     onclose,
   }: {
     files: File[];
+    /** Text brought in from another app (Share's text, or a selection's menu). */
+    texts?: SharedText[];
     /** What the phone could not take, and why. */
     refused?: Refused[];
     /** The note in front, if one is: offered first. */
@@ -85,9 +88,23 @@
   <button class="share-backdrop" aria-label="close" onclick={onclose}></button>
   <div class="panel" role="dialog" aria-label="add what was shared to a note">
     <div class="panel-head">
-      <h2>{files.length ? `Add ${what} to…` : 'Nothing could be added'}</h2>
+      <h2>
+        {texts.length && !files.length
+          ? 'Bring this into…'
+          : files.length
+            ? `Add ${what} to…`
+            : 'Nothing could be added'}
+      </h2>
       <button type="button" class="close" aria-label="close" onclick={onclose}>✕</button>
     </div>
+    {#if texts.length}
+      <blockquote class="said">
+        {texts
+          .map((t) => t.text)
+          .join('\n\n')
+          .slice(0, 280)}
+      </blockquote>
+    {/if}
     {#if previews.length}
       <div class="previews">
         {#each previews as src (src)}<img {src} alt="" />{/each}
@@ -101,7 +118,7 @@
           the note.{/if}
       </p>
     {/if}
-    {#if files.length}
+    {#if files.length || texts.length}
       <div class="choices">
         {#if openNoteId && openTitle}
           <button type="button" class="choice first" onclick={() => onchoose(openNoteId)}>
@@ -270,5 +287,15 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--danger, #b00);
+  }
+  .said {
+    margin: 0 0 var(--space-3);
+    padding-left: var(--space-3);
+    border-left: 3px solid var(--accent);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 8rem;
+    overflow: auto;
+    font-size: var(--text-sm);
   }
 </style>
