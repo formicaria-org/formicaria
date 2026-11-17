@@ -545,6 +545,22 @@ pub fn set_up_and_wait(
 /// window class on X11, with `--class`), so the window is shown as **formicaria** with formicaria's
 /// icon (`formicaria.desktop`, `StartupWMClass=formicaria`), apart from any other Firefox. Firefox
 /// hands a second launch to the running one by the same name.
+/// **Which address to open with** (the owner on 0.50: *"I open and it opens two tabs, and I do not
+/// know why"*). The browser restores the person's last session by itself; an address given as well
+/// was a second tab of the notes on every start. So: with a saved session and no browser running,
+/// none (the startup script opens the notes only if no tab of formicaria's came back); otherwise —
+/// the first start, or a browser already open — the notes, as asked.
+pub fn start_address<'a>(profile: &Path, running: bool, url: &'a str) -> &'a str {
+    let saved = ["sessionstore.jsonlz4", "sessionstore-backups/recovery.jsonlz4"]
+        .iter()
+        .any(|f| profile.join(f).is_file());
+    if saved && !running {
+        ""
+    } else {
+        url
+    }
+}
+
 pub fn launch_args(profile: &Path, url: &str) -> Vec<std::ffi::OsString> {
     // `--name` and `--class` are the Linux desktop's (X11, Wayland); elsewhere they are not options.
     let mut a: Vec<std::ffi::OsString> = if cfg!(target_os = "linux") {
@@ -588,6 +604,7 @@ pub fn launch(url: &str, xpi: &[u8], server: &str) -> Result<(), String> {
     // nothing runs: two renames, no wait (`browser-plan` §16).
     crate::browser_kit::swap_in_prepared(&d);
     prepare(&d, xpi, server)?;
+    let url = start_address(&d.join("profile"), crate::browser_kit::running(&d), url);
     let started = std::process::Command::new(firefox_bin(&d))
         .args(launch_args(&d.join("profile"), url))
         .stdin(std::process::Stdio::null())
@@ -685,7 +702,8 @@ pub fn route(
         }
         // Open formicaria in its browser now, from Settings, right after setting it up.
         "/api/browser_open" => {
-            let r = launch(server, &xpi(), server);
+            // On the notes, as every start does (the root is the older whole-app page).
+            let r = launch(&format!("{server}/f/group/Library"), &xpi(), server);
             Some(match r {
                 Ok(()) => ok(stream, status(st)),
                 Err(e) => {
@@ -801,6 +819,18 @@ mod tests {
 
     /// **Each privacy switch brings its extension** (2026-11-17), from addons.mozilla.org, while on;
     /// the startup script installs and removes the same ones live.
+    /// **One tab of the notes, not two**: with a saved session the browser restores it, and is given
+    /// no address of its own; the first start and an already open browser get the notes.
+    #[test]
+    fn a_saved_session_is_opened_without_a_second_notes_tab() {
+        let d = tempfile::tempdir().unwrap();
+        let notes = "http://127.0.0.1:8765/f/group/Library";
+        assert_eq!(start_address(d.path(), false, notes), notes, "the first start");
+        std::fs::write(d.path().join("sessionstore.jsonlz4"), b"x").unwrap();
+        assert_eq!(start_address(d.path(), false, notes), "", "the session comes back by itself");
+        assert_eq!(start_address(d.path(), true, notes), notes, "already open: a tab of the notes");
+    }
+
     #[test]
     fn each_privacy_switch_brings_its_extension_while_on() {
         let on = fm_app::privacy::Privacy { ads: true, ddg: true, ..Default::default() };

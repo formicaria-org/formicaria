@@ -44,6 +44,29 @@ const PLAYERS: { test: RegExp; site: string; watch?: (m: RegExpMatchArray) => st
 ];
 
 const STREAM = /\.(m3u8|mpd)(\?|$)/i;
+const WIKI_AUDIO = /\.(ogg|oga|opus|mp3|wav|flac|mid|midi)$/i;
+const WIKI_VIDEO = /\.(webm|ogv|mpg|mpeg)$/i;
+const WIKI_FILE =
+  /^https?:\/\/(?:[a-z-]+\.)*(?:wikipedia|wikimedia|wiktionary|wikibooks|wikiversity|wikisource|wikivoyage)\.org\/wiki\/File:([^?#]+)$/i;
+
+/** **A Wikimedia file page** (a recording or a video on Wikipedia or Commons): its Commons page, which
+ *  yt-dlp reads, and whether it is sound or picture. Wikipedia's player script takes the file's own
+ *  address out of the live page and keeps only this (`resource`), so it is the one way to them. */
+export function wikimediaFile(
+  u: string,
+): { url: string; kind: 'audio' | 'video'; name: string } | null {
+  const m = u.match(WIKI_FILE);
+  if (!m) return null;
+  const kind = WIKI_AUDIO.test(m[1]) ? 'audio' : WIKI_VIDEO.test(m[1]) ? 'video' : null;
+  if (!kind) return null;
+  let name = m[1];
+  try {
+    name = decodeURIComponent(m[1]);
+  } catch {
+    /* as written */
+  }
+  return { url: `https://commons.wikimedia.org/wiki/File:${m[1]}`, kind, name };
+}
 const AUDIO = /\.(mp3|m4a|aac|ogg|oga|opus|flac|wav)(\?|$)/i;
 const VIDEO = /\.(mp4|m4v|webm|mov|mkv)(\?|$)/i;
 
@@ -59,7 +82,8 @@ function abs(u: string | null | undefined, base: string): string | null {
 
 const fileName = (u: string) => {
   try {
-    return decodeURIComponent(new URL(u).pathname.split('/').pop() || u);
+    // A wiki's file page (`/wiki/File:Ant.webm`) is named by its file, without the `File:`.
+    return decodeURIComponent(new URL(u).pathname.split('/').pop() || u).replace(/^File:/, '');
   } catch {
     return u;
   }
@@ -107,6 +131,16 @@ export function findMedia(doc: Document, base: string, seen: string[] = []): Can
   }
   for (const el of Array.from(doc.querySelectorAll('video, audio'))) {
     const kind: MediaKind = el.tagName === 'AUDIO' ? 'audio' : 'video';
+    // A Wikimedia player: its file page, the same however the player script left the element.
+    const wiki = wikimediaFile(abs(el.getAttribute('resource'), base) ?? '');
+    if (wiki) {
+      add({
+        url: wiki.url,
+        kind: wiki.kind,
+        label: `${wiki.kind === 'audio' ? 'Audio' : 'Video'}: ${wiki.name}`,
+      });
+      continue;
+    }
     const srcs = [
       el.getAttribute('src'),
       ...Array.from(el.querySelectorAll('source')).map((s) => s.getAttribute('src')),
@@ -150,7 +184,24 @@ export function findMedia(doc: Document, base: string, seen: string[] = []): Can
     );
   }
   const page = abs(base, base);
-  if (page)
+  // A Wikimedia file page (Commons' page of a video or a recording): the media it shows.
+  const own = page ? wikimediaFile(page) : null;
+  if (own)
+    add({
+      url: own.url,
+      kind: own.kind,
+      label: `${own.kind === 'audio' ? 'Audio' : 'Video'}: ${own.name}`,
+    });
+  // A video site's own page (YouTube's watch page): the video it shows, said as such — its picture
+  // plays from a stream the page assembles, so no file address is there to list.
+  const site = page ? playerOf(page) : null;
+  if (page && site)
+    add({
+      url: site.url,
+      kind: 'player',
+      label: `${site.site} video${title ? `: ${title.replace(/ - YouTube$/, '').slice(0, 80)}` : ''}`,
+    });
+  else if (page)
     add({
       url: page,
       kind: 'page',

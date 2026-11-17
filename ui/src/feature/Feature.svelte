@@ -190,6 +190,18 @@
     t.to.viewName
       ? pane.kind === 'view' && pane.viewName === t.to.viewName
       : pane.kind === t.to.kind;
+
+  /** **＋ New note** (the view's line): a blank note, opened in a tab of its own. */
+  async function newNote() {
+    try {
+      const [made] = await ipc.createNotes([
+        { title: '', body: '', tags: [], start: '', props: {} },
+      ]);
+      if (made) window.open(`/f/note/${made.id}`, '_blank');
+    } catch (e) {
+      error = String(e);
+    }
+  }
 </script>
 
 <div class="feature">
@@ -288,6 +300,22 @@
             >
           {/each}
         {/if}
+        <!-- **Settings and Help from every page** (owner, 2026-11-17: *"I have no idea how to check the
+             fm settings"*): the ant's panel was their only door, and a hidden ant left none. Plain
+             links, so a new tab, a bookmark or the keyboard all work. -->
+        <span class="system">
+          <!-- **A new note from every view** (owner on 0.52: *"how are notes added? The plus
+               disappeared from every view"*): in a tab of its own, straight in the editor. -->
+          <button type="button" class="new-note" onclick={() => void newNote()} title="A new note"
+            >＋ New note</button
+          >
+          <a href="/manual/" target="_blank" rel="noopener" title="Help: how formicaria works"
+            >Help</a
+          >
+          <a href="/f/settings" title="Settings: privacy, updates, mail for meetings, and more"
+            >Settings</a
+          >
+        </span>
       </nav>
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -364,6 +392,19 @@
   .chooser {
     position: relative;
     flex: none;
+  }
+  .system {
+    margin-inline-start: auto;
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex: none;
+    padding-inline-start: var(--space-2);
+  }
+  .system a {
+    padding: var(--space-1) var(--space-2);
+    border-radius: 999px;
+    color: inherit;
   }
   .feature-name {
     font-weight: 700;

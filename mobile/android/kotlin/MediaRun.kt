@@ -64,14 +64,39 @@ object MediaRun {
         job.probe = YoutubeDL.getInstance().execute(r, id, null).out
         job.state = "probed"
       } catch (e: Throwable) {
-        job.error = e.message ?: "The media could not be looked at."
+        job.error = "${e.javaClass.simpleName}: ${e.message ?: "the media could not be looked at"}"
         job.state = "failed"
       }
     }.start()
   }
 
-  /** Fetch for a choice: `plan` is the core's (`fm_app::media::phone_runs`): `{runs, join}`, each run
-   *  yt-dlp's arguments with the address last; a video's picture and sound are joined afterwards. */
+  /** yt-dlp's arguments (the core's run, the address last) as a request. */
+  private fun request(url: String, tokens: List<String>): YoutubeDLRequest {
+    val r = YoutubeDLRequest(url)
+    var i = 0
+    while (i < tokens.size) {
+      val t = tokens[i]
+      if (t == "--") break
+      val next = tokens.getOrNull(i + 1)
+      if (next != null && !next.startsWith("-")) { r.addOption(t, next); i += 2 } else { r.addOption(t); i += 1 }
+    }
+    return r
+  }
+
+  private fun runOnce(job: MediaJob, id: String, url: String, run: JSONArray): File {
+    val tokens = (0 until run.length()).map { run.getString(it) }
+    job.file = ""
+    val resp = YoutubeDL.getInstance().execute(request(url, tokens), id) { _, _, line -> read(job, line) }
+    resp.out.lines().forEach { read(job, it) }
+    if (job.state == "cancelled") throw InterruptedException("cancelled")
+    val f = File(job.file)
+    if (job.file.isEmpty() || !f.exists()) throw IllegalStateException("yt-dlp finished without a file")
+    return f
+  }
+
+  /** Fetch for a choice: `plan` is the core's (`fm_app::media::phone_runs`): the runs, and for a
+   *  video the sound to fetch by the picture's container, joined afterwards only if the picture has
+   *  no sound of its own. */
   fun start(ctx: Context, id: String, url: String, plan: String) {
     val job = MediaJob(id).also { jobs[id] = it }
     Thread {
@@ -79,57 +104,49 @@ object MediaRun {
         ensure(ctx)
         job.state = "downloading"
         val p = JSONObject(plan)
-        val runs = p.getJSONArray("runs")
-        val files = ArrayList<String>()
-        for (k in 0 until runs.length()) {
-          if (job.state == "cancelled") return@Thread
-          val tokens = runs.getJSONArray(k).let { a -> (0 until a.length()).map { a.getString(it) } }
-          val r = YoutubeDLRequest(url)
-          var i = 0
-          while (i < tokens.size) {
-            val t = tokens[i]
-            if (t == "--") break
-            val next = tokens.getOrNull(i + 1)
-            if (next != null && !next.startsWith("-")) { r.addOption(t, next); i += 2 } else { r.addOption(t); i += 1 }
-          }
-          job.file = ""
-          val resp = YoutubeDL.getInstance().execute(r, "$id-$k") { _, _, line -> read(job, line) }
-          resp.out.lines().forEach { read(job, it) }
-          if (job.state == "cancelled") return@Thread
-          if (job.file.isEmpty() || !File(job.file).exists()) throw IllegalStateException("yt-dlp finished without a file")
-          files += job.file
-        }
-        if (p.optBoolean("join") && files.size == 2) {
+        var file = runOnce(job, "$id-0", url, p.getJSONArray("runs").getJSONArray(0))
+        if (p.optBoolean("join") && !hasSound(file)) {
+          val kind = if (file.extension.equals("webm", true)) "webm" else "mp4"
+          val sound = runOnce(job, "$id-1", url, p.getJSONObject("audio").getJSONArray(kind))
           job.state = "converting"
           job.progress = -1.0
-          job.file = join(File(files[0]), File(files[1])).absolutePath
+          file = join(file, sound, kind)
         }
+        job.file = file.absolutePath
         job.state = "fetched"
       } catch (e: Throwable) {
         if (job.state != "cancelled") {
-          job.error = e.message ?: "The media could not be fetched."
+          // What failed, by name, then what yt-dlp last said (`media::explain` finds its ERROR line,
+          // or shows the first thing said).
+          val tail = said[id]?.let { q -> synchronized(q) { q.joinToString("\n") } } ?: ""
+          job.error = listOf("${e.javaClass.simpleName}: ${e.message ?: ""}", tail).filter { it.isNotBlank() }.joinToString("\n")
           job.state = "failed"
         }
+      } finally {
+        said.remove(id)
       }
     }.start()
   }
 
-  /** **A video's picture and sound, joined** into one MP4 without re-encoding, by Android's own
-   *  muxer. A picture that already carries its sound is kept as it is. The parts are removed. */
-  private fun join(video: File, audio: File): File {
-    val out = File(video.parentFile, "media.mp4")
+  private fun hasSound(f: File): Boolean {
+    val ex = MediaExtractor()
+    return try {
+      ex.setDataSource(f.path)
+      (0 until ex.trackCount).any { (ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME) ?: "").startsWith("audio/") }
+    } catch (e: Exception) { false } finally { ex.release() }
+  }
+
+  /** **A video's picture and sound, joined** into one file without re-encoding, by Android's own
+   *  muxer: MP4 (H.264 with AAC) or WebM (VP8/VP9 with Opus or Vorbis). The parts are removed. */
+  private fun join(video: File, audio: File, kind: String): File {
+    val out = File(video.parentFile, "media.$kind")
     val v = MediaExtractor().apply { setDataSource(video.path) }
-    val mime = { ex: MediaExtractor, i: Int -> ex.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: "" }
-    if ((0 until v.trackCount).any { mime(v, it).startsWith("audio/") }) {
-      v.release()
-      audio.delete()
-      video.renameTo(out)
-      return out
-    }
     val a = MediaExtractor().apply { setDataSource(audio.path) }
-    val mux = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-    val pairs = listOf(v to "video/", a to "audio/").map { (ex, kind) ->
-      val t = (0 until ex.trackCount).first { mime(ex, it).startsWith(kind) }
+    val mime = { ex: MediaExtractor, i: Int -> ex.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: "" }
+    val format = if (kind == "webm") MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM else MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+    val mux = MediaMuxer(out.path, format)
+    val pairs = listOf(v to "video/", a to "audio/").map { (ex, k) ->
+      val t = (0 until ex.trackCount).first { mime(ex, it).startsWith(k) }
       ex.selectTrack(t)
       ex to mux.addTrack(ex.getTrackFormat(t))
     }
@@ -157,8 +174,15 @@ object MediaRun {
     return out
   }
 
+  /** The last lines yt-dlp said, kept so a failure can say more than its last line. */
+  private val said = ConcurrentHashMap<String, java.util.ArrayDeque<String>>()
+
   private fun read(job: MediaJob, line: String) {
     val l = line.trim()
+    if (l.isNotEmpty() && !l.startsWith("FMPROG ")) {
+      val q = said.getOrPut(job.id) { java.util.ArrayDeque() }
+      synchronized(q) { q.addLast(l); while (q.size > 12) q.removeFirst() }
+    }
     when {
       l.startsWith("FMPROG ") -> {
         val n = l.removePrefix("FMPROG ").split(" ").map { it.toDoubleOrNull() }

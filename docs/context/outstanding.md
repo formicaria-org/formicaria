@@ -192,6 +192,23 @@ copied in `crates/fm-serve/src/agent.rs` and `mobile/src-tauri/src/lib.rs`, and 
 
 ## 2. Not started
 
+### 2.00 Next, in this order (the owner, 2026-11-17)
+
+1. **The ant by a selection offers what fits what was selected** (*"select the portion it wants to
+   save and then the right tools would port it in the notes"*): a video or a recording, the whole
+   video or only its sound (the Save media tools, streams included); a formula, its LaTeX (read by
+   `ui/src/lib/web/formula.ts`, built and tested, not yet wired into `bring.ts`/`select.ts`) or its
+   picture; a passage, its formulas kept as `$…$`; a PDF open in a tab, Snip working there and its
+   selected text brought in (Firefox's PDF viewer admits no add-on script; a formula in a PDF is a
+   picture unless §2.4's image→LaTeX is built). Checked in `usability-check` on Wikipedia pages
+   (*Pythagorean theorem* for formulas).
+2. **The roller of what is open, on the phone** (*"like the slot machine: a rolling thing … to avoid
+   horizontal tiling"*; *"the roller or the arc of open tabs/notes"*): the open notes and pages on a
+   wheel drawn as an arc along the bottom; rolling brings one to the middle (its icon and title);
+   letting go opens it whole; a flick returns to the previous one. One notch is one item either way,
+   with no memory of the last gesture (`known-issues.md`, *A gesture control must not remember what
+   you did last*). Replaces the phone's card strip of the plan's step 5; tested in the emulator.
+
 ### 2.0 The papers tool — the reader is the part that is still missing
 Full direction, with the four adversarial reviews behind it: [`papers-plan.md`](./papers-plan.md).
 How it got here: [`sessions/2026-08-29-papers-and-what-three-audits-found.md`](./sessions/2026-08-29-papers-and-what-three-audits-found.md).

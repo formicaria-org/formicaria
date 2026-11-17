@@ -193,6 +193,10 @@ android-avd = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID
 # Boot it headless. `screencap` works without a window, so screenshots need no display — which
 # is what makes the UI inspectable from a terminal at all.
 android-emu = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID_HOME/emulator/emulator -avd formicaria -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect" }
+# **Save media on the phone, through the phone app, in the emulator** (`ci/phone-media-check.py`):
+# Wikipedia's and Commons' recordings and a video, and a clip whose picture and sound come apart.
+# Never a phone (the device must say it is an emulator). Run it capped, one heavy run at a time.
+phone-media-check = "python3 ci/phone-media-check.py"
 
 # **Type-checking the platforms this machine cannot run.**
 #
@@ -313,6 +317,8 @@ myrme-bump = "sh ci/myrme-bump.sh"
 browser-bump = "python3 ci/browser-bump.py"
 # The media tools a computer fetches for *Save media* (yt-dlp, ffmpeg), pinned per release.
 media-bump = "python3 ci/media-bump.py"
+# Usability checks: formicaria's browser walked as different people use it (2026-11-17).
+usability-check = "python3 ci/usability-check.py"
 browser-check = "python3 ci/browser-check.py"
 # Delete regenerable build output (debug targets, the phone's builds) in this checkout and the
 # sibling Myrme one; keeps target/release, which the running app is. `known-issues.md`, *The disk fills*.

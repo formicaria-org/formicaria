@@ -88,7 +88,11 @@ afterwards is how a project stops being what it said it was, one reasonable step
   `pixi run browser-bump` (the newest Firefox ESR for formicaria's browser, Mozilla's signature
   checked) → `pixi run media-bump` (the newest yt-dlp, its signature checked, and ffmpeg, for Save
   media) → `pixi run browser-check` (the kit applied to it and measured against it unmodified; a
-  failure stops the release, `decisions.md` 2026-11-15, evening) →
+  failure stops the release, `decisions.md` 2026-11-15, evening) → `pixi run usability-check`
+  (formicaria's browser walked as different people use it; a failure stops the release,
+  `decisions.md` 2026-11-17, late night) → `pixi run -e android phone-media-check` (Save media through
+  the phone app in an emulator on this computer, never a phone; run capped; a failure stops the
+  release; `decisions.md` 2026-11-17, small hours) →
   `pixi run check-references -- --write` (every figure the app shows, read off its document; a
   failure stops the release, `decisions.md#data`, 2026-11-03) →
   local gate (`pixi run ci`, through pixi) → version commit → push `main` **and** the annotated tag

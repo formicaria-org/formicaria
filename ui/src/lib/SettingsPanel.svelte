@@ -41,6 +41,7 @@
   import ClockSection from './ClockSection.svelte';
   import TrackersSection from './TrackersSection.svelte';
   import RemindersSection from './RemindersSection.svelte';
+  import MailSection from './MailSection.svelte';
   import BackupPanel from './BackupPanel.svelte';
   import {
     config as fetchConfig,
@@ -1712,9 +1713,14 @@
       <!-- Your own calendars. The computer holds the addresses and does the reading, so a paired
            tablet (refused every route) and the phone (no reader yet) are not offered it. -->
       {#if !isRemote() && !isPhone()}
-        <div class="cat" data-cat="connections">
+        <div
+          class="cat"
+          data-cat="connections"
+          data-words="meetings meeting mail gmail email calendars calendar collaboration music subsonic"
+        >
           <CalendarsSection />
-          <!-- Mail is off for now (`decisions.md` 2026-11-17): webmail is used as a web page. -->
+          <!-- Mail, read for meetings only (`decisions.md` 2026-11-17, *mail back for meetings*). -->
+          <MailSection />
           <SubsonicSection />
         </div>
       {/if}

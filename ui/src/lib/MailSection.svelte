@@ -149,10 +149,11 @@
 </script>
 
 <section data-testid="mail">
-  <h3>Mail</h3>
+  <h3>Mail, for meetings</h3>
   <ManualLink page="user/mail.html" section="connect-it" />
   <p class="muted lede">
-    Read Gmail to keep your meetings and conversations up to date. formicaria can only read.
+    Read Gmail to keep your meetings up to date: what was read, and what it meant for each meeting,
+    is shown in Collaboration. formicaria can only read.
   </p>
   <details class="more">
     <summary>More</summary>

@@ -56,6 +56,12 @@ phone's commands, the CLI, the assistant). **Shared logic lives once**: what bot
 Whatever is added next to the APK must replace something or be data fetched later: Android 10+
 runs no program downloaded after install.
 
+## Checks that walk it as people do
+
+`pixi run browser-check` measures the kit against plain Firefox; `pixi run usability-check` walks
+formicaria's browser as a returning user, a new person, someone opening it twice and someone reading
+a saved page (each in a profile of its own). Both are release steps.
+
 ## The next structural steps (not done yet)
 
 - `dispatch.rs` (5.7k lines) and `fm-serve/main.rs` (3k): split the long `match`es by domain when a

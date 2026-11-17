@@ -4,7 +4,7 @@
 
 **formicaria says when a newer version is out**, in a line at the top of the window: press
 **Update** and it does the rest. (Before 0.22.0 this was only in **Settings → About & updates**, in
-three presses.) formicaria asks GitHub once a day, and **Check now** in Settings asks straight away;
+three presses.) formicaria asks GitHub every hour, while it runs and when it starts, and **Check now** in Settings asks straight away;
 nothing about you, this computer or your notes is sent.
 
 1. Press **Update** — in that line, or **Update to v…** in Settings. formicaria downloads the new

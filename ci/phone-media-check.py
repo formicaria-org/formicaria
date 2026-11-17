@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""**Save media on the phone, through the phone app, in an Android emulator** (2026-11-17; the owner,
+after 0.51's phone could save nothing from YouTube or Bandcamp: *"you can try it out here on the
+computer no? … even have tests for it in the ci"*, *"check inside the app, not only stand alone"*,
+*"Wikipedia is perfect"*, *"include instances where there are many contents in a single page"*).
+
+The phone's runner is Android code (`MediaRun.kt`: yt-dlp and Python inside the app, a video's two
+streams joined by Android's muxer) over the core (`media_args`, `media_keep`: MP3 and tags by
+`fm-audio`, filing). This installs the phone app (x86_64, debug) on an emulator on this computer —
+**never a phone**: the device must say it is an emulator — and does what a person does, through the
+app's own screens: **+**, the address, **≡ → Save media**, the choice, **Save**; then reads the note
+it made and the file's first bytes.
+
+The pages are the computer's (`ci/usability-check.py`): Wikipedia's *Ode to Joy* (one recording, as
+MP3), *Toccata and Fugue in D minor* (four recordings: the third kept, and checked to be the third),
+Commons' *Ant Bed With Ants* (a short video); and a clip served from this computer whose picture
+and sound come apart (DASH, as YouTube serves them), so the phone's joining is used.
+
+Run it capped (the laptop froze once under an uncapped run), one heavy run at a time:
+`systemd-run --user --scope -p MemoryMax=9G -p CPUQuota=1200% -- pixi run -e android phone-media-check`.
+Needs /dev/kvm and the emulator (`.android/sdk`, the `formicaria` device: `pixi run -e android
+android-avd`). `FM_PHONE_REBUILD=0` reuses the last build. Exits 1 on a failure, saying which.
+"""
+import base64
+import functools
+import http.server
+import json
+import os
+import shutil
+import socket
+import socketserver
+import struct
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SDK = ROOT / ".android" / "sdk"
+ADB = str(ROOT / ".android" / "platform-tools" / "adb")
+EMU = str(SDK / "emulator" / "emulator")
+SERIAL = "emulator-5554"
+PKG = "dev.formicaria.notes"
+WORK = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "formicaria-phone-media-check"
+APK = ROOT / "mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+fails: list[str] = []
+
+# What a person keeps, page by page: the page, the candidate's label starts with, which of those,
+# how many it must list at least, what to keep, where it goes.
+CASES = [
+    ("Ode to Joy: its recording, as MP3", "https://en.wikipedia.org/wiki/Ode_to_Joy", "Audio:", 0, 1, "mp3", "Music"),
+    ("Toccata and Fugue: the third of its recordings, as served",
+     "https://en.wikipedia.org/wiki/Toccata_and_Fugue_in_D_minor,_BWV_565", "Audio:", 2, 4, "audio", "Music"),
+    ("Ant Bed With Ants (Commons): the video", "https://commons.wikimedia.org/wiki/File:Ant_Bed_With_Ants.webm",
+     "Video:", 0, 1, "video", "Videos"),
+    ("a clip whose picture and sound come apart (DASH): the video", "http://10.0.2.2:{port}/index.html",
+     "Video:", 0, 1, "video", "Videos"),
+]
+
+
+def say(msg: str) -> None:
+    print(f"phone-media-check: {msg}", flush=True)
+
+
+def check(what: str, ok: bool, why: str = "") -> None:
+    say(f"{'ok  ' if ok else 'FAIL'} {what}{'' if ok else ' — ' + why}")
+    if not ok:
+        fails.append(what)
+
+
+def adb(*args: str, check_rc: bool = True, timeout: int = 300) -> str:
+    r = subprocess.run([ADB, "-s", SERIAL, *args], capture_output=True, text=True, timeout=timeout)
+    if check_rc and r.returncode != 0:
+        raise RuntimeError(f"adb {' '.join(args)}: {r.stderr.strip() or r.stdout.strip()}")
+    return r.stdout
+
+
+def fixtures() -> Path:
+    """Three seconds of picture and sound as DASH (an H.264 stream and an AAC stream), on a page."""
+    d = WORK / "site"
+    if d.exists():
+        shutil.rmtree(d)
+    d.mkdir(parents=True)
+    subprocess.run(
+        ["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25:duration=3",
+         "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-map", "0", "-map", "1",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
+         "-f", "dash", "-seg_duration", "1", "-use_template", "1", "-use_timeline", "0", str(d / "clip.mpd")],
+        check=True,
+    )
+    (d / "index.html").write_text(
+        '<!doctype html><title>A clip</title><h1>A clip</h1><video controls src="clip.mpd"></video>'
+    )
+    return d
+
+
+def serve(d: Path) -> socketserver.TCPServer:
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(d))
+    handler.log_message = lambda *a, **k: None  # type: ignore[assignment]
+    # Any free port: a fixed one was still held by the last run's closing connections.
+    srv = socketserver.ThreadingTCPServer(("127.0.0.1", 0), handler)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def boot() -> subprocess.Popen:
+    env = dict(os.environ, ANDROID_SDK_ROOT=str(SDK), ANDROID_HOME=str(SDK))
+    # The device made by `pixi run -e android android-avd` (in the checkout), else the user's own.
+    if (ROOT / ".android" / "avd" / "formicaria.ini").exists():
+        env["ANDROID_AVD_HOME"] = str(ROOT / ".android" / "avd")
+    image = SDK / "system-images" / "android-35" / "google_apis" / "x86_64"
+    if not (image / "kernel-ranchu").exists():
+        raise RuntimeError(f"the emulator's Android image is missing or incomplete ({image}): "
+                           "sdkmanager \"system-images;android-35;google_apis;x86_64\"")
+    # **The computer's GPU draws** (`-gpu host`; `FM_EMU_GPU=swiftshader_indirect` where there is
+    # none): the software renderer crashed the emulator (SIGSEGV) on Commons' video page, again and
+    # again, on 2026-11-17, with the host's video decoding off too. On the GPU all four cases passed.
+    # (`-gpu guest` is not supported by this image.) Video is decoded inside Android.
+    log = open(WORK / "emulator.log", "w")
+    emu = subprocess.Popen(
+        [EMU, "-avd", "formicaria", "-no-window", "-no-audio", "-no-boot-anim", "-no-snapshot",
+         "-gpu", os.environ.get("FM_EMU_GPU", "host"), "-feature", "-HardwareDecoder", "-memory", "2048", "-cores", "4", "-port", "5554"],
+        env=env, stdout=log, stderr=subprocess.STDOUT,
+    )
+    # Waits while the emulator runs; if it stops, says why (its log), not a timeout later.
+    for _ in range(300):
+        if emu.poll() is not None:
+            tail = (WORK / "emulator.log").read_text(errors="replace").strip().splitlines()[-4:]
+            raise RuntimeError("the emulator stopped: " + " | ".join(tail))
+        if adb("get-state", check_rc=False).strip() == "device":
+            break
+        time.sleep(2)
+    else:
+        raise RuntimeError("the emulator did not appear to adb")
+    for _ in range(300):
+        if adb("shell", "getprop", "sys.boot_completed", check_rc=False).strip() == "1":
+            break
+        time.sleep(2)
+    else:
+        raise RuntimeError("the emulator did not finish starting")
+    # **Never a phone.** Everything below installs and writes; it must be the emulator.
+    if adb("shell", "getprop", "ro.kernel.qemu", check_rc=False).strip() != "1":
+        raise RuntimeError(f"{SERIAL} is not an emulator: refusing")
+    return emu
+
+
+class Cdp:
+    """A minimal Chrome DevTools client (a websocket by hand, no package), to one of the app's web views."""
+
+    def __init__(self, ws_url: str):
+        host, path = ws_url.removeprefix("ws://").split("/", 1)
+        h, p = host.split(":")
+        self.s = socket.create_connection((h, int(p)), timeout=900)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.s.sendall(
+            f"GET /{path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n".encode()
+        )
+        head = b""
+        while b"\r\n\r\n" not in head:
+            head += self.s.recv(1)
+        if b" 101 " not in head.split(b"\r\n")[0]:
+            raise RuntimeError(f"no websocket: {head[:80]!r}")
+        self.n = 0
+
+    def _send(self, text: str) -> None:
+        data = text.encode()
+        mask = os.urandom(4)
+        n = len(data)
+        if n < 126:
+            hdr = bytes([0x81, 0x80 | n])
+        elif n < 65536:
+            hdr = bytes([0x81, 0x80 | 126]) + struct.pack(">H", n)
+        else:
+            hdr = bytes([0x81, 0x80 | 127]) + struct.pack(">Q", n)
+        self.s.sendall(hdr + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+    def _exact(self, k: int) -> bytes:
+        b = b""
+        while len(b) < k:
+            c = self.s.recv(k - len(b))
+            if not c:
+                raise RuntimeError("the web view closed the connection")
+            b += c
+        return b
+
+    def _recv(self) -> str:
+        out = b""
+        while True:
+            b1, b2 = self._exact(2)
+            n = b2 & 0x7F
+            if n == 126:
+                n = struct.unpack(">H", self._exact(2))[0]
+            elif n == 127:
+                n = struct.unpack(">Q", self._exact(8))[0]
+            out += self._exact(n)
+            if b1 & 0x80:
+                return out.decode()
+
+    def evaluate(self, js: str):
+        self.n += 1
+        self._send(json.dumps({"id": self.n, "method": "Runtime.evaluate",
+                               "params": {"expression": js, "awaitPromise": True, "returnByValue": True}}))
+        while True:
+            r = json.loads(self._recv())
+            if r.get("id") == self.n:
+                res = r.get("result", {})
+                if "exceptionDetails" in res:
+                    raise RuntimeError(json.dumps(res["exceptionDetails"])[:400])
+                return res.get("result", {}).get("value")
+
+
+def app_view() -> Cdp:
+    """The app's own web view (not a page's, not another app's): its process's debugging socket, and
+    in it the page Tauri serves from `tauri.localhost`."""
+    seen: list[str] = []
+    for _ in range(90):
+        pid = adb("shell", "pidof", PKG, check_rc=False).strip().split(" ")[0]
+        socks = [l.split("@")[-1].strip() for l in adb("shell", "cat", "/proc/net/unix", check_rc=False).splitlines()
+                 if "webview_devtools_remote" in l]
+        mine = [x for x in socks if pid and x.endswith(f"_{pid}")]
+        if mine:
+            break
+        time.sleep(2)
+    else:
+        raise RuntimeError(f"the app's web view cannot be reached (not a debug build?): sockets {socks}, pid {pid!r}")
+    subprocess.run([ADB, "-s", SERIAL, "forward", "tcp:9333", f"localabstract:{mine[0]}"], check=True,
+                   capture_output=True)
+    for _ in range(90):
+        try:
+            pages = json.load(urllib.request.urlopen("http://127.0.0.1:9333/json", timeout=5))
+            seen = [p.get("url", "") for p in pages]
+            page = next(p for p in pages if "tauri.localhost" in p.get("url", "") and "webSocketDebuggerUrl" in p)
+            return Cdp(page["webSocketDebuggerUrl"])
+        except StopIteration:
+            time.sleep(2)
+        except Exception:  # noqa: BLE001 - the app is still starting
+            time.sleep(2)
+    raise RuntimeError(f"the app's page is not in its web view: pages {seen}")
+
+
+# **The first start, as a new person meets it**: the Welcome form, skipped; then the app itself.
+FIRST_RUN_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < 240; i++) {
+    const skip = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Skip for now');
+    if (skip) { skip.click(); await sleep(1500); continue; }
+    if (document.querySelector('button[aria-label="new tab"]')) return { ok: true };
+    await sleep(500);
+  }
+  return { ok: false, text: document.body.innerText.slice(0, 400) };
+})()
+"""
+
+# **Through the app's own screens.** Answers what it saw, for the checks below.
+CASE_JS = r"""
+(async () => {
+  const [page, pick, nth, keep, into] = %s;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  const inv = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke('fm', { cmd, args })
+    .then((t) => (typeof t === 'string' ? JSON.parse(t) : t));
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  // +, the address, Enter: a page opens inside formicaria.
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 60);
+  if (!plus) return { error: 'no + (the app did not start?)', text: document.body.innerText.slice(0, 300) };
+  plus.click();
+  const field = await until(() => document.querySelector('input[aria-label="a web address or a search"]'), 15);
+  if (!field) return { error: 'no address field after +' };
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, page);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(500);
+  field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await sleep(12000);
+  // ≡ → Save media.
+  const menu = await until(() => document.querySelector('button.menu-btn[aria-label="formicaria\'s options"]'), 20);
+  if (!menu) return { error: 'no ≡' };
+  menu.click();
+  const item = await until(() => [...document.querySelectorAll('[role=menuitem]')]
+    .find((b) => b.textContent.trim() === 'Save media'), 10);
+  if (!item) return { error: 'no Save media in ≡ (is a page in front?)',
+    menu: [...document.querySelectorAll('[role=menuitem]')].map((b) => b.textContent.trim()) };
+  item.click();
+  const radios = () => [...document.querySelectorAll('input[name=candidate]')];
+  await until(() => radios().length, 60);
+  const listed = radios().map((i) => i.parentElement.textContent.trim());
+  const matching = radios().filter((i) => i.parentElement.textContent.includes(pick));
+  const chosen = matching[nth];
+  if (!chosen) return { listed, matching: matching.length, error: 'nothing to choose' };
+  chosen.click();
+  const looked = await until(() => document.querySelector('input[name=what]')
+    || (document.querySelector('[role=alert]') || {}).textContent, 600);
+  if (!looked || looked.nodeType !== 1)
+    return { listed, matching: matching.length, chosen: chosen.parentElement.textContent.trim(), error: 'looking: ' + looked };
+  const label = { mp3: 'The sound as MP3', audio: 'The sound, as the site serves it', video: 'The video' }[keep];
+  const r = [...document.querySelectorAll('input[name=what]')].find((i) => i.parentElement.textContent.includes(label));
+  if (r) r.click();
+  await sleep(500);
+  [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save').click();
+  const done = await until(() => {
+    const t = document.body.innerText;
+    return t.includes('Saved in ' + into) ? 'ok' : (t.match(/Not saved[^\n]*/) || [null])[0];
+  }, 900);
+  const lib = await inv(into === 'Music' ? 'music_library' : 'video_library');
+  const name = chosen.parentElement.textContent.split(':').slice(1).join(':').trim();
+  const stem = name.split('.')[0].slice(0, 12);
+  const mine = lib.filter((n) => JSON.stringify(n).includes(stem));
+  const ref = mine[0] && (mine[0].props.audio || mine[0].props.video);
+  const [path] = ref ? await inv('asset_paths', { references: [ref] }) : [null];
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  return { listed, matching: matching.length, chosen: chosen.parentElement.textContent.trim(), done,
+           sheet: done === 'ok' ? '' : document.body.innerText.slice(-400), notes: mine.length, ref, path };
+})()
+"""
+
+
+LOGCAT = WORK / "logcat.txt"
+
+
+def record_log() -> subprocess.Popen:
+    """The phone's log, written as it happens (read afterwards it may be out of reach: a device that
+    stopped answering)."""
+    adb("logcat", "-c", check_rc=False, timeout=30)
+    return subprocess.Popen([ADB, "-s", SERIAL, "logcat", "-b", "main,crash,system", "-v", "time"],
+                            stdout=open(LOGCAT, "w"), stderr=subprocess.DEVNULL)
+
+
+EMU_PROC: list[subprocess.Popen] = []
+
+
+def emulator_state() -> str:
+    """Whether the emulator is still running (and if not, how it ended), with its last words."""
+    if not EMU_PROC:
+        return "not started"
+    rc = EMU_PROC[-1].poll()
+    tail = (WORK / "emulator.log").read_text(errors="replace").strip().splitlines()[-3:]
+    return ("running" if rc is None else f"ended with {rc}") + "; its log: " + " | ".join(tail)
+
+
+def phone_log() -> str:
+    """What Android said about the app (a crash, a web view that died, memory): its telling lines,
+    and the emulator's state."""
+    try:
+        log = LOGCAT.read_text(errors="replace")
+    except OSError:
+        return "no log"
+    keys = ("FATAL EXCEPTION", "AndroidRuntime", "lowmemorykiller", "Renderer process", "has died",
+            "ANR in", "OutOfMemory", "SIGSEGV", "Abort message", "Process " + PKG, PKG + " (pid")
+    hits = [l.strip() for l in log.splitlines() if any(k in l for k in keys)]
+    return (" | ".join(hits[-8:])[:1000] or "nothing telling in the log") + "; emulator: " + emulator_state()
+
+
+def main() -> None:
+    if not os.access("/dev/kvm", os.R_OK | os.W_OK):
+        say("FAIL /dev/kvm is not usable here: the emulator cannot run")
+        sys.exit(1)
+    WORK.mkdir(parents=True, exist_ok=True)
+    site = fixtures()
+    srv = serve(site)
+    if not APK.exists() or os.environ.get("FM_PHONE_REBUILD", "1") == "1":
+        say("building the phone app (x86_64, debug)")
+        subprocess.run(["pixi", "run", "-e", "android", "android-apk"], cwd=ROOT, check=True)
+    emu = boot()
+    EMU_PROC.append(emu)
+    try:
+        adb("reverse", "--remove-all", check_rc=False)
+        recorder = record_log()
+        adb("install", "-r", "-t", str(APK), timeout=600)
+        adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
+        cdp = app_view()
+        first = cdp.evaluate(FIRST_RUN_JS) or {}
+        check("a new person gets past the first start to the app", bool(first.get("ok")), str(first.get("text")))
+        # `FM_PHONE_CASES=Ant,clip` runs the cases whose names say so, while working on them.
+        only = [k for k in os.environ.get("FM_PHONE_CASES", "").split(",") if k]
+        port = srv.server_address[1]
+        for name, page, pick, nth, least, keep, into in CASES:
+            page = page.replace("{port}", str(port))
+            if only and not any(k in name for k in only):
+                continue
+            got = None
+            for attempt in (1, 2):
+                try:
+                    got = cdp.evaluate(CASE_JS % json.dumps([page, pick, nth, keep, into])) or {}
+                    break
+                except RuntimeError as e:
+                    crashed = EMU_PROC[-1].poll() is not None
+                    if crashed and attempt == 1:
+                        # **The emulator crashed, not the app** (its software drawing has, on video
+                        # pages): started again, and this case tried once more.
+                        say(f"{name}: the emulator crashed ({emulator_state()[:120]}); starting it again")
+                        EMU_PROC.append(boot())
+                        recorder = record_log()
+                        adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity", check_rc=False)
+                        cdp = app_view()
+                        cdp.evaluate(FIRST_RUN_JS)
+                        continue
+                    who = "the emulator crashed twice (not the app)" if crashed else "the app stays up"
+                    check(f"{name}: {who}", False, f"{e}; logcat: {phone_log()}")
+                    if not crashed:
+                        time.sleep(5)
+                        adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity", check_rc=False)
+                        cdp = app_view()
+                        cdp.evaluate(FIRST_RUN_JS)
+                    break
+            if got is None:
+                continue
+            say(f"{name}: {json.dumps(got)[:600]}")
+            check(f"{name}: the sheet lists all {least}+", (got.get("matching") or 0) >= least,
+                  str(got.get("error") or got.get("listed")))
+            check(f"{name}: the sheet says it is saved in {into}", got.get("done") == "ok",
+                  f"{got.get('done') or got.get('error')}; the sheet: {got.get('sheet', '')!r}")
+            check(f"{name}: its note is in {into}, and it is the one chosen", (got.get("notes") or 0) >= 1,
+                  f"chose {got.get('chosen')!r}")
+            if got.get("path"):
+                head = adb("shell", "run-as", PKG, "od", "-An", "-c", "-N", "12", got["path"], check_rc=False)
+                bare = head.replace(" ", "").replace("\n", "")
+                ok = {"mp3": bare.startswith("ID3") or bare.startswith("377"),
+                      "video": "ftyp" in bare or bare.startswith("032E"),
+                      "audio": len(bare) > 0}[keep]
+                check(f"{name}: its file is what was asked ({keep})", ok, repr(head))
+                if keep == "video":
+                    # Picture **and** sound: a video kept silent is the failure joining exists for.
+                    local = WORK / "kept-video"
+                    with open(local, "wb") as f:
+                        subprocess.run([ADB, "-s", SERIAL, "exec-out", "run-as", PKG, "cat", got["path"]],
+                                       stdout=f, timeout=300, check=False)
+                    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
+                                            "-of", "csv=p=0", str(local)], capture_output=True, text=True)
+                    kinds = probe.stdout.split()
+                    check(f"{name}: it has its picture and its sound", "video" in kinds and "audio" in kinds,
+                          f"streams: {kinds or probe.stderr.strip()[:200]}")
+    except Exception as e:  # noqa: BLE001 - said as a failure
+        check("the check ran to the end", False, f"{repr(e)[:400]}; logcat: {phone_log()}")
+    finally:
+        if "recorder" in locals():
+            recorder.terminate()
+        subprocess.run([ADB, "-s", SERIAL, "emu", "kill"], capture_output=True, timeout=60)
+        for e in EMU_PROC:
+            try:
+                e.wait(timeout=60)
+            except Exception:  # noqa: BLE001
+                e.kill()
+        srv.shutdown()
+    say("all good" if not fails else "FAIL — " + "; ".join(fails))
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    main()

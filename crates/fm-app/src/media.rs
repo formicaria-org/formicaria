@@ -126,12 +126,15 @@ pub fn ytdlp_args(
 /// its picture (H.264 in MP4) and its sound in two runs, which Android's `MediaMuxer` joins. Answers
 /// the runs and whether they are to be joined. Each run writes `<dir>/<name>.<ext>` and prints the
 /// same `FM…` lines as [`ytdlp_args`].
-pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str) -> (Vec<Vec<String>>, bool) {
+pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str) -> Value {
     let h = if quality == 0 { 1080 } else { quality };
     let run = |format: &str, name: &str| -> Vec<String> {
         let mut a: Vec<String> = vec!["-f".into(), format.into()];
         for s in [
             "--no-playlist",
+            // A page with several recordings (a Wikipedia article): the first, not all of them.
+            "--playlist-items",
+            "1",
             "--no-part",
             "--no-mtime",
             "--no-cache-dir",
@@ -156,17 +159,28 @@ pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str) -> (Vec<Vec<St
         a.push(url.into());
         a
     };
-    // AAC: what `fm-audio` decodes, and what every player plays.
-    let aac = "ba[ext=m4a]/ba[acodec^=mp4a]";
     match what {
-        What::Audio | What::Mp3 => (vec![run(aac, "media")], false),
-        What::Video => (
-            vec![
-                run(&format!("bv*[ext=mp4][vcodec^=avc1][height<={h}]/b[ext=mp4][height<={h}]/b[ext=mp4]"), "video"),
-                run(aac, "audio"),
-            ],
-            true,
-        ),
+        // As the site serves it, whatever kind: kept as it is. AAC first, which plays everywhere.
+        What::Audio => {
+            json!({ "runs": [run("ba[ext=m4a]/ba[acodec^=mp4a]/ba/b", "media")], "join": false })
+        }
+        // What `fm-audio` reads, an MP3 first (kept as it is); Opus last, said plainly if it fails.
+        What::Mp3 => json!({
+            // `/b` last: a site that names no codec (Wikimedia) has no "best audio" by yt-dlp's
+            // reckoning, and without it nothing at all is chosen (found on the phone, 2026-11-17).
+            "runs": [run("ba[ext=mp3]/ba[acodec=mp3]/ba[acodec^=mp4a]/ba[acodec=vorbis]/ba[acodec=flac]/ba/b", "media")],
+            "join": false
+        }),
+        // The picture (MP4 first, else WebM, else a file with both); its sound only if it has none,
+        // in the same kind of container (Android joins MP4 with AAC, WebM with Opus or Vorbis).
+        What::Video => json!({
+            "runs": [run(&format!("bv*[ext=mp4][vcodec^=avc1][height<={h}]/bv*[ext=webm][height<={h}]/b[height<={h}]/bv*/b"), "video")],
+            "join": true,
+            "audio": {
+                "mp4": run("ba[ext=m4a]/ba[acodec^=mp4a]", "audio"),
+                "webm": run("ba[ext=webm]/ba[acodec=opus]/ba[acodec=vorbis]", "audio"),
+            }
+        }),
     }
 }
 
@@ -229,7 +243,21 @@ pub fn explain(stderr: &str) -> String {
             .into();
     }
     if last.is_empty() {
-        return "The media could not be fetched.".into();
+        // No `ERROR:` line (the phone's runner failing around yt-dlp, say): its own last words,
+        // rather than a sentence that hides them (the owner on 0.51's phone: only *"The media could
+        // not be fetched"*).
+        // The first thing said that is not a warning (on the phone: the failure's own name, then
+        // yt-dlp's last lines).
+        let said = stderr
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty() && !l.starts_with("WARNING"))
+            .unwrap_or("");
+        if said.is_empty() {
+            return "The media could not be fetched.".into();
+        }
+        let said: String = said.chars().take(240).collect();
+        return format!("The media could not be fetched: {said}");
     }
     last.trim_start_matches("ERROR:").trim().to_string()
 }
@@ -709,27 +737,42 @@ mod tests {
 
     #[test]
     fn the_phone_asks_for_nothing_ffmpeg_would_do() {
-        let (runs, join) = phone_runs(What::Mp3, 0, "/c/1", "https://v.example/w");
-        assert!(!join && runs.len() == 1);
+        let p = phone_runs(What::Mp3, 0, "/c/1", "https://v.example/w");
+        let run: Vec<String> = serde_json::from_value(p["runs"][0].clone()).unwrap();
         assert!(
-            runs[0].windows(2).any(|w| w == ["-f", "ba[ext=m4a]/ba[acodec^=mp4a]"]),
-            "AAC, to decode"
+            run.windows(2).any(|w| w[0] == "-f" && w[1].starts_with("ba[ext=mp3]")),
+            "an MP3 first"
         );
-        let all: Vec<String> = runs.concat();
+        assert!(run.windows(2).any(|w| w == ["--playlist-items", "1"]), "one item of a page");
+        let all = serde_json::to_string(&p).unwrap();
         for ffmpeg in [
-            "-x",
+            "\"-x\"",
             "--embed-metadata",
             "--embed-thumbnail",
             "--merge-output-format",
             "--convert-thumbnails",
         ] {
-            assert!(!all.contains(&ffmpeg.to_string()), "{ffmpeg}");
+            assert!(!all.contains(ffmpeg), "{ffmpeg}");
         }
-        let (runs, join) = phone_runs(What::Video, 720, "/c/1", "https://v.example/w");
-        assert!(join && runs.len() == 2);
-        assert!(runs[0].iter().any(|a| a.contains("vcodec^=avc1") && a.contains("height<=720")));
-        assert!(runs[0].contains(&"/c/1/video.%(ext)s".to_string()));
-        assert!(runs[1].contains(&"/c/1/audio.%(ext)s".to_string()));
+        // **Every choice ends in "whatever there is"**: a site that labels nothing still gives a file.
+        for w in [What::Mp3, What::Audio, What::Video] {
+            let f = phone_runs(w, 0, "/c/1", "https://v.example/w")["runs"][0][1]
+                .as_str()
+                .unwrap()
+                .to_string();
+            assert!(f.ends_with("/b"), "{w:?}: {f}");
+        }
+        let a = phone_runs(What::Audio, 0, "/c/1", "https://v.example/w");
+        assert!(a["runs"][0][1].as_str().unwrap().ends_with("/ba/b"), "as served: any kind");
+        let v = phone_runs(What::Video, 720, "/c/1", "https://v.example/w");
+        assert_eq!(v["join"], true);
+        assert!(
+            v["runs"][0][1].as_str().unwrap().contains("bv*[ext=webm][height<=720]"),
+            "WebM too"
+        );
+        assert!(v["audio"]["mp4"][1].as_str().unwrap().starts_with("ba[ext=m4a]"));
+        assert!(v["audio"]["webm"][1].as_str().unwrap().starts_with("ba[ext=webm]"));
+        assert!(v["audio"]["webm"].as_array().unwrap().iter().any(|x| x == "/c/1/audio.%(ext)s"));
     }
 
     #[test]
@@ -748,6 +791,13 @@ mod tests {
         assert!(explain("x\nERROR: [x] This video is DRM protected").contains("DRM"));
         assert!(explain("ERROR: Unsupported URL: https://a.example").contains("No media"));
         assert!(explain("").contains("could not be fetched"));
+        // Whatever was said, when it is not yt-dlp's ERROR line.
+        assert_eq!(
+            explain("IllegalStateException: yt-dlp finished without a file\n[youtube] abc: Downloading\n"),
+            "The media could not be fetched: IllegalStateException: yt-dlp finished without a file"
+        );
+        assert!(explain("WARNING: no JS runtime\nYoutubeDLException: python could not start")
+            .ends_with("python could not start"));
     }
 
     #[test]

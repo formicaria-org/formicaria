@@ -15553,3 +15553,81 @@ by domain when one grows), `NotePanel.svelte` (its own plan). `structure.md` lis
 **The four questions.** `#toolchain` (a licence exception, scoped to the phone), `#ui`. **Widens
 what ships**: `fm-audio` (Symphonia, LAME, lofty) in the APK; four extensions offered by policy.
 **Narrows it**: ffmpeg out of the APK.
+
+## 2026-11-17 (late night) — usability checks, and what they found in formicaria's browser `#ui` `#toolchain`
+
+The owner: *"the local fm is un-updatable, I don't see settings anymore, it's actually very buggy. Can
+you run proper usability checks simulating different sorts of users"*; *"I see no puzzle piece … I
+open and it opens two tabs, and I do not know why. It takes ages to open"*; and on 0.51's phone, a
+YouTube song: *"The media could not be fetched"*.
+
+1. **`pixi run usability-check`** (`ci/usability-check.py`, on `browser-check`'s Marionette client):
+   formicaria's browser walked as people use it, each in a profile of its own against a real server
+   — a returning user whose ant is tucked in Firefox's Extensions menu; a new person (Notes, +'s
+   choices, the ant's panel, Settings and updates, Privacy, Save media); someone opening formicaria
+   and again the next day, through the server as the launcher does (time to the notes, the tabs);
+   someone reading a saved page. **A release step after `browser-check`; a failure stops it.**
+2. **The ant is kept in the tab row**: anywhere else it is out of reach on formicaria's pages (their
+   address row is hidden). It had been placed once and never again, and a button inside the
+   Extensions menu is created only when that menu opens, so one person's browser kept it there:
+   no Settings, no updates.
+3. **One tab of the notes per start**: with a saved session the browser is given no address of its
+   own (`start_address`); the session comes back, and the notes are opened only if none of its tabs
+   is formicaria's. Settings' *Open in its browser* opens the notes, not the older whole-app page.
+4. **A privacy extension's own tab is closed** for the first two minutes and a minute after each
+   install (Consent-O-Matic opened its options on top of the notes).
+5. **The startup script reaches window-only things through the window** (`win.WebExtensionPolicy`),
+   as the search module.
+6. **A media failure says what failed** (`media::explain`): yt-dlp's `ERROR:` line, or else the last
+   thing said, never only *"could not be fetched"*. A video site's own page is offered as its video.
+7. **Measured** (headless, a fresh profile): the notes in 3.6 s on a first start, 2.6 s the next day.
+
+**Not reproduced:** why 0.51's phone could not fetch a YouTube song. The same yt-dlp fetched a
+YouTube video's sound from the computer with the phone's exact request; 0.52 asks the phone's yt-dlp
+for nothing that needs ffmpeg, and 0.53 says the cause if it fails again.
+
+## 2026-11-17 (small hours) — mail back for meetings; Settings on every page; real pages in the checks `#agent` `#ui` `#toolchain`
+
+The owner: *"in collaboration I don't see when last emails and which ones were read and used to assess
+next meetings"*, choosing **mail back for Collaboration only**, and *"I still want the meeting
+settings"*; *"I have no idea how to check the fm settings in my current laptop installation"*; *"you
+should test with known pages with different contents … Wikipedia is perfect … check inside the app,
+not only stand alone … include instances where there are many contents in a single page"*.
+
+1. **Mail is read again, for meetings** (reverses point 1 of *mail off for now*, 2026-11-17, for the
+   reading only): `fm-serve` is built with `mail` (Gmail, `gmail.readonly`, as before); Settings →
+   Connections → *Mail, for meetings* (the sign-in, the label, the date) is back, found by searching
+   Settings for *meetings*. Collaboration's lines (when mail was last read; per conversation, what it
+   meant for the meeting) return with it. **Still off:** the Mail section, *Reply in Gmail*, *Send by
+   mail*, the shipped *Conversations* view: writing mail is the webmail's, as a web page.
+2. **Settings and Help on every feature page's line** (`Feature.svelte`), as plain links: the ant's
+   panel had been the only door, and a hidden ant (0.51) left none. Tested per page.
+3. **Wikipedia's recordings are found in the live page** (`web/media.ts`, `wikimediaFile`): its
+   player script removes the `<source>` addresses and keeps the file's page in `resource`; that page,
+   on Commons, is what yt-dlp reads. A Commons file page offers its own video or recording.
+4. **Real pages in `usability-check`** (a release step): Wikipedia's *Ode to Joy* (its recording, as
+   MP3), *Toccata and Fugue in D minor* (four recordings: all listed, the third kept, and checked to be
+   the third), Commons' *Ant Bed With Ants* (a 15 s video at 240p), and the *Ant* article saved whole
+   (its pictures inside the copy), each through formicaria's own Save media sheet and the add-on.
+   Free-licensed, stable pages; a site that changes is a test that says so.
+5. **The phone's runner fetches more kinds** (`phone_runs`): a site's MP3 kept as it is; Vorbis and
+   FLAC made into MP3 by `fm-audio` too (Opus said plainly); a video's sound fetched only when its
+   picture has none, and joined into MP4 or WebM by Android's muxer.
+6. **Formulas read as LaTeX** (`web/formula.ts`, not yet wired to the selection): the source pages
+   keep beside a drawn formula (MathML's TeX annotation, `alttext`, Wikipedia's `{\displaystyle}`
+   alt, MathJax 2's script, `data-latex`), never guessed from a picture. Next: the ant by a selection
+   offers what fits it (a formula as LaTeX or its picture; a video whole or its sound).
+
+7. **Updates are looked for every hour, while running too** (`fm_update::EVERY`, a day before; the
+   background check now loops). A release published just after a copy's daily check stayed unseen
+   for the rest of that day, and *Check now* is in Settings, which that person could not reach. One
+   small request an hour (the release page's redirect).
+8. **The phone app is tested in an emulator through its own screens** (`ci/phone-media-check.py`,
+   `pixi run -e android phone-media-check`; a release step when an emulator is at hand): the same
+   Wikipedia pages, and a clip whose picture and sound come apart. It found that the phone asked
+   Wikimedia for "best audio" with no fallback (Wikimedia names no codec, so nothing was chosen): every
+   phone request now ends in "whatever there is" (`/b`), pinned by a test. The first-start form said
+   "on this computer" on a phone; it says "phone" there now.
+9. **＋ New note on every view's line** (`Feature.svelte`; the owner on 0.52: *"how are notes added?
+   The plus disappeared from every view"*): a feature tab had no way to start a note but Firefox's
+   own + and the new-tab page. The note opens in a tab of its own, in the editor.

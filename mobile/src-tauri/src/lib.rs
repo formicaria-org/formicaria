@@ -210,7 +210,9 @@ fn finish_audio(
     info: &serde_json::Value,
 ) -> Result<std::path::PathBuf, String> {
     let mut out = file.to_path_buf();
-    if ask.what == fm_app::media::What::Mp3 {
+    // Already an MP3 (the site served one): kept as it is, not encoded again.
+    let is_mp3 = file.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("mp3"));
+    if ask.what == fm_app::media::What::Mp3 && !is_mp3 {
         out = file.with_extension("mp3");
         fm_audio::to_mp3(file, &out, &ask.mp3)?;
         let _ = std::fs::remove_file(file);
@@ -924,8 +926,7 @@ fn fm_blocking(
             .map_err(|e| format!("not a media request: {e}"))?;
         let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or_default();
         // No ffmpeg in the app (2026-11-17): the sound as AAC, a video as two runs to be joined.
-        let (runs, join) = fm_app::media::phone_runs(ask.what, ask.quality, dir, &ask.url);
-        return Ok(serde_json::json!({ "runs": runs, "join": join }).to_string());
+        return Ok(fm_app::media::phone_runs(ask.what, ask.quality, dir, &ask.url).to_string());
     }
     if cmd == "media_probe_read" {
         let info: serde_json::Value = serde_json::from_str(args.get("json").and_then(|v| v.as_str()).unwrap_or("null"))

@@ -2276,7 +2276,11 @@ mod tests {
             reader.read_line(&mut line).unwrap();
             if let Some(d) = line.strip_prefix("data: ") {
                 let v: serde_json::Value = serde_json::from_str(d.trim()).unwrap();
-                return v["generation"].as_u64().unwrap();
+                // The stream also says "save what is typed" (`save_everywhere`, a process-wide
+                // count another test may raise meanwhile): only the changes are this test's.
+                if let Some(g) = v["generation"].as_u64() {
+                    return g;
+                }
             }
         };
         let first = next();

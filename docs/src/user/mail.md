@@ -1,9 +1,10 @@
 # Mail (Gmail)
 
-> **Off for now** (formicaria 0.48): formicaria does not read mail. Use your webmail as a web page
-> (formicaria's browser on a computer, *Web* on the phone) and bring what you select into a note.
-> Conversations formicaria read before stay in your notes and are found by search. What follows
-> describes the reader as it was, for when it returns.
+> **For meetings** (formicaria 0.53): formicaria reads the Gmail you label to keep your meetings
+> current, and **Collaboration** shows when mail was last read and, for each conversation, what was
+> read and what it meant for the next meeting. Its settings are in **Settings → Connections → Mail,
+> for meetings**. Writing mail stays in your webmail, as a web page (formicaria's browser on a
+> computer, *Web* on the phone); there is no Mail section and no sending from formicaria.
 
 formicaria can read your Gmail and keep a note for each conversation you care about. Invitations
 inside messages become meetings straight away. It reads **only** conversations with a label you choose, from a

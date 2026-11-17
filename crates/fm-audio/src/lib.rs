@@ -37,7 +37,8 @@ fn quality(b: &mut Builder, setting: &str) -> Result<(), String> {
     b.set_quality(Quality::Good).map_err(e)
 }
 
-/// **`input`'s sound as an MP3 at `output`.** AAC (in MP4), MP3 or WAV in; one or two channels.
+/// **`input`'s sound as an MP3 at `output`.** AAC (in MP4), Vorbis (in Ogg), FLAC, MP3 or WAV in;
+/// one or two channels. Opus is not read here (the caller asks sites for another kind first).
 pub fn to_mp3(input: &Path, output: &Path, setting: &str) -> Result<(), String> {
     let file = File::open(input).map_err(|e| e.to_string())?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
@@ -186,6 +187,24 @@ mod tests {
             let ms = f.properties().duration().as_millis();
             assert!((900..1200).contains(&ms), "{setting}: {ms} ms");
         }
+    }
+
+    #[test]
+    fn vorbis_and_flac_become_mp3_too_and_opus_is_said_plainly() {
+        let d = tempfile::tempdir().unwrap();
+        for f in ["tone.ogg", "tone.flac"] {
+            let out = d.path().join(format!("{f}.mp3"));
+            to_mp3(
+                &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(f),
+                &out,
+                "v2",
+            )
+            .unwrap_or_else(|e| panic!("{f}: {e}"));
+            let ms = lofty::read_from_path(&out).unwrap().properties().duration().as_millis();
+            assert!((900..1200).contains(&ms), "{f}: {ms} ms");
+        }
+        let opus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tone.opus");
+        assert!(to_mp3(&opus, &d.path().join("o.mp3"), "v2").is_err());
     }
 
     #[test]

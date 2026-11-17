@@ -441,8 +441,11 @@ pub const LATEST: &str = "https://api.github.com/repos/formicaria-org/formicaria
 /// address a check contacts**: it answers with a redirect to the newest release.
 pub const RELEASES_PAGE: &str = "https://github.com/formicaria-org/formicaria/releases/latest";
 
-/// A day between checks.
-pub const EVERY: u64 = 24 * 60 * 60;
+/// **An hour between checks** (2026-11-17; a day before). A release made in the morning was still
+/// unseen that afternoon by a copy that had checked just before it, and *Check now* sits in Settings,
+/// which that person could not reach. The first address contacted is the release page's redirect,
+/// one small request an hour.
+pub const EVERY: u64 = 60 * 60;
 
 /// The version a release address names: what follows `/releases/tag/`, when it is a version.
 ///

@@ -28,6 +28,7 @@
   /// that cannot do anything: the notebook works, and saying so is `vaultCheck`'s job, not a
   /// form's.
 
+  import { isPhone } from './platform';
   import { setIdentity, setGitRemote } from './ipc';
 
   interface Props {
@@ -77,8 +78,8 @@
   <div class="box">
     <h1>Welcome to formicaria</h1>
     <p class="lede">
-      Your notes are ordinary files on this computer, and they are already safe. Two details make
-      their history useful — and you can add them later instead.
+      Your notes are ordinary files on this {isPhone() ? 'phone' : 'computer'}, and they are already
+      safe. Two details make their history useful — and you can add them later instead.
     </p>
 
     <label>

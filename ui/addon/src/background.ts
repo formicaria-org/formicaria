@@ -869,7 +869,9 @@ omnibox.onInputEntered.addListener((text) => {
       error: msg(e),
     }));
   }
-  if (m?.type === 'save-page' && st?.id != null) {
+  // From Snip's bubble, in the page it is about: that page. A message naming its tab is answered
+  // below, for that tab (the ant's panel opened as a page of its own is not the page to keep).
+  if (m?.type === 'save-page' && typeof m.tab !== 'number' && st?.id != null) {
     const id = st.id;
     return savePage(id).then((k) => ({ ok: k.ok, title: k.title, error: k.error, open: k.id }));
   }
@@ -939,11 +941,16 @@ omnibox.onInputEntered.addListener((text) => {
   ) {
     return config().then((c) => browser.tabs.create({ url: c.server + m.path }));
   }
-  // **Save media** from the ant's panel: the page in front.
-  if (m?.type === 'save-media') {
+  // **Save media** and **Save page** from the ant's panel: the page in front, or the tab named (a
+  // panel opened as a page of its own, as `ci/usability-check.py` drives it).
+  if (m?.type === 'save-media' || m?.type === 'save-page') {
+    const act = (id: number): Promise<unknown> =>
+      m.type === 'save-media' ? saveMedia(id) : savePage(id);
+    if (typeof m.tab === 'number') return act(m.tab);
     return browser.tabs
       .query({ active: true, currentWindow: true })
-      .then(([t]) => (t?.id != null ? saveMedia(t.id) : undefined));
+      .then(([t]) => (t?.id != null ? act(t.id) : undefined))
+      .then(() => undefined);
   }
   // **The ant's panel** (`launcher.ts`): a feature, a note or a new note, in a tab of its own.
   if (m?.type === 'open-item' && typeof m.address === 'string') {
@@ -1017,8 +1024,28 @@ export async function saveMedia(tab: number) {
   }
 }
 
+/** **The ant says a page is being kept** (`…` on it, its tooltip saying so): a long article's
+ *  pictures are fetched into its copy, half a minute for Wikipedia's *Ant* (`usability-check`), and
+ *  nothing else shows until the answer. */
+function keeping(tab: number, on: boolean) {
+  const ba = (
+    browser as unknown as {
+      browserAction?: {
+        setBadgeText(d: { text: string; tabId?: number }): Promise<void>;
+        setTitle(d: { title: string | null; tabId?: number }): Promise<void>;
+      };
+    }
+  ).browserAction;
+  if (!ba) return;
+  void ba.setBadgeText({ text: on ? '…' : '', tabId: tab }).catch(() => {});
+  void ba
+    .setTitle({ title: on ? 'formicaria: saving this page…' : null, tabId: tab })
+    .catch(() => {});
+}
+
 export async function savePage(tab: number) {
-  const k = await keep(tab);
+  keeping(tab, true);
+  const k = await keep(tab).finally(() => keeping(tab, false));
   const text = k.ok
     ? `Saved “${k.title}” as ${KIND_WORDS[k.kind ?? ''] ?? 'a note'}.`
     : `Not saved: ${k.error ?? ''}`;

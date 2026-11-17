@@ -1235,17 +1235,22 @@ pub fn check_in_background(state: std::sync::Arc<crate::AppState>) {
         // Let the app finish starting first. The same courtesy the agent's warm-up takes, and for
         // the same reason: nothing here is urgent enough to compete with the first paint.
         std::thread::sleep(std::time::Duration::from_secs(5));
-        let u = &state.update;
-        use std::sync::atomic::Ordering;
-        if u.checking.swap(true, Ordering::SeqCst) {
-            return;
-        }
-        if let Err(msg) = check(false) {
-            if let Ok(mut e) = u.error.lock() {
-                *e = Some(msg);
+        // **Not only at the start** (2026-11-17): a copy left running for days asked once and never
+        // again. Every quarter of an hour it asks whether an hour has passed (`fm_update::EVERY`), so
+        // a release is seen within the hour, running or restarted.
+        loop {
+            let u = &state.update;
+            use std::sync::atomic::Ordering;
+            if settings().check && !u.checking.swap(true, Ordering::SeqCst) {
+                if let Err(msg) = check(false) {
+                    if let Ok(mut e) = u.error.lock() {
+                        *e = Some(msg);
+                    }
+                }
+                u.checking.store(false, Ordering::SeqCst);
             }
+            std::thread::sleep(std::time::Duration::from_secs(15 * 60));
         }
-        u.checking.store(false, Ordering::SeqCst);
     });
 }
 

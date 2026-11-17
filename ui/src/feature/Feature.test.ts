@@ -27,7 +27,7 @@ it('a feature shows its views as a strip, and a card opens its note in a tab of 
   const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
   render(Feature);
   const strip = await screen.findByRole('navigation', { name: /views/ });
-  const names = [...strip.querySelectorAll('button:not(.feature-name)')].map((b) =>
+  const names = [...strip.querySelectorAll('button:not(.feature-name):not(.new-note)')].map((b) =>
     b.textContent?.trim(),
   );
   expect(names).toEqual(['Board', 'Agenda']);
@@ -37,4 +37,28 @@ it('a feature shows its views as a strip, and a card opens its note in a tab of 
   await vi.waitFor(() => expect(document.querySelector('.card')).toBeTruthy());
   await fireEvent.click(document.querySelector('.card') as HTMLElement);
   expect(opened.mock.calls[0]?.[0]).toMatch(/^\/f\/note\/[0-9A-Z]{26}$/);
+});
+
+// The owner, 2026-11-17: *"I have no idea how to check the fm settings"* — the ant's panel was the
+// only door to Settings, and a hidden ant left none.
+it.each(['/f/group/Tasks', '/f/group/Library', '/f/collaboration', '/f/agenda'])(
+  '%s offers Settings and Help on its own line',
+  async (url) => {
+    history.replaceState(null, '', url);
+    render(Feature);
+    const strip = await screen.findByRole('navigation', { name: /views/ });
+    const link = (name: string) =>
+      [...strip.querySelectorAll('a')].find((a) => a.textContent?.trim() === name);
+    expect(link('Settings')?.getAttribute('href')).toBe('/f/settings');
+    expect(link('Help')?.getAttribute('href')).toBe('/manual/');
+  },
+);
+
+// The owner on 0.52: *"how are notes added? The plus disappeared from every view"*.
+it('every view offers a new note, opened in a tab of its own', async () => {
+  history.replaceState(null, '', '/f/group/Tasks');
+  const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
+  render(Feature);
+  await fireEvent.click(await screen.findByRole('button', { name: '＋ New note' }));
+  await vi.waitFor(() => expect(opened.mock.calls[0]?.[0]).toMatch(/^\/f\/note\/[0-9A-Z]{26}$/));
 });
