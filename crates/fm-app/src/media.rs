@@ -121,6 +121,55 @@ pub fn ytdlp_args(
     a
 }
 
+/// **The phone's runs, with no ffmpeg in the app** (`decisions.md` 2026-11-17, *structure, a size
+/// budget*): the sound as AAC (kept as it is, or made MP3 afterwards by `fm-audio`), and a video as
+/// its picture (H.264 in MP4) and its sound in two runs, which Android's `MediaMuxer` joins. Answers
+/// the runs and whether they are to be joined. Each run writes `<dir>/<name>.<ext>` and prints the
+/// same `FM…` lines as [`ytdlp_args`].
+pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str) -> (Vec<Vec<String>>, bool) {
+    let h = if quality == 0 { 1080 } else { quality };
+    let run = |format: &str, name: &str| -> Vec<String> {
+        let mut a: Vec<String> = vec!["-f".into(), format.into()];
+        for s in [
+            "--no-playlist",
+            "--no-part",
+            "--no-mtime",
+            "--no-cache-dir",
+            "--newline",
+            "--no-colors",
+            "--progress",
+            // Nothing that needs ffmpeg: no fix-ups, no embedding (the tags are written afterwards).
+            "--fixup",
+            "never",
+            "--progress-template",
+            "download:FMPROG %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s",
+            "--print",
+            "after_move:FMFILE %(filepath)s",
+            "--print",
+            "after_move:FMINFO %(.{title,uploader,channel,artist,creator,track,album,release_year,upload_date,duration,webpage_url,extractor_key,id,thumbnail})j",
+            "-o",
+        ] {
+            a.push(s.into());
+        }
+        a.push(format!("{dir}/{name}.%(ext)s"));
+        a.push("--".into());
+        a.push(url.into());
+        a
+    };
+    // AAC: what `fm-audio` decodes, and what every player plays.
+    let aac = "ba[ext=m4a]/ba[acodec^=mp4a]";
+    match what {
+        What::Audio | What::Mp3 => (vec![run(aac, "media")], false),
+        What::Video => (
+            vec![
+                run(&format!("bv*[ext=mp4][vcodec^=avc1][height<={h}]/b[ext=mp4][height<={h}]/b[ext=mp4]"), "video"),
+                run(aac, "audio"),
+            ],
+            true,
+        ),
+    }
+}
+
 /// What a line of yt-dlp's output says.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Line {
@@ -656,6 +705,31 @@ mod tests {
         // The address last, after `--`, so an address can never be read as an option.
         assert_eq!(&v[v.len() - 2..], ["--", "https://v.example/w"]);
         assert!(v.contains(&"/tmp/j/media.%(ext)s".to_string()));
+    }
+
+    #[test]
+    fn the_phone_asks_for_nothing_ffmpeg_would_do() {
+        let (runs, join) = phone_runs(What::Mp3, 0, "/c/1", "https://v.example/w");
+        assert!(!join && runs.len() == 1);
+        assert!(
+            runs[0].windows(2).any(|w| w == ["-f", "ba[ext=m4a]/ba[acodec^=mp4a]"]),
+            "AAC, to decode"
+        );
+        let all: Vec<String> = runs.concat();
+        for ffmpeg in [
+            "-x",
+            "--embed-metadata",
+            "--embed-thumbnail",
+            "--merge-output-format",
+            "--convert-thumbnails",
+        ] {
+            assert!(!all.contains(&ffmpeg.to_string()), "{ffmpeg}");
+        }
+        let (runs, join) = phone_runs(What::Video, 720, "/c/1", "https://v.example/w");
+        assert!(join && runs.len() == 2);
+        assert!(runs[0].iter().any(|a| a.contains("vcodec^=avc1") && a.contains("height<=720")));
+        assert!(runs[0].contains(&"/c/1/video.%(ext)s".to_string()));
+        assert!(runs[1].contains(&"/c/1/audio.%(ext)s".to_string()));
     }
 
     #[test]

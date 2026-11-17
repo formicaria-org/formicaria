@@ -43,8 +43,11 @@ pub struct Privacy {
     pub gpc: bool,
     /// Pages upgraded to `https`; a plain `http` page is asked about first.
     pub https_only: bool,
-    /// The whole phone: trackers inside other apps refused (a local VPN; the F-Droid build only).
+    /// The whole phone: trackers inside other apps refused (a local VPN).
     pub app_trackers: bool,
+    /// The computer: DuckDuckGo Privacy Essentials on top of Firefox's tracking protection. Off by
+    /// default: with it the browser measured +19 % memory, over its +10 % budget (2026-11-17).
+    pub ddg: bool,
     /// Sites with every protection off (host names, lower case), because they broke.
     pub sites_off: Vec<String>,
     /// How many times the fire button was pressed: the browser forgets when this moves.
@@ -64,6 +67,7 @@ impl Default for Privacy {
             gpc: true,
             https_only: true,
             app_trackers: false,
+            ddg: false,
             sites_off: Vec::new(),
             fired: 0,
             v: 0,
@@ -120,6 +124,7 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
         ("gpc", &mut p.gpc),
         ("https_only", &mut p.https_only),
         ("app_trackers", &mut p.app_trackers),
+        ("ddg", &mut p.ddg),
     ] {
         if let Some(b) = change.get(k).and_then(Value::as_bool) {
             *slot = b;

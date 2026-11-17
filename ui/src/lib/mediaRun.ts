@@ -74,9 +74,10 @@ export async function save(ask: ipc.MediaAsk): Promise<{ id: number }> {
   const s = shell();
   if (!s) return ipc.mediaSave(ask);
   const id = (Date.now() % 1e9) * 100 + (seq++ % 100);
-  const args = await ipc.mediaArgs(ask, `${s.workDir()}/${id}`);
+  // The core's plan for the phone: the runs (no ffmpeg in the app) and whether to join them.
+  const plan = await ipc.mediaArgs(ask, `${s.workDir()}/${id}`);
   asks.set(String(id), ask);
-  s.start(String(id), ask.url, JSON.stringify(args));
+  s.start(String(id), ask.url, JSON.stringify(plan));
   return { id };
 }
 

@@ -162,7 +162,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | libloading | v0.9.0 | ISC |
 | libm | v0.2.16 | MIT |
 | libsqlite3-sys | v0.39.1 | MIT |
-| libz-sys | v1.1.31 | MIT OR Apache-2.0 |
+| libz-sys | v1.1.33 | MIT OR Apache-2.0 |
 | linux-raw-sys | v0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | v0.8.2 | Unicode-3.0 |
 | lofty | v0.25.5 | MIT OR Apache-2.0 |
@@ -687,7 +687,9 @@ the app before anything is fetched and recorded per model in `models.toml`.
 |---|---|---|---|
 | yt-dlp | fetched on a computer (pinned in `media/tools.json`); inside the Android app | Unlicense | <https://github.com/yt-dlp/yt-dlp> |
 | ffmpeg (Martin Riedl's builds; gyan.dev on Windows) | fetched on a computer (pinned in `media/tools.json`) | GPL-3.0 (the builds) | <https://ffmpeg.martin-riedl.de> · <https://www.gyan.dev/ffmpeg/builds/> |
-| youtubedl-android (with Python and ffmpeg) | inside the Android app | **GPL-3.0**: the APK is distributed under GPL-3.0 | <https://github.com/yausername/youtubedl-android> |
+| youtubedl-android (with Python) | inside the Android app | **GPL-3.0**: the APK is distributed under GPL-3.0 | <https://github.com/yausername/youtubedl-android> |
+| LAME (through mp3lame-encoder), Symphonia, lofty: MP3 and tags | inside the Android app | LGPL-3.0 · MPL-2.0 · MIT/Apache-2.0 | <https://lame.sourceforge.io> · <https://github.com/pdeljanov/Symphonia> |
+| DuckDuckGo Privacy Essentials, Consent-O-Matic, ClearURLs, uBlock Origin | installed by formicaria's browser from addons.mozilla.org while their switch is on | Apache-2.0 · MIT · LGPL-3.0 · GPL-3.0 | <https://addons.mozilla.org> |
 | adblock-rust (Brave's engine, with its crates) | inside the Android app | MPL-2.0 | <https://github.com/brave/adblock-rust> |
 | AndroidX Media3 (ExoPlayer, session) | inside the Android app | Apache-2.0 | <https://github.com/androidx/media> |
 | DuckDuckGo autoconsent (cookie pop-up rules) | inside the Android app's page script | MPL-2.0 | <https://github.com/duckduckgo/autoconsent> |

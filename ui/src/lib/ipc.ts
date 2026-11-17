@@ -1197,6 +1197,7 @@ export interface Privacy {
   gpc: boolean;
   https_only: boolean;
   app_trackers: boolean;
+  ddg: boolean;
   sites_off: string[];
   fired: number;
   v: number;
@@ -1213,6 +1214,7 @@ export type PrivacyChange = Partial<
     | 'gpc'
     | 'https_only'
     | 'app_trackers'
+    | 'ddg'
   >
 > & { site_off?: string; site_on?: string; fire?: boolean };
 export const privacy = () => invoke<Privacy>('privacy');
@@ -1565,7 +1567,7 @@ export const mediaCancel = (id: number) => invoke<null>('media_cancel', { id });
 export const assetPaths = (references: string[]) =>
   invoke<(string | null)[]>('asset_paths', { references });
 export const mediaArgs = (ask: MediaAsk, dir: string) =>
-  invoke<string[]>('media_args', { ask: { ...ask }, dir });
+  invoke<{ runs: string[][]; join: boolean }>('media_args', { ask: { ...ask }, dir });
 export const mediaProbeRead = (json: string) => invoke<MediaProbe>('media_probe_read', { json });
 export const mediaExplain = (stderr: string) => invoke<string>('media_explain', { stderr });
 export const mediaKeep = (ask: MediaAsk, file: string, info: unknown, session: string) =>

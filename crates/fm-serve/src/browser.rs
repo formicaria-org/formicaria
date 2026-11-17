@@ -26,8 +26,34 @@ pub const ADDON_ID: &str = "browser@formicaria-org.github.io";
 /// uBlock Origin's id on addons.mozilla.org, installed from there (signed by Mozilla) when the person
 /// keeps ad blocking on.
 const UBLOCK_ID: &str = "uBlock0@raymondhill.net";
-const UBLOCK_URL: &str =
-    "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi";
+/// **The privacy switches' extensions** (`decisions.md` 2026-11-17, *structure and 0.52*; the owner:
+/// *"a better job for privacy using known reputable extensions"*): each a Mozilla-Recommended,
+/// open-source add-on from addons.mozilla.org (signed by Mozilla), installed while its switch is on,
+/// on top of Firefox's own protection for the same thing. `(switch, id, slug on AMO)`. The startup
+/// script (`formicaria.cfg`) installs and removes them live from the same switches.
+pub const PRIVACY_ADDONS: &[(&str, &str, &str)] = &[
+    // DuckDuckGo's own tracker list and protections (Apache-2.0), on top of Firefox's strict
+    // protection: its own switch, off by default (+19 % memory measured with it, over the budget).
+    ("ddg", "jid1-ZAdIEUB7XOzOJw@jetpack", "duckduckgo-for-firefox"),
+    // Refuse cookie pop-ups: Aarhus University's Consent-O-Matic (MIT).
+    ("cookies", "gdpr@cavi.au.dk", "consent-o-matic"),
+    // Clean tracking links: ClearURLs (LGPL-3.0).
+    ("clean_links", "{74145f27-f039-47ce-a470-a662b129930a}", "clearurls"),
+    // Block ads: uBlock Origin (GPL-3.0).
+    ("ads", UBLOCK_ID, "ublock-origin"),
+];
+
+/// A switch of the privacy sheet, by its name in `PRIVACY_ADDONS`.
+fn switch_on(p: &fm_app::privacy::Privacy, name: &str) -> bool {
+    match name {
+        "ddg" => p.ddg,
+        "cookies" => p.cookies,
+        "clean_links" => p.clean_links,
+        "ads" => p.ads,
+        _ => false,
+    }
+}
+
 /// The routes the add-on may call, and nothing else (`authorize_extension`): keeping a page, reading
 /// a recipe from it, knowing the vaults, and — for a download the person chose to keep in formicaria
 /// (0.32.0) — uploading the file and making its note (a song from a bought album).
@@ -222,7 +248,13 @@ pub fn user_js() -> String {
 
 /// The policy file: our add-on with its key, uBlock Origin if wanted, DuckDuckGo, and formicaria's
 /// address kept away from every other add-on's pages.
-pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
+pub fn policies(
+    xpi: &Path,
+    key: &str,
+    server: &str,
+    prefs: &Prefs,
+    privacy: &fm_app::privacy::Privacy,
+) -> Value {
     let xpi_url = file_url(xpi);
     let mut ext = serde_json::Map::new();
     // **Every other add-on is kept off formicaria's pages.** It covers what an add-on injects into
@@ -238,13 +270,19 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
             "default_area": "navbar",
         }),
     );
-    // Offered, never forbidden: off means formicaria does not install it, and the person may still
-    // add or remove it from Firefox's add-ons like any other.
-    if prefs.block_ads {
-        ext.insert(
-            UBLOCK_ID.into(),
-            json!({ "installation_mode": "normal_installed", "install_url": UBLOCK_URL }),
-        );
+    // Offered, never forbidden: a switch off means formicaria does not install it, and the person
+    // may still add or remove it from Firefox's add-ons like any other. Ads: the older Settings
+    // switch (`block_ads`) still counts.
+    for (switch, id, slug) in PRIVACY_ADDONS {
+        let on = switch_on(privacy, switch) || (*switch == "ads" && prefs.block_ads);
+        if on {
+            let url =
+                format!("https://addons.mozilla.org/firefox/downloads/latest/{slug}/latest.xpi");
+            ext.insert(
+                (*id).into(),
+                json!({ "installation_mode": "normal_installed", "install_url": url }),
+            );
+        }
     }
     json!({ "policies": {
         "ExtensionSettings": Value::Object(ext),
@@ -353,7 +391,7 @@ fn prepare(d: &Path, xpi: &[u8], server: &str) -> Result<(), String> {
     std::fs::write(profile.join("user.js"), user_js()).map_err(|e| e.to_string())?;
     let dist = crate::browser_kit::res_dir(&d.join("firefox")).join("distribution");
     std::fs::create_dir_all(&dist).map_err(|e| e.to_string())?;
-    let pol = policies(&xpi_path, &key, server, &read_prefs(d));
+    let pol = policies(&xpi_path, &key, server, &read_prefs(d), &fm_app::privacy::load());
     // `0600`: it carries the key.
     write_private(&dist.join("policies.json"), pol.to_string().as_bytes())
         .map_err(|e| e.to_string())
@@ -727,6 +765,7 @@ mod tests {
             "KEY",
             "http://127.0.0.1:8765",
             &Prefs::default(),
+            &fm_app::privacy::Privacy::default(),
         );
         let pol = &p["policies"];
         assert_eq!(pol["3rdparty"]["Extensions"][ADDON_ID]["key"], "KEY");
@@ -752,11 +791,43 @@ mod tests {
             "K",
             "http://127.0.0.1:8765",
             &Prefs { open_in_it: true, block_ads: true, web_push: false, side_tabs: false },
+            &fm_app::privacy::Privacy::default(),
         );
         assert_eq!(
             off["policies"]["ExtensionSettings"][UBLOCK_ID]["installation_mode"],
             "normal_installed"
         );
+    }
+
+    /// **Each privacy switch brings its extension** (2026-11-17), from addons.mozilla.org, while on;
+    /// the startup script installs and removes the same ones live.
+    #[test]
+    fn each_privacy_switch_brings_its_extension_while_on() {
+        let on = fm_app::privacy::Privacy { ads: true, ddg: true, ..Default::default() };
+        let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default(), &on);
+        let ext = &p["policies"]["ExtensionSettings"];
+        for (switch, id, slug) in PRIVACY_ADDONS {
+            assert_eq!(ext[id]["installation_mode"], "normal_installed", "{switch}");
+            assert_eq!(
+                ext[id]["install_url"],
+                format!("https://addons.mozilla.org/firefox/downloads/latest/{slug}/latest.xpi")
+            );
+        }
+        let off = fm_app::privacy::Privacy {
+            ddg: false,
+            cookies: false,
+            clean_links: false,
+            ads: false,
+            ..Default::default()
+        };
+        let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default(), &off);
+        for (_, id, _) in PRIVACY_ADDONS {
+            assert!(p["policies"]["ExtensionSettings"].get(id).is_none(), "{id}");
+        }
+        let cfg = include_str!("../../../browser/kit/formicaria.cfg");
+        for (_, id, slug) in PRIVACY_ADDONS {
+            assert!(cfg.contains(id) && cfg.contains(slug), "the startup script knows {id}");
+        }
     }
 
     #[test]
@@ -783,7 +854,13 @@ mod tests {
 
     #[test]
     fn mozillas_services_are_stripped_but_sync_and_add_ons_kept() {
-        let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default());
+        let p = policies(
+            Path::new("/x"),
+            "K",
+            "http://127.0.0.1:8765",
+            &Prefs::default(),
+            &fm_app::privacy::Privacy::default(),
+        );
         let pol = &p["policies"];
         for off in
             ["DisableTelemetry", "DisableFirefoxStudies", "DisablePocket", "DisableAppUpdate"]
@@ -803,6 +880,7 @@ mod tests {
             "K",
             "http://127.0.0.1:8765",
             &Prefs { web_push: true, ..Prefs::default() },
+            &fm_app::privacy::Privacy::default(),
         );
         assert_eq!(on["policies"]["Preferences"]["dom.push.enabled"]["Value"], true);
     }
@@ -818,7 +896,13 @@ mod tests {
 
     #[test]
     fn our_button_is_pinned_to_the_toolbar() {
-        let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default());
+        let p = policies(
+            Path::new("/x"),
+            "K",
+            "http://127.0.0.1:8765",
+            &Prefs::default(),
+            &fm_app::privacy::Privacy::default(),
+        );
         assert_eq!(p["policies"]["ExtensionSettings"][ADDON_ID]["default_area"], "navbar");
     }
 

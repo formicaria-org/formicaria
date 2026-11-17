@@ -240,6 +240,20 @@ for so in "$tmp"/*.so; do
 done
 rm -rf "$tmp"
 
+# **The size budget** (`decisions.md` 2026-11-17, *structure*; the owner: *"keep it below 100 MB"*).
+# Above 100 MB the release stops; above 90 MB it warns, so the next large addition is a decision,
+# not a surprise. The APK carries the assistant's runtime and Save media's tools; what comes next
+# must replace something, or be data fetched later (Android runs no program downloaded later).
+# Decimal megabytes, as a download page and a phone's storage screen count them: 0.51.0's APK was
+# 104.2 MB there and 99.4 MiB, which a MiB count would have passed.
+size_mb=$(stat -c%s "$out" | awk '{printf "%.0f", $1/1000000}')
+if [ "$size_mb" -gt 100 ]; then
+    echo "android-release: the APK is ${size_mb} MB, over the 100 MB budget — refusing." >&2
+    exit 1
+elif [ "$size_mb" -gt 90 ]; then
+    echo "::warning::android-release: the APK is ${size_mb} MB, within 10 MB of the 100 MB budget." >&2
+fi
+
 # Say what actually happened. "signed" printed after a build-only run would be the kind of
 # cheerful overstatement this project spends most of its guards preventing.
 if [ "$do_sign" = yes ]; then

@@ -84,6 +84,17 @@ allow = ["BSL-1.0"]
 crate = "libfuzzer-sys"
 allow = ["NCSA"]
 
+# LAME, the MP3 encoder, for Save media on the phone (2026-11-17, `decisions.md`, *structure, a size
+# budget*): `fm-audio` links it, and only the phone app links `fm-audio` — an APK distributed under
+# GPL-3.0 already (youtubedl-android). The computer builds do not link it (`ci/checks.sh`).
+[[licenses.exceptions]]
+crate = "mp3lame-encoder"
+allow = ["LGPL-3.0"]
+
+[[licenses.exceptions]]
+crate = "mp3lame-sys"
+allow = ["LGPL-3.0"]
+
 [advisories]
 version = 2
 # No advisory waivers: the Tauri/gtk3 tree that required them was removed with the

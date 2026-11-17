@@ -69,6 +69,8 @@ android_logger = "0.14"
 # Ad and tracker blocking in the page views (`decisions.md` 2026-11-17): the engine, and the calls the
 # page views make into it (`src/block.rs`). `jni` is already in the tree through Tauri.
 fm-block = { path = "../../crates/fm-block" }
+# Save media's MP3 and tags without ffmpeg (35 MB less in the APK; `decisions.md` 2026-11-17).
+fm-audio = { path = "../../crates/fm-audio" }
 jni = "0.21"
 
 # Myrme takes `fm-fetch` from formicaria by tag; this shell builds against the crate in this checkout,

@@ -49,12 +49,13 @@
       key: 'cookies',
       name: 'Refuse cookie pop-ups',
       line: 'Consent banners are answered “reject” for you, and closed.',
-      computerLine: "Firefox's cookie banner reduction.",
+      computerLine: "Firefox's cookie banner reduction, with Consent-O-Matic.",
     },
     {
       key: 'clean_links',
       name: 'Clean tracking links',
       line: 'Tracking parts (utm_…, fbclid…) are taken off addresses before a page opens.',
+      computerLine: "Firefox's own stripping, with ClearURLs.",
     },
     {
       key: 'gpc',
@@ -178,6 +179,24 @@
       </label>
     {/each}
 
+    {#if computer}
+      <label class="row">
+        <span class="text">
+          <span class="name">DuckDuckGo's protections too</span>
+          <span class="muted"
+            >DuckDuckGo Privacy Essentials, its own tracker list on top of Firefox's. Uses more
+            memory: formicaria's browser measured about a fifth more with it.</span
+          >
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="DuckDuckGo's protections too"
+          checked={p.ddg}
+          onchange={(e) => set({ ddg: (e.currentTarget as HTMLInputElement).checked })}
+        />
+      </label>
+    {/if}
     {#if !computer}
       <label class="row">
         <span class="text">

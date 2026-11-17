@@ -200,6 +200,39 @@ impl Host for MobileHost {
     }
 }
 
+/// **The sound made MP3 and the tags written, in place of ffmpeg** (`fm-audio`, 2026-11-17): what the
+/// computer asks ffmpeg for, done here before the file is kept. A tag or a cover that cannot be had
+/// only leaves it out; an MP3 that cannot be made is a refusal.
+#[cfg(target_os = "android")]
+fn finish_audio(
+    file: &std::path::Path,
+    ask: &fm_app::media::Ask,
+    info: &serde_json::Value,
+) -> Result<std::path::PathBuf, String> {
+    let mut out = file.to_path_buf();
+    if ask.what == fm_app::media::What::Mp3 {
+        out = file.with_extension("mp3");
+        fm_audio::to_mp3(file, &out, &ask.mp3)?;
+        let _ = std::fs::remove_file(file);
+    }
+    let text = |k: &str| info.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(String::from);
+    #[cfg(feature = "update")]
+    let cover = text("thumbnail").and_then(|u| fm_fetch::resource(&u, "", 5 * 1024 * 1024).ok().flatten()).map(|(_, b)| b);
+    #[cfg(not(feature = "update"))]
+    let cover = None;
+    let tags = fm_audio::Tags {
+        title: text("track").or_else(|| text("title")),
+        artist: text("artist").or_else(|| text("uploader")).or_else(|| text("channel")),
+        album: text("album"),
+        year: info.get("release_year").and_then(|v| v.as_u64()).map(|y| y as u32).or_else(|| {
+            text("upload_date").and_then(|d| d.get(..4).and_then(|y| y.parse().ok()))
+        }),
+        cover,
+    };
+    let _ = fm_audio::write_tags(&out, &tags);
+    Ok(out)
+}
+
 /// The single command. `cmd` is the name `ipc.ts` would have POSTed; `args` is the same JSON
 /// body. The reply is the raw bytes `dispatch` produced, handed back as a string because every
 /// command the shell can reach answers JSON (blob bytes go over a protocol handler, not IPC —
@@ -890,8 +923,9 @@ fn fm_blocking(
         let ask: fm_app::media::Ask = serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
             .map_err(|e| format!("not a media request: {e}"))?;
         let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or_default();
-        let a = fm_app::media::ytdlp_args(ask.what, ask.quality, &ask.mp3, dir, None, &ask.url);
-        return serde_json::to_string(&a).map_err(|e| e.to_string());
+        // No ffmpeg in the app (2026-11-17): the sound as AAC, a video as two runs to be joined.
+        let (runs, join) = fm_app::media::phone_runs(ask.what, ask.quality, dir, &ask.url);
+        return Ok(serde_json::json!({ "runs": runs, "join": join }).to_string());
     }
     if cmd == "media_probe_read" {
         let info: serde_json::Value = serde_json::from_str(args.get("json").and_then(|v| v.as_str()).unwrap_or("null"))
@@ -908,6 +942,8 @@ fn fm_blocking(
         let file = std::path::PathBuf::from(args.get("file").and_then(|v| v.as_str()).unwrap_or_default());
         let session = args.get("session").and_then(|v| v.as_str()).unwrap_or("media-phone").to_string();
         let info = args.get("info").cloned().unwrap_or_default();
+        #[cfg(target_os = "android")]
+        let file = finish_audio(&file, &ask, &info)?;
         let app = vault_state(&app_handle)?;
         let id = fm_app::media::keep(&app, &MobileHost, &ask.vault, &file, &session, &ask, &info)?;
         return Ok(serde_json::json!({ "note": id }).to_string());

@@ -15511,3 +15511,45 @@ disappeared"*.
    ruling that a blob must never run in formicaria's origin.
 5. **Every feature page checks for a newer version and offers it** (the banner and the hourly
    check lived in the old whole-app page, which formicaria's browser stopped showing in 0.49).
+
+## 2026-11-17 (night) — structure, a size budget, the computer's privacy extensions `#toolchain` `#ui`
+
+The owner: *"brainstorm on the clearness of the current app structure, its eventual maintainability for
+the long run … keep it below 100 MB, but up to that we can use the size to improve its
+maintainability and efficiency and usability"*; and *"on the computer … a better job for privacy
+using known reputable extensions"*. Plan and measures: `structure.md`.
+
+1. **The phone APK stays under 100 MB (decimal), checked when it is built**: `android-release.sh`
+   refuses above 100 and warns above 90. 0.51.0 shipped at **104.2 MB** (99.4 MiB, which a MiB count
+   passed): 35.4 MB of it was youtubedl-android's ffmpeg.
+2. **No ffmpeg in the phone app.** What it did there is done by smaller, tested parts: MP3 by
+   `fm-audio` (Symphonia decoding AAC, LAME encoding, a Xing/LAME header for length and seeking),
+   the tags and cover by lofty, a video's picture and sound joined by Android's `MediaMuxer`
+   (`MediaRun.kt`). yt-dlp is asked only for what needs none (`media::phone_runs`: AAC sound;
+   video as H.264 picture plus AAC sound, joined). `fm-audio` is LGPL through LAME: **the phone
+   only** (`deny.toml` exceptions; `checks.sh` refuses a computer crate depending on it). Expected
+   APK ~69 MB. The computer keeps ffmpeg (fetched on first use).
+3. **The phone's Kotlin is source, not heredocs**: `mobile/android/kotlin/*.kt`, copied in by
+   `ci/android-inject-service.sh` (now the manifest and Gradle edits only, 263 lines from 1,816);
+   the generated files were compared byte for byte. `checks.sh`'s Play Protect guard reads them.
+4. **The phone's page glue left `App.svelte`**: `lib/phone/pages.ts`, through `PageHost`.
+5. **The computer's privacy switches bring Mozilla-Recommended extensions** (`browser.rs`'s
+   `PRIVACY_ADDONS`; installed and removed live by `formicaria.cfg`, which removes only what
+   formicaria installed): cookie pop-ups → **Consent-O-Matic** (on), tracking links → **ClearURLs**
+   (on), ads → **uBlock Origin** (off), and **DuckDuckGo Privacy Essentials** a switch of its own
+   (**off**: with it the browser measured **+18.8 % memory** against Firefox, over the +10 % budget;
+   with the two light ones on by default it measured **+8.4 %**).
+   Firefox's own protection stays the base of each.
+6. **Firefox 153's search service is a module** (`moz-src:///toolkit/components/search/
+   SearchService.sys.mjs`), not in the startup script's `Services`: the engine is set through it.
+7. `libz-sys` 1.1.31 → 1.1.33 (RUSTSEC-2026-0544, a heap overflow), in both lockfiles.
+8. **The UI tests run on half the cores** (`vitest.config.ts`): one jsdom worker per core swapped a
+   14 GB laptop, failed a different test each run on time, and helped systemd-oomd kill the
+   terminal. 1,297 tests pass twice in a row at 115 s (96 s before).
+
+**Not done, on purpose:** splitting `dispatch.rs` and `fm-serve/main.rs` (each arm is tested; split
+by domain when one grows), `NotePanel.svelte` (its own plan). `structure.md` lists them.
+
+**The four questions.** `#toolchain` (a licence exception, scoped to the phone), `#ui`. **Widens
+what ships**: `fm-audio` (Symphonia, LAME, lofty) in the APK; four extensions offered by policy.
+**Narrows it**: ffmpeg out of the APK.

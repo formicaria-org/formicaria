@@ -51,8 +51,9 @@ joins).
 - **On a computer** they are fetched the first time you save, about 70–150 MB once, each checked
   against the fingerprint this release of formicaria carries. yt-dlp keeps itself current between
   releases, once a week and again when a site has changed.
-- **On the phone** they are inside the app (the reason the phone app is larger, and distributed
-  under GPL-3.0; see the README). yt-dlp updates itself there too.
+- **On the phone** yt-dlp is inside the app (distributed under GPL-3.0 because of it; see the
+  README), and updates itself there too. The phone needs no ffmpeg: it makes MP3s and writes the
+  tags itself, and joins a video's picture and sound with Android's own tools.
 
 **What cannot be kept:** media protected against copying (DRM: films and series from streaming
 services, music services' songs), and live streams while they run. What you may keep from a site

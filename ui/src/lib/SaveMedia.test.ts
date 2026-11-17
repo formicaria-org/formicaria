@@ -77,8 +77,8 @@ it('on the phone: the app’s own runner fetches, and the core files it as a son
   g.__fmMedia = {
     workDir: () => '/data/cache/media',
     probe: (id: string) => (jobs[id] = { id, state: 'probed', probe: '{"title":"x"}', error: '' }),
-    start: (id: string, _url: string, args: string) => {
-      started = JSON.parse(args) as string[];
+    start: (id: string, _url: string, plan: string) => {
+      started = (JSON.parse(plan) as { runs: string[][] }).runs.flat();
       jobs[id] = {
         id,
         state: 'fetched',

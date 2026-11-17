@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
@@ -35,6 +36,11 @@ export default defineConfig({
     // fails — just later, and still visibly. The point is that the two budgets have to be ordered
     // to mean anything.
     testTimeout: 20000,
+    // **Half the cores, not all of them** (2026-11-17). Each worker mounts the whole `App` in jsdom
+    // (hundreds of MB); one per core on a 16-core, 14 GB laptop swapped, timed tests out at random
+    // (a different file each run) and helped systemd-oomd kill the terminal. Half keeps the run fast
+    // and the machine responsive.
+    maxWorkers: Math.max(2, Math.floor(availableParallelism() / 2)),
   },
   resolve: {
     alias: {

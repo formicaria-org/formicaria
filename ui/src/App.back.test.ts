@@ -69,7 +69,7 @@ test('Back closes an open panel first, and stays where it was', async () => {
   render(App);
   await screen.findByText(/GAE lambda interacts badly/);
   await fireEvent.click(screen.getByLabelText('settings'));
-  const dialog = await screen.findByRole('heading', { name: 'Settings' });
+  const dialog = await screen.findByRole('heading', { name: 'Settings' }, { timeout: 5000 });
   expect(dialog).toBeTruthy();
 
   history.back();
@@ -172,7 +172,7 @@ test("Back closes a note's ＋ window first, and the note stays", async () => {
 test('New vault asked for from Settings opens over it, and Back returns to Settings', async () => {
   render(App);
   await fireEvent.click(await screen.findByRole('button', { name: 'settings' }));
-  await screen.findByRole('heading', { name: 'Settings' });
+  await screen.findByRole('heading', { name: 'Settings' }, { timeout: 5000 });
   const cats = await screen.findByRole('navigation', { name: 'settings categories' });
   await fireEvent.click(await within(cats).findByRole('button', { name: /Vaults & backup/ }));
   await fireEvent.click(await screen.findByRole('button', { name: /New vault/ }));

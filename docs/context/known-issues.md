@@ -2904,6 +2904,7 @@ Built, compiled, and tested on the app's side; **not run on a device**, none bei
 - **The media service** (`PlaybackService.kt`, Media3 1.6.1): the lock screen, notification and
   headset keys, and the app mirroring them.
 - **Save media inside the app** (`MediaRun.kt`, youtubedl-android 0.18.1): the first unpacking of
-  Python, the update, a real download.
+  Python, the update, a real download; a video's two streams joined by `MediaMuxer`; MP3 and tags
+  by `fm-audio` on the device (tested on the computer only).
 - **Blocking in page views** (`fm-block` through JNI): requests refused, hide rules applied; the
   engine's cost on a phone (`phone-blocking-2026-11-17.md` has the computer's).

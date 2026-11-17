@@ -88,6 +88,7 @@ const freshPrivacy = () => ({
   gpc: true,
   https_only: true,
   app_trackers: false,
+  ddg: false,
   sites_off: [] as string[],
   fired: 0,
   v: 0,
@@ -2983,14 +2984,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         r ? `/data/files/blobs/${r.replace(/^sha256:/, '')}` : null,
       ) as T;
     case 'media_args':
-      return [
-        '-f',
-        'ba/b',
-        '-o',
-        `${String(args.dir)}/media.%(ext)s`,
-        '--',
-        String((args.ask as { url?: string })?.url),
-      ] as T;
+      return {
+        runs: [
+          [
+            '-f',
+            'ba[ext=m4a]/ba[acodec^=mp4a]',
+            '-o',
+            `${String(args.dir)}/media.%(ext)s`,
+            '--',
+            String((args.ask as { url?: string })?.url),
+          ],
+        ],
+        join: false,
+      } as T;
     case 'media_probe_read':
       return { ...((await handle('media_probe', { url: 'https://v.example/w' })) as object) } as T;
     case 'media_explain':
@@ -3038,6 +3044,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         'gpc',
         'https_only',
         'app_trackers',
+        'ddg',
       ] as const)
         if (typeof c[k] === 'boolean') mockPrivacy[k] = c[k] as boolean;
       const site = (x: unknown) =>
