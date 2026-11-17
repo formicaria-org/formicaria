@@ -46,8 +46,12 @@ object MediaRun {
     val prefs = ctx.getSharedPreferences("media", Context.MODE_PRIVATE)
     val last = prefs.getLong("checked", 0L)
     if (!force && System.currentTimeMillis() - last < 7L * 24 * 3600 * 1000) return
-    try { YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel._STABLE) } catch (e: Throwable) { }
-    prefs.edit().putLong("checked", System.currentTimeMillis()).apply()
+    // **Stamped only when it worked** (2026-11-17): a failed update (GitHub refusing, no network) was
+    // stamped as done, and a fresh phone kept the yt-dlp in the APK, a year old, for a week.
+    try {
+      YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel._STABLE)
+      prefs.edit().putLong("checked", System.currentTimeMillis()).apply()
+    } catch (e: Throwable) { }
   }
 
   fun workDir(ctx: Context): File = File(ctx.cacheDir, "media").apply { mkdirs() }

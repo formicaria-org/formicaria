@@ -21,6 +21,12 @@ overrides:
 # is 4.3.1 (2023), so no override can reach it. Its only path is `@sveltejs/vite-plugin-svelte`, at
 # build time, merging this project's own config: nothing untrusted reaches it, and it is not in the
 # app. Remove this the day 4.3.2 (or the plugin without deepmerge) is published.
+# **A second, on the same ground** (2026-11-17, the owner's decision; `decisions.md` 2026-11-17,
+# small hours, 15): GHSA-fc5q-39xc-vjpf (high, ReDoS) names picomatch 4.0.8 as the fix; the newest
+# release is 4.0.7, so no override can reach it. Its paths are the build tools (Vite, its watcher and
+# globber) matching this project's own file patterns: nothing untrusted reaches it, and it is not in
+# the app. Remove this the day 4.0.8 is published (an override `"picomatch@<4.0.8": "^4.0.8"` then).
 auditConfig:
   ignoreGhsas:
     - GHSA-gcqx-w48m-w2h4
+    - GHSA-fc5q-39xc-vjpf

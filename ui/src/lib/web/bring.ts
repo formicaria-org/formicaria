@@ -8,8 +8,12 @@
 // tested on its own.
 import TurndownService from 'turndown';
 import { textFragment } from './clip';
+import { asMarkdown, onlyFormula, takeFormulas } from './formula';
+import { wikimediaFile } from './media';
 
-export type PieceKind = 'text' | 'image' | 'link' | 'video' | 'audio' | 'page';
+export { offersFor, type How } from './offers';
+
+export type PieceKind = 'text' | 'image' | 'link' | 'video' | 'audio' | 'page' | 'formula';
 
 export interface Piece {
   kind: PieceKind;
@@ -27,6 +31,12 @@ export interface Piece {
   time?: number;
   /** When it was brought in (`2026-11-16 14:32`), shown with its source. */
   when?: string;
+  /** Formula: its LaTeX, and whether it stands on its own line. `src` is its picture, if any. */
+  tex?: string;
+  display?: boolean;
+  /** Video, audio: what the media tools read to fetch it (a player's page, Wikimedia's file page),
+   *  when it is not one plain file. */
+  fetch?: string;
 }
 
 /** Images up to this size are kept in the vault by default; above it, a link, with keeping a copy
@@ -36,6 +46,22 @@ export const IMAGE_LIMIT = 10 * 1024 * 1024;
 /** What a selection's HTML really is: one image, one video or audio, one link, or text. */
 export function classify(html: string, text: string, page: { url: string; title: string }): Piece {
   const base = { pageUrl: page.url, pageTitle: page.title };
+  // **A formula, alone**: its LaTeX, from the source the page kept (`formula.ts`); its picture, if
+  // the page drew one, is the alternative.
+  const f = html.trim() ? onlyFormula(html) : null;
+  if (f) {
+    const img = new DOMParser()
+      .parseFromString(`<body>${html}</body>`, 'text/html')
+      .querySelector('img[src]');
+    return {
+      ...base,
+      kind: 'formula',
+      tex: f.tex,
+      display: f.display,
+      src: img ? absolute(img.getAttribute('src') ?? '', page.url) : undefined,
+      alt: f.tex,
+    };
+  }
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   const b = doc.body;
   // What the selection *contains* decides, not its words: Firefox counts an image's description
@@ -48,7 +74,14 @@ export function classify(html: string, text: string, page: { url: string; title:
     const abs = absolute(src, page.url);
     if (m.tagName === 'IMG')
       return { ...base, kind: 'image', src: abs, alt: m.getAttribute('alt') ?? '' };
-    return { ...base, kind: m.tagName === 'VIDEO' ? 'video' : 'audio', src: abs };
+    // A Wikimedia player keeps its file's page, not the file (`media.ts`, `wikimediaFile`).
+    const wiki = wikimediaFile(absolute(m.getAttribute('resource') ?? '', page.url));
+    return {
+      ...base,
+      kind: m.tagName === 'VIDEO' ? 'video' : 'audio',
+      src: abs,
+      fetch: wiki?.url ?? (streamed(abs) || !src ? page.url : abs),
+    };
   }
   const links = b.querySelectorAll('a[href]');
   if (links.length === 1 && words && words === (links[0].textContent ?? '').trim()) {
@@ -121,7 +154,9 @@ export function markdown(html: string): string {
       },
     });
   }
-  return td.turndown(html).trim();
+  // A passage's formulas stay formulas (`$…$`), out of the conversion's reach (`formula.ts`).
+  const f = takeFormulas(html);
+  return f.restore(td.turndown(f.html)).trim();
 }
 
 /** Text as it lands: a quote with a link back to the passage, or, for a table, code or a list, the
@@ -135,6 +170,12 @@ export function textPiece(p: Piece): string {
     .map((l) => (l.trim() ? `> ${l}` : '>'))
     .join('\n');
   return `${quoted}\n>\n> ${source(p, p.text)}`;
+}
+
+/** A formula as a note writes it (`$$…$$` or `$…$`), with its source. */
+export function formulaPiece(p: Piece): string {
+  const f = asMarkdown({ tex: p.tex ?? '', display: !!p.display });
+  return p.display ? `${f}\n\n${source(p)}` : `${f} ${source(p)}`;
 }
 
 export function linkPiece(p: Piece): string {

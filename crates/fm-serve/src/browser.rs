@@ -71,6 +71,9 @@ pub const EXTENSION_ROUTES: &[&str] = &[
     // **Bring in = put** (`actions.rs`, `decisions.md` 2026-11-17): the add-on writes a piece into a
     // note on the server, the one way content moves in; open or not.
     "/api/put",
+    // **A selected video or recording, kept** (the chooser by a selection, `decisions.md`
+    // 2026-11-17, small hours): the same media tools as the Save media sheet, into a note.
+    "/api/media_save",
 ];
 
 /// The origin of formicaria's own add-on in this browser (`moz-extension://<uuid>`), learnt the first

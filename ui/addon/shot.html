@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Snip: drag the area to bring in</title>
+    <style>
+      body { font: 14px/1.4 system-ui, sans-serif; margin: 0; background: #2b2b33; color: #f2f2f6; }
+      header { position: sticky; top: 0; z-index: 2; display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: #1d1d22; }
+      header .muted { opacity: 0.75; flex: 1; }
+      button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; cursor: pointer; }
+      button.main { background: #dc2626; border-color: #dc2626; color: #fff; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .stage { position: relative; display: inline-block; margin: 12px; cursor: crosshair; user-select: none; }
+      .stage img { display: block; max-width: calc(100vw - 24px); }
+      .area { position: absolute; border: 2px solid #dc2626; background: rgba(220, 38, 38, 0.15); pointer-events: none; display: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="muted" id="say">Drag over the part of the page to bring into your note.</span>
+      <button class="main" id="bring" disabled>Bring in</button>
+      <button id="cancel">Cancel</button>
+    </header>
+    <div class="stage" id="stage"><img id="shot" alt="what the tab showed" /><div class="area" id="area"></div></div>
+    <script src="shot.js"></script>
+  </body>
+</html>

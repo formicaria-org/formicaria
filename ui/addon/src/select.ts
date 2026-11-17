@@ -11,6 +11,7 @@
 // What happened is said in a bubble on the spot, with Undo. It reads only what the person selected or
 // drew, never acts on what the page says, and draws in closed shadow roots the page cannot see into.
 import { bubble, snipping, startSnip } from './snip';
+import { offersFor as hows, type How } from '../../src/lib/web/offers';
 
 declare const browser: {
   storage: {
@@ -79,7 +80,7 @@ interface Result {
   alt?: { label: string; token: string };
 }
 
-type Aim = { note?: string; noteTitle?: string; fresh?: boolean };
+type Aim = { note?: string; noteTitle?: string; fresh?: boolean; how?: How };
 
 async function bring(
   s: { html: string; text: string },
@@ -127,9 +128,11 @@ function chip(at: { x: number; y: number }, s: { html: string; text: string }) {
   const tip = front ? `Bring into “${front}”, or choose a note` : 'Bring into a note';
   face?.setAttribute('title', tip);
   face?.setAttribute('aria-label', tip);
+  const offers = hows(s);
+  let how: How | undefined = offers[0]?.how;
   const into = (aim: Aim) => {
     hide();
-    void bring(s, { x: at.x, y: at.y + 4 }, aim);
+    void bring(s, { x: at.x, y: at.y + 4 }, { ...aim, how });
   };
   const row = (label: string, act: () => void, cls = 'row') => {
     const b = document.createElement('button');
@@ -145,6 +148,27 @@ function chip(at: { x: number; y: number }, s: { html: string; text: string }) {
   };
   const open = () => {
     menu.replaceChildren();
+    // How, first (when there is a choice): one line each, the chosen one marked; then where.
+    if (offers.length) {
+      const choice = document.createElement('div');
+      choice.setAttribute('role', 'radiogroup');
+      choice.setAttribute('aria-label', 'how to bring it in');
+      const draw = () =>
+        choice.replaceChildren(
+          ...offers.map((o) => {
+            const b = row(`${o.how === how ? '● ' : '○ '}${o.label}`, () => {
+              how = o.how;
+              draw();
+            });
+            b.setAttribute('role', 'radio');
+            b.setAttribute('aria-checked', String(o.how === how));
+            b.dataset.how = o.how;
+            return b;
+          }),
+        );
+      draw();
+      menu.append(choice);
+    }
     const main = row(
       front ? `Into “${front}”` : 'Into a new note',
       () => into(front ? {} : { fresh: true }),

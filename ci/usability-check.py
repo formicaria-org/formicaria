@@ -252,9 +252,9 @@ def opening_on_a_second_day(ff: Path) -> None:
 WIKI_MEDIA = [
     ("Ode to Joy: its recording, as MP3", "https://en.wikipedia.org/wiki/Ode_to_Joy", "Audio:", 0, 1, "mp3", "Music"),
     # **Many in one page** (the owner: *"include instances where there are many contents in a single
-    # page"*): four recordings; all listed, the third kept, and it is the third that is kept.
-    ("Toccata and Fugue: the third of its recordings, as served",
-     "https://en.wikipedia.org/wiki/Toccata_and_Fugue_in_D_minor,_BWV_565", "Audio:", 2, 4, "audio", "Music"),
+    # page"*): four recordings; all listed, the second kept (a short one: the third is a 141 MB FLAC, whose download time is the network's), and it is the second that is kept.
+    ("Toccata and Fugue: the second of its recordings, as served",
+     "https://en.wikipedia.org/wiki/Toccata_and_Fugue_in_D_minor,_BWV_565", "Audio:", 1, 4, "audio", "Music"),
     ("Ant Bed With Ants (Commons): the video at 240p",
      "https://commons.wikimedia.org/wiki/File:Ant_Bed_With_Ants.webm", "Video:", 0, 1, "video", "Videos"),
 ]
@@ -375,6 +375,78 @@ def media_saver(ff: Path, work: Path) -> None:
                 with urllib.request.urlopen(f"{SERVER}/api/blob/{ref}", timeout=30) as r:
                     head = r.read(3)
                 check(who, f"{what_case}: the file kept is an MP3", head in (b"ID3",) or head[:1] == b"\xff", repr(head))
+        # **A selection, brought in the way that fits it** (the ant's chooser by a selection): the
+        # page's own markup for a formula and a recording, as the selection carries it.
+        if os.environ.get("FM_WIKI_CASES", "all") in ("all", "selection"):
+            for what_case, page, css, how, want in [
+                ("a formula on Pythagorean theorem, as LaTeX", "https://en.wikipedia.org/wiki/Pythagorean_theorem",
+                 ".mw-parser-output .mwe-math-element", "latex", "formula"),
+                ("Ode to Joy's recording, selected, as its sound", "https://en.wikipedia.org/wiki/Ode_to_Joy",
+                 ".mw-parser-output audio", "mp3", "sound"),
+            ]:
+                close_tabs(m, "/f/media", "wikimedia.org", "moz-extension:", "wikipedia.org")
+                new_tab(m, page)
+                html = content(m, f"const e=document.querySelector({json.dumps(css)}); return e ? e.outerHTML : null")
+                if not html:
+                    check(who, f"{what_case}: the page has it", False, f"no {css}")
+                    continue
+                new_tab(m, f"moz-extension://{host}/launcher.html", 2)
+                m.cmd("WebDriver:SetTimeouts", {"script": 60000})
+                r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [html, how], "script": """
+                    const [html, how, done] = arguments;
+                    const b = window.browser || (window.wrappedJSObject || {}).browser;
+                    b.runtime.sendMessage({ type: 'bring-selection', html, text: '', fresh: true, how })
+                      .then((r) => done(JSON.stringify(r)), (e) => done(JSON.stringify({ ok: false, error: String(e) })));"""})
+                got = json.loads(r["value"] if isinstance(r, dict) else r)
+                check(who, f"{what_case}: brought in", bool(got.get("ok")), str(got)[:300])
+                if want == "formula" and got.get("note"):
+                    body = bc.post("/api/get", {"id": got["note"]}).get("body", "")
+                    import re
+                    tex = re.search(r"\$[^$\n]+\$", body)
+                    check(who, f"{what_case}: the note holds it as LaTeX", bool(tex) and "displaystyle" not in body,
+                          body[:200])
+                if want == "sound":
+                    check(who, f"{what_case}: it is being fetched into Music", "Music" in str(got.get("say", "")),
+                          str(got)[:300])
+                    found = None
+                    for _ in range(120):
+                        found = [n for n in bc.post("/api/music_library") if "Anthem" in json.dumps(n)]
+                        if len(found) >= 2:  # one from the Save media case above, one from here
+                            break
+                        time.sleep(3)
+                    check(who, f"{what_case}: a song note arrives in Music", bool(found) and len(found) >= (2 if os.environ.get("FM_WIKI_CASES", "all") == "all" else 1),
+                          f"{len(found or [])} Anthem notes")
+
+        # **Snip in a PDF** (Firefox's viewer admits no add-on script): the tab captured, the area
+        # dragged on the add-on's own page, brought in as a picture.
+        if os.environ.get("FM_WIKI_CASES", "all") in ("all", "selection", "pdf"):
+            pdf = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+            close_tabs(m, "/f/media", "wikimedia.org", "moz-extension:", "wikipedia.org")
+            new_tab(m, pdf, 8)
+            new_tab(m, f"moz-extension://{host}/launcher.html", 2)
+            m.cmd("WebDriver:SetTimeouts", {"script": 30000})
+            m.cmd("WebDriver:ExecuteAsyncScript", {"args": [pdf], "script": """
+                const [pdf, done] = arguments;
+                const b = window.browser || (window.wrappedJSObject || {}).browser;
+                b.tabs.query({}).then((ts) => {
+                  const t = ts.find((x) => x.url === pdf);
+                  if (!t) return done('no tab');
+                  b.runtime.sendMessage({ type: 'snip-tab', tab: t.id }).then(() => done('ok'), (e) => done(String(e)));
+                });"""})
+            time.sleep(4)
+            shot = handles_where(m, "/shot.html")
+            check(who, "a PDF: Snip opens its page", bool(shot), "no snip page")
+            if shot:
+                drawn = wait_for(m, "const i=document.getElementById('shot'); return i && i.naturalWidth > 0 && i.naturalWidth", 20)
+                check(who, "a PDF: the snip page shows what the tab showed", bool(drawn), str(drawn))
+                content(m, """
+                    const st = document.getElementById('stage'), r = document.getElementById('shot').getBoundingClientRect();
+                    const ev = (t, x, y) => st.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: r.left + x, clientY: r.top + y, pointerId: 1 }));
+                    ev('pointerdown', 20, 20); ev('pointermove', 260, 140); ev('pointerup', 260, 140);
+                    document.getElementById('bring').click();""")
+                said = wait_for(m, "const t=document.getElementById('say')?.textContent||''; return /^(Into|Not brought)/.test(t) && t", 30)
+                check(who, "a PDF: the area is brought into a note", str(said or "").startswith("Into"), str(said))
+
         # The article, kept whole: its pictures inside the copy.
         name, page = WIKI_PAGE
         page = os.environ.get("FM_WIKI_PAGE", page)

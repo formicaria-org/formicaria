@@ -7,6 +7,7 @@
   import Icon from './Icon.svelte';
   import type { Pane } from './panes';
   import { search } from './ipc';
+  import { notch, place, rolling, settle, SIDE } from './roller';
 
   let {
     panes,
@@ -27,6 +28,7 @@
     onundo,
     onsavepage,
     onsavemedia,
+    roller = false,
   }: {
     panes: Pane[];
     focused: number;
@@ -49,7 +51,62 @@
     onsavepage?: () => void;
     /** A web page is in front: *Save media* (its video or sound, into Music, Videos or a note). */
     onsavemedia?: () => void;
+    /** **The roller** (`roller.ts`): the open items on an arc, rolled with the thumb (the phone). */
+    roller?: boolean;
   } = $props();
+
+  /** A roll in progress: where it began, how far it went, and along which axis it was read. */
+  let roll = $state<{
+    x0: number;
+    y0: number;
+    dx: number;
+    dy: number;
+    axis: 'x' | 'y' | null;
+    id: string | null;
+  } | null>(null);
+  let rolled = false;
+  const mid = $derived(roll?.axis === 'x' ? rolling(focused, roll.dx, panes.length) : focused);
+  function rollStart(e: PointerEvent) {
+    const li = (e.target as Element).closest('[data-id]') as HTMLElement | null;
+    roll = { x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, axis: null, id: li?.dataset.id ?? null };
+    rolled = false;
+  }
+  function rollMove(e: PointerEvent) {
+    if (!roll) return;
+    const dx = e.clientX - roll.x0;
+    const dy = e.clientY - roll.y0;
+    // Read once it is clearly one way: sideways rolls, up (or down, from a top bar) pairs.
+    const axis =
+      roll.axis ?? (Math.hypot(dx, dy) > 8 ? (Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y') : null);
+    // Following the finger past the bar is a nicety: a browser that refuses it (a pointer it does not
+    // know) must not stop the roll — in the app's web view that refusal threw, and nothing rolled.
+    if (axis === 'x') {
+      try {
+        (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+      } catch {
+        /* rolled without it */
+      }
+    }
+    roll = { ...roll, dx, dy, axis };
+  }
+  function rollEnd() {
+    if (!roll) return;
+    if (roll.axis === 'x') {
+      rolled = true;
+      const to = settle(focused, roll.dx, panes.length);
+      if (to !== focused) onselect(to);
+    } else if (roll.axis === 'y' && roll.id && into(roll.dy)) {
+      rolled = true;
+      const i = panes.findIndex((p) => p.id === roll!.id);
+      if (i >= 0 && i !== focused) onpair(roll.id);
+    }
+    roll = null;
+  }
+  function rollWheel(e: WheelEvent) {
+    e.preventDefault();
+    const to = notch(focused, e.deltaY || e.deltaX, panes.length);
+    if (to !== focused) onselect(to);
+  }
 
   let menuOpen = $state(false);
   let q = $state('');
@@ -133,50 +190,127 @@
       </div>
     {/if}
   </div>
-  <ul class="tabs" aria-label="open tabs" bind:this={row}>
-    {#each panes as p, i (p.id)}
-      {@const ic = icon(p)}
-      <li
-        class="tab"
-        class:on={i === focused}
-        class:beside={i === besideIndex}
-        style:transform={drag?.id === p.id ? `translateY(${drag.dy}px)` : undefined}
-        onpointerdown={(e) => (drag = { id: p.id, y0: e.clientY, dy: 0 })}
-        onpointermove={(e) => {
-          if (drag?.id === p.id) drag = { ...drag, dy: e.clientY - drag.y0 };
-        }}
-        onpointerup={() => {
-          if (drag?.id === p.id && into(drag.dy) && i !== focused) onpair(p.id);
-          drag = null;
-        }}
-        onpointercancel={() => (drag = null)}
-      >
-        <button
-          type="button"
-          class="pick"
-          aria-current={i === focused ? 'page' : undefined}
-          onclick={() => {
-            if (!drag || Math.abs(drag.dy) < 10) onselect(i);
+  {#if roller}
+    <ul
+      class="roller"
+      class:live={roll?.axis === 'x'}
+      aria-label="open tabs"
+      onpointerdown={rollStart}
+      onpointermove={rollMove}
+      onpointerup={rollEnd}
+      onpointercancel={() => (roll = null)}
+      onwheel={rollWheel}
+    >
+      {#each panes as p, i (p.id)}
+        {@const ic = icon(p)}
+        {@const g = place(i - mid)}
+        {#if Math.abs(i - mid) <= SIDE + 1}
+          <li
+            class="tab rolled"
+            class:on={i === focused}
+            data-id={p.id}
+            style:transform="translateX(-50%) translate({g.x}px, {g.y}px) rotate({g.rotate}deg)
+            scale({g.scale})"
+            style:opacity={g.opacity}
+            style:z-index={10 - Math.round(Math.abs(i - mid))}
+          >
+            <button
+              type="button"
+              class="pick"
+              aria-current={i === focused ? 'page' : undefined}
+              onclick={() => {
+                if (!rolled) onselect(i);
+                rolled = false;
+              }}
+            >
+              {#if ic}<Icon name={ic} size={14} />{/if}
+              <span>{title(p)}</span>
+            </button>
+            {#if i === focused}
+              <button
+                type="button"
+                class="close"
+                aria-label="close {title(p)}"
+                onclick={() => onclose(p.id)}>×</button
+              >
+            {/if}
+          </li>
+        {/if}
+      {/each}
+    </ul>
+  {:else}
+    <ul class="tabs" aria-label="open tabs" bind:this={row}>
+      {#each panes as p, i (p.id)}
+        {@const ic = icon(p)}
+        <li
+          class="tab"
+          class:on={i === focused}
+          class:beside={i === besideIndex}
+          style:transform={drag?.id === p.id ? `translateY(${drag.dy}px)` : undefined}
+          onpointerdown={(e) => (drag = { id: p.id, y0: e.clientY, dy: 0 })}
+          onpointermove={(e) => {
+            if (drag?.id === p.id) drag = { ...drag, dy: e.clientY - drag.y0 };
           }}
+          onpointerup={() => {
+            if (drag?.id === p.id && into(drag.dy) && i !== focused) onpair(p.id);
+            drag = null;
+          }}
+          onpointercancel={() => (drag = null)}
         >
-          {#if ic}<Icon name={ic} size={14} />{/if}
-          <span>{title(p)}</span>
-        </button>
-        {#if i === focused}
           <button
             type="button"
-            class="close"
-            aria-label="close {title(p)}"
-            onclick={() => onclose(p.id)}>×</button
+            class="pick"
+            aria-current={i === focused ? 'page' : undefined}
+            onclick={() => {
+              if (!drag || Math.abs(drag.dy) < 10) onselect(i);
+            }}
           >
-        {/if}
-      </li>
-    {/each}
-  </ul>
+            {#if ic}<Icon name={ic} size={14} />{/if}
+            <span>{title(p)}</span>
+          </button>
+          {#if i === focused}
+            <button
+              type="button"
+              class="close"
+              aria-label="close {title(p)}"
+              onclick={() => onclose(p.id)}>×</button
+            >
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
   <button type="button" class="plus" aria-label="new tab" onclick={onnew}>+</button>
 </nav>
 
 <style>
+  /* The roller: the open items on an arc, the one in front in the middle (`roller.ts`). */
+  .roller {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 3.1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .roller .rolled {
+    position: absolute;
+    left: 50%;
+    top: 0.2rem;
+    max-width: 10rem;
+    display: flex;
+    align-items: center;
+    transform-origin: 50% 160%;
+    transition:
+      transform 0.18s ease-out,
+      opacity 0.18s ease-out;
+  }
+  .roller.live .rolled {
+    transition: none;
+  }
   .tab-bar {
     display: flex;
     align-items: center;

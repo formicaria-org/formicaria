@@ -192,7 +192,15 @@ copied in `crates/fm-serve/src/agent.rs` and `mobile/src-tauri/src/lib.rs`, and 
 
 ## 2. Not started
 
-### 2.00 Next, in this order (the owner, 2026-11-17)
+### 2.01 The phone's yt-dlp is not pinned (found 2026-11-17)
+
+The computer's yt-dlp is pinned per release and its signature checked (`media/tools.json`,
+`media-bump`); the phone's comes in the APK (youtubedl-android's, 2025.11.12 in 0.53) and updates
+itself from GitHub's newest stable, unpinned and unchecked. Options: pin the phone's to the same
+release (download it with the APK's own update call pointed at the pinned tag and check its sum), or
+keep the newest. A decision for the owner.
+
+### 2.00 Next, in this order (the owner, 2026-11-17) — both built for 0.54 (`decisions.md` 2026-11-17, small hours, 10–11); left: a formula in a PDF stays a picture unless §2.4 is built
 
 1. **The ant by a selection offers what fits what was selected** (*"select the portion it wants to
    save and then the right tools would port it in the notes"*): a video or a recording, the whole

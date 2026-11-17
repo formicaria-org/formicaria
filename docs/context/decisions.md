@@ -15631,3 +15631,37 @@ not only stand alone … include instances where there are many contents in a si
 9. **＋ New note on every view's line** (`Feature.svelte`; the owner on 0.52: *"how are notes added?
    The plus disappeared from every view"*): a feature tab had no way to start a note but Firefox's
    own + and the new-tab page. The note opens in a tab of its own, in the editor.
+10. **The ant by a selection offers how** (`web/offers.ts`, `select.ts`, `bringPiece`): a formula as
+    LaTeX (the source the page keeps: Wikipedia's native MathML `data-mw`, MathML annotations,
+    `alttext`, MathJax's script, `data-latex`) or as its picture; a video or recording whole, as its
+    sound (MP3) or as a link; a passage keeps its formulas as `$…$`. **Widens the add-on's routes by
+    one**: `/api/media_save`, the Save media sheet's own, so a selected video is kept by the same
+    tools. **Snip works where the add-on cannot enter** (a PDF in Firefox's viewer): the tab is
+    captured and the area dragged on the add-on's own page (`shot.html`); *Bring in* on a PDF's
+    selected words takes the words the menu was given. The choice is a module of its own: the
+    selection script loads in every page and must not carry the Markdown conversion.
+11. **The roller on the phone** (`roller.ts`, `TabBar.svelte` with `roller`): the open notes and pages
+    on an arc along the bottom bar, the one in front in the middle; rolled with the thumb (letting go
+    settles on the nearest and opens it), a tap opens one, a wheel notch moves one item either way
+    with no gesture memory; dragging up into the screen still pairs two. The computer keeps its tab
+    row. Checked in `phone-media-check` on the app in the emulator.
+12. **The checks keep Toccata's second recording, not its third**: the third is a 141 MB FLAC, and its
+    download from Wikimedia passed the phone check's 15 minutes once. What the case is for (many on a
+    page; the one chosen is the one kept) holds with the second. The phone check starts from a cleared
+    app each run (`pm clear`): tabs left by earlier runs had confused the roller's check.
+13. **A picture is video, named or not** (`probe_summary`): a format with a height and no codec named
+    counts as video (yt-dlp says `none` for sound alone). A freshly installed phone app runs the
+    yt-dlp bundled in the APK until its first update succeeds, and that one lists Commons' original
+    file with no codec: the Save media sheet disabled "The video" (found by the phone check from a
+    cleared app).
+14. **The phone's yt-dlp update is stamped only when it worked** (`MediaRun.freshen`): a failed update
+    (GitHub refusing anonymous requests, no network) was stamped as done, and a fresh phone kept the
+    APK's yt-dlp (2025.11.12, a year old) for a week. That one gives Commons' file as an item with no
+    formats; `probe_summary` now reads such an item as its own one format, its kind by its file
+    extension. The phone's yt-dlp is still not the computer's pinned and signature-checked one: an
+    open question for the owner (`outstanding.md`).
+15. **GHSA-fc5q-39xc-vjpf waived, the owner's decision, as GHSA-gcqx-w48m-w2h4 was (2026-10-29)**:
+    the advisory (picomatch, ReDoS, high) names 4.0.8 as its fix and the newest published release is
+    4.0.7, so nothing can be updated to; picomatch is only in the build tools (Vite, its watcher and
+    globber), matching this project's own patterns, and is not in the app. Removed, with an override,
+    the day 4.0.8 is published.

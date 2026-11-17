@@ -5,6 +5,8 @@
 // Pages that draw formulas nearly always keep their source next to the drawing, for screen readers
 // or copying, and that source is read here, never guessed from the picture:
 //
+// - **Wikipedia's native MathML** (its Parsoid pages, 2026): the source in `data-mw`'s
+//   `body.extsrc`;
 // - **MathML with a TeX annotation**: Wikipedia (`<annotation encoding="application/x-tex">`), and
 //   KaTeX's output (its hidden `.katex-mathml`);
 // - **MathML's `alttext`**: arXiv's HTML papers (LaTeXML), Wikipedia;
@@ -50,7 +52,7 @@ function unwrap(tex: string): string {
 
 const isDisplay = (el: Element): boolean =>
   el.matches(
-    '.katex-display, .MathJax_Display, img.mwe-math-fallback-image-display, mjx-container[display="true"], math[display="block"], script[type*="mode=display"]',
+    '.mwe-math-element-block, .katex-display, .MathJax_Display, img.mwe-math-fallback-image-display, mjx-container[display="true"], math[display="block"], script[type*="mode=display"]',
   ) ||
   !!el.querySelector(
     '.katex-display, img.mwe-math-fallback-image-display, math[display="block"], mjx-container[display="true"]',
@@ -68,6 +70,18 @@ export function texOf(el: Element): Formula | null {
   };
   const attr = el.getAttribute('data-latex') ?? el.getAttribute('data-tex');
   if (attr) return found(attr);
+  // Wikipedia's native MathML keeps its source in its `data-mw` (`{"name":"math","body":{"extsrc":…}}`).
+  const mw = (el.matches('[data-mw]') ? el : el.querySelector('math[data-mw]'))?.getAttribute(
+    'data-mw',
+  );
+  if (mw) {
+    try {
+      const d = JSON.parse(mw) as { name?: string; body?: { extsrc?: string } };
+      if (d.name === 'math' && d.body?.extsrc) return found(d.body.extsrc);
+    } catch {
+      /* not this page's shape: the other sources below */
+    }
+  }
   if (el.matches('script[type^="math/tex"]')) return found(el.textContent);
   const ann = el.matches('annotation')
     ? el

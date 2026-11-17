@@ -13,6 +13,7 @@ import {
   IMAGE_LIMIT,
   classify,
   fileName,
+  formulaPiece,
   imageKept,
   imageLinked,
   linkPiece,
@@ -44,6 +45,13 @@ declare const browser: {
     }): Promise<{ id?: number; windowId?: number; url?: string }[]>;
     update(tab: number, d: { url?: string; active?: boolean }): Promise<unknown>;
     create(d: { url: string; index?: number }): Promise<unknown>;
+    get(tab: number): Promise<{
+      id?: number;
+      windowId?: number;
+      url?: string;
+      title?: string;
+      index?: number;
+    }>;
   };
   windows: { update(id: number, d: { focused: boolean }): Promise<unknown> };
   runtime: {
@@ -265,6 +273,8 @@ interface Reply {
   inserted?: string;
   alt?: { label: string; token: string };
   open?: string;
+  /** What the bubble says, when not "Into …" (a video being fetched). */
+  say?: string;
 }
 let bridge: Port | null = null;
 let asked = 0;
@@ -396,16 +406,91 @@ async function forget(id: string) {
   await call(c.server, c.key, 'delete', JSON.stringify({ id }), true).catch(() => null);
 }
 
+/** **How** a piece comes in, when the selection offers a choice (the chooser by a selection): a
+ *  formula as LaTeX or as its picture; a video or recording whole, as its sound, or as a link. */
+export type How = 'latex' | 'picture' | 'video' | 'mp3' | 'link';
+const HOWS: How[] = ['latex', 'picture', 'video', 'mp3', 'link'];
+
+/** **A selected video or recording, kept by the media tools** (Save media's, on this computer): into
+ *  the note chosen, else Music or Videos. Fetching takes a while; the note gains it when it is done. */
+async function keepMedia(
+  p: Piece,
+  how: 'video' | 'mp3',
+  aim: { note?: string; noteTitle?: string; fresh?: boolean },
+): Promise<Reply> {
+  const into = aim.note
+    ? { id: aim.note, title: aim.noteTitle || 'your note' }
+    : !aim.fresh && front
+      ? { id: front.id, title: front.title || 'your note' }
+      : null;
+  const what = how === 'mp3' ? 'mp3' : p.kind === 'audio' ? 'audio' : 'video';
+  const shelf = what === 'video' ? 'Videos' : 'Music';
+  try {
+    const c = await config();
+    await call(
+      c.server,
+      c.key,
+      'media_save',
+      JSON.stringify({
+        url: p.fetch || p.src || p.pageUrl,
+        page: p.pageUrl,
+        what,
+        quality: 720,
+        mp3: 'v2',
+        into: into ? 'note' : what === 'video' ? 'videos' : 'music',
+        list: '',
+        note: into?.id ?? '',
+        vault: front?.vault ?? '',
+      }),
+      true,
+    );
+    const thing =
+      what === 'mp3' ? 'its sound, as MP3' : what === 'audio' ? 'the recording' : 'the video';
+    return {
+      ok: true,
+      title: into?.title ?? shelf,
+      note: into?.id,
+      say: `Fetching ${thing} into “${into?.title ?? shelf}”: it appears there when it is done.`,
+    };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
 /** **One pipeline, whatever started it**: what the piece is decides the content or a link. */
 export async function bringPiece(
   p: Piece,
   quiet = false,
-  aim: { note?: string; noteTitle?: string; fresh?: boolean } = {},
+  aim: { note?: string; noteTitle?: string; fresh?: boolean; how?: How } = {},
 ): Promise<Reply> {
   p = { ...p, when: p.when ?? `${today()} ${clockNow()}` };
   quietNow = quiet;
   aimNow = aim;
   switch (p.kind) {
+    case 'formula': {
+      // As its picture (when the page drew one), the image's own way in; else its LaTeX, with the
+      // picture as the one alternative.
+      if (aim.how === 'picture' && p.src)
+        return bringPiece({ ...p, kind: 'image', alt: p.tex ?? '' }, quiet, aim);
+      const src = p.src;
+      return deliver(
+        p,
+        formulaPiece(p),
+        'the formula',
+        src && !/^(blob|data):/.test(src)
+          ? {
+              label: 'As a picture instead',
+              make: async () => {
+                const { bytes } = await fetchBytes(src, p.pageUrl);
+                return imageKept(
+                  { ...p, alt: p.tex ?? '' },
+                  (await store(bytes, fileName(src, 'formula.svg'))).ref,
+                );
+              },
+            }
+          : undefined,
+      );
+    }
     case 'text':
       return deliver(p, textPiece(p), 'the passage');
     case 'link':
@@ -439,6 +524,7 @@ export async function bringPiece(
     }
     case 'video':
     case 'audio': {
+      if (aim.how === 'video' || aim.how === 'mp3') return keepMedia(p, aim.how, aim);
       const word = p.kind === 'video' ? 'the video' : 'the audio';
       if (streamed(p.src)) return deliver(p, mediaLinked(p), `${word}, at this moment`);
       const src = p.src as string;
@@ -490,6 +576,37 @@ function capture(windowId: number | undefined): Promise<string> {
       captureVisibleTab(w: number | undefined, o: { format: string }): Promise<string>;
     }
   ).captureVisibleTab(windowId, { format: 'png' });
+}
+
+/** A captured view waiting on the snip page (`shot.html`), for a tab the add-on cannot enter. */
+let pendingShot: { png: string; page: { url: string; title: string } } | null = null;
+
+/** **Snip, in any tab** (2026-11-17): in the page when the add-on is there; otherwise (a PDF in
+ *  Firefox's viewer, a page closed to add-ons) what the tab shows, captured now, on the snip page
+ *  beside it, where the area is dragged. */
+async function snipIn(t: {
+  id?: number;
+  windowId?: number;
+  url?: string;
+  title?: string;
+  index?: number;
+}) {
+  if (t.id == null) return;
+  const inPage = await browser.tabs.sendMessage(t.id, { type: 'snip' }).then(
+    () => true,
+    () => false,
+  );
+  if (inPage) return;
+  try {
+    // The tab named must be the one captured: in front, and painted.
+    await browser.tabs.update(t.id, { active: true });
+    await new Promise((r) => setTimeout(r, 200));
+    const png = await capture(t.windowId);
+    pendingShot = { png, page: { url: t.url ?? '', title: t.title ?? '' } };
+    await browser.tabs.create({ url: '/shot.html', index: (t.index ?? 0) + 1 });
+  } catch (e) {
+    failed({ ok: false, error: msg(e) });
+  }
 }
 
 /** An area of a captured view, as PNG bytes. */
@@ -857,6 +974,25 @@ omnibox.onInputEntered.addListener((text) => {
       () => (quietNow = false),
     );
   }
+  // Snip in a tab named (the ant's panel opened as a page, `usability-check`), as for Save page.
+  if (m?.type === 'snip-tab' && typeof m.tab === 'number') {
+    return browser.tabs.get(m.tab).then((t) => snipIn(t));
+  }
+  // The snip page (`shot.html`): what was captured, then the area dragged on it.
+  if (m?.type === 'shot-get') return Promise.resolve(pendingShot);
+  if (m?.type === 'shot-bring' && pendingShot) {
+    const s = pendingShot;
+    const area = m.area as { x: number; y: number; width: number; height: number };
+    const p: Piece = {
+      kind: 'text',
+      pageUrl: s.page.url,
+      pageTitle: s.page.title,
+      when: `${today()} ${clockNow()}`,
+    };
+    const cut = (a: { x: number; y: number; width: number; height: number }) =>
+      crop(Promise.resolve(s.png), a, 1);
+    return snip(p, [], () => cut(area), cut);
+  }
   if (m?.type === 'ask-assistant') {
     const blocks = (m.blocks as Block[]) ?? [];
     const text = blocks
@@ -914,6 +1050,7 @@ omnibox.onInputEntered.addListener((text) => {
     note?: unknown;
     noteTitle?: unknown;
     fresh?: unknown;
+    how?: unknown;
   };
   if (from?.type === 'bring-selection' || from?.type === 'bring-piece') {
     return browser.tabs.query({ active: true, currentWindow: true }).then(async ([t]) => {
@@ -927,6 +1064,7 @@ omnibox.onInputEntered.addListener((text) => {
         note: typeof from.note === 'string' ? from.note : undefined,
         noteTitle: typeof from.noteTitle === 'string' ? from.noteTitle : undefined,
         fresh: from.fresh === true,
+        how: HOWS.includes(from.how as How) ? (from.how as How) : undefined,
       };
       const r = await bringPiece(p, from.type === 'bring-selection', aim);
       if (from.type === 'bring-piece') failed(r);
@@ -1001,7 +1139,7 @@ void menus.removeAll().then(() => {
     pageAction: { onClicked: { addListener(f: (t: { id?: number }) => void): void } };
   }
 ).pageAction.onClicked.addListener((t) => {
-  if (t.id != null) void browser.tabs.sendMessage(t.id, { type: 'snip' }).catch(() => {});
+  void snipIn(t as Parameters<typeof snipIn>[0]);
 });
 
 /** **Save page**: the page as its own note; formicaria says what it became. */
@@ -1089,7 +1227,8 @@ menus.onClicked.addListener((info, tab) => {
   void (async () => {
     let p: Piece;
     if (i.selectionText) {
-      const s = await selectionIn(id, i.frameId);
+      // A page the add-on cannot read (a PDF in Firefox's viewer): the words the menu was given.
+      const s = await selectionIn(id, i.frameId).catch(() => ({ html: '', text: '' }));
       p = classify(s.html, s.text || i.selectionText, page);
     } else if (i.mediaType === 'image' && i.srcUrl) {
       p = { ...base, kind: 'image', src: i.srcUrl };
@@ -1133,7 +1272,7 @@ more.commands.onCommand.addListener((c) => {
     if (t?.id == null) return;
     const tt = t as { id: number; url?: string; title?: string };
     if (c === 'keep-page') return void savePage(tt.id);
-    if (c === 'snip') return void browser.tabs.sendMessage(tt.id, { type: 'snip' }).catch(() => {});
+    if (c === 'snip') return void snipIn(tt as Parameters<typeof snipIn>[0]);
     if (c !== 'add-to-note') return;
     const page = { url: tt.url ?? '', title: tt.title ?? '' };
     if (!/^https?:/.test(page.url)) return failed({ ok: false, error: 'Only from a web page.' });

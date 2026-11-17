@@ -96,3 +96,15 @@ describe('a selection that is one formula', () => {
     expect(onlyFormula('<p>just words</p>')).toBeNull();
   });
 });
+
+// Wikipedia's pages as served on 2026-11-17 (Parsoid, native MathML): found by `usability-check`
+// on *Pythagorean theorem*, where the selection came in as "a2+b2=c2".
+const WIKIPEDIA_NATIVE =
+  '<math xmlns="http://www.w3.org/1998/Math/MathML" class="mwe-math-element mwe-math-element-block" display="block" typeof="mw:Extension/math" data-mw=\'{"name":"math","attrs":{"display":"block"},"body":{"extsrc":"a^2 + b^2 = c^2 ."}}\'><mrow><mstyle displaystyle="true"><msup><mi>a</mi><mn>2</mn></msup><mo>+</mo><msup><mi>b</mi><mn>2</mn></msup><mo>=</mo><msup><mi>c</mi><mn>2</mn></msup><mo>.</mo></mstyle></mrow></math>';
+
+it("reads Wikipedia's native MathML by the source it keeps", () => {
+  expect(texOf(el(WIKIPEDIA_NATIVE))).toEqual({ tex: 'a^2 + b^2 = c^2 .', display: true });
+  expect(onlyFormula(WIKIPEDIA_NATIVE)?.tex).toBe('a^2 + b^2 = c^2 .');
+  const t = takeFormulas(`<p>It reads</p>${WIKIPEDIA_NATIVE}<p>for a right triangle.</p>`);
+  expect(t.restore(t.html)).toContain('$$a^2 + b^2 = c^2 .$$');
+});

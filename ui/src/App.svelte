@@ -3027,6 +3027,7 @@
         {focused}
         {besideIndex}
         position={barPosition()}
+        roller={isPhone()}
         title={paneTitle}
         icon={paneIcon}
         onselect={selectWindow}

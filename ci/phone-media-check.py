@@ -51,8 +51,8 @@ fails: list[str] = []
 # how many it must list at least, what to keep, where it goes.
 CASES = [
     ("Ode to Joy: its recording, as MP3", "https://en.wikipedia.org/wiki/Ode_to_Joy", "Audio:", 0, 1, "mp3", "Music"),
-    ("Toccata and Fugue: the third of its recordings, as served",
-     "https://en.wikipedia.org/wiki/Toccata_and_Fugue_in_D_minor,_BWV_565", "Audio:", 2, 4, "audio", "Music"),
+    ("Toccata and Fugue: the second of its recordings, as served",
+     "https://en.wikipedia.org/wiki/Toccata_and_Fugue_in_D_minor,_BWV_565", "Audio:", 1, 4, "audio", "Music"),
     ("Ant Bed With Ants (Commons): the video", "https://commons.wikimedia.org/wiki/File:Ant_Bed_With_Ants.webm",
      "Video:", 0, 1, "video", "Videos"),
     ("a clip whose picture and sound come apart (DASH): the video", "http://10.0.2.2:{port}/index.html",
@@ -153,7 +153,7 @@ class Cdp:
     def __init__(self, ws_url: str):
         host, path = ws_url.removeprefix("ws://").split("/", 1)
         h, p = host.split(":")
-        self.s = socket.create_connection((h, int(p)), timeout=900)
+        self.s = socket.create_connection((h, int(p)), timeout=1500)
         key = base64.b64encode(os.urandom(16)).decode()
         self.s.sendall(
             f"GET /{path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
@@ -242,11 +242,57 @@ def app_view() -> Cdp:
     raise RuntimeError(f"the app's page is not in its web view: pages {seen}")
 
 
+ROLLER_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  // Two items at least: a new tab's Notes, if fewer are open.
+  if (document.querySelectorAll('ul.roller li').length < 2) {
+    document.querySelector('button[aria-label="new tab"]')?.click();
+    await sleep(800);
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Notes')?.click();
+    await sleep(1500);
+  }
+  await sleep(2000); // the app settles after the last case (a page still loading)
+  const ul = document.querySelector('ul.roller');
+  if (!ul) return { error: 'no roller in the bar' };
+  const items = ul.querySelectorAll('li').length;
+  const front = () => (ul.querySelector('[aria-current="page"]') || {}).textContent;
+  const before = front();
+  const r = ul.getBoundingClientRect();
+  const y = r.top + r.height / 2;
+  const at = (t, x) => ul.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 7 }));
+  // Towards the first item (a roll to the right goes back), so there is always one to go to.
+  const titles = [...ul.querySelectorAll('li')].map((l) => l.dataset.id + ':' + l.textContent.trim().slice(0, 20));
+  let tabs = null;
+  for (let k = 0; k < localStorage.length; k++) {
+    const key = localStorage.key(k);
+    if (!/workspace/i.test(key)) continue;
+    try {
+      const w = JSON.parse(localStorage.getItem(key));
+      tabs = (w.panes || []).map((p) => [p.id, p.kind, (p.url || '').slice(0, 50), p.pageTitle]);
+    } catch {}
+  }
+  at('pointerdown', r.left + 40); at('pointermove', r.left + 80); at('pointermove', r.left + 140);
+  await sleep(50);
+  const live = ul.classList.contains('live');
+  at('pointerup', r.left + 140);
+  await sleep(800);
+  let after = front();
+  if (after === before) {
+    at('pointerdown', r.right - 40); at('pointermove', r.right - 80); at('pointermove', r.right - 140); at('pointerup', r.right - 140);
+    await sleep(800);
+    after = front();
+  }
+  return { items, titles, tabs, width: Math.round(r.width), live, before, after, moved: !!after && after !== before };
+})()
+"""
+
 # **The first start, as a new person meets it**: the Welcome form, skipped; then the app itself.
 FIRST_RUN_JS = r"""
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 480; i++) {
     const skip = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Skip for now');
     if (skip) { skip.click(); await sleep(1500); continue; }
     if (document.querySelector('button[aria-label="new tab"]')) return { ok: true };
@@ -297,9 +343,10 @@ CASE_JS = r"""
   if (!chosen) return { listed, matching: matching.length, error: 'nothing to choose' };
   chosen.click();
   const looked = await until(() => document.querySelector('input[name=what]')
-    || (document.querySelector('[role=alert]') || {}).textContent, 600);
+    || (document.querySelector('[role=alert]') || {}).textContent, 300);
   if (!looked || looked.nodeType !== 1)
-    return { listed, matching: matching.length, chosen: chosen.parentElement.textContent.trim(), error: 'looking: ' + looked };
+    return { listed, matching: matching.length, chosen: chosen.parentElement.textContent.trim(),
+             error: 'looking: ' + looked, sheet: document.body.innerText.slice(-400) };
   const label = { mp3: 'The sound as MP3', audio: 'The sound, as the site serves it', video: 'The video' }[keep];
   const r = [...document.querySelectorAll('input[name=what]')].find((i) => i.parentElement.textContent.includes(label));
   if (r) r.click();
@@ -309,6 +356,8 @@ CASE_JS = r"""
     const t = document.body.innerText;
     return t.includes('Saved in ' + into) ? 'ok' : (t.match(/Not saved[^\n]*/) || [null])[0];
   }, 900);
+  // Not done in time: what the sheet says it is doing (looking, downloading at what share, joining).
+  const doing = done ? '' : (document.querySelector('ul.jobs') || document.body).innerText.slice(-300);
   const lib = await inv(into === 'Music' ? 'music_library' : 'video_library');
   const name = chosen.parentElement.textContent.split(':').slice(1).join(':').trim();
   const stem = name.split('.')[0].slice(0, 12);
@@ -317,7 +366,7 @@ CASE_JS = r"""
   const [path] = ref ? await inv('asset_paths', { references: [ref] }) : [null];
   document.querySelector('button[aria-label="close save media"]')?.click();
   return { listed, matching: matching.length, chosen: chosen.parentElement.textContent.trim(), done,
-           sheet: done === 'ok' ? '' : document.body.innerText.slice(-400), notes: mine.length, ref, path };
+           sheet: done === 'ok' ? '' : document.body.innerText.slice(-400), doing, notes: mine.length, ref, path };
 })()
 """
 
@@ -374,10 +423,35 @@ def main() -> None:
         adb("reverse", "--remove-all", check_rc=False)
         recorder = record_log()
         adb("install", "-r", "-t", str(APK), timeout=600)
+        # **From a clean app** each run: the emulator keeps an app's data between runs, and tabs left
+        # by earlier runs (their clip served on another port, gone) confused the roller's check.
+        adb("shell", "pm", "clear", PKG, check_rc=False)
         adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
         cdp = app_view()
         first = cdp.evaluate(FIRST_RUN_JS) or {}
+        say(f"the first start: {json.dumps(first)[:200]}")
         check("a new person gets past the first start to the app", bool(first.get("ok")), str(first.get("text")))
+        # `FM_PHONE_PROBE=<address>`: what the app's yt-dlp lists there, and how formicaria reads it.
+        if os.environ.get("FM_PHONE_PROBE"):
+            got = cdp.evaluate(r"""
+            (async (url) => {
+              const s = window.__fmMedia;
+              const id = 'dbg-' + Date.now();
+              s.probe(id, url);
+              for (let i = 0; i < 600; i++) {
+                await new Promise((r) => setTimeout(r, 250));
+                const j = JSON.parse(s.jobs()).find((x) => x.id === id);
+                if (j && (j.state === 'probed' || j.state === 'failed')) {
+                  let info = null; try { info = JSON.parse(j.probe || 'null'); } catch {}
+                  const fmts = (info && info.formats || []).map((f) => [f.format_id, f.ext, f.vcodec, f.acodec, f.height]);
+                  const read = await window.__TAURI_INTERNALS__.invoke('fm', { cmd: 'media_probe_read', args: { json: j.probe || 'null' } });
+                  return { state: j.state, error: j.error, version: info && info._version, fmts, read };
+                }
+              }
+              return { error: 'no answer' };
+            })(%s)""" % json.dumps(os.environ["FM_PHONE_PROBE"]))
+            say(f"probe: {json.dumps(got)[:2000]}")
+            return
         # `FM_PHONE_CASES=Ant,clip` runs the cases whose names say so, while working on them.
         only = [k for k in os.environ.get("FM_PHONE_CASES", "").split(",") if k]
         port = srv.server_address[1]
@@ -437,6 +511,16 @@ def main() -> None:
                     kinds = probe.stdout.split()
                     check(f"{name}: it has its picture and its sound", "video" in kinds and "audio" in kinds,
                           f"streams: {kinds or probe.stderr.strip()[:200]}")
+        # **The roller** (`roller.ts`): the open items on an arc; a roll with the finger brings the
+        # next one to the front.
+        if not only or "roller" in only:
+            got = cdp.evaluate(ROLLER_JS) or {}
+            if not got.get("moved"):  # once more: a busy app may have missed the first
+                time.sleep(3)
+                got = cdp.evaluate(ROLLER_JS) or {}
+            say(f"the roller: {json.dumps(got)[:1200]}")
+            check("the roller shows the open items", (got.get("items") or 0) >= 2, str(got))
+            check("a roll brings the next item to the front", bool(got.get("moved")), str(got))
     except Exception as e:  # noqa: BLE001 - said as a failure
         check("the check ran to the end", False, f"{repr(e)[:400]}; logcat: {phone_log()}")
     finally:

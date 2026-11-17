@@ -407,10 +407,40 @@ pub fn playlist_with(body: &str, id: &str, title: &str) -> String {
 }
 
 /// What the sheet shows of an address before anything is fetched: yt-dlp's `-J` answer, summed up.
+/// File kinds that hold a picture, for a format whose codec is not named.
+const VIDEO_EXTS: &[&str] =
+    &["webm", "mp4", "m4v", "mkv", "mov", "ogv", "avi", "mpg", "mpeg", "3gp"];
+/// File kinds that are sound alone.
+const AUDIO_EXTS: &[&str] =
+    &["mp3", "m4a", "aac", "ogg", "oga", "opus", "flac", "wav", "mid", "midi"];
+
 pub fn probe_summary(info: &Value) -> Value {
-    let formats = info["formats"].as_array().cloned().unwrap_or_default();
-    let video = |f: &Value| f["vcodec"].as_str().is_some_and(|c| c != "none");
-    let audio = |f: &Value| f["acodec"].as_str().is_some_and(|c| c != "none");
+    // **No list of formats: the item is its one format** (an older yt-dlp gives Commons' file so: its
+    // address and its kind, nothing else; found on a fresh phone, 2026-11-17).
+    let formats = match info["formats"].as_array() {
+        Some(f) if !f.is_empty() => f.clone(),
+        _ if info["url"].is_string() || info["ext"].is_string() => vec![info.clone()],
+        _ => vec![],
+    };
+    // **A picture is video, named or not**: yt-dlp says `none` for sound alone, and leaves the codec
+    // unsaid where a site does not tell it (Commons' original file, for an older yt-dlp, as the phone's
+    // own copy is until it updates: "The video" was refused there, 2026-11-17). A height says picture.
+    let video = |f: &Value| match f["vcodec"].as_str() {
+        Some("none") => false,
+        Some(_) => true,
+        None => {
+            f["height"].as_u64().is_some_and(|h| h > 0)
+                || f["ext"].as_str().is_some_and(|e| VIDEO_EXTS.contains(&e))
+        }
+    };
+    let audio = |f: &Value| match f["acodec"].as_str() {
+        Some("none") => false,
+        Some(_) => true,
+        // Unsaid: a sound file, or a picture file (which most often carries its sound).
+        None => {
+            f["ext"].as_str().is_some_and(|e| AUDIO_EXTS.contains(&e) || VIDEO_EXTS.contains(&e))
+        }
+    };
     let mut heights: Vec<u64> =
         formats.iter().filter(|f| video(f)).filter_map(|f| f["height"].as_u64()).collect();
     heights.sort_unstable();
@@ -733,6 +763,36 @@ mod tests {
         // The address last, after `--`, so an address can never be read as an option.
         assert_eq!(&v[v.len() - 2..], ["--", "https://v.example/w"]);
         assert!(v.contains(&"/tmp/j/media.%(ext)s".to_string()));
+    }
+
+    #[test]
+    fn an_item_with_no_formats_is_read_by_its_own_kind() {
+        // Commons' file as yt-dlp 2025.11.12 (the phone's own, before it updates) gives it.
+        let commons = json!({ "title": "Ant Bed With Ants.webm - Wikimedia Commons",
+            "url": "https://upload.wikimedia.org/wikipedia/commons/a/ab/Ant_Bed_With_Ants.webm",
+            "ext": "webm", "extractor_key": "Wikimedia" });
+        let s = probe_summary(&commons);
+        assert_eq!(s["video"], true);
+        assert_eq!(s["audio"], true);
+        let song = json!({ "title": "A song", "url": "https://x.example/a.ogg", "ext": "ogg" });
+        assert_eq!(probe_summary(&song)["video"], false);
+        assert_eq!(probe_summary(&song)["audio"], true);
+    }
+
+    #[test]
+    fn a_picture_with_no_codec_named_is_video_and_sound_alone_is_not() {
+        // Commons' original file as an older yt-dlp lists it: a height, no codec named.
+        let commons = json!({ "title": "Ant Bed", "formats": [
+            { "format_id": "source", "ext": "webm", "vcodec": null, "acodec": null, "height": 1080 }
+        ]});
+        let s = probe_summary(&commons);
+        assert_eq!(s["video"], true);
+        assert_eq!(s["heights"], json!([1080]));
+        let song = json!({ "title": "A song", "formats": [
+            { "format_id": "a", "ext": "mp3", "vcodec": "none", "acodec": "mp3" },
+            { "format_id": "b", "ext": "ogg", "vcodec": null, "acodec": "vorbis" }
+        ]});
+        assert_eq!(probe_summary(&song)["video"], false);
     }
 
     #[test]

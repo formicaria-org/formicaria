@@ -3,6 +3,9 @@ import {
   atMoment,
   classify,
   fileName,
+  formulaPiece,
+  offersFor,
+  markdown,
   imageKept,
   imageLinked,
   linkPiece,
@@ -99,5 +102,60 @@ describe('what it becomes in the note', () => {
   it('names a kept file after its address', () => {
     expect(fileName('https://a.org/media/song%201.mp3?x=1', 'audio')).toBe('song 1.mp3');
     expect(fileName('https://a.org/watch', 'video')).toBe('video');
+  });
+});
+
+// **A formula comes in as a formula** (the owner, 2026-11-17: *"if there is a formula it can propose a
+// LaTeX code … if not, port the image with the formula"*).
+const WIKI_FORMULA =
+  '<span class="mwe-math-element"><span class="mwe-math-mathml-inline mwe-math-mathml-a11y" style="display: none;"><math alttext="{\\displaystyle a^{2}+b^{2}=c^{2}}"><semantics><mrow></mrow><annotation encoding="application/x-tex">{\\displaystyle a^{2}+b^{2}=c^{2}}</annotation></semantics></math></span><img src="//wikimedia.org/api/rest_v1/media/math/render/svg/abc" class="mwe-math-fallback-image-inline" alt="{\\displaystyle a^{2}+b^{2}=c^{2}}"></span>';
+const PAGE = {
+  url: 'https://en.wikipedia.org/wiki/Pythagorean_theorem',
+  title: 'Pythagorean theorem',
+};
+
+it('a selected formula is a formula piece, its LaTeX first and its picture as the alternative', () => {
+  const p = classify(WIKI_FORMULA, 'a2+b2=c2', PAGE);
+  expect(p.kind).toBe('formula');
+  expect(p.tex).toBe('a^{2}+b^{2}=c^{2}');
+  expect(p.src).toBe('https://wikimedia.org/api/rest_v1/media/math/render/svg/abc');
+  expect(formulaPiece({ ...p, when: undefined })).toBe(
+    '$a^{2}+b^{2}=c^{2}$ — [Pythagorean theorem](https://en.wikipedia.org/wiki/Pythagorean_theorem)',
+  );
+});
+
+it('a passage keeps its formulas as formulas', () => {
+  const p = classify(
+    `<p>For a right triangle, ${WIKI_FORMULA}, where c is the hypotenuse.</p>`,
+    'x',
+    PAGE,
+  );
+  expect(p.kind).toBe('text');
+  expect(markdown(p.html ?? '')).toBe(
+    'For a right triangle, $a^{2}+b^{2}=c^{2}$, where c is the hypotenuse.',
+  );
+});
+
+it("a selected Wikipedia recording is fetched from its file's page", () => {
+  const p = classify(
+    '<audio preload="none" resource="https://en.wikipedia.org/wiki/File:Anthem.ogg"></audio>',
+    '',
+    PAGE,
+  );
+  expect(p.kind).toBe('audio');
+  expect(p.fetch).toBe('https://commons.wikimedia.org/wiki/File:Anthem.ogg');
+});
+
+describe('the choice by a selection', () => {
+  it('offers LaTeX or the picture for a drawn formula', () => {
+    expect(offersFor({ html: WIKI_FORMULA }).map((o) => o.how)).toEqual(['latex', 'picture']);
+  });
+  it('offers the whole video, its sound, or a link for a selected video', () => {
+    expect(
+      offersFor({ html: '<video src="https://v.example/a.mp4"></video>' }).map((o) => o.how),
+    ).toEqual(['video', 'mp3', 'link']);
+  });
+  it('offers nothing for a passage: it comes in as it is, formulas kept', () => {
+    expect(offersFor({ html: `<p>so ${WIKI_FORMULA} holds</p>` })).toEqual([]);
   });
 });
