@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 137 of them are below**, grouped by what they are for. If you add an arm to
+**All 141 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -39,6 +39,8 @@ dispatch no longer has fails too.)
 | `ping`           | `since`                      | `{changed, git, clock}` | the 15 s visible-tab reindex poll; carries the app's clock, so a change of zone reaches every page within one beat |
 | `clock`          | —                            | `Clock`                | **the app's clock** (2026-10-24): the zone every view shows and counts days in — `v`, `zone` (or `null` when it cannot be read), `iana`, `offset`, `offset_seconds`, `now` (UTC), `today`, `source` (`automatic`/`chosen`), `chosen`, `system`, `instants`. What the UI and the assistant read; fields are only ever added |
 | `set_clock`      | `zone` (a name, an offset, or `""` for Automatic) | `Clock` | choose this device's zone (`config_dir()/formicaria/clock.json`); refused to a paired device |
+| `privacy`        | —                            | `Privacy`              | **this device's privacy switches** (2026-11-17, `config_dir()/formicaria/privacy.json`): `search`, `trackers`, `ads`, `cookies`, `clean_links`, `gpc`, `https_only`, `app_trackers`, `sites_off`, `fired`, `v`, and the `engines` to choose from |
+| `set_privacy`    | any of those switches; `site_off`/`site_on` (a site); `fire: true` | `Privacy` | change them (only what is given, each checked); refused to a paired device |
 
 ### Writing notes
 
@@ -190,6 +192,8 @@ and so did their tests. See [Views](../user/views.md#saved-views).
 | `log_recent`     | `view`, `slot`, `q`, `limit` | `RecentItem[]`         | what a log holds already, one line per distinct thing, most used in `slot` first, each with the values it had the last time |
 | `music_library`  | —                    | `ObjectMeta[]`         | every song (`log: music`), sorted by title, in one pass: the Songs screen filters it as the person types |
 | `music_playlists`| —                    | `Playlist[]`           | every note tagged `playlist`, by title, with its songs' note ids in the body's order (repeats kept) |
+| `video_library`  | —                    | `ObjectMeta[]`         | **every video** (`log: video`, 2026-11-17), sorted by title |
+| `video_collections` | —                 | `Playlist[]`           | every note tagged `collection`, by title, with its videos' note ids in the body's order |
 | `log_recipes`    | `view`                       | `Recipe[]`             | the recipes saved in a log, by name. Each: `servings`, its ingredient entries, `of` (how many), and `sums` — every whole-number value the ingredients carry, added up, with how many of them carried it. Nothing is adjusted for cooking |
 | `log_nutrients`  | `view`, `day`                | `Nutrients`            | every vitamin and mineral of one day: per value its `sum`, how many entries carried it, the `reference` for an adult of the person's sex and age where there is one figure (EFSA 2017), an `upper` level where it applies to food, and the day's entries. `needs_sex` when figures were left out for want of it. `drinks`: water (beside EFSA's total water), caffeine (beside its 400 mg) and alcohol (alone), the same way. `on_day`: the keys Day shows now, the person's pins or the view's own; `most_on_day`; `profile`, the note that keeps the pins (`day_values`) |
 | `exercise_library` | —                          | `{ seen, sources, exercises, videos, videos_seen }` | how each exercise is done, as its source wrote it: per card its `steps`, and `about`, `start`, `dose`, `notes` where the source has them, its page and reference, and where the app files it (`equipment`, `area`). `sources` carry each body's credit line and licence. `videos` are links, each a known body's (`tier: body`) or a trainer's (`tier: trainer`) |

@@ -15402,3 +15402,112 @@ scroll laterally"*).
 4. **Computer**: a feature page does not repeat a tracker's own views on its line.
 5. **Next for the phone's tabs** (owner's ideas, to prototype): an arc of tabs fanning out, or a roller
    (a slot machine) instead of the horizontal row.
+
+## 2026-11-17 — privacy switches, blocking, and media from any site, kept as one final file `#ui` `#toolchain` `#data`
+
+> **PARTLY SUPERSEDED** (item 3, the F-Droid-only tracker block; item 2's ad-block default on the
+> phone) by *2026-11-17 (later) — the media and privacy plan, as built*.
+
+The owner: *"ad block and app tracker block, and extensions to get multimedia contents from ANY
+website, I like to maintain real artifacts"*; *"extract audio of decent quality (MP3) from any
+video"*; *"we do not keep multiple copies of heavy stuff … we convert only to keep the final
+product"*; *"organizable in collections, just like songs"*; *"I like my privacy too, so options like
+DuckDuckGo, easy to turn off and on"*. Plan: `web-media-privacy-plan-2026-11-17.md`.
+
+1. **Privacy is a sheet of switches**, per device (`config_dir()/formicaria/privacy.json`, refused to
+   a paired device like the clock): private search (DuckDuckGo by default), tracker block, ad block,
+   cookie pop-ups refused, tracking parameters stripped, Global Privacy Control, HTTPS only, a fire
+   button, protections off per site. The computer maps them onto Firefox's own preferences (set by
+   the kit's startup script); the phone applies them in its page views.
+2. **Blocking reuses the community's filter lists** (EasyList, EasyPrivacy) through Brave's
+   `adblock-rust` (MPL-2.0): fetched on the device, never shipped. Ad block is off until measured
+   (the computer's uBlock precedent, 2026-11-15).
+3. **App tracker block** (the whole phone: a DNS-only local VPN) ships **only in the F-Droid build**
+   (owner, the Play Protect risk of a VPN in a sideloaded app); **phone background playback** (a
+   media service) ships in every build.
+4. **Media from any site**: a page's own media, its embedded players and the streams it played;
+   video, audio as served, or audio as MP3. yt-dlp and ffmpeg do the fetching and converting: on the
+   computer fetched on first use, pinned per release, yt-dlp updating itself; on the phone **inside
+   the APK** (owner: *inside the phone app*; Android 10+ runs no program downloaded later).
+   **Never DRM.**
+5. **One copy, the final product only**: only the chosen stream is fetched, work happens in the
+   cache, only the final file is ingested into the vault's blobs (content-addressed: never twice),
+   temporaries removed on end, failure or cancel. Within *a vault holds every byte it owns*
+   (2026-10-15): other players read the vault (tags inside the files, playlists written as `.m3u8`
+   beside them), never a second copy outside it.
+6. **Kept as kinds**: audio → a song note in Music (a playlist chosen at saving); video → a video
+   note in a Videos group on Music's machinery; pages saved as one self-contained file.
+
+**The four questions.** `#ui`, `#toolchain`, `#data`, `#vault`. Read: *formicaria gets its own
+browser* and the uBlock ruling (2026-11-15); *a vault holds every byte it owns* (2026-10-15); *a
+sixth group, Music* (2026-11-15); the Play Protect entries (`#track-m`, 2026-10-31). Verdict:
+**extends** them (blocking stays an offer measured first; nothing outside the vault; the permission
+list widened by one service for every build and one for F-Droid only). **Widens what ships**: the
+`adblock` and `jni` crates, tools fetched by the computer, Python/yt-dlp/ffmpeg in the APK.
+
+## 2026-11-17 (later) — the media and privacy plan, as built `#toolchain` `#ui` `#data`
+
+What building the plan (`web-media-privacy-plan-2026-11-17.md`) decided, beyond the entry above:
+
+1. **The Android APK is distributed under GPL-3.0** (owner: *bundle it, APK under GPL*): *Save media*
+   on the phone runs youtubedl-android (GPL-3.0), with yt-dlp, Python and ffmpeg inside the app
+   (Android 10+ runs no program downloaded later, so they cannot be an optional download). The
+   source stays MIT; README and `THIRD-PARTY.md` say so. The computer builds are unaffected.
+2. **The phone-wide tracker block is in the one APK, for everyone** (owner, choosing it over a
+   second F-Droid APK, which would have reversed *one APK for every channel*, 2026-10-30). A
+   DNS-only local VPN: lookups of trackers' addresses answered "no such address", the rest passed to
+   the network's resolver; per-app counts; apps let through. Off by default; Android asks once.
+   Reverses item 3 above.
+3. **Ad blocking is on by default on the phone**: measured, the engine costs about 5 MB and 2 µs a
+   request (`phone-blocking-2026-11-17.md`). Off by default on the computer, where it is uBlock
+   Origin. Settles item 2 above.
+4. **Media3 1.6.1**, not the newest (1.11): newer Media3 needs Kotlin 2.2 metadata, and the phone
+   build compiles with Kotlin 1.9. Raising Kotlin is its own change.
+5. **The computer's tools**: yt-dlp's release binaries (the maintainers' signature on the sums
+   checked by `pixi run media-bump`), ffmpeg from Martin Riedl's single-binary builds (Linux, macOS)
+   and gyan.dev's essentials (Windows), each pinned by SHA-256 in `media/tools.json`. yt-dlp's own
+   updater keeps it current between releases (weekly, and when a site changed). **A release step**:
+   `pixi run media-bump`, after `browser-bump`.
+6. **One filing path** (`fm_app::media::keep`): the computer's job runner and the phone's both move
+   the finished file into the vault's staging place, ingest it (content-addressed), and make the
+   song, video or attachment, then its playlist entry.
+7. **Playlists as `.m3u8`** in `<vault>/playlists/`, written by the computer after notes change,
+   relative paths into `blobs/`; per machine, so in the vault's `.gitignore`. Files formicaria wrote
+   whose note is gone are removed; others left.
+8. **Subsonic**: off until turned on (Settings → Connections), its own password (a Subsonic player
+   cannot pair), reachable from the network only while sharing is on; Music only; streams the
+   vault's own files.
+9. **Discussions and Collaboration are back in +** (owner, on 0.50: *"collaboration disappeared"*):
+   the one frame's feature list had left them out.
+10. **Not verified on a phone** (no device attached): the tracker VPN's packets, the media service,
+    the bundled yt-dlp, the blocking in page views. Each compiled; their app-side halves tested.
+    `known-issues.md` lists them.
+
+**The four questions.** `#toolchain` (the release order, a licence), `#ui`, `#data`, `#vault` (no file
+outside the vault; `.m3u8` beside the media). **Widens what ships** (the APK's licence, its size by
+the bundled tools, a VPN service and a media service in its manifest).
+
+## 2026-11-17 (evening) — the owner on 0.50: pages you can leave, updates you can see `#ui`
+
+The owner: *"on the phone, if I open a webpage I am stuck there, I can't continue browsing since the
+search goes away, and some links I open from a webpage are unclosable"*; *"the saved webpage does
+not load once saved"*; on the computer *"impossible for me to upgrade from within, all options
+disappeared"*.
+
+1. **A page tab has an address row** on the phone, above the page (never over it): its address, which
+   is where another address or a search is typed (in the same tab), and ↻. Partly reverses *nothing
+   over the page* (0.48): the row is beside the page, and carries no ‹ (Android's Back does that).
+2. **Back from a page's first page leaves it**: a page opened from a link closes and its opener is in
+   front again; otherwise the tab before. Android no longer leaves formicaria from a page.
+3. **× is on the tab in front even when it is the only one**, and closing the front tab puts the tab
+   beside it in front (before, with no view left, nothing was in front).
+4. **An attachment on the phone opens**: a saved page's copy in a page tab of its own (read from the
+   vault's file, at its own address); anything else with Android's *Open with*. Before, its link
+   asked for a new window the phone's web view does not open.
+6. **On the computer a saved page's copy opens as a page** (`/api/blob/<ref>?kind=view`): HTML only,
+   with `VIEW_CSP` — `sandbox` without `allow-scripts` or `allow-same-origin` (no script runs, an
+   opaque origin: nothing in it reaches `/api`), and only pictures, styles, fonts and media allowed.
+   Every other attachment is served exactly as before (HTML otherwise still a download). Keeps the
+   ruling that a blob must never run in formicaria's origin.
+5. **Every feature page checks for a newer version and offers it** (the banner and the hourly
+   check lived in the old whole-app page, which formicaria's browser stopped showing in 0.49).

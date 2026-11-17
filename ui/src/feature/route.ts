@@ -1,6 +1,8 @@
 // **Where a feature page is** (`decisions.md` 2026-11-17, *one server, many views*): every feature and
 // every note has an address on formicaria's server, so a browser tab can hold it.
 //
+//   /f/privacy            this device's privacy switches
+//   /f/media#<json>       Save media: a page's media (`{page, c}`, from the add-on)
 //   /f/note/<id>          a note
 //   /f/group/<name>       a feature: its views as a strip (Notes is the group `Library`)
 //   /f/view/<name>        one saved or shipped view
@@ -10,6 +12,8 @@ import type { PaneKind } from '../lib/panes';
 export type Route =
   | { kind: 'new' }
   | { kind: 'settings' }
+  | { kind: 'privacy' }
+  | { kind: 'media' }
   | { kind: 'note'; id: string }
   | { kind: 'group'; name: string }
   | { kind: 'view'; name: string }
@@ -26,6 +30,8 @@ export function parseRoute(path: string): Route {
   const [head, rest] = [parts[0] ?? '', parts.slice(1).join('/')];
   if (head === 'new') return { kind: 'new' };
   if (head === 'settings') return { kind: 'settings' };
+  if (head === 'privacy') return { kind: 'privacy' };
+  if (head === 'media') return { kind: 'media' };
   if (head === 'note' && ID.test(rest)) return { kind: 'note', id: rest.toUpperCase() };
   if (head === 'group' && rest) return { kind: 'group', name: rest };
   if (head === 'view' && rest) return { kind: 'view', name: rest };
@@ -40,6 +46,10 @@ export function itemUrl(r: Route): string {
       return '/f/new';
     case 'settings':
       return '/f/settings';
+    case 'privacy':
+      return '/f/privacy';
+    case 'media':
+      return '/f/media';
     case 'note':
       return `/f/note/${r.id}`;
     case 'group':

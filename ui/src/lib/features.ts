@@ -21,6 +21,17 @@ export const FEATURES: Feature[] = [
   { key: 'Fitness', label: 'Fitness', mark: '◆', icon: 'chart', url: '/f/group/Fitness' },
   { key: 'Health', label: 'Health', mark: '✚', icon: 'chart', url: '/f/group/Health' },
   { key: 'Music', label: 'Music', mark: '♪', icon: 'play', url: '/f/group/Music' },
+  { key: 'Videos', label: 'Videos', mark: '▶', icon: 'play', url: '/f/group/Videos' },
+  // Discussions and collaboration (the owner, on 0.50: they had disappeared — the one frame's list
+  // left them out, and the old views menu was gone).
+  { key: 'discussions', label: 'Discussions', mark: '✉', icon: 'chat', url: '/f/discussions' },
+  {
+    key: 'collaboration',
+    label: 'Collaboration',
+    mark: '⇄',
+    icon: 'list',
+    url: '/f/collaboration',
+  },
 ];
 
 /** The feature a page address belongs to, if any. */
@@ -29,7 +40,10 @@ export function featureOf(path: string): Feature | undefined {
 }
 
 /** What a typed line means: a web address to go to, or words to search the web for. */
-export function webTarget(typed: string): { url: string; label: string } | null {
+export function webTarget(
+  typed: string,
+  search: (words: string) => string = (w) => `https://duckduckgo.com/?q=${encodeURIComponent(w)}`,
+): { url: string; label: string } | null {
   const t = typed.trim();
   if (!t) return null;
   if (!/\s/.test(t) && /^https?:\/\//i.test(t))
@@ -37,7 +51,7 @@ export function webTarget(typed: string): { url: string; label: string } | null 
   if (!/\s/.test(t) && /^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/.test(t))
     return { url: `https://${t}`, label: `Go to ${t}` };
   return {
-    url: `https://duckduckgo.com/?q=${encodeURIComponent(t)}`,
+    url: search(t),
     label: `Search the web for “${t}”`,
   };
 }

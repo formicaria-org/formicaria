@@ -632,10 +632,10 @@ export interface TotalsDef {
   /** Which entries: the value of their `log` property. */
   log: string;
   /** Which of the closed set of add actions the group's add control opens. */
-  add: 'food' | 'workout' | 'body' | 'health' | 'song';
+  add: 'food' | 'workout' | 'body' | 'health' | 'song' | 'video';
   /** `plan` is the screen where a diet or a regime is chosen and followed; `diary` and `month` are
    *  the Health diary's (2026-10-22). */
-  span: 'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards' | 'diary' | 'library';
+  span: 'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards' | 'diary' | 'library' | 'videos';
   metrics: Metric[];
   slots: Slot[];
 }

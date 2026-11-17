@@ -90,8 +90,11 @@ yours, in one gesture — see [Backup & versioning](./backup.md).
 
 At the bottom of the screen (or the top: **Settings → Appearance → The bar**) is formicaria's only bar:
 
-- **≡**: formicaria's options: search your notes, **Save this page** (when a web page is in front: its
-  article, with a copy, as a note of its own), Undo, Back up and sync, Settings, Help.
+- **≡**: formicaria's options: search your notes, **Save this page** (when a web page is in front:
+  its article, with a copy of the whole page in one file, as a note of its own), **Save media** (its
+  video or sound into Music, Videos or a note: [Saving media](./media.md)), Undo, Back up and sync,
+  **Privacy** ([Privacy](./privacy.md): ads and trackers blocked, cookie pop-ups refused, trackers in
+  other apps), Settings, Help.
 - **Your tabs**, side by side in one row: each is one thing, a feature (Notes, Tasks, Agenda, Food
   journal, Fitness, Health, Music), a note, or a web page. Tap one to go to it; **×** on the tab in
   front closes it. Slide the row to see more.
@@ -104,8 +107,10 @@ Each feature shows its own views inside it (Food's Day, Menu, Trends).
 **Two together**: drag a tab from the bar up into the screen: it shows with the one in front, one
 above the other; tap either to work in it.
 
-**Web pages, inside formicaria** fill their tab, nothing over them: Android's **Back** goes back in the
-page; select text to bring it into a note (Android's selection bar has **Bring into note** first);
+**Web pages, inside formicaria** have one slim row above them: the page's address, which is also
+where to type another address or a search (it opens in the same tab), and ↻ to reload. Android's
+**Back** goes back in the page, and from its first page back to the tab it came from (a page opened
+from a link closes, as in a browser); **×** closes the tab in front, even the last one; select text to bring it into a note (Android's selection bar has **Bring into note** first);
 **long-press an image or a link** to bring it in, or to open the link as a page of its own.
 
 ## Moving what you select
@@ -165,3 +170,12 @@ part of the chain that depends on you rather than on us.
 
 *You do not need this to install or use formicaria.* It is for anyone who wants to confirm, with a
 computer, that the file is the one we built.
+
+## Music plays on
+
+Music keeps playing when you leave the app or the screen turns off. The lock screen and the
+notification show it with its keys, and headphones, Bluetooth and the car control it. formicaria's
+player and those keys are one: what you press anywhere shows everywhere.
+
+**A saved page's copy** (the link in a note made by *Save this page*) opens in a tab of its own, as it
+was saved; other attachments (a PDF) open with the app you choose in Android's *Open with*.

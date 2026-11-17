@@ -1,0 +1,6 @@
+name: All videos
+view: totals
+group: Videos
+log: video
+add: video
+span: videos

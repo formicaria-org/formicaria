@@ -51,6 +51,14 @@ export const SECTIONS: Section[] = [
     assistant: { search: false },
   },
   {
+    key: 'Videos',
+    label: 'Videos',
+    mark: '▶',
+    address: 'view:group:Videos',
+    owns: (n) => log(n, 'video'),
+    assistant: { search: false },
+  },
+  {
     key: 'Food',
     label: 'Food',
     mark: '◍',
@@ -96,6 +104,7 @@ export const SECTIONS: Section[] = [
 const BY_KIND: Record<string, string> = {
   conversation: 'Mail',
   song: 'Music',
+  video: 'Videos',
   recipe: 'Food',
   web: 'Web',
   paper: 'Library',
@@ -110,6 +119,7 @@ const LOG_SECTION: Record<string, string> = {
   workout: 'Fitness',
   health: 'Health',
   music: 'Music',
+  video: 'Videos',
 };
 
 /** The section an item belongs to: **by the kind the server recognised** (`kind_key`); the markers

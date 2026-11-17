@@ -45,6 +45,8 @@ export interface Pane {
   /** page — its address, and its title once the page has said it. */
   url?: string | null;
   pageTitle?: string | null;
+  /** page — the page it was opened from (a link), so Back with nowhere further goes back there. */
+  openedFrom?: string | null;
   colSpan: number; // grid columns occupied (>=1)
   rowSpan: number; // grid rows occupied (>=1)
 }

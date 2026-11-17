@@ -29,6 +29,9 @@ use fm_core::ColdStart;
 // explains why Cargo cannot; every arm below reads `agent_shell`, never the raw feature.
 #[cfg(agent_shell)]
 mod agent;
+// Ad and tracker blocking for the page views, answered through JNI (2026-11-17).
+#[cfg(target_os = "android")]
+mod block;
 #[cfg(update_shell)]
 mod update;
 
@@ -839,6 +842,75 @@ fn fm_blocking(
                 "This build of the app cannot read a web page. Copy the recipe into a note.".into(),
             );
         }
+    }
+    // **One file of a web page being saved** (`decisions.md` 2026-11-17, *real artifacts*): a picture,
+    // a style sheet or a font, put inside the saved copy (`ui/src/lib/web/inline.ts`). At most 5 MB;
+    // `null` when it cannot be had (the copy keeps its address).
+    if cmd == "web_resource" {
+        let url = args.get("url").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let page = args.get("page").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        #[cfg(feature = "update")]
+        {
+            let got = fm_fetch::resource(&url, &page, 5 * 1024 * 1024).map_err(|e| e.to_string())?;
+            return Ok(match got {
+                Some((kind, bytes)) => serde_json::json!({
+                    "type": kind, "base64": fm_app::wire::b64_encode(&bytes)
+                })
+                .to_string(),
+                None => "null".into(),
+            });
+        }
+        #[cfg(not(feature = "update"))]
+        {
+            let _ = (url, page);
+            return Ok("null".into());
+        }
+    }
+    // **Save media on the phone** (`decisions.md` 2026-11-17): the shell runs yt-dlp (bundled, with
+    // Python and ffmpeg); these are the core's halves — the arguments for a choice, the summary of
+    // what an address holds, and filing the finished file (the same `keep` as the computer's).
+    // **The files of a queue, for the native player** (background playback, 2026-11-17): each asset
+    // reference's file on this phone, or null where it is not here.
+    if cmd == "asset_paths" {
+        let app = vault_state(&app_handle)?;
+        let refs = args.get("references").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let paths: Vec<serde_json::Value> = refs
+            .iter()
+            .map(|r| {
+                fm_app::dispatch::blob_path_of_kind(&app, &fm_app::Scope::All, r.as_str().unwrap_or(""), false)
+                    .ok()
+                    .filter(|p| p.exists())
+                    .map(|p| serde_json::json!(p.to_string_lossy()))
+                    .unwrap_or(serde_json::Value::Null)
+            })
+            .collect();
+        return Ok(serde_json::Value::Array(paths).to_string());
+    }
+    if cmd == "media_args" {
+        let ask: fm_app::media::Ask = serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
+            .map_err(|e| format!("not a media request: {e}"))?;
+        let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or_default();
+        let a = fm_app::media::ytdlp_args(ask.what, ask.quality, &ask.mp3, dir, None, &ask.url);
+        return serde_json::to_string(&a).map_err(|e| e.to_string());
+    }
+    if cmd == "media_probe_read" {
+        let info: serde_json::Value = serde_json::from_str(args.get("json").and_then(|v| v.as_str()).unwrap_or("null"))
+            .map_err(|e| e.to_string())?;
+        return Ok(fm_app::media::probe_summary(&info).to_string());
+    }
+    if cmd == "media_explain" {
+        let said = args.get("stderr").and_then(|v| v.as_str()).unwrap_or_default();
+        return Ok(serde_json::json!(fm_app::media::explain(said)).to_string());
+    }
+    if cmd == "media_keep" {
+        let ask: fm_app::media::Ask = serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
+            .map_err(|e| format!("not a media request: {e}"))?;
+        let file = std::path::PathBuf::from(args.get("file").and_then(|v| v.as_str()).unwrap_or_default());
+        let session = args.get("session").and_then(|v| v.as_str()).unwrap_or("media-phone").to_string();
+        let info = args.get("info").cloned().unwrap_or_default();
+        let app = vault_state(&app_handle)?;
+        let id = fm_app::media::keep(&app, &MobileHost, &ask.vault, &file, &session, &ask, &info)?;
+        return Ok(serde_json::json!({ "note": id }).to_string());
     }
     // **Updating the app.** A transport concern, like the agent's rows above: fm-serve answers these on
     // the desktop and the core `dispatch` never has them. **Matched by exact name** — `update_body` is

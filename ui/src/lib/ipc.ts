@@ -316,6 +316,9 @@ export const deleteNote = (id: string) => invoke<DeletedNote>('delete', { id });
 /** **A note left as it came is not kept** (2026-10-27): deletes it only if the file holds nothing —
  *  no text, title or property. The server decides, against the file. */
 /** **Keep a page as a note** (`clip_save`): the page read (`lib/web/read.ts`, `buildClip`), with a copy. */
+/** **One file of a web page** being saved (the phone; `inline.ts`): its type and bytes, or null. */
+export const webResource = (url: string, page: string) =>
+  invoke<{ type: string; base64: string } | null>('web_resource', { url, page });
 export const clipSave = (c: {
   url: string;
   title: string;
@@ -891,6 +894,20 @@ export const setGitAssetsMax = (vault: string, max: string) =>
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
 export const openExternal = (reference: string) => invoke<void>('open_external', { reference });
+/** **Open with…** (2026-11-17): the file in another program — on the phone, the app chosen in
+ *  Android's chooser (a content link to the vault's own file, never a copy); elsewhere the
+ *  computer's default program for it. */
+export async function openWith(reference: string, mime = ''): Promise<void> {
+  const share = (globalThis as { __fmShare?: { openWith?(path: string, mime: string): void } })
+    .__fmShare;
+  if (share?.openWith) {
+    const [path] = await invoke<(string | null)[]>('asset_paths', { references: [reference] });
+    if (!path) throw new Error('Its file is not on this device.');
+    share.openWith(path, mime);
+    return;
+  }
+  return openExternal(reference);
+}
 
 // Ingest an uploaded file (drag-drop / picker): stores a content-addressed blob,
 // extracts text, creates an asset note, and returns its meta so the editor can
@@ -1169,6 +1186,37 @@ export const ping = (since = 0) =>
 export const clock = () => invoke<ClockAnswer>('clock');
 /** Choose the app's zone — a name (`Asia/Tokyo`), an offset (`+09:00`), or '' for Automatic. */
 export const setClock = (zone: string) => invoke<ClockAnswer>('set_clock', { zone });
+
+/** **This device's privacy switches** (`privacy.rs`, 2026-11-17). */
+export interface Privacy {
+  search: string;
+  trackers: boolean;
+  ads: boolean;
+  cookies: boolean;
+  clean_links: boolean;
+  gpc: boolean;
+  https_only: boolean;
+  app_trackers: boolean;
+  sites_off: string[];
+  fired: number;
+  v: number;
+  engines: { key: string; name: string; url: string }[];
+}
+export type PrivacyChange = Partial<
+  Pick<
+    Privacy,
+    | 'search'
+    | 'trackers'
+    | 'ads'
+    | 'cookies'
+    | 'clean_links'
+    | 'gpc'
+    | 'https_only'
+    | 'app_trackers'
+  >
+> & { site_off?: string; site_on?: string; fire?: boolean };
+export const privacy = () => invoke<Privacy>('privacy');
+export const setPrivacy = (change: PrivacyChange) => invoke<Privacy>('set_privacy', change);
 
 /** A note the vault could not read, and enough to show it in a list. No path: the backend
  *  resolves that from the same set, so the only files openable this way are ones it just
@@ -1451,6 +1499,77 @@ export interface Playlist {
 }
 /** Every playlist, by title. */
 export const musicPlaylists = () => invoke<Playlist[]>('music_playlists');
+/** **Every video** (`log: video`, 2026-11-17) and the collections that link them. */
+export const videoLibrary = () => invoke<ObjectMeta[]>('video_library');
+export const videoCollections = () => invoke<Playlist[]>('video_collections');
+
+/** **Save media** (`decisions.md` 2026-11-17): what an address holds, before anything is fetched. */
+export interface MediaProbe {
+  title: string | null;
+  uploader: string | null;
+  duration: number | null;
+  thumbnail?: string | null;
+  site?: string | null;
+  live: boolean;
+  video: boolean;
+  audio: boolean;
+  heights: number[];
+}
+export interface MediaAsk {
+  url: string;
+  page: string;
+  what: 'video' | 'audio' | 'mp3';
+  quality?: number;
+  mp3?: string;
+  into: 'music' | 'videos' | 'note';
+  /** A playlist or collection's note id, or `new:<name>`. */
+  list?: string;
+  note?: string;
+  vault?: string;
+}
+export interface MediaJob {
+  id: number;
+  url: string;
+  title: string;
+  what: 'video' | 'audio' | 'mp3';
+  state: 'tools' | 'downloading' | 'converting' | 'filing' | 'done' | 'failed' | 'cancelled';
+  progress: number | null;
+  error: string | null;
+  note: string | null;
+}
+export interface MediaTools {
+  ytdlp: boolean;
+  ffmpeg: boolean;
+  ytdlp_version: string;
+  ffmpeg_version: string;
+  supported: boolean;
+}
+export const mediaTools = () => invoke<MediaTools>('media_tools');
+/** **Your music in other players** (Subsonic, `subsonic.rs`): this computer's switch and password. */
+export interface Subsonic {
+  on: boolean;
+  user: string;
+  password: string;
+  shared: boolean;
+}
+export const subsonic = () => invoke<Subsonic>('subsonic');
+export const subsonicSet = (c: { on?: boolean; renew?: boolean }) =>
+  invoke<Subsonic>('subsonic_set', c);
+export const mediaProbe = (url: string) => invoke<MediaProbe>('media_probe', { url });
+export const mediaSave = (ask: MediaAsk) => invoke<{ id: number }>('media_save', { ...ask });
+export const mediaJobs = () => invoke<MediaJob[]>('media_jobs');
+export const mediaCancel = (id: number) => invoke<null>('media_cancel', { id });
+/** The phone's halves (its shell runs yt-dlp): the arguments for a choice, what `-J` said summed
+ *  up, a failure as a person reads it, and filing the finished file. */
+/** The files of a queue on this phone, for its native player (`asset_paths`): null where absent. */
+export const assetPaths = (references: string[]) =>
+  invoke<(string | null)[]>('asset_paths', { references });
+export const mediaArgs = (ask: MediaAsk, dir: string) =>
+  invoke<string[]>('media_args', { ask: { ...ask }, dir });
+export const mediaProbeRead = (json: string) => invoke<MediaProbe>('media_probe_read', { json });
+export const mediaExplain = (stderr: string) => invoke<string>('media_explain', { stderr });
+export const mediaKeep = (ask: MediaAsk, file: string, info: unknown, session: string) =>
+  invoke<{ note: string }>('media_keep', { ask: { ...ask }, file, info, session });
 /** The recipes saved in a log, each with the sum of its ingredients. */
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
 /** One day's nutrients; `planned` counts what is planned too (a day still to come). */

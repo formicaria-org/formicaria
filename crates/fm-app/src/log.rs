@@ -797,7 +797,7 @@ pub fn log_routines(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Routine>, 
 // ── writing ──────────────────────────────────────────────────────────────────────────────────────
 
 /// A note to make. Everything but the title is optional.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct NoteDraft {
     #[serde(default)]
     pub title: String,

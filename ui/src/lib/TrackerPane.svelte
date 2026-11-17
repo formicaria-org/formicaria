@@ -231,7 +231,7 @@
     if (
       !def ||
       !view ||
-      ['plan', 'menu', 'cards', 'library'].includes(def.span) ||
+      ['plan', 'menu', 'cards', 'library', 'videos'].includes(def.span) ||
       def.add === 'health'
     )
       return;
@@ -321,7 +321,11 @@
     else if (def?.add === 'body') measuring = def;
     else if (def?.add === 'workout') workout = { set: null };
     else if (def?.add === 'song') addingSong = true;
+    else if (def?.add === 'video') addVideo++;
   });
+
+  /** The group's add control in Videos: the screen opens its file picker. */
+  let addVideo = $state(0);
 
   // ── adding a song (`music/AddSong.svelte`; `decisions.md#ui`, 2026-11-13) ──────────────────────
   let addingSong = $state(false);
@@ -642,6 +646,10 @@
     {:else if def.span === 'library'}
       {#await import('./music/MusicScreen.svelte') then { default: MusicScreen }}
         <MusicScreen signal={[feed, wrotes]} {onopen} onadd={() => (addingSong = true)} />
+      {/await}
+    {:else if def.span === 'videos'}
+      {#await import('./video/VideoScreen.svelte') then { default: VideoScreen }}
+        <VideoScreen signal={[feed, wrotes]} addSignal={addVideo} {onopen} />
       {/await}
     {:else if def.span === 'cards'}
       {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}

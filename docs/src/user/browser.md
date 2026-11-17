@@ -190,3 +190,14 @@ never lost. If formicaria cannot take a file, it is saved to Downloads and a not
 - It sends nothing anywhere but your own formicaria: the page is read in your browser and kept on
   your computer.
 - Windows and macOS: not yet.
+
+## Privacy and media
+
+- The ant's **Privacy** opens formicaria's privacy switches (search engine, trackers, ads, cookie
+  pop-ups, tracking links, Global Privacy Control, secure connections, forgetting web data); they
+  are Firefox's own protections, set from one place. [Privacy](./privacy.md).
+- The ant's **Save media on this page**, or right-click → **Save media in formicaria…**, keeps a
+  page's video or sound in your library. [Saving media](./media.md).
+- **Save page** keeps the whole page as **one self-contained file**: its pictures, styles and fonts
+  inside it, so it opens the same offline (its videos and sounds keep their addresses). Its link in
+  the note opens the copy in a new tab, as it was saved, with nothing in it able to run.

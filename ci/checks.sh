@@ -2502,7 +2502,8 @@ echo "[check] the phone's APK carries nothing Play Protect called harmful (no bo
 # the manifest's permissions and the Kotlin in ci/android-inject-service.sh, so that is where they
 # are refused. A new permission is a decisions.md entry first, then a change to the list below.
 inject=ci/android-inject-service.sh
-allowed='FOREGROUND_SERVICE|FOREGROUND_SERVICE_DATA_SYNC|POST_NOTIFICATIONS|RECORD_AUDIO|MODIFY_AUDIO_SETTINGS'
+# FOREGROUND_SERVICE_MEDIA_PLAYBACK: music on in the background, for every build (decisions.md 2026-11-17).
+allowed='FOREGROUND_SERVICE|FOREGROUND_SERVICE_DATA_SYNC|FOREGROUND_SERVICE_MEDIA_PLAYBACK|POST_NOTIFICATIONS|RECORD_AUDIO|MODIFY_AUDIO_SETTINGS'
 if grep -oE 'uses-permission android:name=\\?"android\.permission\.[A-Z_]+' "$inject" \
     | sed -E 's/.*permission\.//' | grep -vxE "$allowed"; then
     echo "  FAIL: $inject adds the permission(s) above, outside the list Play Protect has passed."

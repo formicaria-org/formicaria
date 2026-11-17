@@ -37,6 +37,9 @@ it('a new tab suggests the features, a new note and the web', async () => {
     'Fitness',
     'Health',
     'Music',
+    'Videos',
+    'Discussions',
+    'Collaboration',
   ]);
   await fireEvent.click(screen.getByRole('button', { name: 'Notes' }));
   expect(went).toEqual(['/f/group/Library']);
@@ -57,4 +60,27 @@ it('Settings is a page of its own', async () => {
   history.replaceState(null, '', '/f/settings');
   render(Feature);
   expect(await screen.findByRole('heading', { name: 'Settings' }, { timeout: 4000 })).toBeTruthy();
+});
+
+it('+ offers Discussions and Collaboration among the features', async () => {
+  const { render, screen } = await import('@testing-library/svelte');
+  const { default: NewTab } = await import('./NewTab.svelte');
+  let went = '';
+  render(NewTab, { go: (u: string) => (went = u) });
+  const d = screen.getByRole('button', { name: 'Discussions' });
+  expect(screen.getByRole('button', { name: 'Collaboration' })).toBeTruthy();
+  d.click();
+  expect(went).toBe('/f/discussions');
+});
+
+it('a feature page offers a newer version, as the old whole-app page did', async () => {
+  const { render, screen } = await import('@testing-library/svelte');
+  const { default: Feature } = await import('./Feature.svelte');
+  const mock = await import('../lib/mock');
+  mock.reset();
+  history.replaceState(null, '', '/f/group/Library');
+  render(Feature);
+  // The stand-in's server has v0.6.1 waiting.
+  expect(await screen.findByRole('button', { name: 'Update' }, { timeout: 4000 })).toBeTruthy();
+  expect(screen.getAllByText(/v0\.6\.1/).length).toBeGreaterThan(0);
 });

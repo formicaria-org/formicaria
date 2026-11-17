@@ -14,7 +14,7 @@
 // Web Audio graph. That graph is silent for audio from another origin, which is what the phone's
 // file protocol is, so it is only ever built where the song comes from the page's own origin — the
 // computer — and `soundAvailable()` says so for the UI to offer it or not.
-import { assetUrl } from '../ipc';
+import { assetPaths, assetUrl } from '../ipc';
 import type { ObjectMeta } from '../types';
 
 /** What the player needs of a song: its note, its audio and what to call it. */
@@ -125,6 +125,84 @@ export const deckShown = () => state.decks > 0;
 export const preset = () =>
   Object.entries(PRESETS).find(([, g]) => g.every((v, i) => v === state.eq[i]))?.[0] ?? 'Custom';
 
+// ── the phone's native player (`PlaybackService`, 2026-11-17) ──────────────────────────────────
+// On the phone the music plays in a native media service, so it goes on with the screen off and the
+// lock screen, notification, headphones, Bluetooth and the car control it. It holds the whole queue
+// (next, previous, shuffle and repeat happen there); this player is its remote and mirrors it.
+interface Native {
+  setQueue(json: string, index: number, seconds: number, play: boolean): void;
+  play(): void;
+  pause(): void;
+  next(): void;
+  previous(): void;
+  jump(index: number): void;
+  seek(seconds: number): void;
+  volume(v: number): void;
+  modes(shuffle: boolean, repeat: string): void;
+  stop(): void;
+}
+const native = (): Native | undefined => (globalThis as { __fmPlayer?: Native }).__fmPlayer;
+/** The queue the native player holds (its songs' references), to know when it must be told again. */
+let handed = '';
+const queueKey = () => state.queue.map((t) => t.audio).join('|');
+
+/** Give the native player the queue, from `i` at `seconds`. */
+async function handOver(i: number, play: boolean, seconds = 0) {
+  const n = native();
+  if (!n) return;
+  const key = queueKey();
+  const refs = state.queue.flatMap((t) => [t.audio, t.cover ?? '']);
+  let paths: (string | null)[] = [];
+  try {
+    paths = await assetPaths(refs);
+  } catch {
+    paths = [];
+  }
+  const items = state.queue.map((t, k) => ({
+    path: paths[2 * k] ?? '',
+    title: t.title,
+    artist: t.artist,
+    album: t.album,
+    cover: paths[2 * k + 1] ?? '',
+  }));
+  if (!items[i]?.path && state.queue[i]) {
+    state.failed = `“${state.queue[i].title}” cannot be played here — its file may not be on this device.`;
+    state.playing = false;
+    return;
+  }
+  n.setQueue(JSON.stringify(items), i, seconds, play);
+  n.modes(state.shuffle, state.repeat);
+  n.volume(state.muted ? 0 : state.volume);
+  handed = key;
+}
+/** The queue changed while the native player plays: it is told again, where it is. */
+function resync() {
+  if (native() && handed && handed !== queueKey())
+    void handOver(state.at, state.playing, state.time);
+}
+if (typeof window !== 'undefined')
+  window.addEventListener('fm-player', (e) => {
+    const d = (
+      e as CustomEvent<{
+        index: number;
+        playing: boolean;
+        time: number;
+        length: number;
+        error: string;
+      }>
+    ).detail;
+    if (!d || !handed) return;
+    if (d.index >= 0 && d.index < state.queue.length && d.index !== state.at) {
+      state.at = d.index;
+      describe();
+      save();
+    }
+    state.playing = d.playing;
+    state.time = d.time;
+    if (d.length > 0) state.length = d.length;
+    if (d.error) state.failed = d.error;
+  });
+
 let el: HTMLAudioElement | null = null;
 /** The one audio element, made on first use: a page that never plays music never has one. */
 function audio(): HTMLAudioElement {
@@ -220,6 +298,20 @@ function go(i: number, play: boolean) {
   state.at = i;
   const t = now();
   if (!t) return;
+  if (native()) {
+    state.time = 0;
+    state.length = t.duration ?? 0;
+    state.failed = '';
+    // As asked, until the native player says otherwise (its events follow within half a second).
+    state.playing = play;
+    if (handed === queueKey()) {
+      native()!.jump(i);
+      if (!play) native()!.pause();
+    } else void handOver(i, play);
+    describe();
+    save();
+    return;
+  }
   const a = audio();
   a.src = assetUrl(t.audio);
   state.time = 0;
@@ -265,6 +357,7 @@ export function playNext(tracks: Track[]) {
     state.order = [...old.slice(0, k + 1), ...added, ...old.slice(k + 1)];
   }
   save();
+  resync();
 }
 
 /** Put songs at the end of the queue: *Add to queue*. */
@@ -275,6 +368,7 @@ export function enqueue(tracks: Track[]) {
   state.queue = [...state.queue, ...tracks];
   if (state.shuffle) state.order = [...state.order, ...tracks.map((_, k) => base + k)];
   save();
+  resync();
 }
 
 /** Take the song at `i` out of the queue. The one playing stays where it is. */
@@ -284,11 +378,19 @@ export function unqueue(i: number) {
   if (i < state.at) state.at -= 1;
   state.order = state.order.filter((k) => k !== i).map((k) => (k > i ? k - 1 : k));
   save();
+  resync();
 }
 
 export function toggle() {
   const t = now();
   if (!t) return;
+  if (native()) {
+    state.failed = '';
+    if (handed !== queueKey()) void handOver(state.at, true, state.time);
+    else if (state.playing) native()!.pause();
+    else native()!.play();
+    return;
+  }
   const a = audio();
   // A queue brought back after a restart, or stopped, has no source yet.
   if (!a.getAttribute('src')) {
@@ -303,6 +405,10 @@ export function toggle() {
 
 /** Stop and go back to the start of the song, keeping the queue: the ■ of a player. */
 export function halt() {
+  if (native() && handed) {
+    native()!.pause();
+    native()!.seek(0);
+  }
   if (el) {
     el.pause();
     el.currentTime = 0;
@@ -312,12 +418,14 @@ export function halt() {
 }
 
 export function next() {
+  if (native() && handed === queueKey()) return native()!.next();
   const n = following();
   if (n !== null) go(n, true);
 }
 
 /** Back to the start of the song; to the one before when already near its start, as players do. */
 export function previous() {
+  if (native() && handed === queueKey()) return native()!.previous();
   const p = preceding();
   if (state.time > 3 || p === null) seek(0);
   else go(p, true);
@@ -329,6 +437,7 @@ export function jump(i: number) {
 
 export function seek(seconds: number) {
   const s = Math.min(Math.max(0, seconds), length() || Infinity);
+  if (native() && handed) native()!.seek(s);
   if (el) el.currentTime = s;
   state.time = s;
 }
@@ -339,6 +448,7 @@ export const skip = (by: number) => seek(state.time + by);
 export function setVolume(v: number) {
   state.volume = Math.min(1, Math.max(0, Math.round(v * 100) / 100));
   if (state.volume > 0) state.muted = false;
+  if (native() && handed) native()!.volume(state.muted ? 0 : state.volume);
   if (el) {
     el.volume = state.volume;
     el.muted = state.muted;
@@ -348,6 +458,7 @@ export function setVolume(v: number) {
 
 export function toggleMute() {
   state.muted = !state.muted;
+  if (native() && handed) native()!.volume(state.muted ? 0 : state.volume);
   if (el) el.muted = state.muted;
   saveSettings();
 }
@@ -355,6 +466,7 @@ export function toggleMute() {
 export function toggleShuffle() {
   state.shuffle = !state.shuffle;
   state.order = state.shuffle ? shuffled(state.at) : [];
+  if (native() && handed) native()!.modes(state.shuffle, state.repeat);
   saveSettings();
 }
 
@@ -368,11 +480,16 @@ export function cycleSkin() {
 /** Off → all → one → off. */
 export function cycleRepeat() {
   state.repeat = state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off';
+  if (native() && handed) native()!.modes(state.shuffle, state.repeat);
   saveSettings();
 }
 
 /** Stop and empty the queue: the player goes away. */
 export function stop() {
+  if (native() && handed) {
+    native()!.stop();
+    handed = '';
+  }
   if (el) {
     el.pause();
     el.removeAttribute('src');

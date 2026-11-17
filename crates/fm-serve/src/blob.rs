@@ -33,6 +33,15 @@ use std::io::{self, Read, Seek, SeekFrom};
 /// never to hold the file in memory, so this is the only buffer.
 const CHUNK: usize = 64 * 1024;
 
+/// **A saved page, to read** (the owner on 0.50: *"the saved webpage does not load"*). Shown as a
+/// document, but in a sandbox with **no scripts and an opaque origin** (`sandbox` with neither
+/// `allow-scripts` nor `allow-same-origin`): nothing in it can run, reach `/api`, submit a form or
+/// read anything of formicaria's. What it may load is what a page needs to look like itself: the
+/// pictures, styles and fonts inside it (`data:`), and its media and any part not kept, from the web.
+pub const VIEW_CSP: &str = "Content-Security-Policy: sandbox; default-src 'none'; \
+     img-src data: https: http:; style-src 'unsafe-inline' data: https: http:; \
+     font-src data: https: http:; media-src data: https: http:\r\n";
+
 /// Serve one blob, honouring `Range`. `head` sends the headers and no body — which is how a
 /// media element discovers the length before it starts seeking.
 ///
@@ -42,6 +51,7 @@ const CHUNK: usize = 64 * 1024;
 /// enforcement. Blobs are content-addressed and deduplicated, which means a reference learned
 /// from a shared vault would otherwise resolve against a private one — same hash, same bytes,
 /// wrong audience.
+#[allow(clippy::too_many_arguments)]
 pub fn serve(
     stream: &mut dyn crate::Conn,
     state: &AppState,
@@ -52,6 +62,9 @@ pub fn serve(
     // Serve the derived thumbnail where one exists. Falls back to the full blob when it does not,
     // so this can never turn a present image into a 404 — see `commands::blob_path_of_kind`.
     thumb: bool,
+    // **To read, as a page** (`?kind=view`, 2026-11-17): a saved page's copy shown in the browser
+    // rather than downloaded. Only HTML is affected, and it gets [`VIEW_CSP`].
+    view: bool,
 ) -> io::Result<()> {
     let reference = crate::percent_decode(reference);
     let path = match fm_app::dispatch::blob_path_of_kind(&state.app, scope, &reference, thumb) {
@@ -119,8 +132,13 @@ pub fn serve(
     // Belt to the disposition's braces: if a blob ever *is* rendered as a document, it may
     // load nothing and reach nowhere. Costs one header; means a future widening of
     // `inline_safe` cannot quietly re-open the navigation hazard described below.
-    header.push_str("Content-Security-Policy: default-src 'none'; sandbox\r\n");
-    if !inline_safe(&ctype) {
+    let saved_page = view && ctype.starts_with("text/html");
+    header.push_str(if saved_page {
+        VIEW_CSP
+    } else {
+        "Content-Security-Policy: default-src 'none'; sandbox\r\n"
+    });
+    if !inline_safe(&ctype) && !saved_page {
         // **The one real hazard this route introduces.** A blob is now at a same-origin URL
         // a browser can *navigate* to, where before it was bytes the page wrapped itself.
         // Note bodies — and therefore the blobs they reference — arrive from collaborators
@@ -225,6 +243,7 @@ mod tests {
                 &fm_app::Scope::All,
                 &reference,
                 range.as_deref(),
+                false,
                 false,
                 false,
             )
@@ -357,6 +376,7 @@ mod tests {
             None,
             false,
             false,
+            false,
         )
         .unwrap();
 
@@ -372,6 +392,12 @@ mod tests {
     fn svg_and_anything_document_shaped_is_never_rendered_inline() {
         assert!(!inline_safe("image/svg+xml"));
         assert!(!inline_safe("text/html"));
+        // Read as a page, HTML gets no scripts and an opaque origin; and only HTML is changed.
+        assert!(super::VIEW_CSP.contains("sandbox;") && !super::VIEW_CSP.contains("allow-scripts"));
+        assert!(
+            !super::VIEW_CSP.contains("script-src")
+                && !super::VIEW_CSP.contains("allow-same-origin")
+        );
         assert!(!inline_safe("application/xhtml+xml"));
         assert!(!inline_safe("application/octet-stream"));
         // The unknown case: a format nobody has thought about yet must download.

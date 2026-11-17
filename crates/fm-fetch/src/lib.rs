@@ -400,6 +400,44 @@ pub fn request(
     Ok((status, buf))
 }
 
+/// **One file of a web page** (a picture, a style sheet, a font), for a copy of the page that holds
+/// them itself (`decisions.md` 2026-11-17, *real artifacts*): its type and **capped** bytes. Asked
+/// as the page asked (the page as `Referer`), since some sites serve their pictures only to their
+/// own pages. A non-2xx answer is `None`: the copy keeps that file's address instead.
+pub fn resource(
+    url: &str,
+    referer: &str,
+    limit: usize,
+) -> Result<Option<(String, Vec<u8>)>, FetchError> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Ok(None);
+    }
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(CONNECT_TIMEOUT)
+        .timeout_read(READ_TIMEOUT)
+        .user_agent("Mozilla/5.0 (compatible; formicaria)")
+        .build();
+    let mut req = agent.get(url).set("Accept-Encoding", "identity");
+    if !referer.is_empty() {
+        req = req.set("Referer", referer);
+    }
+    let resp = match req.call() {
+        Ok(r) => r,
+        Err(ureq::Error::Status(..)) => return Ok(None),
+        Err(e) => return Err(FetchError::Transient(format!("could not reach the site: {e}"))),
+    };
+    let kind = resp.content_type().to_string();
+    let mut buf = Vec::new();
+    resp.into_reader()
+        .take(limit as u64 + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| FetchError::Transient(format!("could not read the answer: {e}")))?;
+    if buf.len() > limit {
+        return Ok(None);
+    }
+    Ok(Some((kind, buf)))
+}
+
 /// Fetch `d`, resuming a partial `<dest>.part` if present. `on_progress(done, total)` fires as bytes
 /// arrive (`total` is `None` when the server sends no length). **Idempotent:** an existing `dest`
 /// returns `Ok` without touching the network — verifying it first if a checksum was given.

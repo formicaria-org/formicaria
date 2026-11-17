@@ -62,10 +62,13 @@ export function blocksIn(area: DOMRect): Block[] {
   const kept: Element[] = [];
   for (const el of Array.from(document.body.querySelectorAll(CANDIDATES))) {
     const t = el.tagName;
-    if ((t === 'DIV' || t === 'SECTION' || t === 'ARTICLE' || t === 'SPAN') && !ownText(el)) continue;
+    if ((t === 'DIV' || t === 'SECTION' || t === 'ARTICLE' || t === 'SPAN') && !ownText(el))
+      continue;
     // A paragraph's box spans its column even when its text is short: what counts is where its
     // contents are (an image, a canvas, a video: the element itself).
-    const r = /^(IMG|VIDEO|AUDIO|CANVAS|SVG|svg)$/.test(t) ? el.getBoundingClientRect() : contentBox(el);
+    const r = /^(IMG|VIDEO|AUDIO|CANVAS|SVG|svg)$/.test(t)
+      ? el.getBoundingClientRect()
+      : contentBox(el);
     if (!r.width || !r.height || overlap(r, area) < 0.5) continue;
     const style = getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none') continue;
@@ -89,14 +92,19 @@ function toBlocks(kept: Element[]): Block[] {
       out.push({ kind: 'image', src: i.currentSrc || i.src, alt: i.alt });
     } else if (t === 'VIDEO' || t === 'AUDIO') {
       const m = el as HTMLMediaElement;
-      out.push({ kind: t === 'VIDEO' ? 'video' : 'audio', src: m.currentSrc || m.src, time: m.currentTime });
+      out.push({
+        kind: t === 'VIDEO' ? 'video' : 'audio',
+        src: m.currentSrc || m.src,
+        time: m.currentTime,
+      });
     } else if (t === 'CANVAS' || t === 'svg' || t === 'SVG') {
       out.push({ kind: 'picture', rect: box(el) });
     } else if (t === 'FIGURE') {
       for (const i of Array.from(el.querySelectorAll('img')))
         out.push({ kind: 'image', src: i.currentSrc || i.src, alt: i.alt });
       const cap = el.querySelector('figcaption');
-      if (cap?.textContent?.trim()) out.push({ kind: 'text', html: cap.innerHTML, text: cap.textContent.trim() });
+      if (cap?.textContent?.trim())
+        out.push({ kind: 'text', html: cap.innerHTML, text: cap.textContent.trim() });
     } else if (!(el.textContent ?? '').trim() && el.querySelector('img, video, audio')) {
       // A wrapper with no words of its own (a paragraph holding an image): its media, kept as media.
       for (const m of Array.from(el.querySelectorAll('img, video, audio'))) {
@@ -105,7 +113,11 @@ function toBlocks(kept: Element[]): Block[] {
           out.push({ kind: 'image', src: i.currentSrc || i.src, alt: i.alt });
         } else {
           const v = m as HTMLMediaElement;
-          out.push({ kind: m.tagName === 'VIDEO' ? 'video' : 'audio', src: v.currentSrc || v.src, time: v.currentTime });
+          out.push({
+            kind: m.tagName === 'VIDEO' ? 'video' : 'audio',
+            src: v.currentSrc || v.src,
+            time: v.currentTime,
+          });
         }
       }
     } else if (t === 'TABLE' || t === 'PRE' || t === 'UL' || t === 'OL' || t === 'DL') {
@@ -131,7 +143,8 @@ export function suggestions(): { label: string; blocks?: Block[]; save?: boolean
   const ld = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
     .map((s) => s.textContent ?? '')
     .join(' ');
-  if (/"@type"\s*:\s*(\[[^\]]*)?"Recipe"/.test(ld)) out.push({ label: 'Save as a recipe', save: true });
+  if (/"@type"\s*:\s*(\[[^\]]*)?"Recipe"/.test(ld))
+    out.push({ label: 'Save as a recipe', save: true });
   if (has('meta[name="citation_title"]')) out.push({ label: 'Save as a paper', save: true });
   // The main text: the page's own <article>/<main>, else the element holding the most paragraph text.
   let main = document.querySelector('article, main, [role="main"]');
@@ -155,12 +168,20 @@ export function suggestions(): { label: string; blocks?: Block[]; save?: boolean
     );
     if (parts.length) out.push({ label: 'The main text', blocks: toBlocks(parts) });
   }
-  const images = Array.from(document.images).filter((i) => i.naturalWidth >= 120 && i.naturalHeight >= 120);
+  const images = Array.from(document.images).filter(
+    (i) => i.naturalWidth >= 120 && i.naturalHeight >= 120,
+  );
   if (images.length)
-    out.push({ label: images.length === 1 ? 'The image' : `The ${images.length} images`, blocks: toBlocks(images) });
+    out.push({
+      label: images.length === 1 ? 'The image' : `The ${images.length} images`,
+      blocks: toBlocks(images),
+    });
   const tables = Array.from(document.querySelectorAll('table')).filter((t) => t.rows.length > 1);
   if (tables.length)
-    out.push({ label: tables.length === 1 ? 'The table' : `The ${tables.length} tables`, blocks: toBlocks(tables) });
+    out.push({
+      label: tables.length === 1 ? 'The table' : `The ${tables.length} tables`,
+      blocks: toBlocks(tables),
+    });
   return out.slice(0, 4);
 }
 
@@ -219,7 +240,12 @@ export function bubble(at: { x: number; y: number }, r: Result) {
     a.onclick = async () => {
       a.remove();
       say.textContent = 'Changing it…';
-      const done = await browser.runtime.sendMessage<Result>({ type: 'alt', token: alt.token, note: r.note, from: r.inserted });
+      const done = await browser.runtime.sendMessage<Result>({
+        type: 'alt',
+        token: alt.token,
+        note: r.note,
+        from: r.inserted,
+      });
       say.textContent = done?.ok ? 'Changed.' : `Not changed: ${done?.error ?? ''}`;
       setTimeout(close, 2500);
     };
@@ -235,8 +261,13 @@ export function bubble(at: { x: number; y: number }, r: Result) {
     const link = el('button', '', 'Just the link instead');
     link.onclick = async () => {
       link.remove();
-      const done = await browser.runtime.sendMessage<Result>({ type: 'link-instead-here', id: r.open });
-      say.textContent = done?.ok ? 'Just the link, on the Bookmarks shelf.' : `Not changed: ${done?.error ?? ''}`;
+      const done = await browser.runtime.sendMessage<Result>({
+        type: 'link-instead-here',
+        id: r.open,
+      });
+      say.textContent = done?.ok
+        ? 'Just the link, on the Bookmarks shelf.'
+        : `Not changed: ${done?.error ?? ''}`;
       setTimeout(close, 2500);
     };
     b.append(link);
@@ -282,7 +313,12 @@ export function startSnip(from?: { x: number; y: number }) {
         return;
       }
       const r = await browser.runtime
-        .sendMessage<Result>({ type: 'snip', blocks: sg.blocks ?? [], area: null, dpr: devicePixelRatio })
+        .sendMessage<Result>({
+          type: 'snip',
+          blocks: sg.blocks ?? [],
+          area: null,
+          dpr: devicePixelRatio,
+        })
         .catch((e) => ({ ok: false, error: String(e) }) as Result);
       bubble({ x: innerWidth / 2 - 160, y: 12 }, r ?? { ok: false, error: 'no answer' });
     };
@@ -298,51 +334,66 @@ export function startSnip(from?: { x: number; y: number }) {
       notes?: { id: string; title: string; context: string }[];
     }>({ type: 'snip-info' })
     .then((info) => {
-    label.textContent = info?.front ? `Drag over what to bring into “${info.front}”` : 'Drag over what to bring into a new note';
-    // **Ask the assistant what matters here**: only when one is running and a note is in front.
-    if (info?.assistant && info.front) {
-      const main = suggestions().find((sg) => sg.label === 'The main text');
-      const asking = el('button', 'suggest', `Ask ${info.assistant} what matters here`);
-      asking.onclick = async () => {
-        stop();
-        const blocks: Block[] = main?.blocks ?? [
-          { kind: 'text', html: '', text: (document.body.innerText ?? '').slice(0, 12000) },
-        ];
-        const r = await browser.runtime.sendMessage<Result>({ type: 'ask-assistant', blocks });
-        bubble(
-          { x: innerWidth / 2 - 160, y: 12 },
-          r?.ok
-            ? { ok: true, say: `${info.assistant} is reading it; its suggestions will come as proposals to accept` }
-            : (r ?? { ok: false, error: 'no answer' }),
-        );
-      };
-      bar.insertBefore(asking, save);
-    }
-    const notes = info?.notes ?? [];
-    if (!notes.length) return;
-    const inNotes = el('button', '', notes.length === 1 ? 'In one of your notes' : `In ${notes.length} of your notes`);
-    inNotes.onclick = () => {
-      const list = el('div', 'list');
-      for (const n of notes) {
-        const a = el('a', '');
-        a.append(el('span', '', n.title || 'Untitled'), el('small', '', n.context));
-        a.onclick = () => {
-          void browser.runtime.sendMessage({ type: 'open', id: n.id });
+      label.textContent = info?.front
+        ? `Drag over what to bring into “${info.front}”`
+        : 'Drag over what to bring into a new note';
+      // **Ask the assistant what matters here**: only when one is running and a note is in front.
+      if (info?.assistant && info.front) {
+        const main = suggestions().find((sg) => sg.label === 'The main text');
+        const asking = el('button', 'suggest', `Ask ${info.assistant} what matters here`);
+        asking.onclick = async () => {
           stop();
+          const blocks: Block[] = main?.blocks ?? [
+            { kind: 'text', html: '', text: (document.body.innerText ?? '').slice(0, 12000) },
+          ];
+          const r = await browser.runtime.sendMessage<Result>({ type: 'ask-assistant', blocks });
+          bubble(
+            { x: innerWidth / 2 - 160, y: 12 },
+            r?.ok
+              ? {
+                  ok: true,
+                  say: `${info.assistant} is reading it; its suggestions will come as proposals to accept`,
+                }
+              : (r ?? { ok: false, error: 'no answer' }),
+          );
         };
-        list.append(a);
+        bar.insertBefore(asking, save);
       }
-      root.append(list);
-      inNotes.remove();
-    };
-    bar.insertBefore(inNotes, save);
-  });
+      const notes = info?.notes ?? [];
+      if (!notes.length) return;
+      const inNotes = el(
+        'button',
+        '',
+        notes.length === 1 ? 'In one of your notes' : `In ${notes.length} of your notes`,
+      );
+      inNotes.onclick = () => {
+        const list = el('div', 'list');
+        for (const n of notes) {
+          const a = el('a', '');
+          a.append(el('span', '', n.title || 'Untitled'), el('small', '', n.context));
+          a.onclick = () => {
+            void browser.runtime.sendMessage({ type: 'open', id: n.id });
+            stop();
+          };
+          list.append(a);
+        }
+        root.append(list);
+        inNotes.remove();
+      };
+      bar.insertBefore(inNotes, save);
+    });
 
   let start: { x: number; y: number } | null = from ?? null;
   const rect = (a: { x: number; y: number }, b: { x: number; y: number }) =>
     new DOMRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(a.x - b.x), Math.abs(a.y - b.y));
   const draw = (r: DOMRect) => {
-    Object.assign(area.style, { display: 'block', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    Object.assign(area.style, {
+      display: 'block',
+      left: `${r.left}px`,
+      top: `${r.top}px`,
+      width: `${r.width}px`,
+      height: `${r.height}px`,
+    });
   };
   const down = (e: MouseEvent) => {
     if (e.button !== 0 || e.composedPath().some((n) => n === bar)) return;

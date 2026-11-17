@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { searchUrl, searchName } from '../lib/privacy.svelte';
   // **A new tab suggests** (`decisions.md` 2026-11-17, *one frame*; Teams' add-a-tab, Vivaldi's Speed
   // Dial): the features as large buttons, a new note, and one field for a web address or a search.
   // Choosing fills this tab.
@@ -11,7 +12,7 @@
 
   let typed = $state('');
   let field = $state<HTMLInputElement>();
-  const web = $derived(webTarget(typed));
+  const web = $derived(webTarget(typed, searchUrl));
 
   async function newNote() {
     const [made] = await ipc.createNotes([{ title: '', body: '', tags: [], start: '', props: {} }]);
@@ -25,7 +26,7 @@
     bind:this={field}
     bind:value={typed}
     type="search"
-    placeholder="A web address, or words to search the web"
+    placeholder={`A web address, or words to search with ${searchName()}`}
     aria-label="a web address or a search"
     onkeydown={(e) => e.key === 'Enter' && web && go(web.url)}
   />

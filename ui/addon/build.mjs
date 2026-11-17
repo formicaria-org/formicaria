@@ -35,6 +35,30 @@ for (const name of ['content', 'background', 'choose', 'bridge', 'select', 'pick
     },
   });
 }
+// **Scripts formicaria's phone page views run in web pages** (`page/`): one self-contained file each,
+// into `dist/page/`, which the app hands to its shell (`privacy.svelte.ts`).
+const pageOut = join(here, '..', 'dist', 'page');
+rmSync(pageOut, { recursive: true, force: true });
+for (const name of ['consent']) {
+  await build({
+    configFile: false,
+    publicDir: false,
+    logLevel: 'warn',
+    define: { 'process.env.NODE_ENV': '"production"' },
+    build: {
+      outDir: pageOut,
+      emptyOutDir: false,
+      minify: true,
+      target: 'chrome100',
+      lib: {
+        entry: join(here, '..', 'page', `${name}.ts`),
+        formats: ['iife'],
+        name: `formicaria_page_${name}`,
+        fileName: () => `${name}.js`,
+      },
+    },
+  });
+}
 for (const f of ['manifest.json', 'choose.html', 'launcher.html', 'icon.svg', 'icon-page.svg', 'icon-page-in.svg']) {
   writeFileSync(join(stage, f), readFileSync(join(here, f)));
 }

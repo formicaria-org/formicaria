@@ -160,6 +160,9 @@ pub enum AddAction {
     /// **Add a song**: an audio file uploaded like any attachment, its tags filling a song note
     /// (`log: music`; `decisions.md#ui`, 2026-11-13, *a sixth group, Music*).
     Song,
+    /// **Add a video**: a video file uploaded like any attachment, made a video note (`log: video`;
+    /// `decisions.md` 2026-11-17, *media from any site*).
+    Video,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,6 +193,9 @@ pub enum Span {
     /// Not days at all: every entry of the log at once, to search, sort and open — Music's songs
     /// (`decisions.md#ui`, 2026-11-13). Its rows come from `music_library`, asked for once.
     Library,
+    /// Every video at once, with its collections and a player (`decisions.md` 2026-11-17). Its rows
+    /// come from `video_library`, asked for once.
+    Videos,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -221,7 +227,9 @@ fn totals_def(file: &ViewFile) -> Result<TotalsDef, String> {
     // A Health view's values are the person's own trackers, read from their Health template
     // (`health::trackers`), so it names none; every other totals view must.
     // Nor does a song: a library lists entries, it sums nothing.
-    if file.metrics.is_empty() && !matches!(file.add, Some(AddAction::Health | AddAction::Song)) {
+    if file.metrics.is_empty()
+        && !matches!(file.add, Some(AddAction::Health | AddAction::Song | AddAction::Video))
+    {
         return Err("a totals view needs at least one entry under `metrics:`".to_string());
     }
     for m in &file.metrics {
@@ -1010,6 +1018,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("health-over-time", include_str!("shipped/health-over-time.view")),
     ("health-guidance", include_str!("shipped/health-guidance.view")),
     ("music-songs", include_str!("shipped/music-songs.view")),
+    ("videos-all", include_str!("shipped/videos-all.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

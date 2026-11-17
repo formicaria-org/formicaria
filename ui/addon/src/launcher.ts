@@ -13,7 +13,9 @@ const q = document.getElementById('q') as HTMLInputElement;
 const list = document.getElementById('list') as HTMLUListElement;
 
 const open = (address: string, title: string) =>
-  void browser.runtime.sendMessage({ type: 'open-item', address, title }).then(() => window.close());
+  void browser.runtime
+    .sendMessage({ type: 'open-item', address, title })
+    .then(() => window.close());
 const web = (query: string) =>
   void browser.search.search({ query, disposition: 'NEW_TAB' }).then(() => window.close());
 const go = (url: string) => void browser.tabs.create({ url }).then(() => window.close());
@@ -55,6 +57,15 @@ function draw() {
   list.replaceChildren();
   if (!t) {
     // **formicaria's options** (`decisions.md` 2026-11-17, *one frame*): the features come from +.
+    list.append(
+      row(
+        'Save media on this page',
+        () => void browser.runtime.sendMessage({ type: 'save-media' }).then(() => window.close()),
+        '',
+        '⤓',
+      ),
+    );
+    list.append(row('Privacy', () => openPath('/f/privacy'), '', '🛡'));
     list.append(row('Settings', () => openPath('/f/settings'), '', '⚙'));
     list.append(row('Help', () => openPath('/manual/'), '', '?'));
     return;

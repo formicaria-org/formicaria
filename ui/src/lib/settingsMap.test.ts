@@ -12,6 +12,7 @@ describe('how Settings is divided', () => {
       'vaults',
       'notes',
       'assistant',
+      'privacy',
       'browser',
       'connections',
       'about',

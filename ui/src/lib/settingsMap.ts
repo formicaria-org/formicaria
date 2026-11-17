@@ -15,6 +15,8 @@ export const CATEGORIES = [
   { id: 'vaults', label: 'Vaults & backup' },
   { id: 'notes', label: 'Food & reminders' },
   { id: 'assistant', label: 'Assistant' },
+  // **Privacy** (`decisions.md` 2026-11-17): each protection a switch, on every device.
+  { id: 'privacy', label: 'Privacy' },
   { id: 'browser', label: 'Browser' },
   { id: 'connections', label: 'Connections' },
   { id: 'about', label: 'About & updates' },

@@ -45,6 +45,12 @@ mod calendar;
 // A packaged food looked up by its barcode: one request, when a person asks.
 #[cfg(feature = "products")]
 mod products;
+// Save media: yt-dlp and ffmpeg, run on this machine for a person's choice (2026-11-17).
+#[cfg(feature = "media")]
+mod media;
+// Your music in any Subsonic player, from the vault's own files (2026-11-17).
+#[cfg(feature = "media")]
+mod subsonic;
 // Gmail, read-only: the sign-in, and reading labelled mail into conversation notes.
 #[cfg(feature = "mail")]
 mod mail;
@@ -80,6 +86,9 @@ struct AppState {
     /// **formicaria's browser is being restarted** after an update (`/api/browser_relaunch`): its tabs
     /// have said goodbye, and the server must not take that for the person leaving.
     relaunching: AtomicBool,
+    /// Save media's jobs (`media.rs`).
+    #[cfg(feature = "media")]
+    media: media::Media,
     /// The tabs that have identified themselves, by the id each one mints on load. A tab joins on
     /// its first command and leaves when it says goodbye on `pagehide`.
     tabs: Mutex<std::collections::HashSet<String>>,
@@ -128,6 +137,8 @@ impl AppState {
             goodbye: Mutex::new(None),
             connected: AtomicBool::new(false),
             relaunching: AtomicBool::new(false),
+            #[cfg(feature = "media")]
+            media: media::Media::default(),
             #[cfg(feature = "agent")]
             agent: std::sync::Arc::new(agent::AgentState::new(port)),
             #[cfg(feature = "update")]
@@ -149,6 +160,24 @@ impl Host for Desktop {
     fn open_external(&self, path: &Path) -> Result<(), String> {
         open_native(path.as_os_str()).map_err(|e| format!("could not open the file: {e}"))
     }
+}
+
+/// **Playlists as files other players read** (`decisions.md` 2026-11-17): after the notes change (5 s
+/// after the last change), each vault's playlists and collections are written as `.m3u8` beside its
+/// media (`fm_app::media::export_lists`). Unchanged ones are not rewritten.
+fn export_playlists(state: Arc<AppState>) {
+    std::thread::spawn(move || {
+        let mut last = 0;
+        loop {
+            let now = state.app.wait_changed(last, Duration::from_secs(300));
+            if now == last {
+                continue;
+            }
+            std::thread::sleep(Duration::from_secs(5));
+            last = state.app.generation();
+            state.app.export_playlists();
+        }
+    });
 }
 
 fn main() {
@@ -280,6 +309,7 @@ fn main() {
         eprintln!("  (a conflicted merge? resolve the markers and reload.)");
     }
     let state = Arc::new(AppState::new(app, dist, origins, port.parse().unwrap_or(8765)));
+    export_playlists(Arc::clone(&state));
 
     match &state.dist {
         // Told to read from disk, but there is nothing there.
@@ -509,6 +539,15 @@ fn main() {
 /// `Command::new("bash")` and starts a multi-GB model on the desktop's GPU, and it persists, so
 /// it would come back at every launch.
 const REMOTE_DENIED: &[&str] = &[
+    // **Runs programs on this machine** (Save media, 2026-11-17): a guest does not.
+    "/api/media_probe",
+    "/api/media_save",
+    "/api/media_jobs",
+    "/api/media_cancel",
+    "/api/media_tools",
+    // Subsonic's switch and password: this machine's to give.
+    "/api/subsonic",
+    "/api/subsonic_set",
     // **Replaces the program this machine runs.** The sharpest entry in this list: a paired tablet
     // is a guest, and a guest does not decide that the host downloads and installs a new formicaria
     // — nor that it stops looking for one, which is the same capability pointed the other way.
@@ -1228,6 +1267,43 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // Blob bytes are the one response we refuse to build in memory: a video is served by
     // `<video src>`, which range-requests as the user seeks, and buffering 300 MB per seek
     // is how the old object-URL path behaved. Streamed from disk, so it costs one buffer.
+    // **Subsonic** (`subsonic.rs`): its own password, checked there; only while it is on.
+    #[cfg(feature = "media")]
+    if path.starts_with("/rest/") {
+        if let Some(done) = subsonic::route(
+            reader.get_mut(),
+            &path,
+            &body,
+            range.as_deref(),
+            method == "HEAD",
+            state,
+        ) {
+            return done;
+        }
+    }
+    #[cfg(feature = "media")]
+    if path == "/api/subsonic" || path == "/api/subsonic_set" {
+        let args: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+        let r = if path == "/api/subsonic" {
+            Ok(subsonic::settings())
+        } else {
+            subsonic::set(args["on"].as_bool(), args["renew"].as_bool() == Some(true))
+        };
+        return match r {
+            Ok(s) => write_response(
+                reader.get_mut(),
+                "200 OK",
+                "application/json",
+                serde_json::json!({ "on": s.on, "user": subsonic::USER, "password": s.password,
+                    "shared": state.share.enabled() })
+                .to_string()
+                .as_bytes(),
+            ),
+            Err(e) => {
+                write_response(reader.get_mut(), "400 Bad Request", "text/plain", e.as_bytes())
+            }
+        };
+    }
     if (method == "GET" || method == "HEAD") && path.starts_with("/api/blob/") {
         // **The query string is no longer thrown away.** It was split off and discarded, which is
         // why a thumbnail could be generated, stored and served by a command but never *linked to*
@@ -1239,6 +1315,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
             None => (&path[10..], ""),
         };
         let thumb = query.split('&').any(|kv| kv == "kind=thumb");
+        let view = query.split('&').any(|kv| kv == "kind=view");
         // **Scoped, and it has to be passed in.** This route is deliberately not a command, so
         // it never reaches `dispatch`'s enforcement. Blobs are content-addressed and
         // deduplicated, so a hash a paired device legitimately learns from its own vault would
@@ -1251,6 +1328,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
             range.as_deref(),
             method == "HEAD",
             thumb,
+            view,
         );
     }
 
@@ -1388,6 +1466,12 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
         &|| read_asset(state, ADDON_ASSET).unwrap_or_default(),
         &format!("http://127.0.0.1:{}", state.port),
     ) {
+        return done;
+    }
+
+    // Save media: the tools and the jobs. Every route here is in `REMOTE_DENIED`.
+    #[cfg(feature = "media")]
+    if let Some(done) = media::route(reader.get_mut(), &path, &body, state) {
         return done;
     }
 

@@ -1,0 +1,11 @@
+[package]
+name = "fm-block"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+description = "Ad and tracker blocking for formicaria's phone page views: the community's filter lists through Brave's adblock-rust. Pure: rules in, verdicts out."
+
+[dependencies]
+# Brave's engine (MPL-2.0; Firefox 149 ships it). Without `single-thread`, so one engine answers
+# the page views' requests from several threads (`decisions.md` 2026-11-17).
+adblock = { version = "0.13", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }

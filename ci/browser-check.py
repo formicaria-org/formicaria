@@ -497,6 +497,10 @@ def main() -> None:
             "tabs are classic, on top, in view": first.get("tabsOnTop") is True,
             "scrolling over the tabs switches them": first.get("scrollSwitches") is True,
             "the sidebar's button is gone": first.get("sidebarButtonGone") is True,
+            # The Privacy sheet's switches reach Firefox (2026-11-17): read and applied at start.
+            "the privacy switches are applied": (first.get("privacy") or {}).get("v", -1) >= 0
+            and (first.get("privacy") or {}).get("clean") is True
+            and (first.get("privacy") or {}).get("engine") == "DuckDuckGo",
             "Mozilla's telemetry is off by policy": "DisableTelemetry" in first.get("policies", []),
             "Firefox's updater is off by policy": "DisableAppUpdate" in first.get("policies", []),
             "the Mozilla account is not disabled": "DisableFirefoxAccounts" not in first.get("policies", []),

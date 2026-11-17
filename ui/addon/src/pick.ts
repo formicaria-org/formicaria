@@ -44,14 +44,20 @@ declare const browser: { runtime: { sendMessage(m: unknown): Promise<unknown> } 
   };
   const target = (): Element | null => {
     let el = base;
-    for (let i = 0; i < up && el?.parentElement && el.parentElement !== document.body; i++) el = el.parentElement;
+    for (let i = 0; i < up && el?.parentElement && el.parentElement !== document.body; i++)
+      el = el.parentElement;
     return el;
   };
   const draw = () => {
     const el = target();
     if (!el) return;
     const r = el.getBoundingClientRect();
-    Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    Object.assign(box.style, {
+      left: `${r.left}px`,
+      top: `${r.top}px`,
+      width: `${r.width}px`,
+      height: `${r.height}px`,
+    });
     tag.textContent = kind(el);
     Object.assign(tag.style, { left: `${r.left}px`, top: `${Math.max(0, r.top - 20)}px` });
   };
@@ -75,14 +81,22 @@ declare const browser: { runtime: { sendMessage(m: unknown): Promise<unknown> } 
     const only = media && !(el.textContent ?? '').trim();
     if (el.matches('video, audio') || (only && media!.matches('video, audio'))) {
       const m = (el.matches('video, audio') ? el : media) as HTMLMediaElement;
-      return { kind: m.tagName === 'VIDEO' ? 'video' : 'audio', src: m.currentSrc || m.src, time: m.currentTime };
+      return {
+        kind: m.tagName === 'VIDEO' ? 'video' : 'audio',
+        src: m.currentSrc || m.src,
+        time: m.currentTime,
+      };
     }
     if (el.matches('img') || (only && media!.matches('img'))) {
       const i = (el.matches('img') ? el : media) as HTMLImageElement;
       return { kind: 'image', src: i.currentSrc || i.src, alt: i.alt };
     }
     if (el.matches('a[href]')) {
-      return { kind: 'link', src: (el as HTMLAnchorElement).href, alt: (el.textContent ?? '').trim() };
+      return {
+        kind: 'link',
+        src: (el as HTMLAnchorElement).href,
+        alt: (el.textContent ?? '').trim(),
+      };
     }
     return { kind: 'text', html: el.outerHTML, text: (el.textContent ?? '').trim() };
   };

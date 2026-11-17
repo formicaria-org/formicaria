@@ -88,25 +88,36 @@ pub fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// Bytes → standard base64, padded. For a phone shell handing fetched bytes to its pages
+/// (`web_resource`, 2026-11-17). Table lookup and explicit padding: a different shape from
+/// [`b64_decode`], so their round trip is not one implementation agreeing with itself.
+pub fn b64_encode(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+        out.push(A[(n >> 18) as usize & 63] as char);
+        out.push(A[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { A[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { A[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The reference encoder, so the round trip is graded against something other than itself.
-    /// Deliberately a *different* implementation shape from the decoder (table lookup, explicit
-    /// padding) — a round trip against your own inverse mostly proves you are self-consistent.
-    fn b64_encode(bytes: &[u8]) -> String {
-        const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-        for chunk in bytes.chunks(3) {
-            let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
-            let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
-            out.push(A[(n >> 18) as usize & 63] as char);
-            out.push(A[(n >> 12) as usize & 63] as char);
-            out.push(if chunk.len() > 1 { A[(n >> 6) as usize & 63] as char } else { '=' });
-            out.push(if chunk.len() > 2 { A[n as usize & 63] as char } else { '=' });
+    /// The standard's own vectors (RFC 4648 §10), so the encoder is graded against something other
+    /// than the decoder.
+    #[test]
+    fn the_encoder_gives_the_standard_vectors() {
+        for (i, o) in
+            [("", ""), ("f", "Zg=="), ("fo", "Zm8="), ("foo", "Zm9v"), ("foobar", "Zm9vYmFy")]
+        {
+            assert_eq!(b64_encode(i.as_bytes()), o);
         }
-        out
     }
 
     /// Every padding residue. `len % 3` is the only thing that changes the tail encoding, so

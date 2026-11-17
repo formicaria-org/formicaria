@@ -128,6 +128,12 @@ function sanitize(html: string): string {
   return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: URI_ALLOWED });
 }
 
+/** A blob's address to read (`kind=view`), before any `#fragment` (a PDF's page). */
+export function viewOf(url: string): string {
+  const [path, frag] = url.split(/(?=#)/);
+  return `${path}${path.includes('?') ? '&' : '?'}kind=view${frag ?? ''}`;
+}
+
 export interface ResolvedAsset {
   url: string;
   mime: string; // '' = unknown; the browser content-sniffs an <img>
@@ -432,7 +438,12 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
         a.replaceWith(ph);
         return;
       }
-      a.setAttribute('href', asset.url);
+      // The reference, kept: the phone opens an attachment itself (a saved page in a page tab, the
+      // rest with Android's *Open with*), since its web view opens no new windows.
+      a.dataset.ref = href;
+      // **To read** (`?kind=view`): a saved page's copy opens as a page (no scripts, sealed off),
+      // not as a download; other files are served as before.
+      a.setAttribute('href', /^\/api\/blob\//.test(asset.url) ? viewOf(asset.url) : asset.url);
       // A new tab: the note is the thing being read, and replacing it with a PDF loses the reader's
       // place. `noopener` because the blob is served from our own origin.
       a.setAttribute('target', '_blank');

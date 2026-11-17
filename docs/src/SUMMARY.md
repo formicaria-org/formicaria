@@ -25,6 +25,8 @@
 - [Health](./user/health.md)
 - [Music](./user/music.md)
 - [formicaria's browser](./user/browser.md)
+- [Privacy](./user/privacy.md)
+- [Saving media from the web](./user/media.md)
 - [Meetings from your calendar](./user/calendars.md)
 - [Mail (Gmail)](./user/mail.md)
 - [Appearance](./user/appearance.md)

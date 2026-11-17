@@ -414,6 +414,17 @@ impl App {
     }
 
     /// An owned snapshot of the configured vaults — what a shell prints at startup.
+    /// **Every vault's playlists and collections as `.m3u8`** (`media::export_lists`, 2026-11-17).
+    /// What the server runs after the notes change; a vault that cannot be written is skipped.
+    pub fn export_playlists(&self) {
+        let Ok(configs) = self.configs() else { return };
+        for cfg in configs {
+            if let Ok(mut g) = self.lock() {
+                let _ = crate::media::export_lists(&g.store(&Scope::All), &cfg.path, &cfg.name);
+            }
+        }
+    }
+
     pub fn configs(&self) -> Result<Vec<VaultConfig>, String> {
         Ok(self.lock()?.configs())
     }
@@ -732,6 +743,7 @@ fn takes_history(cmd: &str) -> bool {
         "clip_save",
         // A per-device file, no vault and no git: it must not wait on the history lock.
         "set_clock",
+        "set_privacy",
     ];
     cmd == "proposal_shown" || !(READ_ONLY.contains(&cmd) || SAVES.contains(&cmd))
 }
@@ -741,6 +753,8 @@ const READ_ONLY: &[&str] = &[
     "actions",
     // The app's clock (2026-10-24): a read, and the one the UI and the assistant poll.
     "clock",
+    // This device's privacy switches (2026-11-17): a per-device file.
+    "privacy",
     "deleted_notes",
     "mail_conversations",
     "board",
@@ -803,6 +817,9 @@ const READ_ONLY: &[&str] = &[
     "log_recent",
     "music_library",
     "music_playlists",
+    // Videos (2026-11-17): reads, like Music's.
+    "video_library",
+    "video_collections",
     "log_recipes",
     "log_routines",
     "log_products",
@@ -2255,6 +2272,18 @@ fn dispatch_inner(
             app.bump();
             json(crate::clock::answer(&app.clock))
         }
+        // **This device's privacy switches** (2026-11-17): what the page views and the browser apply.
+        "privacy" => json(crate::privacy::answer(&crate::privacy::load())),
+        // Change them (only the fields given; `site_off`/`site_on`; `fire`). A paired device may not.
+        "set_privacy" => {
+            if !scope.is_all() {
+                return Err("privacy is this device's setting".into());
+            }
+            let p = crate::privacy::set(args)?;
+            // Every open page and formicaria's browser hear of it on the change stream.
+            app.bump();
+            json(crate::privacy::answer(&p))
+        }
         "ping" => {
             let since = args.get("since").and_then(Value::as_u64).unwrap_or(0);
             let mut g = lock()?;
@@ -2800,6 +2829,8 @@ fn dispatch_inner(
         // (`decisions.md#ui`, 2026-11-13, *a sixth group, Music*).
         "music_library" => json(crate::music::library(&lock()?.store(scope)).map_err(err)?),
         "music_playlists" => json(crate::music::playlists(&lock()?.store(scope)).map_err(err)?),
+        "video_library" => json(crate::video::library(&lock()?.store(scope)).map_err(err)?),
+        "video_collections" => json(crate::video::collections(&lock()?.store(scope)).map_err(err)?),
         "log_recipes" => {
             let mut g = lock()?;
             let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;

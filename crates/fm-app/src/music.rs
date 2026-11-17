@@ -70,7 +70,7 @@ pub fn playlists(store: &dyn Store) -> Result<Vec<Playlist>, StoreError> {
 
 /// The `note:<ulid>` links of a body, in order, repeats kept (`refs::references` sorts and
 /// de-duplicates, which a playlist cannot use).
-fn note_links(body: &str) -> Vec<String> {
+pub(crate) fn note_links(body: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = body;
     while let Some(at) = rest.find("note:") {

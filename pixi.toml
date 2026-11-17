@@ -311,6 +311,8 @@ myrme-bump = "sh ci/myrme-bump.sh"
 # signature on its sums checked), and the release gate that applies the kit and measures it against the
 # same ESR unmodified. Both are release steps; neither touches the person's own Firefox.
 browser-bump = "python3 ci/browser-bump.py"
+# The media tools a computer fetches for *Save media* (yt-dlp, ffmpeg), pinned per release.
+media-bump = "python3 ci/media-bump.py"
 browser-check = "python3 ci/browser-check.py"
 # Delete regenerable build output (debug targets, the phone's builds) in this checkout and the
 # sibling Myrme one; keeps target/release, which the running app is. `known-issues.md`, *The disk fills*.

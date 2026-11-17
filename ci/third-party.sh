@@ -224,6 +224,20 @@ npm_licences() {
     echo "Model **weights** are downloaded from Hugging Face and carry their own terms, stated in"
     echo "the app before anything is fetched and recorded per model in \`models.toml\`."
     echo
+    # **Save media's tools, and the phone's native libraries** (2026-11-17): not in `cargo tree` or the
+    # npm graph either, so named here.
+    echo "## Save media, blocking and playing (2026-11-17)"
+    echo
+    echo "| Component | Where | Licence | Source |"
+    echo "|---|---|---|---|"
+    echo "| yt-dlp | fetched on a computer (pinned in \`media/tools.json\`); inside the Android app | Unlicense | <https://github.com/yt-dlp/yt-dlp> |"
+    echo "| ffmpeg (Martin Riedl's builds; gyan.dev on Windows) | fetched on a computer (pinned in \`media/tools.json\`) | GPL-3.0 (the builds) | <https://ffmpeg.martin-riedl.de> · <https://www.gyan.dev/ffmpeg/builds/> |"
+    echo "| youtubedl-android (with Python and ffmpeg) | inside the Android app | **GPL-3.0**: the APK is distributed under GPL-3.0 | <https://github.com/yausername/youtubedl-android> |"
+    echo "| adblock-rust (Brave's engine, with its crates) | inside the Android app | MPL-2.0 | <https://github.com/brave/adblock-rust> |"
+    echo "| AndroidX Media3 (ExoPlayer, session) | inside the Android app | Apache-2.0 | <https://github.com/androidx/media> |"
+    echo "| DuckDuckGo autoconsent (cookie pop-up rules) | inside the Android app's page script | MPL-2.0 | <https://github.com/duckduckgo/autoconsent> |"
+    echo "| EasyList, EasyPrivacy | downloaded on the phone, weekly, when blocking is on | GPL-3.0 / CC BY-SA 3.0 | <https://easylist.to> |"
+    echo
     # **Part four: data the binary carries.** The food list is not software and `cargo tree`
     # cannot see it, but it is compiled into every binary that links `fm-app`
     # (`decisions.md#toolchain`, 2026-10-11) — so it is named here like everything else they carry.

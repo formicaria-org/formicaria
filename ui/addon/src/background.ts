@@ -5,6 +5,7 @@
 // the note with the same code the app uses (`src/lib/web/clip.ts`), and keep it with a copy of the
 // page (`clip_save`). The key and formicaria's address come from Firefox's managed storage, which
 // formicaria writes into its browser's policies; no other add-on can read them.
+import { inlinePage, fetchGetter } from '../../src/lib/web/inline';
 import type { WebRecipe } from '../../src/lib/types';
 import { buildClip, kindOf, type PageFacts } from '../../src/lib/web/clip';
 import { choose, onCreated, type Pending, type Where } from './downloads';
@@ -42,7 +43,7 @@ declare const browser: {
       currentWindow?: boolean;
     }): Promise<{ id?: number; windowId?: number; url?: string }[]>;
     update(tab: number, d: { url?: string; active?: boolean }): Promise<unknown>;
-    create(d: { url: string }): Promise<unknown>;
+    create(d: { url: string; index?: number }): Promise<unknown>;
   };
   windows: { update(id: number, d: { focused: boolean }): Promise<unknown> };
   runtime: {
@@ -148,6 +149,15 @@ export async function keep(tab: number): Promise<Kept> {
       ).catch(() => null);
     }
     const draft = buildClip(facts, today(), recipe, clockNow());
+    // **One self-contained file** (2026-11-17): the copy's pictures, styles and fonts put inside it,
+    // fetched with the add-on's rights (and the page's cookies, as the page showed them).
+    try {
+      facts.snapshot = (
+        await inlinePage(facts.snapshot, facts.url, fetchGetter(6, { credentials: 'include' }))
+      ).html;
+    } catch {
+      /* the plain copy is still kept */
+    }
     const made = await call(
       c.server,
       c.key,
@@ -208,9 +218,13 @@ export async function show(server: string, id: string) {
 async function openItem(address: string) {
   const c = await config();
   if (address === 'new:') {
-    const made = (await call(c.server, c.key, 'create_notes', JSON.stringify({ notes: [{ title: '', body: '' }] }), true)) as
-      | { id: string }[]
-      | null;
+    const made = (await call(
+      c.server,
+      c.key,
+      'create_notes',
+      JSON.stringify({ notes: [{ title: '', body: '' }] }),
+      true,
+    )) as { id: string }[] | null;
     if (made?.[0]?.id) await browser.tabs.create({ url: `${c.server}/f/note/${made[0].id}` });
     return;
   }
@@ -225,7 +239,8 @@ async function putPiece(args: Record<string, unknown>): Promise<{ id?: string } 
   return (await call(c.server, c.key, 'put', JSON.stringify(args), true)) as { id?: string } | null;
 }
 async function replaceIn(note: unknown, from: unknown, to: string): Promise<Reply> {
-  if (typeof note !== 'string' || typeof from !== 'string') return { ok: false, error: 'nothing to change' };
+  if (typeof note !== 'string' || typeof from !== 'string')
+    return { ok: false, error: 'nothing to change' };
   await putPiece({ to: { note }, md: to, replace: from });
   return { ok: true };
 }
@@ -398,7 +413,8 @@ export async function bringPiece(
     case 'page':
       return deliver(p, pagePiece(p), 'a link to the page');
     case 'image': {
-      if (!p.src || /^(blob|mediasource):/.test(p.src)) return deliver(p, imageLinked(p), 'the image as a link');
+      if (!p.src || /^(blob|mediasource):/.test(p.src))
+        return deliver(p, imageLinked(p), 'the image as a link');
       try {
         const { bytes, type } = await fetchBytes(p.src, p.pageUrl);
         if (type && !/^image\//.test(type)) throw new Error('not an image');
@@ -456,8 +472,14 @@ const SELECTION = `(() => { const s = getSelection(); if (!s || !s.rangeCount) r
 
 async function selectionIn(tab: number, frameId?: number): Promise<{ html: string; text: string }> {
   const [r] = (await (
-    browser.tabs.executeScript as (t: number, d: { code: string; frameId?: number }) => Promise<unknown[]>
-  )(tab, { code: SELECTION, frameId }).catch(() => [null])) as ({ html: string; text: string } | null)[];
+    browser.tabs.executeScript as (
+      t: number,
+      d: { code: string; frameId?: number },
+    ) => Promise<unknown[]>
+  )(tab, { code: SELECTION, frameId }).catch(() => [null])) as ({
+    html: string;
+    text: string;
+  } | null)[];
   return r ?? { html: '', text: '' };
 }
 
@@ -482,7 +504,17 @@ async function crop(
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(area.width * dpr));
   c.height = Math.max(1, Math.round(area.height * dpr));
-  c.getContext('2d')!.drawImage(img, area.x * dpr, area.y * dpr, c.width, c.height, 0, 0, c.width, c.height);
+  c.getContext('2d')!.drawImage(
+    img,
+    area.x * dpr,
+    area.y * dpr,
+    c.width,
+    c.height,
+    0,
+    0,
+    c.width,
+    c.height,
+  );
   const blob = await new Promise<Blob>((ok, no) =>
     c.toBlob((b) => (b ? ok(b) : no(new Error('no picture'))), 'image/png'),
   );
@@ -515,7 +547,12 @@ async function snip(
   const flush = () => {
     if (!run.length) return;
     const md = markdown(run.join(''));
-    out.push(md.split('\n').map((l) => (l.trim() ? `> ${l}` : '>')).join('\n'));
+    out.push(
+      md
+        .split('\n')
+        .map((l) => (l.trim() ? `> ${l}` : '>'))
+        .join('\n'),
+    );
     run = [];
   };
   for (const b of blocks) {
@@ -536,7 +573,9 @@ async function snip(
         out.push(`[Image${b.alt ? `: ${b.alt.replace(/[[\]]/g, '')}` : ''}](${b.src})`);
       }
     } else if (b.kind === 'video' || b.kind === 'audio') {
-      out.push(mediaLinked({ ...p, kind: b.kind, src: b.src, time: b.time }).replace(/ — \[.*$/, ''));
+      out.push(
+        mediaLinked({ ...p, kind: b.kind, src: b.src, time: b.time }).replace(/ — \[.*$/, ''),
+      );
     } else if (b.kind === 'picture' && b.rect) {
       const kept = await store(await sub(b.rect), 'figure.png');
       out.push(`![](asset:${kept.ref})`);
@@ -575,7 +614,11 @@ async function fromApp(m: Record<string, unknown>) {
     // Calendar (a new event), opened with the note's content in it; the person finishes there. Those
     // two addresses only.
     await browser.tabs.create({ url: m.url });
-  } else if (m.up === 'open-tab' && typeof m.address === 'string' && /^(note|view):/.test(m.address)) {
+  } else if (
+    m.up === 'open-tab' &&
+    typeof m.address === 'string' &&
+    /^(note|view):/.test(m.address)
+  ) {
     // **Open as a tab**: the item's own page (`/f/…`).
     await openItem(m.address);
   } else if (m.up === 'after' && ['offer', 'bring', 'nothing'].includes(String(m.value))) {
@@ -621,7 +664,11 @@ const menus = browser.contextMenus as unknown as {
   create(d: { id: string; title: string; contexts: string[] }): void;
   update(id: string, d: { title: string }): Promise<void>;
   removeAll(): Promise<void>;
-  onClicked: { addListener(f: (info: unknown, tab?: { id?: number; url?: string; title?: string }) => void): void };
+  onClicked: {
+    addListener(
+      f: (info: unknown, tab?: { id?: number; url?: string; title?: string }) => void,
+    ): void;
+  };
 };
 
 // --- "this page is in your notes" -------------------------------------------------------------
@@ -650,7 +697,9 @@ export async function pageNotes(tabId: number, url: string): Promise<PageNote[]>
   seen.set(tabId, found);
   // **The page's ant, in the address bar** (research §11.3, rule 4): filled when notes name the page.
   const n = found.length;
-  void pageAction.setIcon({ tabId, path: n ? 'icon-page-in.svg' : 'icon-page.svg' }).catch(() => {});
+  void pageAction
+    .setIcon({ tabId, path: n ? 'icon-page-in.svg' : 'icon-page.svg' })
+    .catch(() => {});
   void pageAction
     .setTitle({
       tabId,
@@ -665,7 +714,9 @@ export async function pageNotes(tabId: number, url: string): Promise<PageNote[]>
 const tabsEvents = browser.tabs as unknown as {
   onActivated: { addListener(f: (i: { tabId: number }) => void): void };
   onUpdated: {
-    addListener(f: (id: number, c: { status?: string; url?: string }, t: { url?: string }) => void): void;
+    addListener(
+      f: (id: number, c: { status?: string; url?: string }, t: { url?: string }) => void,
+    ): void;
   };
   onRemoved: { addListener(f: (id: number) => void): void };
   get(id: number): Promise<{ url?: string }>;
@@ -681,7 +732,9 @@ async function wholeAppToNotes(id: number, url: string) {
   if (!c) return;
   const rest = url.startsWith(c.server) ? url.slice(c.server.length) : null;
   if (rest === '/' || rest === '' || rest?.startsWith('/#') || rest?.startsWith('/?')) {
-    await (browser.tabs as unknown as { update(id: number, o: { url: string }): Promise<unknown> }).update(id, {
+    await (
+      browser.tabs as unknown as { update(id: number, o: { url: string }): Promise<unknown> }
+    ).update(id, {
       url: `${c.server}/f/group/Library`,
     });
   }
@@ -691,7 +744,12 @@ async function wholeAppToNotes(id: number, url: string) {
  *  goes unless another note is chosen. */
 async function noteInFront(t: { url?: string; title?: string }) {
   const c = await config().catch(() => null);
-  const m = c && t.url ? new RegExp(`^${c.server.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/f/note/([0-9A-Z]{26})`).exec(t.url) : null;
+  const m =
+    c && t.url
+      ? new RegExp(
+          `^${c.server.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/f/note/([0-9A-Z]{26})`,
+        ).exec(t.url)
+      : null;
   if (!m) return;
   const title = (t.title ?? '').replace(/ — formicaria$/, '');
   front = { id: m[1], title, vault: '', assistant: front?.assistant ?? '' };
@@ -730,14 +788,20 @@ omnibox.onInputChanged.addListener((text, suggest) => {
   void config()
     .then((c) => call(c.server, c.key, 'search', JSON.stringify({ query: text }), true))
     .then(
-      (hits: { id: string; title?: string; tags?: string[]; props?: Record<string, unknown> }[] | null) => {
+      (
+        hits:
+          { id: string; title?: string; tags?: string[]; props?: Record<string, unknown> }[] | null,
+      ) => {
         // **The library's search** (workspace-design §11, D4): each hit with its section.
         const top = (hits ?? []).slice(0, 8);
         lastHits = top.map((h) => ({ id: h.id, title: h.title || 'Untitled' }));
         suggest(
           top.map((h) => {
             const s = sectionOf(h);
-            return { content: `note:${h.id}`, description: `${s.mark} ${s.label} · ${h.title || 'Untitled'}` };
+            return {
+              content: `note:${h.id}`,
+              description: `${s.mark} ${s.label} · ${h.title || 'Untitled'}`,
+            };
           }),
         );
       },
@@ -754,7 +818,12 @@ omnibox.onInputEntered.addListener((text) => {
 
 (
   browser.runtime.onMessage as unknown as {
-    addListener(f: (m: Record<string, unknown> & { type?: string; tab?: number; server?: string; id?: string }, sender: { tab?: { id?: number; windowId?: number; url?: string; title?: string } }) => Promise<unknown> | undefined): void;
+    addListener(
+      f: (
+        m: Record<string, unknown> & { type?: string; tab?: number; server?: string; id?: string },
+        sender: { tab?: { id?: number; windowId?: number; url?: string; title?: string } },
+      ) => Promise<unknown> | undefined,
+    ): void;
   }
 ).addListener((m, sender) => {
   const d = m as { type?: string; where?: Where; p?: Pending };
@@ -772,7 +841,12 @@ omnibox.onInputEntered.addListener((text) => {
   if (m?.type === 'snip' && st?.id != null) {
     const area = m.area as { x: number; y: number; width: number; height: number } | null;
     const dpr = Number(m.dpr) || 1;
-    const p: Piece = { kind: 'text', pageUrl: here.url, pageTitle: here.title, when: `${today()} ${clockNow()}` };
+    const p: Piece = {
+      kind: 'text',
+      pageUrl: here.url,
+      pageTitle: here.title,
+      when: `${today()} ${clockNow()}`,
+    };
     // The view is captured once, now, before anything moves (or the bubble appears); a picture is
     // cropped from it only when one is wanted.
     const shot = capture(st.windowId);
@@ -858,8 +932,18 @@ omnibox.onInputEntered.addListener((text) => {
     });
   }
   // **The ant's options** (`launcher.ts`): a page of formicaria's server (Settings, the manual).
-  if (m?.type === 'open-path' && typeof m.path === 'string' && /^\/(f\/settings|manual\/)/.test(m.path)) {
+  if (
+    m?.type === 'open-path' &&
+    typeof m.path === 'string' &&
+    /^\/(f\/settings|f\/privacy|manual\/)/.test(m.path)
+  ) {
     return config().then((c) => browser.tabs.create({ url: c.server + m.path }));
+  }
+  // **Save media** from the ant's panel: the page in front.
+  if (m?.type === 'save-media') {
+    return browser.tabs
+      .query({ active: true, currentWindow: true })
+      .then(([t]) => (t?.id != null ? saveMedia(t.id) : undefined));
   }
   // **The ant's panel** (`launcher.ts`): a feature, a note or a new note, in a tab of its own.
   if (m?.type === 'open-item' && typeof m.address === 'string') {
@@ -885,7 +969,9 @@ omnibox.onInputEntered.addListener((text) => {
 // for what a selection cannot reach. Made at every start (the background page is persistent).
 function bringTitle() {
   // `&` marks an access key in a menu's title; doubled, it is shown.
-  return front ? `Bring into “${front.title.replace(/&/g, '&&') || 'your note'}”` : 'Bring into a new note';
+  return front
+    ? `Bring into “${front.title.replace(/&/g, '&&') || 'your note'}”`
+    : 'Bring into a new note';
 }
 void menus.removeAll().then(() => {
   menus.create({
@@ -895,16 +981,42 @@ void menus.removeAll().then(() => {
   });
   menus.create({ id: 'formicaria-save', title: 'Save page in formicaria', contexts: ['page'] });
   menus.create({ id: 'formicaria-pick', title: 'Pick from this page…', contexts: ['page'] });
+  menus.create({
+    id: 'formicaria-media',
+    title: 'Save media in formicaria…',
+    contexts: ['page', 'video', 'audio'],
+  });
 });
 
 /** **The ant in the address bar starts a snip** (its bar offers *Save the whole page* too). */
 (
-  browser as unknown as { pageAction: { onClicked: { addListener(f: (t: { id?: number }) => void): void } } }
+  browser as unknown as {
+    pageAction: { onClicked: { addListener(f: (t: { id?: number }) => void): void } };
+  }
 ).pageAction.onClicked.addListener((t) => {
   if (t.id != null) void browser.tabs.sendMessage(t.id, { type: 'snip' }).catch(() => {});
 });
 
 /** **Save page**: the page as its own note; formicaria says what it became. */
+/** **Save media** (`decisions.md` 2026-11-17): what the page holds, in formicaria's sheet, in a tab
+ *  beside it (`/f/media`): the choosing, fetching and keeping are the server's. */
+export async function saveMedia(tab: number) {
+  try {
+    const c = await config();
+    await browser.tabs.executeScript(tab, { file: '/content.js' });
+    const [found] = (await browser.tabs.executeScript(tab, {
+      code: 'formicaria_content.media()',
+    })) as { url: string; kind: string; label: string }[][];
+    const t = (await tabsEvents.get(tab)) as { url?: string; index?: number };
+    const page = t.url ?? '';
+    if (!/^https?:/.test(page)) throw new Error('Only a web page holds media to keep.');
+    const at = `${c.server}/f/media#${encodeURIComponent(JSON.stringify({ page, c: found ?? [] }))}`;
+    await browser.tabs.create({ url: at, index: (t.index ?? 0) + 1 });
+  } catch (e) {
+    failed({ ok: false, error: msg(e) });
+  }
+}
+
 export async function savePage(tab: number) {
   const k = await keep(tab);
   const text = k.ok
@@ -938,8 +1050,11 @@ menus.onClicked.addListener((info, tab) => {
     targetElementId?: number;
   };
   if (i.menuItemId === 'formicaria-save') return void savePage(id);
+  if (i.menuItemId === 'formicaria-media') return void saveMedia(id);
   if (i.menuItemId === 'formicaria-pick') {
-    return void browser.tabs.executeScript(id, { file: '/pick.js' }).catch((e) => failed({ ok: false, error: msg(e) }));
+    return void browser.tabs
+      .executeScript(id, { file: '/pick.js' })
+      .catch((e) => failed({ ok: false, error: msg(e) }));
   }
   if (i.menuItemId !== 'formicaria-bring') return;
   const page = { url: tab.url ?? i.pageUrl ?? '', title: tab.title ?? '' };
@@ -954,7 +1069,10 @@ menus.onClicked.addListener((info, tab) => {
     } else if ((i.mediaType === 'video' || i.mediaType === 'audio') && i.srcUrl !== undefined) {
       // Where it was playing, from the element itself (Firefox's `menus.getTargetElement`).
       const [at] = (await (
-        browser.tabs.executeScript as (t: number, d: { code: string; frameId?: number }) => Promise<unknown[]>
+        browser.tabs.executeScript as (
+          t: number,
+          d: { code: string; frameId?: number },
+        ) => Promise<unknown[]>
       )(id, {
         code: `(() => { const el = browser.menus.getTargetElement(${Number(i.targetElementId)}); return el ? { t: el.currentTime, src: el.currentSrc || el.src } : null; })()`,
         frameId: i.frameId,

@@ -79,6 +79,29 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
 const acceptedProposals = new Set<string>();
 /** The mock's app clock: '' is Automatic, this browser's zone (2026-10-24). */
 let mockClockZone = '';
+const freshPrivacy = () => ({
+  search: 'duckduckgo',
+  trackers: true,
+  ads: false,
+  cookies: true,
+  clean_links: true,
+  gpc: true,
+  https_only: true,
+  app_trackers: false,
+  sites_off: [] as string[],
+  fired: 0,
+  v: 0,
+  engines: [
+    { key: 'duckduckgo', name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=%s' },
+    { key: 'startpage', name: 'Startpage', url: 'https://www.startpage.com/do/search?q=%s' },
+    { key: 'brave', name: 'Brave Search', url: 'https://search.brave.com/search?q=%s' },
+    { key: 'mojeek', name: 'Mojeek', url: 'https://www.mojeek.com/search?q=%s' },
+    { key: 'kagi', name: 'Kagi', url: 'https://kagi.com/search?q=%s' },
+  ],
+});
+let mockPrivacy = freshPrivacy();
+let mockMediaJobs: import('./ipc').MediaJob[] = [];
+let mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
 function mockClock() {
   const zone = mockClockZone || deviceZone();
   return {
@@ -861,6 +884,9 @@ const FIXTURE_VAULTS = JSON.parse(JSON.stringify(mockVaults)) as typeof mockVaul
 export function reset(): void {
   mockDeleted.length = 0;
   mockClockZone = '';
+  mockPrivacy = freshPrivacy();
+  mockMediaJobs = [];
+  mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
   clearFaults();
   notes.length = 0;
   notes.push(...FIXTURES.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta));
@@ -2874,6 +2900,159 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         rows,
       };
       return result as T;
+    }
+    case 'web_resource':
+      // A page's files in the browser stand-in: none can be had, so a copy keeps their addresses.
+      return null as T;
+    case 'video_library':
+      return notes
+        .filter((n) => n.props.log === 'video')
+        .sort((x, y) => (x.title ?? '').localeCompare(y.title ?? '')) as T;
+    case 'video_collections':
+      return notes
+        .filter((n) => n.tags.includes('collection'))
+        .map((n) => ({ id: n.id, title: n.title ?? '', songs: [] })) as T;
+    case 'subsonic':
+      return { ...mockSubsonic } as T;
+    case 'subsonic_set': {
+      const c = args as { on?: boolean; renew?: boolean };
+      if (typeof c.on === 'boolean') mockSubsonic.on = c.on;
+      if (c.renew || !mockSubsonic.password) mockSubsonic.password = `pw${Date.now() % 100000}`;
+      return { ...mockSubsonic } as T;
+    }
+    case 'media_tools':
+      return {
+        ytdlp: mockMediaJobs.length > 0,
+        ffmpeg: mockMediaJobs.length > 0,
+        ytdlp_version: '2026.10.26',
+        ffmpeg_version: '9.0.2',
+        supported: true,
+      } as T;
+    case 'media_probe': {
+      const url = String(args.url ?? '');
+      if (!/^https?:\/\//.test(url)) throw new Error('No media was found at this address.');
+      if (url.includes('drm')) throw new Error('This media is protected (DRM): it cannot be kept.');
+      return {
+        title: 'Leafcutters at night',
+        uploader: 'Ant Channel',
+        duration: 61,
+        site: 'Youtube',
+        live: false,
+        video: true,
+        audio: true,
+        heights: [360, 720, 1080],
+      } as T;
+    }
+    case 'media_save': {
+      // Done at once in the stand-in: the note it becomes, as the server writes it.
+      const a = args as Record<string, unknown>;
+      const id = mockMediaJobs.length + 1;
+      const into = String(a.into);
+      let note: string | null = String(a.note ?? '') || null;
+      if (into !== 'note') {
+        const [made] = (await handle('create_notes', {
+          notes: [
+            {
+              title: 'Leafcutters at night',
+              body: '',
+              tags: [],
+              start: '',
+              props:
+                into === 'music'
+                  ? { log: 'music', artist: 'Ant Channel', audio: 'sha256:0000', source: a.url }
+                  : { log: 'video', channel: 'Ant Channel', video: 'sha256:0000', source: a.url },
+            },
+          ],
+        })) as { id: string }[];
+        note = made.id;
+      }
+      mockMediaJobs.push({
+        id,
+        url: String(a.url),
+        title: 'Leafcutters at night',
+        what: a.what as 'video' | 'audio' | 'mp3',
+        state: 'done',
+        progress: 1,
+        error: null,
+        note,
+      });
+      return { id } as T;
+    }
+    case 'asset_paths':
+      return ((args.references as string[]) ?? []).map((r) =>
+        r ? `/data/files/blobs/${r.replace(/^sha256:/, '')}` : null,
+      ) as T;
+    case 'media_args':
+      return [
+        '-f',
+        'ba/b',
+        '-o',
+        `${String(args.dir)}/media.%(ext)s`,
+        '--',
+        String((args.ask as { url?: string })?.url),
+      ] as T;
+    case 'media_probe_read':
+      return { ...((await handle('media_probe', { url: 'https://v.example/w' })) as object) } as T;
+    case 'media_explain':
+      return (
+        String(args.stderr).includes('DRM')
+          ? 'This media is protected (DRM): it cannot be kept.'
+          : 'The media could not be fetched.'
+      ) as T;
+    case 'media_keep': {
+      const ask = args.ask as { into?: string; url?: string };
+      const [made] = (await handle('create_notes', {
+        notes: [
+          {
+            title: String((args.info as { title?: string })?.title ?? 'media'),
+            body: '',
+            tags: [],
+            start: '',
+            props:
+              ask.into === 'videos'
+                ? { log: 'video', video: 'sha256:0000' }
+                : { log: 'music', audio: 'sha256:0000', source: ask.url },
+          },
+        ],
+      })) as { id: string }[];
+      return { note: made.id } as T;
+    }
+    case 'media_jobs':
+      return mockMediaJobs.map((j) => ({ ...j })) as T;
+    case 'media_cancel':
+      return null as T;
+    case 'privacy':
+      return { ...mockPrivacy, sites_off: [...mockPrivacy.sites_off] } as T;
+    case 'set_privacy': {
+      const c = args as Record<string, unknown>;
+      if (typeof c.search === 'string') {
+        if (!mockPrivacy.engines.some((e) => e.key === c.search))
+          throw new Error(`no search engine called ${c.search}`);
+        mockPrivacy.search = c.search;
+      }
+      for (const k of [
+        'trackers',
+        'ads',
+        'cookies',
+        'clean_links',
+        'gpc',
+        'https_only',
+        'app_trackers',
+      ] as const)
+        if (typeof c[k] === 'boolean') mockPrivacy[k] = c[k] as boolean;
+      const site = (x: unknown) =>
+        String(x)
+          .toLowerCase()
+          .replace(/^[a-z]+:\/\//, '')
+          .split(/[/?#:]/)[0]
+          .replace(/^www\./, '');
+      if (typeof c.site_off === 'string' && !mockPrivacy.sites_off.includes(site(c.site_off)))
+        mockPrivacy.sites_off = [...mockPrivacy.sites_off, site(c.site_off)].sort();
+      if (typeof c.site_on === 'string')
+        mockPrivacy.sites_off = mockPrivacy.sites_off.filter((x) => x !== site(c.site_on));
+      if (c.fire === true) mockPrivacy.fired += 1;
+      mockPrivacy.v += 1;
+      return { ...mockPrivacy, sites_off: [...mockPrivacy.sites_off] } as T;
     }
     case 'clock':
     case 'set_clock': {

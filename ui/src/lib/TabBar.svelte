@@ -22,9 +22,11 @@
     onopennote,
     onsettings,
     onhelp,
+    onprivacy,
     onbackup,
     onundo,
     onsavepage,
+    onsavemedia,
   }: {
     panes: Pane[];
     focused: number;
@@ -39,10 +41,14 @@
     onopennote: (id: string) => void;
     onsettings: () => void;
     onhelp: () => void;
+    /** ≡ → Privacy: the switches, and what they did on the page in front. */
+    onprivacy?: () => void;
     onbackup: () => void;
     onundo: () => void;
     /** A web page is in front: *Save this page* (its article, in a note of its own). */
     onsavepage?: () => void;
+    /** A web page is in front: *Save media* (its video or sound, into Music, Videos or a note). */
+    onsavemedia?: () => void;
   } = $props();
 
   let menuOpen = $state(false);
@@ -114,8 +120,14 @@
         {#if onsavepage}
           <button type="button" role="menuitem" onclick={act(onsavepage)}>Save this page</button>
         {/if}
+        {#if onsavemedia}
+          <button type="button" role="menuitem" onclick={act(onsavemedia)}>Save media</button>
+        {/if}
         <button type="button" role="menuitem" onclick={act(onundo)}>Undo</button>
         <button type="button" role="menuitem" onclick={act(onbackup)}>Back up and sync</button>
+        {#if onprivacy}
+          <button type="button" role="menuitem" onclick={act(onprivacy)}>Privacy</button>
+        {/if}
         <button type="button" role="menuitem" onclick={act(onsettings)}>Settings</button>
         <button type="button" role="menuitem" onclick={act(onhelp)}>Help</button>
       </div>
@@ -150,7 +162,7 @@
           {#if ic}<Icon name={ic} size={14} />{/if}
           <span>{title(p)}</span>
         </button>
-        {#if i === focused && panes.length > 1}
+        {#if i === focused}
           <button
             type="button"
             class="close"

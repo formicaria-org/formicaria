@@ -681,6 +681,18 @@ configuration directory.
 Model **weights** are downloaded from Hugging Face and carry their own terms, stated in
 the app before anything is fetched and recorded per model in `models.toml`.
 
+## Save media, blocking and playing (2026-11-17)
+
+| Component | Where | Licence | Source |
+|---|---|---|---|
+| yt-dlp | fetched on a computer (pinned in `media/tools.json`); inside the Android app | Unlicense | <https://github.com/yt-dlp/yt-dlp> |
+| ffmpeg (Martin Riedl's builds; gyan.dev on Windows) | fetched on a computer (pinned in `media/tools.json`) | GPL-3.0 (the builds) | <https://ffmpeg.martin-riedl.de> · <https://www.gyan.dev/ffmpeg/builds/> |
+| youtubedl-android (with Python and ffmpeg) | inside the Android app | **GPL-3.0**: the APK is distributed under GPL-3.0 | <https://github.com/yausername/youtubedl-android> |
+| adblock-rust (Brave's engine, with its crates) | inside the Android app | MPL-2.0 | <https://github.com/brave/adblock-rust> |
+| AndroidX Media3 (ExoPlayer, session) | inside the Android app | Apache-2.0 | <https://github.com/androidx/media> |
+| DuckDuckGo autoconsent (cookie pop-up rules) | inside the Android app's page script | MPL-2.0 | <https://github.com/duckduckgo/autoconsent> |
+| EasyList, EasyPrivacy | downloaded on the phone, weekly, when blocking is on | GPL-3.0 / CC BY-SA 3.0 | <https://easylist.to> |
+
 ## Data carried in the binary (the food list)
 
 A list of foods, compiled into the app. Built by `ci/pack-foods.py` from the tables

@@ -83,8 +83,18 @@ pub const KINDS: &[KindSpec] = &[
         label: "Song",
         mark: "♪",
         views: &["Music"],
-        sources: &["files", "downloads"],
+        sources: &["files", "downloads", "web media"],
         place: "Music",
+        out: &["share"],
+    },
+    // **A video** (2026-11-17, *media from any site*): a logged note with its file, as a song.
+    KindSpec {
+        key: "video",
+        label: "Video",
+        mark: "▶",
+        views: &["Videos"],
+        sources: &["web media", "files"],
+        place: "Videos",
         out: &["share"],
     },
     KindSpec {
@@ -166,6 +176,7 @@ pub fn kind_of(o: &Object) -> &'static str {
     }
     match text(o, crate::thread::LOG).as_deref() {
         Some("music") => return "song",
+        Some("video") => return "video",
         Some(l) if !l.trim().is_empty() => return "log",
         _ => {}
     }
@@ -204,6 +215,7 @@ mod tests {
         assert_eq!(kind_of(&note(&["meeting"], &[])), "meeting");
         assert_eq!(kind_of(&note(&[], &[("ics_uid", "u@x")])), "meeting");
         assert_eq!(kind_of(&note(&[], &[("log", "music")])), "song");
+        assert_eq!(kind_of(&note(&[], &[("log", "video")])), "video");
         assert_eq!(kind_of(&note(&[], &[("log", "food")])), "log");
         assert_eq!(kind_of(&note(&["recipe"], &[("recipe", "pasta")])), "recipe");
         assert_eq!(kind_of(&note(&["paper"], &[])), "paper");

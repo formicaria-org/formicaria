@@ -20,7 +20,7 @@ path = "src/main.rs"
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
 # `mail` is off for now (`decisions.md` 2026-11-17): webmail is used as a web page; Gmail is not read.
-default = ["agent", "tls", "update", "calendar", "products", "browser"]
+default = ["agent", "tls", "update", "calendar", "products", "browser", "media"]
 agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #
@@ -50,6 +50,9 @@ products = ["dep:fm-fetch"]
 # against its published SHA-512 sums, a profile, and the add-on's key. Carries `fm-fetch`, already in
 # the binary for the updater, so it adds no crate.
 browser = ["dep:fm-fetch", "dep:zip"]
+# Save media (`decisions.md` 2026-11-17): yt-dlp and ffmpeg fetched on first use, pinned per release,
+# run on this machine. `fm-fetch` and `zip`, both already in the binary: no new crate.
+media = ["dep:fm-fetch", "dep:zip"]
 # Gmail, read-only (`decisions.md` 2026-10-09). Rides on `calendar`: an invite in a message is read
 # exactly as a calendar is, and the person's stated offset lives there.
 mail = ["calendar"]

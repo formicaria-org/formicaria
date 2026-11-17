@@ -1,4 +1,7 @@
 <script lang="ts">
+  import PrivacySheet from './PrivacySheet.svelte';
+  import SubsonicSection from './SubsonicSection.svelte';
+  import { phoneVpn } from './privacy.svelte';
   import { tabBar, barPosition, setBarPosition } from './shell.svelte';
   import BrowserSection from './BrowserSection.svelte';
   // Settings: what this installation is *actually* configured as.
@@ -1712,6 +1715,7 @@
         <div class="cat" data-cat="connections">
           <CalendarsSection />
           <!-- Mail is off for now (`decisions.md` 2026-11-17): webmail is used as a web page. -->
+          <SubsonicSection />
         </div>
       {/if}
 
@@ -1872,6 +1876,15 @@
           <TrackersSection />
         </div>
       {/if}
+
+      <!-- Privacy (2026-11-17): the switches, on every device. -->
+      <section
+        data-cat="privacy"
+        data-words="privacy trackers ads block cookies banners https search duckduckgo gpc forget"
+      >
+        <h3>Privacy</h3>
+        <PrivacySheet computer={!isPhone()} vpn={phoneVpn()} />
+      </section>
 
       <!-- formicaria's own browser (2026-11-15): a computer only; the section hides itself where the
            server has no browser routes. -->

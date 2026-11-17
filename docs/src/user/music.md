@@ -12,7 +12,7 @@ other file. Open a song's note and it plays there.
 **Music** is one of the app's [groups](./views.md#the-groups), beside Food, Fitness and Health. It
 opens on its player, with your songs under it. It is shown unless you hide it, with the same switch as the others:
 
-**Settings → Food & reminders → Food and training → Show Food, Fitness, Health and Music on this device.**
+**Settings → Food & reminders → Food and training → Show Food, Fitness, Health, Music and Videos on this device.**
 
 ## Adding a song
 
@@ -67,7 +67,7 @@ the player (elsewhere in the app it opens **Now playing**: the cover, the contro
 **What is queued, and your volume, shuffle, repeat and sound, are kept on this device**, and come
 back the next time you open the app, paused.
 
-On a phone the music stops when you leave the app or the screen turns off, for now.
+On a phone the music keeps playing when you leave the app or the screen turns off, with its keys on the lock screen, in the notification, on headphones, Bluetooth and in the car.
 
 ## Finding your music
 
@@ -107,3 +107,13 @@ notebook's *Send attachments under* limit (see [Backup](./backup.md)). The songs
 another device lists your songs; add the files there too to play them.
 
 A file is copied when you add it: songs you also keep in a music folder take their space twice.
+
+## From the web, and to other players
+
+- **Songs from a web page**: *Save media* keeps a page's sound (or an embedded video's) as a song,
+  into the playlist you choose. [Saving media](./media.md).
+- **Other players**: each playlist is also written as a `.m3u8` file in the vault's `playlists/`
+  folder on a computer, and any Subsonic player can stream your Music from it (Settings →
+  Connections). The files are the vault's own; nothing is copied.
+- **Videos** have a section of their own, built the same way: every video, collections, a search
+  and a player.

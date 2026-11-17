@@ -86,7 +86,8 @@ afterwards is how a project stops being what it said it was, one reasonable step
   I want you to release"*; `decisions.md#toolchain`). **Whenever the owner asks for a release**, the
   order is docs → `pixi run myrme-bump` (the newest compatible assistant, `decisions.md#agent`) →
   `pixi run browser-bump` (the newest Firefox ESR for formicaria's browser, Mozilla's signature
-  checked) → `pixi run browser-check` (the kit applied to it and measured against it unmodified; a
+  checked) → `pixi run media-bump` (the newest yt-dlp, its signature checked, and ffmpeg, for Save
+  media) → `pixi run browser-check` (the kit applied to it and measured against it unmodified; a
   failure stops the release, `decisions.md` 2026-11-15, evening) →
   `pixi run check-references -- --write` (every figure the app shows, read off its document; a
   failure stops the release, `decisions.md#data`, 2026-11-03) →

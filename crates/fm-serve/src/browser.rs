@@ -249,7 +249,9 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
     json!({ "policies": {
         "ExtensionSettings": Value::Object(ext),
         "3rdparty": { "Extensions": { ADDON_ID: { "key": key, "server": server } } },
-        "SearchEngines": { "Default": "DuckDuckGo" },
+        // **Private search engines only** (`decisions.md` 2026-11-17): DuckDuckGo is Firefox's own;
+        // the others of `privacy.rs`'s list are added, so the Privacy sheet can choose any of them.
+        "SearchEngines": { "Default": "DuckDuckGo", "Add": search_engines() },
         // **Stripped by policy** (decision 3, 2026-11-15 evening): Mozilla's telemetry, studies,
         // feedback, Pocket, sponsored content, Suggest, its messages and Labs, the AI chatbot, and
         // Firefox's own updater (formicaria updates it). **Kept**: the Mozilla account and Sync
@@ -291,6 +293,17 @@ pub fn policies(xpi: &Path, key: &str, server: &str, prefs: &Prefs) -> Value {
             "Value": true, "Cryptomining": true, "Fingerprinting": true, "EmailTracking": true
         },
     }})
+}
+
+/// The private engines Firefox does not carry, as the `SearchEngines` policy adds them.
+fn search_engines() -> Value {
+    fm_app::privacy::ENGINES
+        .iter()
+        .filter(|(key, ..)| *key != "duckduckgo")
+        .map(|(_, name, url)| {
+            json!({ "Name": name, "URLTemplate": url.replace("%s", "{searchTerms}"), "Method": "GET" })
+        })
+        .collect()
 }
 
 fn file_url(p: &Path) -> String {
@@ -727,6 +740,10 @@ mod tests {
             json!(["*://127.0.0.1", "*://localhost"])
         );
         assert_eq!(pol["SearchEngines"]["Default"], "DuckDuckGo");
+        // Every private engine of the Privacy sheet can be chosen in Firefox too.
+        let added = pol["SearchEngines"]["Add"].as_array().unwrap();
+        assert_eq!(added.len(), fm_app::privacy::ENGINES.len() - 1);
+        assert!(added.iter().all(|e| e["URLTemplate"].as_str().unwrap().contains("{searchTerms}")));
         assert_eq!(pol["DisableTelemetry"], true);
         // uBlock Origin is an offer, off by default, and never forbidden.
         assert!(pol["ExtensionSettings"].get(UBLOCK_ID).is_none());
@@ -751,6 +768,10 @@ mod tests {
             "defaultPref(\"browser.contentblocking.category\", \"strict\")",
             "defaultPref(\"dom.security.https_only_mode\", true)",
             "defaultPref(\"privacy.globalprivacycontrol.enabled\", true)",
+            // The Privacy sheet's switches reach Firefox's own protections (2026-11-17).
+            "/api/privacy",
+            "privacy.query_stripping.enabled",
+            "deleteDataFromSite",
             "lockPref(\"xpinstall.signatures.required\", false)",
         ] {
             assert!(cfg.contains(want), "missing {want}");

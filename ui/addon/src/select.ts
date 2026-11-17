@@ -81,7 +81,11 @@ interface Result {
 
 type Aim = { note?: string; noteTitle?: string; fresh?: boolean };
 
-async function bring(s: { html: string; text: string }, at: { x: number; y: number }, aim: Aim = {}) {
+async function bring(
+  s: { html: string; text: string },
+  at: { x: number; y: number },
+  aim: Aim = {},
+) {
   const r = await browser.runtime
     .sendMessage<Result>({ type: 'bring-selection', html: s.html, text: s.text, ...aim })
     .catch((e) => ({ ok: false, error: String(e) }) as Result);
@@ -141,7 +145,11 @@ function chip(at: { x: number; y: number }, s: { html: string; text: string }) {
   };
   const open = () => {
     menu.replaceChildren();
-    const main = row(front ? `Into “${front}”` : 'Into a new note', () => into(front ? {} : { fresh: true }), 'row main');
+    const main = row(
+      front ? `Into “${front}”` : 'Into a new note',
+      () => into(front ? {} : { fresh: true }),
+      'row main',
+    );
     const field = document.createElement('input');
     field.type = 'search';
     field.placeholder = 'Another note…';
@@ -165,7 +173,12 @@ function chip(at: { x: number; y: number }, s: { html: string; text: string }) {
         found.replaceChildren(
           ...(hits.length
             ? hits.map((h) => row(h.title, () => into({ note: h.id, noteTitle: h.title })))
-            : [Object.assign(document.createElement('div'), { className: 'row muted', textContent: 'No note found' })]),
+            : [
+                Object.assign(document.createElement('div'), {
+                  className: 'row muted',
+                  textContent: 'No note found',
+                }),
+              ]),
         );
       }, 180);
     });
@@ -210,7 +223,9 @@ function settled(e: MouseEvent | KeyboardEvent) {
   const lines = range.getClientRects();
   const last = lines[lines.length - 1] ?? range.getBoundingClientRect();
   const at =
-    e instanceof MouseEvent ? { x: e.clientX + 10, y: e.clientY + 12 } : { x: last.right + 6, y: last.bottom + 4 };
+    e instanceof MouseEvent
+      ? { x: e.clientX + 10, y: e.clientY + 12 }
+      : { x: last.right + 6, y: last.bottom + 4 };
   if (after === 'bring') {
     if (e.altKey || (e instanceof MouseEvent && e.detail === 2)) return;
     flash(range.getBoundingClientRect());

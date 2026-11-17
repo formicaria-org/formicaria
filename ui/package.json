@@ -7,12 +7,13 @@
     "dev": "vite",
     "build": "vite build && node addon/build.mjs",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p addon",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p addon && tsc -p page",
     "test": "vitest run",
     "test:watch": "vitest",
     "prebuild": "node scripts/copy-excalidraw-fonts.mjs"
   },
   "devDependencies": {
+    "@duckduckgo/autoconsent": "18.5.0",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/svelte": "^5.4.2",

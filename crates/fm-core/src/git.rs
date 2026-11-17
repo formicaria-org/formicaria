@@ -761,7 +761,8 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
     // only the paths `put`/`delete` recorded so it would never sweep one in — but a user running
     // `git add -A` in their own vault would, and committing a partial upload is committing bytes
     // that are not a file yet.
-    for line in ["index.sqlite", "derived/", "blobs/", ".fm-ingest/"] {
+    // `playlists/` is written from the playlist notes on each computer (`fm_app::media::export_lists`).
+    for line in ["index.sqlite", "derived/", "blobs/", ".fm-ingest/", "playlists/"] {
         ensure_line(&path, line)?;
     }
     Ok(())

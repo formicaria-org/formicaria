@@ -1,4 +1,28 @@
 <script lang="ts">
+  import UpdateBanner from '../lib/UpdateBanner.svelte';
+  import { watchForUpdates } from '../lib/updater.svelte';
+  import { untrack as untrackUpdates } from 'svelte';
+  // **A newer version is offered on every page** (the owner on 0.49/0.50: *"impossible for me to
+  // upgrade from within, all options disappeared"*). The check and the banner lived in the old
+  // whole-app page, which formicaria's browser no longer shows; each feature page watches now.
+  $effect(() => untrackUpdates(watchForUpdates));
+  import SaveMedia from '../lib/SaveMedia.svelte';
+  import type { Candidate } from '../lib/web/media';
+  /** What the add-on found on the page (`#` + JSON: the page and its media). */
+  function mediaAsked(): { page: string; c: Candidate[] } | null {
+    try {
+      const v = JSON.parse(decodeURIComponent(location.hash.slice(1))) as {
+        page?: unknown;
+        c?: unknown;
+      };
+      return typeof v.page === 'string' && Array.isArray(v.c)
+        ? { page: v.page, c: v.c as Candidate[] }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  import PrivacySheet from '../lib/PrivacySheet.svelte';
   import { popup } from '../lib/popup';
   // **One feature, or one note, filling a tab** (`decisions.md` 2026-11-17, *one server, many
   // views*). The address says which (`route.ts`); the page holds no state beyond what is on screen:
@@ -17,7 +41,7 @@
   import { FEATURES, featureOf } from '../lib/features';
   import NewTab from './NewTab.svelte';
   import SelectionBring from '../lib/SelectionBring.svelte';
-  import { noteShown } from '../lib/lastNote';
+  import { noteShown, lastNote } from '../lib/lastNote';
 
   let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
 
@@ -169,8 +193,32 @@
 </script>
 
 <div class="feature">
+  <UpdateBanner />
   {#if route.kind === 'new'}
     <NewTab {go} />
+  {:else if route.kind === 'media'}
+    {@const asked = mediaAsked()}
+    <div class="privacy-page">
+      <h1>Save media</h1>
+      {#if asked}
+        <SaveMedia
+          page={asked.page}
+          candidates={asked.c}
+          note={lastNote()}
+          onopen={(id) => go(`/f/note/${id}`)}
+        />
+      {:else}
+        <p class="muted">Open a web page, then the ant's <strong>Save media</strong>.</p>
+      {/if}
+    </div>
+  {:else if route.kind === 'privacy'}
+    <div class="privacy-page">
+      <h1>Privacy</h1>
+      <PrivacySheet computer />
+      <p class="muted">
+        Firefox's shield in the address bar shows what was blocked on the page you are on.
+      </p>
+    </div>
   {:else if route.kind === 'settings'}
     {#await import('../lib/SettingsPanel.svelte') then { default: SettingsPanel }}
       <SettingsPanel
@@ -285,6 +333,15 @@
 />
 
 <style>
+  .privacy-page {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+  }
+  .privacy-page .muted {
+    opacity: 0.7;
+    margin-top: 1rem;
+  }
   .feature {
     display: flex;
     flex-direction: column;

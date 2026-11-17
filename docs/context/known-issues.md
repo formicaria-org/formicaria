@@ -2894,3 +2894,16 @@ environment; build from a `git worktree` with this checkout's environment instea
 - **On a phone, music stops when the app leaves the screen** (M4: a native player, later). Nothing
   of it has been tried on a phone; a large upload goes through the chunked path, untested with
   audio on a device.
+
+## Not yet tried on a phone (2026-11-17, the media and privacy plan)
+
+Built, compiled, and tested on the app's side; **not run on a device**, none being attached:
+- **The tracker block's VPN** (`TrackerVpn.kt`): the DNS packets it answers and forwards, per-app
+  counts (Android 10+), *Let it through*. A broken answer would leave apps unable to look up
+  addresses while it is on: turning the switch off restores them.
+- **The media service** (`PlaybackService.kt`, Media3 1.6.1): the lock screen, notification and
+  headset keys, and the app mirroring them.
+- **Save media inside the app** (`MediaRun.kt`, youtubedl-android 0.18.1): the first unpacking of
+  Python, the update, a real download.
+- **Blocking in page views** (`fm-block` through JNI): requests refused, hide rules applied; the
+  engine's cost on a phone (`phone-blocking-2026-11-17.md` has the computer's).

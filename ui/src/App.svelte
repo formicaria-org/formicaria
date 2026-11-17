@@ -1,13 +1,18 @@
 <script lang="ts">
+  import { searchUrl, loadPrivacy, phoneVpn } from './lib/privacy.svelte';
+  import PrivacySheet from './lib/PrivacySheet.svelte';
+  import SaveMedia from './lib/SaveMedia.svelte';
+  import { findMedia, type Candidate } from './lib/web/media';
   import ViewControls from './lib/ViewControls.svelte';
   import { readPage, parsePage } from './lib/web/read';
+  import { inlinePage } from './lib/web/inline';
   import { buildClip } from './lib/web/clip';
   import TabBar from './lib/TabBar.svelte';
   import NewTab from './feature/NewTab.svelte';
   import { tabBar, barPosition } from './lib/shell.svelte';
   import { parseRoute } from './feature/route';
   import SelectionBring from './lib/SelectionBring.svelte';
-  import { noteShown } from './lib/lastNote';
+  import { noteShown, lastNote } from './lib/lastNote';
   import { loadFeed as loadFeedShared, cardsOf } from './lib/feeds';
   import WebOpen from './lib/WebOpen.svelte';
   import ReminderBanner from './lib/ReminderBanner.svelte';
@@ -304,6 +309,7 @@
     // In the one bar a view is a tab like any other, and closes; elsewhere views are re-pointed.
     if (!closing || (isView(closing) && !tabBar())) return;
     const wasFront = workspace.panes[focused]?.id === id;
+    const wasAt = workspace.panes.findIndex((p) => p.id === id);
     if (wasFront || besideId === id) besideId = null;
     if (closing.kind === 'page')
       (globalThis as { __fmPage?: { close(id: string): void } }).__fmPage?.close(id);
@@ -314,8 +320,12 @@
     // of three notes left one note in a third of the screen.
     workspace = { ...workspace, cols: autoCols(panes.length, workspace), panes };
     // Closing the note in front goes back to the view it was opened over.
-    if (wasFront) focused = workspace.panes.findIndex(isView);
-    else if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
+    if (wasFront) {
+      // In the one bar: the tab beside it (a browser's way). Elsewhere: the view it was over.
+      const view = workspace.panes.findIndex(isView);
+      focused =
+        tabBar() || view === -1 ? Math.max(0, Math.min(wasAt, workspace.panes.length) - 1) : view;
+    } else if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
     persistWorkspace();
     // **Closing a note is a step back** (2026-10-20): recorded as a move, the next Back reopened
     // the note just closed — or one just deleted.
@@ -1952,6 +1962,13 @@
     const onLink = (e: MouseEvent) => {
       if (!page || e.defaultPrevented || e.button !== 0) return;
       const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      // **An attachment, on the phone** (the owner on 0.50: *"the saved webpage does not load"*): a
+      // saved page opens in a page tab of its own; anything else goes to Android's *Open with*.
+      if (a?.classList.contains('asset-link') && a.dataset.ref) {
+        e.preventDefault();
+        void openAttachment(a.dataset.ref, a.href, a.textContent ?? '');
+        return;
+      }
       if (!a || !/^https?:/.test(a.href) || a.origin === location.origin) return;
       if (a.closest('.page-link')) return;
       e.preventDefault();
@@ -1965,7 +1982,8 @@
       if (!p) return;
       const patch: Partial<PaneT> = {};
       if (d.title && d.title !== p.pageTitle) patch.pageTitle = d.title;
-      if (d.url && d.url !== p.url) patch.url = d.url;
+      // A saved copy stays the saved copy (its own address is what it shows, not where it is).
+      if (d.url && d.url !== p.url && !p.url?.startsWith('fmsaved:')) patch.url = d.url;
       if (Object.keys(patch).length) changePane(p.id, patch);
     };
     window.addEventListener('fm-page', onPage);
@@ -1974,12 +1992,54 @@
         (e as CustomEvent<{ id: string; url: string; title?: string; html: string }>).detail,
       );
     window.addEventListener('fm-page-html', onPageHtml);
+    const onPagePrivacy = (e: Event) => {
+      const d = (
+        e as CustomEvent<{
+          id: string;
+          blocked?: number;
+          cleaned?: number;
+          upgraded?: number;
+          banners?: number;
+        }>
+      ).detail;
+      if (d?.id) pageCounts = { ...pageCounts, [d.id]: d };
+    };
+    window.addEventListener('fm-page-privacy', onPagePrivacy);
+    // The phone's page views apply this device's privacy switches from the first page on.
+    if ((globalThis as { __fmPage?: unknown }).__fmPage) void loadPrivacy();
     // A link in a page, long-pressed and opened as a page: an item of its own.
     const onPageOpen = (e: Event) => {
       const url = (e as CustomEvent<{ url?: string }>).detail?.url ?? '';
-      if (/^https?:\/\//.test(url)) focusOrOpen('page', { url, pageTitle: null });
+      const from = workspace.panes[focused];
+      if (/^https?:\/\//.test(url))
+        focusOrOpen('page', {
+          url,
+          pageTitle: null,
+          openedFrom: from?.kind === 'page' ? from.id : null,
+        });
     };
     window.addEventListener('fm-page-open', onPageOpen);
+    // **Back with nowhere further back in a page** (the owner on 0.50: links opened from a page were
+    // "unclosable"): a page opened from another closes, and that one is in front again, as a
+    // browser does; otherwise the tab before it; the only tab offers the new tab's choices.
+    const onPageBack = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      const p = workspace.panes.find((x) => x.id === id);
+      if (!p) return;
+      const opener = p.openedFrom ? workspace.panes.findIndex((x) => x.id === p.openedFrom) : -1;
+      if (opener !== -1) {
+        closePane(p.id);
+        const at = workspace.panes.findIndex((x) => x.id === p.openedFrom);
+        if (at !== -1) selectWindow(at);
+        return;
+      }
+      const prev = prevId ? workspace.panes.findIndex((x) => x.id === prevId) : -1;
+      if (prev !== -1 && prevId !== p.id) return selectWindow(prev);
+      const other = workspace.panes.findIndex((x) => x.id !== p.id);
+      if (other !== -1) return selectWindow(other);
+      newTabOpen = true;
+    };
+    window.addEventListener('fm-page-back', onPageBack);
     document.addEventListener('click', onLink, true);
     // **A passage of any note, brought into another** (⇥ on a note; `lib/piece.ts`): the same sheet
     // asks which note, and the piece goes there with its link back.
@@ -2001,7 +2061,9 @@
       document.removeEventListener('click', onLink, true);
       window.removeEventListener('fm-page', onPage);
       window.removeEventListener('fm-page-html', onPageHtml);
+      window.removeEventListener('fm-page-privacy', onPagePrivacy);
       window.removeEventListener('fm-page-open', onPageOpen);
+      window.removeEventListener('fm-page-back', onPageBack);
     };
   });
   /** **Put pieces into a note** (`lib/piece.ts`): the one way content arrives in a note from anywhere,
@@ -2266,6 +2328,11 @@
   let launching = $state(false);
   /** **+ in the one bar** (`decisions.md` 2026-11-17, *one frame*): the new tab's suggestions. */
   let newTabOpen = $state(false);
+  /** ≡ → Privacy (`PrivacySheet`), and what each page's protections did (the shell counts them). */
+  let privacyOpen = $state(false);
+  let pageCounts = $state<
+    Record<string, { blocked?: number; cleaned?: number; upgraded?: number; banners?: number }>
+  >({});
   /** A feature's first view, as a pane: what a tab of it opens on. */
   function featurePane(key: string): Partial<PaneT> & { kind: PaneKind } {
     const space = spaces.find((x) => x.name === key);
@@ -2276,9 +2343,38 @@
     if (group) return { kind: 'view', viewName: group.views[0] };
     return { kind: (key as PaneKind) || 'timeline' };
   }
+  /** An attachment opened on the phone: a saved page in a page tab, the rest with *Open with*. */
+  async function openAttachment(ref: string, href: string, label: string) {
+    const reference = ref.replace(/^asset:sha256-/i, 'sha256:');
+    try {
+      const head = await fetch(href, { headers: { Range: 'bytes=0-1023' } })
+        .then((r) => r.text())
+        .catch(() => '');
+      if (/<!doctype html|<html/i.test(head)) {
+        const [path] = await ipc.assetPaths([reference]);
+        if (path) {
+          focusOrOpen('page', { url: `fmsaved:${path}`, pageTitle: label.trim() || 'Saved page' });
+          return;
+        }
+      }
+      await ipc.openWith(reference);
+    } catch (err) {
+      error = `It could not be opened: ${String(err)}`;
+    }
+  }
   /** **Save this page** (≡, a web page in front): the shell hands over its HTML (`__fmPage.html`), and
    *  it is read and saved as the computer's *Save page* does (`lib/web/read.ts`, `clip_save`). */
   let savingPage: string | null = null;
+  /** **Save media** (≡, a web page in front): the page's media, from its HTML and what it fetched. */
+  let mediaFor: string | null = null;
+  let mediaSheet = $state<{ page: string; c: Candidate[] } | null>(null);
+  function saveMedia() {
+    const p = workspace.panes[focused];
+    const shell = (globalThis as { __fmPage?: { html?(id: string): void } }).__fmPage;
+    if (!p || p.kind !== 'page' || !shell?.html) return;
+    mediaFor = p.id;
+    shell.html(p.id);
+  }
   function savePage() {
     const p = workspace.panes[focused];
     const shell = (globalThis as { __fmPage?: { html?(id: string): void } }).__fmPage;
@@ -2286,11 +2382,30 @@
     savingPage = p.id;
     shell.html(p.id);
   }
-  async function pageHtml(d: { id: string; url: string; title?: string; html: string }) {
+  async function pageHtml(d: {
+    id: string;
+    url: string;
+    title?: string;
+    html: string;
+    seen?: string[];
+  }) {
+    if (d.id === mediaFor) {
+      mediaFor = null;
+      mediaSheet = { page: d.url, c: findMedia(parsePage(d.html, d.url), d.url, d.seen ?? []) };
+      return;
+    }
     if (d.id !== savingPage) return;
     savingPage = null;
     try {
       const facts = readPage(parsePage(d.html, d.url), d.url);
+      // One self-contained file: the page's pictures, styles and fonts put inside the copy.
+      try {
+        facts.snapshot = (
+          await inlinePage(facts.snapshot, d.url, (u) => ipc.webResource(u, d.url))
+        ).html;
+      } catch {
+        /* the plain copy is still kept */
+      }
       const draft = buildClip(facts, appToday(), null, clockText());
       await ipc.clipSave({
         url: facts.url,
@@ -2348,9 +2463,7 @@
   function openWeb(at: string) {
     launching = false;
     // A page item (the phone draws it; elsewhere it is its address, to open).
-    const url = at.startsWith('web:')
-      ? at.slice(4)
-      : `https://duckduckgo.com/?q=${encodeURIComponent(at.slice(7))}`;
+    const url = at.startsWith('web:') ? at.slice(4) : searchUrl(at.slice(7));
     focusOrOpen('page', { url, pageTitle: null });
   }
   let toldFront = '';
@@ -3049,9 +3162,11 @@
         onopennote={openNoteInPane}
         onsettings={() => (settingsOpen = true)}
         onhelp={() => (helpOpen = true)}
+        onprivacy={() => (privacyOpen = true)}
         onbackup={onBackup}
         onundo={() => void runUndo('undo')}
         onsavepage={workspace.panes[focused]?.kind === 'page' ? savePage : undefined}
+        onsavemedia={workspace.panes[focused]?.kind === 'page' ? saveMedia : undefined}
       />
     {:else}
       <header class="topbar">
@@ -3911,6 +4026,43 @@
 
       {#if launching}
         <WebOpen onweb={openWeb} onclose={() => (launching = false)} />
+      {/if}
+      {#if mediaSheet}
+        <div class="new-tab-sheet privacy-sheet" role="dialog" aria-label="save media">
+          <button
+            type="button"
+            class="new-tab-close"
+            aria-label="close save media"
+            onclick={() => (mediaSheet = null)}>✕</button
+          >
+          <h2>Save media</h2>
+          <SaveMedia
+            page={mediaSheet.page}
+            candidates={mediaSheet.c}
+            note={lastNote()}
+            onopen={(id) => {
+              mediaSheet = null;
+              focusOrOpen('note', { noteId: id });
+            }}
+          />
+        </div>
+      {/if}
+      {#if privacyOpen}
+        {@const front = workspace.panes[focused]}
+        <div class="new-tab-sheet privacy-sheet" role="dialog" aria-label="privacy">
+          <button
+            type="button"
+            class="new-tab-close"
+            aria-label="close privacy"
+            onclick={() => (privacyOpen = false)}>✕</button
+          >
+          <h2>Privacy</h2>
+          <PrivacySheet
+            site={front?.kind === 'page' ? (front.url ?? '') : ''}
+            counts={front?.kind === 'page' ? (pageCounts[front.id] ?? null) : null}
+            vpn={phoneVpn()}
+          />
+        </div>
       {/if}
       {#if newTabOpen}
         <div class="new-tab-sheet" role="dialog" aria-label="new tab">
@@ -5297,6 +5449,12 @@
     background: var(--bg, Canvas);
     overflow: auto;
     padding-top: var(--safe-top, 0px);
+  }
+  .privacy-sheet {
+    padding: calc(var(--safe-top, 0px) + var(--space-3)) var(--space-3) var(--space-4);
+  }
+  .privacy-sheet h2 {
+    margin: 0 0 var(--space-3);
   }
   .new-tab-close {
     position: absolute;

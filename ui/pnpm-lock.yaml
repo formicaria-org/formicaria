@@ -73,6 +73,9 @@ importers:
         specifier: 3.1.5
         version: 3.1.5(@types/emscripten@1.41.6)
     devDependencies:
+      '@duckduckgo/autoconsent':
+        specifier: 18.5.0
+        version: 18.5.0
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.2.0
         version: 7.2.0(svelte@5.57.2)(vite@8.1.6)
@@ -229,6 +232,9 @@ packages:
   '@csstools/css-tokenizer@4.0.0':
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
+
+  '@duckduckgo/autoconsent@18.5.0':
+    resolution: {integrity: sha512-10S404Q9DvLHPWkHpirx1AR9oep6nGdy2PtKCRCsYFX2KiSOfEYbWrP8mmV1wv4ofuXxrGdpIzVyBnl1MjsMBQ==}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -2206,6 +2212,8 @@ snapshots:
       css-tree: 3.2.1
 
   '@csstools/css-tokenizer@4.0.0': {}
+
+  '@duckduckgo/autoconsent@18.5.0': {}
 
   '@emnapi/core@1.11.1':
     dependencies:
