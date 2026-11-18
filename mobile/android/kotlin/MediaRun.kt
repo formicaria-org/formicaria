@@ -46,12 +46,24 @@ object MediaRun {
     val prefs = ctx.getSharedPreferences("media", Context.MODE_PRIVATE)
     val last = prefs.getLong("checked", 0L)
     if (!force && System.currentTimeMillis() - last < 7L * 24 * 3600 * 1000) return
+    // **The app's class loader on this thread** (2026-11-18): Commons IO, which the library updates
+    // through, asks the thread's context class loader, and Android leaves it null on a plain thread,
+    // so every update failed (*"Java7Support … loadClass … on a null object reference"*), on debug
+    // and release builds alike, and phones kept the APK's yt-dlp.
+    if (Thread.currentThread().contextClassLoader == null) {
+      Thread.currentThread().contextClassLoader = ctx.classLoader
+    }
     // **Stamped only when it worked** (2026-11-17): a failed update (GitHub refusing, no network) was
     // stamped as done, and a fresh phone kept the yt-dlp in the APK, a year old, for a week.
     try {
-      YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel._STABLE)
+      val status = YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel._STABLE)
+      android.util.Log.i("formicaria", "yt-dlp update: $status, ${YoutubeDL.getInstance().versionName(ctx) ?: "?"}")
       prefs.edit().putLong("checked", System.currentTimeMillis()).apply()
-    } catch (e: Throwable) { }
+    } catch (e: Throwable) {
+      // Said, not swallowed (2026-11-18: the emulator kept the APK's yt-dlp and nothing said why).
+      // GitHub's API, which the library asks, refuses an address after 60 unsigned requests an hour.
+      android.util.Log.w("formicaria", "yt-dlp not updated: ${e.javaClass.simpleName}: ${e.message}")
+    }
   }
 
   fun workDir(ctx: Context): File = File(ctx.cacheDir, "media").apply { mkdirs() }

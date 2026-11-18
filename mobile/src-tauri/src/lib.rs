@@ -211,26 +211,31 @@ fn finish_audio(
 ) -> Result<std::path::PathBuf, String> {
     let mut out = file.to_path_buf();
     // Already an MP3 (the site served one): kept as it is, not encoded again.
-    let is_mp3 = file.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("mp3"));
+    let is_mp3 =
+        file.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("mp3"));
     if ask.what == fm_app::media::What::Mp3 && !is_mp3 {
         out = file.with_extension("mp3");
         fm_audio::to_mp3(file, &out, &ask.mp3)?;
         let _ = std::fs::remove_file(file);
     }
-    let text = |k: &str| info.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(String::from);
+    let text =
+        |k: &str| info.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(String::from);
     #[cfg(feature = "update")]
-    let cover = text("thumbnail").and_then(|u| fm_fetch::resource(&u, "", 5 * 1024 * 1024).ok().flatten()).map(|(_, b)| b);
+    let cover = text("thumbnail")
+        .and_then(|u| fm_fetch::resource(&u, "", 5 * 1024 * 1024).ok().flatten())
+        .map(|(_, b)| b);
     #[cfg(not(feature = "update"))]
     let cover = None;
-    let tags = fm_audio::Tags {
-        title: text("track").or_else(|| text("title")),
-        artist: text("artist").or_else(|| text("uploader")).or_else(|| text("channel")),
-        album: text("album"),
-        year: info.get("release_year").and_then(|v| v.as_u64()).map(|y| y as u32).or_else(|| {
-            text("upload_date").and_then(|d| d.get(..4).and_then(|y| y.parse().ok()))
-        }),
-        cover,
-    };
+    let tags =
+        fm_audio::Tags {
+            title: text("track").or_else(|| text("title")),
+            artist: text("artist").or_else(|| text("uploader")).or_else(|| text("channel")),
+            album: text("album"),
+            year: info.get("release_year").and_then(|v| v.as_u64()).map(|y| y as u32).or_else(
+                || text("upload_date").and_then(|d| d.get(..4).and_then(|y| y.parse().ok())),
+            ),
+            cover,
+        };
     let _ = fm_audio::write_tags(&out, &tags);
     Ok(out)
 }
@@ -681,7 +686,9 @@ fn fm_blocking(
     // back to on error.
     if cmd == "agent_activity_poll" {
         #[cfg(agent_shell)]
-        return Ok(agent::activity_poll(args["discussion"].as_str().unwrap_or_default()).to_string());
+        return Ok(
+            agent::activity_poll(args["discussion"].as_str().unwrap_or_default()).to_string()
+        );
         #[cfg(not(agent_shell))]
         return Ok("{\"active\":false}".to_string());
     }
@@ -886,7 +893,8 @@ fn fm_blocking(
         let page = args.get("page").and_then(|v| v.as_str()).unwrap_or_default().to_string();
         #[cfg(feature = "update")]
         {
-            let got = fm_fetch::resource(&url, &page, 5 * 1024 * 1024).map_err(|e| e.to_string())?;
+            let got =
+                fm_fetch::resource(&url, &page, 5 * 1024 * 1024).map_err(|e| e.to_string())?;
             return Ok(match got {
                 Some((kind, bytes)) => serde_json::json!({
                     "type": kind, "base64": fm_app::wire::b64_encode(&bytes)
@@ -912,25 +920,32 @@ fn fm_blocking(
         let paths: Vec<serde_json::Value> = refs
             .iter()
             .map(|r| {
-                fm_app::dispatch::blob_path_of_kind(&app, &fm_app::Scope::All, r.as_str().unwrap_or(""), false)
-                    .ok()
-                    .filter(|p| p.exists())
-                    .map(|p| serde_json::json!(p.to_string_lossy()))
-                    .unwrap_or(serde_json::Value::Null)
+                fm_app::dispatch::blob_path_of_kind(
+                    &app,
+                    &fm_app::Scope::All,
+                    r.as_str().unwrap_or(""),
+                    false,
+                )
+                .ok()
+                .filter(|p| p.exists())
+                .map(|p| serde_json::json!(p.to_string_lossy()))
+                .unwrap_or(serde_json::Value::Null)
             })
             .collect();
         return Ok(serde_json::Value::Array(paths).to_string());
     }
     if cmd == "media_args" {
-        let ask: fm_app::media::Ask = serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
-            .map_err(|e| format!("not a media request: {e}"))?;
+        let ask: fm_app::media::Ask =
+            serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
+                .map_err(|e| format!("not a media request: {e}"))?;
         let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or_default();
         // No ffmpeg in the app (2026-11-17): the sound as AAC, a video as two runs to be joined.
         return Ok(fm_app::media::phone_runs(ask.what, ask.quality, dir, &ask.url).to_string());
     }
     if cmd == "media_probe_read" {
-        let info: serde_json::Value = serde_json::from_str(args.get("json").and_then(|v| v.as_str()).unwrap_or("null"))
-            .map_err(|e| e.to_string())?;
+        let info: serde_json::Value =
+            serde_json::from_str(args.get("json").and_then(|v| v.as_str()).unwrap_or("null"))
+                .map_err(|e| e.to_string())?;
         return Ok(fm_app::media::probe_summary(&info).to_string());
     }
     if cmd == "media_explain" {
@@ -938,10 +953,13 @@ fn fm_blocking(
         return Ok(serde_json::json!(fm_app::media::explain(said)).to_string());
     }
     if cmd == "media_keep" {
-        let ask: fm_app::media::Ask = serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
-            .map_err(|e| format!("not a media request: {e}"))?;
-        let file = std::path::PathBuf::from(args.get("file").and_then(|v| v.as_str()).unwrap_or_default());
-        let session = args.get("session").and_then(|v| v.as_str()).unwrap_or("media-phone").to_string();
+        let ask: fm_app::media::Ask =
+            serde_json::from_value(args.get("ask").cloned().unwrap_or_default())
+                .map_err(|e| format!("not a media request: {e}"))?;
+        let file =
+            std::path::PathBuf::from(args.get("file").and_then(|v| v.as_str()).unwrap_or_default());
+        let session =
+            args.get("session").and_then(|v| v.as_str()).unwrap_or("media-phone").to_string();
         let info = args.get("info").cloned().unwrap_or_default();
         #[cfg(target_os = "android")]
         let file = finish_audio(&file, &ask, &info)?;

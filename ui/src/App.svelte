@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { toggledTheme } from './lib/start';
   import { searchUrl, loadPrivacy, phoneVpn } from './lib/privacy.svelte';
   import PrivacySheet from './lib/PrivacySheet.svelte';
   import SaveMedia from './lib/SaveMedia.svelte';
@@ -457,9 +458,7 @@
 
   let theme = $state(document.documentElement.dataset.theme ?? 'dark');
   function toggleTheme() {
-    theme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('fm-theme', theme);
+    theme = toggledTheme(theme);
   }
 
   // ---- The user's own theme (`<vault>/themes/*.css`), and getting back out of one ----

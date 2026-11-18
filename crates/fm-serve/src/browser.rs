@@ -47,8 +47,9 @@ pub const PRIVACY_ADDONS: &[(&str, &str, &str)] = &[
 fn switch_on(p: &fm_app::privacy::Privacy, name: &str) -> bool {
     match name {
         "ddg" => p.ddg,
-        "cookies" => p.cookies,
-        "clean_links" => p.clean_links,
+        // Firefox's own protection does these; the extensions only for *more sites* (L1, 2026-11-18).
+        "cookies" => p.cookies && p.more_sites,
+        "clean_links" => p.clean_links && p.more_sites,
         "ads" => p.ads,
         _ => false,
     }
@@ -834,9 +835,39 @@ mod tests {
         assert_eq!(start_address(d.path(), true, notes), notes, "already open: a tab of the notes");
     }
 
+    /// **Firefox's own protection by default** (2026-11-18, `lean-plan-2026-11-18.md` L1): the
+    /// defaults install no extension at all; cookie pop-ups and tracking links bring theirs only
+    /// with *More sites*.
+    #[test]
+    fn the_defaults_install_no_extension_and_more_sites_brings_two() {
+        let ext = |p: &fm_app::privacy::Privacy| {
+            policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default(), p)
+                ["policies"]["ExtensionSettings"]
+                .clone()
+        };
+        let d = fm_app::privacy::Privacy::default();
+        assert!(d.cookies && d.clean_links && !d.more_sites);
+        let none = ext(&d);
+        for (switch, id, _) in PRIVACY_ADDONS {
+            assert!(none.get(id).is_none(), "{switch} installs nothing by default");
+        }
+        let more = ext(&fm_app::privacy::Privacy { more_sites: true, ..d.clone() });
+        for (switch, id, _) in PRIVACY_ADDONS {
+            let want = matches!(*switch, "cookies" | "clean_links");
+            assert_eq!(more.get(id).is_some(), want, "{switch} with more sites");
+        }
+        let off = ext(&fm_app::privacy::Privacy { more_sites: true, cookies: false, ..d });
+        assert!(off.get("gdpr@cavi.au.dk").is_none(), "no pop-up refusing, no extension for it");
+    }
+
     #[test]
     fn each_privacy_switch_brings_its_extension_while_on() {
-        let on = fm_app::privacy::Privacy { ads: true, ddg: true, ..Default::default() };
+        let on = fm_app::privacy::Privacy {
+            ads: true,
+            ddg: true,
+            more_sites: true,
+            ..Default::default()
+        };
         let p = policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default(), &on);
         let ext = &p["policies"]["ExtensionSettings"];
         for (switch, id, slug) in PRIVACY_ADDONS {

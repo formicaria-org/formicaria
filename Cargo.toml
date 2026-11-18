@@ -42,6 +42,15 @@ serde_yaml_ng = "0.10"
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
 
+# **Lean development builds** (2026-11-18, `lean-plan-2026-11-18.md`): full debug information for
+# every dependency filled the disk three times in a day (`target/` 19 GB, the phone's 13 GB) and is
+# never read here. A backtrace keeps its files and lines for our own code; dependencies carry none.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 # Release profile — the shipped binary. The debug `fm-serve` is ~34 MB
 # (unoptimized + full debuginfo); stripping symbols plus LTO brings the release
 # build down to ~3 MB. opt-level 3 keeps the pure query engine fast; thin LTO +

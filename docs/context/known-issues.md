@@ -4,6 +4,36 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## The phone's release build is not its debug build — test the one people get (2026-11-18)
+
+**Trap, sprung in 0.54.0.** The release APK is shrunk and renamed by R8 (`isMinifyEnabled = true`);
+the debug APK is not. A library that finds classes by name breaks only in the release build. Save
+media on every phone failed at its first step with *"ExceptionInInitializerError … class i3.a is not a
+concrete class"*: youtubedl-android unpacks Python and yt-dlp with Apache Commons Compress, which looks
+its zip helpers up by name. `phone-media-check` had passed every case on the debug build.
+
+- **Keep rules** for Save media's tools are written by `ci/android-inject-service.sh`
+  (`gen/android/app/proguard-media.pro`: youtubedl-android, Commons Compress, Commons IO, Jackson; shrunk, Commons IO broke the yt-dlp update too). A new Android
+  library that uses reflection needs its rule there.
+- **`phone-media-check` builds the release** (`pixi run -e android android-apk-check`: `android-release.sh`
+  for x86_64, unsigned, with `tauri/devtools` so the WebView can be driven; signed with a key made for
+  the check). `FM_PHONE_BUILD=debug` for the old way. The release refuses plain http, so the clip served
+  from this computer runs on debug only; YouTube's own videos cover the joining of picture and sound.
+- **YouTube, the sound as MP3, failed once in three full runs** (2026-11-18), right after the YouTube
+  video case, saying *"This site changed how it serves media"*; alone, and in the next full run, it
+  passed. Probably YouTube refusing a quick second fetch from one address. The check now reports
+  yt-dlp's own words on a failure, and counts only a note the Save made (it had matched an earlier
+  case's note by name).
+- **Not explained:** the arm64 release APK installed in the x86_64 emulator (Android's arm64
+  translation) stayed on *"Still opening your vaults"* with its threads idle. A phone opens it; the
+  emulator's translation is suspected, not proven.
+- **The phone's yt-dlp had never updated itself**, on any build: Commons IO asks the thread's context
+  class loader, which Android leaves null on a plain thread (`MediaRun.freshen` now sets the app's).
+  Every phone kept the APK's yt-dlp (2025.11.12). The outcome is now logged (`yt-dlp update: …` /
+  `yt-dlp not updated: …`) and `phone-media-check` fails on a fault in the app's code. The update asks
+  GitHub's API unsigned (60 requests an hour per address), so a refusal there is said, not failed;
+  whether to pin it is `outstanding.md` §2.01.
+
 ## formicaria's browser — what is not yet known or done (2026-11-15, 0.33.1)
 
 - **Measured, headless, by `pixi run browser-check`** (the release gate), against the same ESR

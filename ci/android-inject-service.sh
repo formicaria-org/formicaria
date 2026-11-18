@@ -210,6 +210,27 @@ if [ -f "$gradle" ] && ! grep -q 'youtubedl-android' "$gradle"; then
     ' "$gradle" > "$tmpf" && mv "$tmpf" "$gradle"
 fi
 
+# **Save media's tools kept whole by R8** (2026-11-18). The release build shrinks and renames classes;
+# youtubedl-android unpacks Python and yt-dlp with Apache Commons Compress, which finds its zip helpers
+# by class name, updates yt-dlp through Apache Commons IO (shrunk: a class loader of null), and reads
+# JSON with Jackson, which finds classes by name too. Shrunk, the first Save media failed on
+# every phone with *"class i3.a is not a concrete class"* (0.54.0), while the debug build, never
+# shrunk, passed every check. `phone-media-check` now runs the release build. Picked up by the Gradle
+# file's `fileTree("**/*.pro")`.
+if [ -f "$gradle" ]; then
+    cat > "$(dirname "$gradle")/proguard-media.pro" <<'PRO'
+# Written by ci/android-inject-service.sh: Save media's tools look classes up by name.
+-keep class com.yausername.** { *; }
+-keep class org.apache.commons.compress.** { *; }
+-dontwarn org.apache.commons.compress.**
+-keep class org.apache.commons.io.** { *; }
+-dontwarn org.apache.commons.io.**
+-keep class com.fasterxml.jackson.** { *; }
+-dontwarn com.fasterxml.jackson.**
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+PRO
+fi
+
 # **No ffmpeg in the app** (2026-11-17: 35 MB; the core makes MP3 and writes tags, Android joins a
 # video's streams): a Gradle file patched before loses the line.
 if [ -f "$gradle" ]; then

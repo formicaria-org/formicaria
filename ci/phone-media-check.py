@@ -11,6 +11,11 @@ streams joined by Android's muxer) over the core (`media_args`, `media_keep`: MP
 app's own screens: **+**, the address, **≡ → Save media**, the choice, **Save**; then reads the note
 it made and the file's first bytes.
 
+**The release build, as people get it** (2026-11-18: 0.54's debug build passed here while the release
+on a phone could not save media). By default the APK is `android-release`'s own build, for x86_64:
+shrunk by R8, optimised, with the WebView's debugging on (`tauri/devtools`) so this can drive it, and
+signed with a key made for the check. `FM_PHONE_BUILD=debug` uses the debug build instead.
+
 The pages are the computer's (`ci/usability-check.py`): Wikipedia's *Ode to Joy* (one recording, as
 MP3), *Toccata and Fugue in D minor* (four recordings: the third kept, and checked to be the third),
 Commons' *Ant Bed With Ants* (a short video); and a clip served from this computer whose picture
@@ -44,8 +49,13 @@ EMU = str(SDK / "emulator" / "emulator")
 SERIAL = "emulator-5554"
 PKG = "dev.formicaria.notes"
 WORK = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "formicaria-phone-media-check"
-APK = ROOT / "mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+BUILD = os.environ.get("FM_PHONE_BUILD", "release")
+APK = (ROOT / "mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+       if BUILD == "debug" else ROOT / "mobile/formicaria-check-android-x86_64.apk")
 fails: list[str] = []
+# How the app's own files are read: `run-as` for a debug build; a release build allows it no one, so
+# there the emulator's root reads them (`adb root`, which an emulator's image allows; a phone's not).
+AS_APP = ["run-as", PKG] if BUILD == "debug" else []
 
 # What a person keeps, page by page: the page, the candidate's label starts with, which of those,
 # how many it must list at least, what to keep, where it goes.
@@ -57,6 +67,12 @@ CASES = [
      "Video:", 0, 1, "video", "Videos"),
     ("a clip whose picture and sound come apart (DASH): the video", "http://10.0.2.2:{port}/index.html",
      "Video:", 0, 1, "video", "Videos"),
+    # **YouTube, as people use it** (the owner on 0.54, 2026-11-18: *"download of multimedia does not
+    # work (tried it on the phone)"*): its picture and sound always come apart, and its extraction
+    # needs yt-dlp's JavaScript runtime (QuickJS, in the app). The first video ever posted: 19 s, up
+    # since 2005.
+    ("YouTube: the video", "https://www.youtube.com/watch?v=jNQXAC9IVRw", "", 0, 1, "video", "Videos"),
+    ("YouTube: only the sound, as MP3", "https://www.youtube.com/watch?v=jNQXAC9IVRw", "", 0, 1, "mp3", "Music"),
 ]
 
 
@@ -104,6 +120,36 @@ def serve(d: Path) -> socketserver.TCPServer:
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
+
+
+def app_memory() -> str:
+    """The app's memory as Android counts it (`dumpsys meminfo`'s total PSS): measured, not guessed
+    (`lean-plan-2026-11-18.md` L3)."""
+    out = adb("shell", "dumpsys", "meminfo", PKG, check_rc=False, timeout=60)
+    for line in out.splitlines():
+        parts = line.split()
+        if parts[:2] == ["TOTAL", "PSS:"] and len(parts) > 2:
+            return f"{int(parts[2]) / 1024:.0f} MB"
+        if parts[:1] == ["TOTAL"] and len(parts) > 1 and parts[1].isdigit():
+            return f"{int(parts[1]) / 1024:.0f} MB"
+    return "unknown"
+
+
+def signed(unsigned: Path) -> Path:
+    """The release build signed with a key made for this check (never the release key)."""
+    store = WORK / "check.keystore"
+    java = Path(os.environ.get("CONDA_PREFIX", "")) / "lib" / "jvm" / "bin"
+    if not store.exists():
+        subprocess.run([str(java / "keytool"), "-genkeypair", "-keystore", str(store), "-alias", "check",
+                        "-keyalg", "RSA", "-keysize", "2048", "-validity", "3650", "-storepass", "checkcheck",
+                        "-keypass", "checkcheck", "-dname", "CN=phone-media-check"],
+                       check=True, capture_output=True)
+    bt = sorted((SDK / "build-tools").iterdir(), key=lambda d: [int(x) if x.isdigit() else 0 for x in d.name.split(".")])[-1]
+    out = WORK / "check-signed.apk"
+    env = dict(os.environ, JAVA_HOME=str(java.parent), PATH=f"{java}:{os.environ.get('PATH', '')}")
+    subprocess.run([str(bt / "apksigner"), "sign", "--ks", str(store), "--ks-pass", "pass:checkcheck",
+                    "--out", str(out), str(unsigned)], check=True, env=env)
+    return out
 
 
 def boot() -> subprocess.Popen:
@@ -257,7 +303,11 @@ ROLLER_JS = r"""
   const ul = document.querySelector('ul.roller');
   if (!ul) return { error: 'no roller in the bar' };
   const items = ul.querySelectorAll('li').length;
-  const front = () => (ul.querySelector('[aria-current="page"]') || {}).textContent;
+  // Which item, not its title: two tabs can share one (both YouTube cases open the same page).
+  const front = () => {
+    const c = ul.querySelector('[aria-current="page"]');
+    return c ? (c.closest('li')?.dataset.id || '') + ':' + c.textContent.trim() : undefined;
+  };
   const before = front();
   const r = ul.getBoundingClientRect();
   const y = r.top + r.height / 2;
@@ -351,6 +401,9 @@ CASE_JS = r"""
   const r = [...document.querySelectorAll('input[name=what]')].find((i) => i.parentElement.textContent.includes(label));
   if (r) r.click();
   await sleep(500);
+  // The library before, so only a note this Save made counts (a name like "YouTube video" matched
+  // every note by its words, and a failed save passed on an earlier case's note).
+  const before = new Set((await inv(into === 'Music' ? 'music_library' : 'video_library')).map((n) => n.id));
   [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save').click();
   const done = await until(() => {
     const t = document.body.innerText;
@@ -359,14 +412,16 @@ CASE_JS = r"""
   // Not done in time: what the sheet says it is doing (looking, downloading at what share, joining).
   const doing = done ? '' : (document.querySelector('ul.jobs') || document.body).innerText.slice(-300);
   const lib = await inv(into === 'Music' ? 'music_library' : 'video_library');
-  const name = chosen.parentElement.textContent.split(':').slice(1).join(':').trim();
-  const stem = name.split('.')[0].slice(0, 12);
-  const mine = lib.filter((n) => JSON.stringify(n).includes(stem));
+  const mine = lib.filter((n) => !before.has(n.id));
+  // yt-dlp's own words when it failed (the sheet shows formicaria's plain reading of them).
+  let raw = [];
+  try { raw = JSON.parse(window.__fmMedia.jobs()).filter((j) => j.error).map((j) => j.error.slice(-500)); } catch {}
   const ref = mine[0] && (mine[0].props.audio || mine[0].props.video);
   const [path] = ref ? await inv('asset_paths', { references: [ref] }) : [null];
   document.querySelector('button[aria-label="close save media"]')?.click();
   return { listed, matching: matching.length, chosen: chosen.parentElement.textContent.trim(), done,
-           sheet: done === 'ok' ? '' : document.body.innerText.slice(-400), doing, notes: mine.length, ref, path };
+           sheet: done === 'ok' ? '' : document.body.innerText.slice(-400), doing, notes: mine.length, ref, path,
+           raw: done === 'ok' ? [] : raw.slice(-2) };
 })()
 """
 
@@ -415,14 +470,22 @@ def main() -> None:
     site = fixtures()
     srv = serve(site)
     if not APK.exists() or os.environ.get("FM_PHONE_REBUILD", "1") == "1":
-        say("building the phone app (x86_64, debug)")
-        subprocess.run(["pixi", "run", "-e", "android", "android-apk"], cwd=ROOT, check=True)
+        say(f"building the phone app (x86_64, {BUILD})")
+        task = "android-apk" if BUILD == "debug" else "android-apk-check"
+        subprocess.run(["pixi", "run", "-e", "android", task], cwd=ROOT, check=True)
+    apk = APK if BUILD == "debug" else signed(APK)
     emu = boot()
     EMU_PROC.append(emu)
     try:
+        if BUILD != "debug":
+            adb("root", check_rc=False)
+            time.sleep(3)
+            adb("wait-for-device", timeout=120)
         adb("reverse", "--remove-all", check_rc=False)
         recorder = record_log()
-        adb("install", "-r", "-t", str(APK), timeout=600)
+        # Uninstalled first: a build signed by another key (debug, release, the check's) is refused.
+        adb("uninstall", PKG, check_rc=False)
+        adb("install", "-t", str(apk), timeout=600)
         # **From a clean app** each run: the emulator keeps an app's data between runs, and tabs left
         # by earlier runs (their clip served on another port, gone) confused the roller's check.
         adb("shell", "pm", "clear", PKG, check_rc=False)
@@ -431,6 +494,7 @@ def main() -> None:
         first = cdp.evaluate(FIRST_RUN_JS) or {}
         say(f"the first start: {json.dumps(first)[:200]}")
         check("a new person gets past the first start to the app", bool(first.get("ok")), str(first.get("text")))
+        say(f"memory after the first start: {app_memory()}")
         # `FM_PHONE_PROBE=<address>`: what the app's yt-dlp lists there, and how formicaria reads it.
         if os.environ.get("FM_PHONE_PROBE"):
             got = cdp.evaluate(r"""
@@ -456,8 +520,14 @@ def main() -> None:
         only = [k for k in os.environ.get("FM_PHONE_CASES", "").split(",") if k]
         port = srv.server_address[1]
         for name, page, pick, nth, least, keep, into in CASES:
+            local = "{port}" in page
             page = page.replace("{port}", str(port))
             if only and not any(k in name for k in only):
+                continue
+            # The release build refuses plain http (`usesCleartextTraffic`), so this computer's clip
+            # is for the debug build; YouTube's own videos come apart the same way, and are joined there.
+            if local and BUILD != "debug":
+                say(f"skip {name}: plain http, which the release build refuses")
                 continue
             got = None
             for attempt in (1, 2):
@@ -490,11 +560,11 @@ def main() -> None:
             check(f"{name}: the sheet lists all {least}+", (got.get("matching") or 0) >= least,
                   str(got.get("error") or got.get("listed")))
             check(f"{name}: the sheet says it is saved in {into}", got.get("done") == "ok",
-                  f"{got.get('done') or got.get('error')}; the sheet: {got.get('sheet', '')!r}")
+                  f"{got.get('done') or got.get('error')}; yt-dlp said: {got.get('raw')}; the sheet: {got.get('sheet', '')!r}")
             check(f"{name}: its note is in {into}, and it is the one chosen", (got.get("notes") or 0) >= 1,
                   f"chose {got.get('chosen')!r}")
             if got.get("path"):
-                head = adb("shell", "run-as", PKG, "od", "-An", "-c", "-N", "12", got["path"], check_rc=False)
+                head = adb("shell", *AS_APP, "od", "-An", "-c", "-N", "12", got["path"], check_rc=False)
                 bare = head.replace(" ", "").replace("\n", "")
                 ok = {"mp3": bare.startswith("ID3") or bare.startswith("377"),
                       "video": "ftyp" in bare or bare.startswith("032E"),
@@ -504,7 +574,7 @@ def main() -> None:
                     # Picture **and** sound: a video kept silent is the failure joining exists for.
                     local = WORK / "kept-video"
                     with open(local, "wb") as f:
-                        subprocess.run([ADB, "-s", SERIAL, "exec-out", "run-as", PKG, "cat", got["path"]],
+                        subprocess.run([ADB, "-s", SERIAL, "exec-out", *AS_APP, "cat", got["path"]],
                                        stdout=f, timeout=300, check=False)
                     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
                                             "-of", "csv=p=0", str(local)], capture_output=True, text=True)
@@ -521,6 +591,22 @@ def main() -> None:
             say(f"the roller: {json.dumps(got)[:1200]}")
             check("the roller shows the open items", (got.get("items") or 0) >= 2, str(got))
             check("a roll brings the next item to the front", bool(got.get("moved")), str(got))
+        say(f"memory after every case: {app_memory()}")
+        # **yt-dlp updates itself** (2026-11-18: it never had: a null class loader, then R8). A fault in
+        # the app's code fails; GitHub refusing (60 unsigned requests an hour per address, this
+        # computer's) or no network is said, not failed.
+        time.sleep(2)
+        log = LOGCAT.read_text(errors="replace") if LOGCAT.exists() else ""
+        done = [l for l in log.splitlines() if "yt-dlp update:" in l]
+        broken = [l for l in log.splitlines() if "yt-dlp not updated:" in l
+                  and any(k in l for k in ("NoClassDefFound", "ExceptionInInitializer", "NullPointer", "ClassCast", "NoSuchMethod"))]
+        refused = [l for l in log.splitlines() if "yt-dlp not updated:" in l and l not in broken]
+        if done:
+            say(f"yt-dlp: {done[-1].split('yt-dlp update:')[-1].strip()}")
+        elif refused:
+            say(f"yt-dlp not updated, not the app's fault: {refused[-1].split('not updated:')[-1].strip()[:200]}")
+        check("the phone's yt-dlp can update itself (no fault in the app's code)", not broken,
+              broken[-1].split("not updated:")[-1].strip()[:300] if broken else "")
     except Exception as e:  # noqa: BLE001 - said as a failure
         check("the check ran to the end", False, f"{repr(e)[:400]}; logcat: {phone_log()}")
     finally:

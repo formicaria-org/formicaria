@@ -129,4 +129,4 @@ source says `dev`. It is worth checking when you have two folders and are not su
 which one your browser is showing.
 
 **In formicaria's browser** a newer version is offered at the top of every page (*Update*), and in
-the ant's **Settings → About & updates** (*Check now*).
+**Settings → About & updates** (*Check now*): ⚙ at the top right of the window, on every tab.

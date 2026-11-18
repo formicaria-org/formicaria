@@ -77,3 +77,12 @@ jni = "0.21"
 # so the two are one (the desktop workspace has the same patch).
 [patch."https://github.com/formicaria-org/formicaria.git"]
 fm-fetch = { path = "../../crates/fm-fetch" }
+
+# **Lean development builds** (2026-11-18, `lean-plan-2026-11-18.md`): full debug information for
+# every dependency filled the disk three times in a day (`target/` 19 GB, the phone's 13 GB) and is
+# never read here. A backtrace keeps its files and lines for our own code; dependencies carry none.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

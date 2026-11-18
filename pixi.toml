@@ -184,6 +184,10 @@ phone-test = "sh ci/phone-test.sh"
 # A signed, 16 KB-aligned release APK for a real phone. Keystore in ~/.config/formicaria,
 # never in the repo. See the script for why signing is not done in Gradle.
 android-release = { cmd = "sh ci/android-release.sh", depends-on = ["android-stage-runtime", "android-stage-onnxruntime", "android-stage-whisper", "android-inject-service"] }
+# **The release build, for the emulator** (`phone-media-check`, 2026-11-18): as `android-release` builds
+# it (shrunk by R8, optimised), for x86_64, unsigned, with the WebView's debugging on so the check can
+# drive it. A debug build had passed while the release on a phone did not.
+android-apk-check = { cmd = "sh ci/android-release.sh x86_64", env = { FM_ANDROID_STAGE = "build", FM_ANDROID_FEATURES = "tauri/devtools", FM_VERSION = "check" }, depends-on = ["android-stage-runtime", "android-stage-onnxruntime", "android-inject-service"] }
 android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/ci/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64", depends-on = ["android-stage-runtime", "android-stage-onnxruntime", "android-inject-service"] }
 # Install the debug APK on whatever single device adb sees, and launch it.
 android-run = { cmd = "$ANDROID_HOME/../platform-tools/adb install -r mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk && $ANDROID_HOME/../platform-tools/adb shell am start -n dev.formicaria.notes/.MainActivity" }

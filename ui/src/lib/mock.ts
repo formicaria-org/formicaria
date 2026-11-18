@@ -89,6 +89,7 @@ const freshPrivacy = () => ({
   https_only: true,
   app_trackers: false,
   ddg: false,
+  more_sites: false,
   sites_off: [] as string[],
   fired: 0,
   v: 0,
@@ -3045,6 +3046,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         'https_only',
         'app_trackers',
         'ddg',
+        'more_sites',
       ] as const)
         if (typeof c[k] === 'boolean') mockPrivacy[k] = c[k] as boolean;
       const site = (x: unknown) =>

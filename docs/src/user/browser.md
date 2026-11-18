@@ -75,8 +75,10 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 ## One row: your tabs
 
 - **On formicaria's own tabs there is one row**: formicaria's button (the ant: its options, Settings
-  and Help, and a search of your notes and the web), your tabs, and **+**. The address row appears
-  only on web pages, which need one.
+  and Help, and a search of your notes and the web), your tabs, **+**, and **⚙ Settings** at the right
+  end. The address row appears only on web pages, which need one.
+- **Settings is always at the top right** (⚙, at the right end of the tab row), on every tab: a note,
+  a feature, a web page. It opens Settings in a tab of its own, or goes to the one already open.
 - **Every tab is one thing**: a feature (Notes, Tasks, Agenda, Food journal, Fitness, Health, Music), a
   single note, or a web page. A feature's tab starts with its line: the feature's name (**Food ▾**)
   switches *this* tab to another feature (Back returns), and its views follow (Day · Menu · Trends).

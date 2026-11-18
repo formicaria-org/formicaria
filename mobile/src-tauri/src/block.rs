@@ -54,7 +54,9 @@ fn list(d: &std::path::Path, (name, url): (&str, &str)) -> Option<String> {
 /// The switches changed (or the app started): build the engine for them, on its own thread.
 pub fn configure(trackers: bool, ads: bool) {
     if let Ok(mut w) = WANT.lock() {
-        if *w == (trackers, ads) && ENGINE.read().map(|e| e.is_some() == (trackers || ads)).unwrap_or(false) {
+        if *w == (trackers, ads)
+            && ENGINE.read().map(|e| e.is_some() == (trackers || ads)).unwrap_or(false)
+        {
             return;
         }
         *w = (trackers, ads);
@@ -134,7 +136,11 @@ pub extern "system" fn Java_dev_formicaria_notes_Blocker_check(
 ) -> jboolean {
     let Some(e) = engine() else { return JNI_FALSE };
     let (u, p, k) = (text(&mut env, &url), text(&mut env, &page), text(&mut env, &kind));
-    if e.check(&u, &p, &k) { JNI_TRUE } else { JNI_FALSE }
+    if e.check(&u, &p, &k) {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
 }
 
 /// The page's own hide rules, as a style sheet.
@@ -158,7 +164,8 @@ pub extern "system" fn Java_dev_formicaria_notes_Blocker_hideNames(
     ids: JString,
 ) -> jstring {
     let split = |s: String| s.split_whitespace().take(5000).map(String::from).collect::<Vec<_>>();
-    let (u, c, i) = (text(&mut env, &url), split(text(&mut env, &classes)), split(text(&mut env, &ids)));
+    let (u, c, i) =
+        (text(&mut env, &url), split(text(&mut env, &classes)), split(text(&mut env, &ids)));
     let css = engine().map(|e| e.hide_names(&u, &c, &i)).unwrap_or_default();
     out(&mut env, &css)
 }
@@ -171,5 +178,9 @@ pub extern "system" fn Java_dev_formicaria_notes_Blocker_hostBlocked(
     host: JString,
 ) -> jboolean {
     let Some(e) = engine() else { return JNI_FALSE };
-    if e.host_blocked(&text(&mut env, &host)) { JNI_TRUE } else { JNI_FALSE }
+    if e.host_blocked(&text(&mut env, &host)) {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
 }

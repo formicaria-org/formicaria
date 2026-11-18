@@ -81,6 +81,19 @@ def chrome(m, script: str):
         m.cmd("Marionette:SetContext", {"value": "content"})
 
 
+def click_in_window(m, selector: str) -> str:
+    """Click an element of the browser's own window (its toolbars) the way a mouse does."""
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    try:
+        el = m.cmd("WebDriver:FindElement", {"using": "css selector", "value": selector})["value"]
+        m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+        return "pressed"
+    except RuntimeError as e:
+        return f"could not click: {e}"[:300]
+    finally:
+        m.cmd("Marionette:SetContext", {"value": "content"})
+
+
 def content(m, script: str, wait_ms: int = 0):
     if wait_ms:
         time.sleep(wait_ms / 1000)
@@ -179,6 +192,39 @@ def new_person(ff: Path, work: Path) -> None:
         else:
             check(who, "formicaria's add-on is installed", False, "no add-on")
 
+        # **Settings from the window's top right, on every tab** (owner, 2026-11-18): from a note's tab, a
+        # view's and a web page's, the button at the right end of the tab row is pressed, as a person
+        # would, and Settings must be the tab shown.
+        for where in [f"{SERVER}/f/group/Library", f"{SERVER}/f/agenda", "https://en.wikipedia.org/wiki/Ant"]:
+            goto(m, where, 5)
+            seen = chrome(m, """
+              const gb = window.gBrowser;
+              gb.selectedTab = gb.tabs.find(t => t.linkedBrowser.currentURI.spec.startsWith(%s)) ?? gb.selectedTab;
+              const b = document.getElementById('formicaria-settings');
+              if (!b) return 'no button';
+              const r = b.getBoundingClientRect();
+              if (!(r.width > 0 && r.height > 0)) return 'not drawn';
+              return 'drawn';""" % json.dumps(where))
+            if seen == "drawn":
+                # **Clicked as a mouse clicks** (Marionette's element click, in the window): a toolbar
+                # button acts on the *command* a real click makes, which a script's `click()` does not.
+                seen = click_in_window(m, "#formicaria-settings")
+            time.sleep(3)
+            shown = chrome(m, "return window.gBrowser.selectedBrowser.currentURI.spec")
+            why = ""
+            if not shown.startswith(f"{SERVER}/f/settings"):
+                # What the button's handler saw: formicaria's address (from the home page) and what the
+                # startup script reported.
+                why = chrome(m, """
+                  const home = Services.prefs.getStringPref('browser.startup.homepage', '');
+                  const errs = Services.console.getMessageArray()
+                    .map(x => x.message || String(x)).filter(x => /formicaria|Settings|SETTINGS|openSettings/.test(x)).slice(-4);
+                  return 'home=' + home + ' | ' + errs.join(' || ');""")
+            check(who, f"Settings at the top right opens from {where.split('/')[-1]}",
+                  seen == "pressed" and shown.startswith(f"{SERVER}/f/settings"), f"{seen}; shown {shown}; {why}"[:900])
+        n = chrome(m, f"return window.gBrowser.tabs.filter(t => t.linkedBrowser.currentURI.spec.startsWith('{SERVER}/f/settings')).length")
+        check(who, "Settings pressed three times is one tab", n == 1, f"{n} Settings tabs")
+
         # Settings: its categories, and updates.
         goto(m, f"{SERVER}/f/settings", 6)
         cats = wait_for(m, "const t=document.body.innerText; return t.includes('About')?t:null") or ""
@@ -192,7 +238,7 @@ def new_person(ff: Path, work: Path) -> None:
         # Privacy.
         goto(m, f"{SERVER}/f/privacy", 4)
         sw = wait_for(m, "const s=[...document.querySelectorAll('[role=switch]')].map(x=>x.getAttribute('aria-label')); return s.length?s:null") or []
-        for want in ["Block trackers", "Block ads", "Refuse cookie pop-ups", "Clean tracking links", "DuckDuckGo's protections too"]:
+        for want in ["Block trackers", "Block ads", "Refuse cookie pop-ups", "Clean tracking links", "More sites, with extensions", "DuckDuckGo's protections too"]:
             check(who, f"Privacy has the switch “{want}”", want in sw, f"switches: {sw}")
 
         # Save media, with a page's embedded video.

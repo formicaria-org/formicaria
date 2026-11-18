@@ -142,13 +142,16 @@ if printf '%s\n' "$FM_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
 fi
 echo "android-release: stage=$stage, FM_VERSION=$FM_VERSION"
 
+# `FM_ANDROID_FEATURES`: extra Cargo features, for `phone-media-check` only (`tauri/devtools`, so the
+# emulator check can drive the release build it installs: shrunk, optimised, as people get it). A
+# release never sets it.
 if [ "$do_build" = yes ]; then
 ( cd mobile \
     && PATH="$root/ci/bin:$PATH" \
        NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
        JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
        FM_VERSION="$FM_VERSION" \
-       pnpm exec tauri android build --apk --target "$target" )
+       pnpm exec tauri android build --apk --target "$target" ${FM_ANDROID_FEATURES:+--features "$FM_ANDROID_FEATURES"} )
 fi
 
 bt=$(ls -d "$root"/.android/sdk/build-tools/*/ | sort -V | tail -1)

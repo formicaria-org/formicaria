@@ -48,6 +48,11 @@ pub struct Privacy {
     /// The computer: DuckDuckGo Privacy Essentials on top of Firefox's tracking protection. Off by
     /// default: with it the browser measured +19 % memory, over its +10 % budget (2026-11-17).
     pub ddg: bool,
+    /// The computer: **more sites, with extensions** (2026-11-18, `lean-plan-2026-11-18.md` L1).
+    /// Off, cookie pop-ups and tracking links are Firefox's own work (its cookie banner reduction
+    /// and its query stripping); on, Consent-O-Matic and ClearURLs are added for the sites Firefox's
+    /// lists miss. Off by default: a warm start measured +23 % memory with both, against Firefox.
+    pub more_sites: bool,
     /// Sites with every protection off (host names, lower case), because they broke.
     pub sites_off: Vec<String>,
     /// How many times the fire button was pressed: the browser forgets when this moves.
@@ -68,6 +73,7 @@ impl Default for Privacy {
             https_only: true,
             app_trackers: false,
             ddg: false,
+            more_sites: false,
             sites_off: Vec::new(),
             fired: 0,
             v: 0,
@@ -125,6 +131,7 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
         ("https_only", &mut p.https_only),
         ("app_trackers", &mut p.app_trackers),
         ("ddg", &mut p.ddg),
+        ("more_sites", &mut p.more_sites),
     ] {
         if let Some(b) = change.get(k).and_then(Value::as_bool) {
             *slot = b;

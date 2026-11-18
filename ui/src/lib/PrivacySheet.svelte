@@ -49,13 +49,13 @@
       key: 'cookies',
       name: 'Refuse cookie pop-ups',
       line: 'Consent banners are answered “reject” for you, and closed.',
-      computerLine: "Firefox's cookie banner reduction, with Consent-O-Matic.",
+      computerLine: "Firefox's own cookie banner reduction.",
     },
     {
       key: 'clean_links',
       name: 'Clean tracking links',
       line: 'Tracking parts (utm_…, fbclid…) are taken off addresses before a page opens.',
-      computerLine: "Firefox's own stripping, with ClearURLs.",
+      computerLine: "Firefox's own stripping of tracking parts.",
     },
     {
       key: 'gpc',
@@ -180,6 +180,23 @@
     {/each}
 
     {#if computer}
+      <label class="row">
+        <span class="text">
+          <span class="name">More sites, with extensions</span>
+          <span class="muted"
+            >Consent-O-Matic and ClearURLs, for the cookie pop-ups and tracking links Firefox's own
+            lists miss. Uses more memory: formicaria's browser measured about a fifth more with
+            them.</span
+          >
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="More sites, with extensions"
+          checked={p.more_sites}
+          onchange={(e) => set({ more_sites: (e.currentTarget as HTMLInputElement).checked })}
+        />
+      </label>
       <label class="row">
         <span class="text">
           <span class="name">DuckDuckGo's protections too</span>

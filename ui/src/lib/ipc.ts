@@ -1198,6 +1198,7 @@ export interface Privacy {
   https_only: boolean;
   app_trackers: boolean;
   ddg: boolean;
+  more_sites: boolean;
   sites_off: string[];
   fired: number;
   v: number;
@@ -1215,6 +1216,7 @@ export type PrivacyChange = Partial<
     | 'https_only'
     | 'app_trackers'
     | 'ddg'
+    | 'more_sites'
   >
 > & { site_off?: string; site_on?: string; fire?: boolean };
 export const privacy = () => invoke<Privacy>('privacy');

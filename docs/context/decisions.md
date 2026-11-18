@@ -15533,7 +15533,9 @@ using known reputable extensions"*. Plan and measures: `structure.md`.
    `ci/android-inject-service.sh` (now the manifest and Gradle edits only, 263 lines from 1,816);
    the generated files were compared byte for byte. `checks.sh`'s Play Protect guard reads them.
 4. **The phone's page glue left `App.svelte`**: `lib/phone/pages.ts`, through `PageHost`.
-5. **The computer's privacy switches bring Mozilla-Recommended extensions** (`browser.rs`'s
+5. > SUPERSEDED for cookie pop-ups and tracking links by *2026-11-18 — lean L1* (Firefox's own protection by
+   > default; the two extensions behind *More sites, with extensions*).
+   **The computer's privacy switches bring Mozilla-Recommended extensions** (`browser.rs`'s
    `PRIVACY_ADDONS`; installed and removed live by `formicaria.cfg`, which removes only what
    formicaria installed): cookie pop-ups → **Consent-O-Matic** (on), tracking links → **ClearURLs**
    (on), ads → **uBlock Origin** (off), and **DuckDuckGo Privacy Essentials** a switch of its own
@@ -15600,7 +15602,8 @@ not only stand alone … include instances where there are many contents in a si
    Settings for *meetings*. Collaboration's lines (when mail was last read; per conversation, what it
    meant for the meeting) return with it. **Still off:** the Mail section, *Reply in Gmail*, *Send by
    mail*, the shipped *Conversations* view: writing mail is the webmail's, as a web page.
-2. **Settings and Help on every feature page's line** (`Feature.svelte`), as plain links: the ant's
+2. > SUPERSEDED for Settings by *2026-11-18 — Settings at the window's top right* (Help stays).
+   **Settings and Help on every feature page's line** (`Feature.svelte`), as plain links: the ant's
    panel had been the only door, and a hidden ant (0.51) left none. Tested per page.
 3. **Wikipedia's recordings are found in the live page** (`web/media.ts`, `wikimediaFile`): its
    player script removes the `<source>` addresses and keeps the file's page in `resource`; that page,
@@ -15665,3 +15668,74 @@ not only stand alone … include instances where there are many contents in a si
     4.0.7, so nothing can be updated to; picomatch is only in the build tools (Vite, its watcher and
     globber), matching this project's own patterns, and is not in the app. Removed, with an override,
     the day 4.0.8 is published.
+
+## 2026-11-18 — Settings at the window's top right, on every tab `#ui`
+
+The owner: *"why not simply add settings on top right as per usual apps, like browsers do, why embed
+it only on one page?"*
+
+1. **Settings is a button at the right end of the browser's tab row** (`browser/kit/formicaria.cfg`,
+   `makeSettings`; Firefox's own gear), the one row every tab shows: on formicaria's pages the address
+   row, and Firefox's ☰ with it, is hidden (*one row on formicaria's own tabs*). It opens
+   `/f/settings` in a tab, or selects the one already open. Placed once at the end of the tab row and
+   put back whenever it is in no toolbar, as the ant is; moved within the toolbars, it stays.
+2. **The link on feature pages' line goes** (supersedes point 2 of *2026-11-17 (small hours)* for
+   Settings; Help stays there): one door, the same everywhere, rather than a link on some pages and
+   none on a note or a web page. The ant's panel keeps its Settings row.
+3. **Checked**: `browser-check` fails unless the button is in the tab row, drawn, and right of the
+   tabs; `usability-check` presses it from a feature, the agenda and a web page, and three presses make
+   one Settings tab.
+4. **Found by pressing it** (the browser check only saw it drawn): the press's event reaches the
+   startup script without its window (`ownerGlobal` does not cross into the sandbox), so the button
+   did nothing, silently, since Firefox's toolbar library logs a widget's errors only to its own
+   logger. The handler opens Settings in the window in front (`Services.wm`) and reports its own
+   errors. A check must press what it ships, not only find it.
+
+## 2026-11-18 — the phone check runs the release build; Save media's tools kept by R8 `#toolchain`
+
+The owner on 0.54: *"download of multimedia does not work (tried it on the phone)"*.
+
+1. **The cause**: R8 shrinks the release APK, and youtubedl-android's unpacking (Apache Commons
+   Compress) finds classes by name: *"class i3.a is not a concrete class"* at the first Save media, on
+   every site. The debug build, never shrunk, passed `phone-media-check`.
+2. **Keep rules** for youtubedl-android, Commons Compress, Commons IO (yt-dlp's update failed on it too) and Jackson, written into the generated
+   Android project by `ci/android-inject-service.sh` (`proguard-media.pro`).
+3. **`phone-media-check` installs the release build** by default (`android-apk-check`: the release
+   script for x86_64 with `tauri/devtools`, signed with a key made for the check, never the release
+   key). The release step in `CLAUDE.md` is unchanged in name and now means the build people get.
+4. **YouTube in the phone cases** (a video, and its sound as MP3): what people save most, its picture
+   and sound always apart, its extraction through yt-dlp's JavaScript runtime (QuickJS, in the app).
+5. **yt-dlp's own update on the phone works for the first time**: the library's Commons IO needs a
+   context class loader, which a plain Android thread lacks; `MediaRun` sets the app's. The check fails
+   on a code fault in the update, and only says a refusal by GitHub or the network.
+
+## 2026-11-18 — lean L1: Firefox's own protection by default; memory measured on a warm start `#ui` `#toolchain`
+
+The owner: *"brainstorm ways to lean the fm"*, then *"plan and execute"* (`lean-plan-2026-11-18.md`).
+
+1. **`browser-check` measures a warm start** (each profile started once, then measured; the warm-up's
+   session dropped so both browsers open the same pages). At a first start Firefox's own first-run
+   work masked formicaria's cost, and the privacy extensions were still installing: identical runs
+   read +1 % to +19 %. Warm, they read **+23 %** with the two extensions on by default: the +8.4 % that
+   decided them (*2026-11-17, night*, point 5) was a first-start figure.
+2. **Cookie pop-ups and tracking links are Firefox's own work by default** (its cookie banner
+   reduction and query stripping, which the same switches already turned on). Consent-O-Matic and
+   ClearURLs come with one switch, **More sites, with extensions** (`Privacy::more_sites`, off). A
+   browser set up before applies once more (`formicaria.cfg`'s `RULES`), so formicaria's own copies
+   of the two are removed; one the person installed is kept.
+3. **Firefox's new sidebar only with tabs down the side** (`sidebar.revamp`): on, Firefox put its
+   sidebar button back at every start, which the warm check found.
+4. **Measured**: warm, **+5.1 %** (787 MB against 749 MB), starts within 10 MB of each other (they
+   had varied by 200 MB); start 523 ms against 499 ms. A feature tab 10.8 MB.
+5. **Lean development builds** (`#toolchain`): `[profile.dev] debug = "line-tables-only"`, and no
+   debug information for dependencies, in both workspaces. Full debug information filled the disk three
+   times in a day; `target/` after `pixi run ci` is 12 GB, from 19 GB. Release builds are unchanged.
+6. **The browser check runs 3 starts, not 5**: warm, they sit within 10 MB of each other.
+7. **One interface (L4) goes in stages** (`lean-plan-2026-11-18.md`): the phone's safety services
+   (auto-backup, remote checks, conflicts, the heartbeat, the boot watchdog) move into shared modules
+   **before** any phone screen moves onto the feature pages, since moving first would stop them
+   without an error. Stage A (what is written twice) began: one start module, one theme toggle.
+8. **Kept, by the owner's choice** (2026-11-18): the photo OCR (`fm-agent-run`'s `ocr`: 199 crates,
+   7 MB in the APK), Excalidraw for the whiteboard (and so React, 2.8 MB of the bundle), and both the
+   phone's Python for Save media (14 MB) and its assistant (18 MB). Lean work goes elsewhere first.
+

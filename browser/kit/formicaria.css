@@ -34,3 +34,8 @@
   /* Out of the layout: folded (`collapsed`), the toolbar still kept 20 px in ESR 153. */
   display: none !important;
 }
+
+/* **Settings at the top right** (`formicaria.cfg`, `makeSettings`): Firefox's own gear. */
+#formicaria-settings {
+  list-style-image: url("chrome://global/skin/icons/settings.svg");
+}

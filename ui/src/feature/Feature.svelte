@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { toggledTheme } from '../lib/start';
   import UpdateBanner from '../lib/UpdateBanner.svelte';
   import { watchForUpdates } from '../lib/updater.svelte';
   import { untrack as untrackUpdates } from 'svelte';
@@ -95,13 +96,7 @@
     typeof document !== 'undefined' ? (document.documentElement.dataset.theme ?? 'dark') : 'dark',
   );
   function toggleTheme() {
-    theme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem('fm-theme', theme);
-    } catch {
-      /* this device keeps no choice */
-    }
+    theme = toggledTheme(theme);
   }
   let newVaultOpen = $state(false);
 
@@ -300,9 +295,9 @@
             >
           {/each}
         {/if}
-        <!-- **Settings and Help from every page** (owner, 2026-11-17: *"I have no idea how to check the
-             fm settings"*): the ant's panel was their only door, and a hidden ant left none. Plain
-             links, so a new tab, a bookmark or the keyboard all work. -->
+        <!-- **Help from every view**, a plain link. Settings is the window's, at the right end of the
+             tab row on every tab (owner, 2026-11-18: *"why not simply add settings on top right as per
+             usual apps"*; `browser/kit/formicaria.cfg`). -->
         <span class="system">
           <!-- **A new note from every view** (owner on 0.52: *"how are notes added? The plus
                disappeared from every view"*): in a tab of its own, straight in the editor. -->
@@ -311,9 +306,6 @@
           >
           <a href="/manual/" target="_blank" rel="noopener" title="Help: how formicaria works"
             >Help</a
-          >
-          <a href="/f/settings" title="Settings: privacy, updates, mail for meetings, and more"
-            >Settings</a
           >
         </span>
       </nav>

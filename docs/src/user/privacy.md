@@ -28,12 +28,19 @@ and its subdomains. The sites are listed in the sheet, each with **Protect again
 **Forget web data** (🔥) forgets every web page's cookies, stored data, cache and history on this
 device, after asking. Your notes, the files you kept, and formicaria's own settings stay.
 
-**On a computer, each switch brings a well-known extension too** (all Mozilla-Recommended, open
-source, from addons.mozilla.org), installed while it is on and removed when it is off: *Refuse cookie
-pop-ups* → Consent-O-Matic; *Clean tracking links* → ClearURLs; *Block ads* → uBlock Origin; and
-**DuckDuckGo's protections too** (DuckDuckGo Privacy Essentials, its own tracker list on top of
-Firefox's) has a switch of its own, off at first because the browser measured about a fifth more
-memory with it. An extension you installed yourself is never removed.
+**On a computer, Firefox's own protection does the work**: its strict tracking protection, its
+cookie banner reduction and its stripping of tracking parts from links. Extensions are added only
+where you ask (all Mozilla-Recommended, open source, from addons.mozilla.org), installed while their
+switch is on and removed when it is off:
+
+- **Block ads** → uBlock Origin;
+- **More sites, with extensions** → Consent-O-Matic and ClearURLs, for the cookie pop-ups and
+  tracking links Firefox's own lists miss;
+- **DuckDuckGo's protections too** → DuckDuckGo Privacy Essentials, its own tracker list on top of
+  Firefox's.
+
+Each extension costs memory (with the two of *More sites* the browser measured about a fifth more),
+so they start off. An extension you installed yourself is never removed.
 
 On a computer, the switches reach formicaria's browser within a few seconds. Firefox's own
 settings stay yours: formicaria changes one only when you change its switch here.

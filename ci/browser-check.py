@@ -37,7 +37,9 @@ PAGES = [
 MEMORY_BUDGET = 1.10
 START_BUDGET = 1.15
 START_NOISE_MS = 100
-RUNS = 5  # five, not three (2026-11-16): the memory margin is close enough that noise matters
+# Three again (2026-11-18, `lean-plan` L8): five were for a first start whose memory moved by 200 MB
+# between identical runs (2026-11-16); measured warm, the starts sit within 10 MB of each other.
+RUNS = 3
 
 MEASURE_CFG = """// measurement only (no kit)
 try {
@@ -108,13 +110,36 @@ def stop(folder: Path) -> None:
     time.sleep(3)
 
 
-def measure(firefox: Path, profile: Path, report: Path, urls: list[str], extra_env: dict) -> dict:
-    """Start `firefox` headless on `urls`, wait, read its report and its memory, stop it."""
+def measure(firefox: Path, profile: Path, report: Path, urls: list[str], extra_env: dict,
+            warm: bool = False) -> dict:
+    """Start `firefox` headless on `urls`, wait, read its report and its memory, stop it.
+
+    `warm`: on a profile that has already started once, as a person's browser is every day after the
+    first (2026-11-18). At a first start formicaria's privacy extensions are still downloading and
+    installing, and how far they had got moved its memory by up to 300 MB between identical runs; the
+    first start's work (the extensions, the privacy switches) is then settled, not raced."""
     if profile.exists():
         shutil.rmtree(profile)
     profile.mkdir(parents=True)
     report.unlink(missing_ok=True)
     env = dict(os.environ, FM_BROWSER_CHECK=str(report), **extra_env)
+    if warm:
+        subprocess.Popen(
+            [str(firefox / "firefox"), "--headless", "--no-remote", "--name", "formicaria-check",
+             "--profile", str(profile), *urls],
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(45)
+        stop(firefox)
+        for _ in range(30):  # gone, so the profile is free for the second start
+            if not procs_under(firefox):
+                break
+            time.sleep(1)
+        # The same pages again, not the warm-up's tabs restored beside them (formicaria restores the
+        # last session; unmodified Firefox does not), so both open exactly `urls`.
+        (profile / "sessionstore.jsonlz4").unlink(missing_ok=True)
+        shutil.rmtree(profile / "sessionstore-backups", ignore_errors=True)
+        report.unlink(missing_ok=True)
     subprocess.Popen(
         [str(firefox / "firefox"), "--headless", "--no-remote", "--name", "formicaria-check",
          "--profile", str(profile), *urls],
@@ -482,9 +507,14 @@ def main() -> None:
         base_ff = stock_esr(version, sha)
         kit, base = [], []
         for i in range(RUNS):
-            kit.append(measure(ff, work / f"kit-profile-{i}", work / "kit.json", [f"{SERVER}/f/group/Library", *PAGES], {}))
-            base.append(measure(base_ff, work / f"stock-profile-{i}", work / "stock.json", [SERVER, *PAGES], {}))
+            kit.append(measure(ff, work / f"kit-profile-{i}", work / f"kit-{i}.json", [f"{SERVER}/f/group/Library", *PAGES], {}, warm=True))
+            base.append(measure(base_ff, work / f"stock-profile-{i}", work / "stock.json", [SERVER, *PAGES], {}, warm=True))
         first = kit[0]
+        # Each start's memory beside what it had installed by then: the privacy extensions install at
+        # the first start, and how far they got moves the figure (2026-11-18).
+        for i, k in enumerate(kit):
+            print(f"browser-check:      start {i + 1}: {k.get('pss_kb', 0) / 1024:.0f} MB, extensions "
+                  f"{(k.get('privacy') or {}).get('addons')}; unmodified {base[i].get('pss_kb', 0) / 1024:.0f} MB")
         checks = {
             "the window is titled formicaria": str(first.get("title", "")).endswith("formicaria")
             and "Firefox" not in str(first.get("title", "")),
@@ -497,6 +527,10 @@ def main() -> None:
             "tabs are classic, on top, in view": first.get("tabsOnTop") is True,
             "scrolling over the tabs switches them": first.get("scrollSwitches") is True,
             "the sidebar's button is gone": first.get("sidebarButtonGone") is True,
+            # Settings at the right end of the tab row, on every tab (`formicaria.cfg`, `makeSettings`).
+            "Settings is at the right end of the tab row": (first.get("settings") or {}).get("area") == "TabsToolbar"
+            and (first.get("settings") or {}).get("drawn") is True
+            and (first.get("settings") or {}).get("rightOfTabs") is True,
             # The Privacy sheet's switches reach Firefox (2026-11-17): read and applied at start.
             "the privacy switches are applied": (first.get("privacy") or {}).get("v", -1) >= 0
             and (first.get("privacy") or {}).get("clean") is True
@@ -555,6 +589,9 @@ def main() -> None:
         checks["each extra feature tab costs at most 20 MB"] = per_tab <= 20
         for name, ok in checks.items():
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} {name}")
+        if not checks.get("the privacy switches are applied", True):
+            # What each start reported, so a failure says whether it was late or wrong.
+            print("browser-check:      privacy per start: " + "; ".join(json.dumps(k.get("privacy")) for k in kit))
 
         # Every run, not only the averages: a slow first run (a cold disk, a busy machine) shows as one.
         for name, runs in (("formicaria", kit), ("unmodified", base)):
