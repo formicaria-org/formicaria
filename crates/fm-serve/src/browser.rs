@@ -23,9 +23,9 @@ use std::sync::{Arc, Mutex};
 
 /// The add-on's id: what `policies.json` installs and hands the key to.
 pub const ADDON_ID: &str = "browser@formicaria-org.github.io";
-/// uBlock Origin's id on addons.mozilla.org, installed from there (signed by Mozilla) when the person
-/// keeps ad blocking on.
-const UBLOCK_ID: &str = "uBlock0@raymondhill.net";
+/// uBlock Origin Lite's id on addons.mozilla.org, installed from there (signed by Mozilla) while ad
+/// blocking is on: the same author's lighter build, within the memory budget (2026-11-19).
+const UBLOCK_ID: &str = "uBOLiteRedux@raymondhill.net";
 /// **The privacy switches' extensions** (`decisions.md` 2026-11-17, *structure and 0.52*; the owner:
 /// *"a better job for privacy using known reputable extensions"*): each a Mozilla-Recommended,
 /// open-source add-on from addons.mozilla.org (signed by Mozilla), installed while its switch is on,
@@ -38,8 +38,8 @@ pub const PRIVACY_ADDONS: &[(&str, &str, &str)] = &[
     // Cookie pop-ups and tracking links are Firefox's own work, and *More sites* formicaria's own
     // add-on's (DuckDuckGo's cookie rules) with a wider strip list: Consent-O-Matic and ClearURLs
     // are no longer installed (`privacy-plan-2026-11-19.md` 5.1; `formicaria.cfg`'s `RETIRED_ADDONS`).
-    // Block ads: uBlock Origin (GPL-3.0).
-    ("ads", UBLOCK_ID, "ublock-origin"),
+    // Block ads: uBlock Origin Lite (GPL-3.0), measured +1–6 % memory warm (full uBlock Origin +48 %).
+    ("ads", UBLOCK_ID, "ublock-origin-lite"),
 ];
 
 /// A switch of the privacy sheet, by its name in `PRIVACY_ADDONS`.
@@ -814,8 +814,8 @@ mod tests {
         assert_eq!(added.len(), fm_app::privacy::ENGINES.len() - 1);
         assert!(added.iter().all(|e| e["URLTemplate"].as_str().unwrap().contains("{searchTerms}")));
         assert_eq!(pol["DisableTelemetry"], true);
-        // uBlock Origin is an offer, off by default, and never forbidden.
-        assert!(pol["ExtensionSettings"].get(UBLOCK_ID).is_none());
+        // uBlock Origin Lite comes with *Block ads*, on by default (2026-11-19), and is never forbidden.
+        assert_eq!(pol["ExtensionSettings"][UBLOCK_ID]["installation_mode"], "normal_installed");
         let off = policies(
             Path::new("/x"),
             "K",
@@ -847,7 +847,7 @@ mod tests {
     /// defaults install no extension at all; cookie pop-ups and tracking links bring theirs only
     /// with *More sites*.
     #[test]
-    fn the_defaults_install_no_extension_and_more_sites_brings_none_either() {
+    fn the_defaults_install_only_the_ad_blocker_and_more_sites_brings_none() {
         let ext = |p: &fm_app::privacy::Privacy| {
             policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default(), p)
                 ["policies"]["ExtensionSettings"]
@@ -858,9 +858,14 @@ mod tests {
         for p in [d.clone(), fm_app::privacy::Privacy { more_sites: true, ..d.clone() }] {
             let got = ext(&p);
             for (switch, id, _) in PRIVACY_ADDONS {
-                assert!(got.get(id).is_none(), "{switch} installs nothing");
+                // Only *Block ads*, on by default since uBlock Origin Lite fits the budget (2026-11-19).
+                assert_eq!(got.get(id).is_some(), *switch == "ads", "{switch}");
             }
-            for retired in ["gdpr@cavi.au.dk", "{74145f27-f039-47ce-a470-a662b129930a}"] {
+            for retired in [
+                "gdpr@cavi.au.dk",
+                "{74145f27-f039-47ce-a470-a662b129930a}",
+                "uBlock0@raymondhill.net",
+            ] {
                 assert!(got.get(retired).is_none(), "{retired} is never installed again");
             }
         }

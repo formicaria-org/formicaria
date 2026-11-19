@@ -46,8 +46,12 @@ log); `Sec-GPC: 1` sent; `id=7&utm_source=mail&fbclid=…&gclid=…` on a link t
 | formicaria, default switches (0.55.0 release gate, strict not really on) | — | +4.3 % |
 | formicaria, default switches (now: strict on, DNS over HTTPS) | 768 MB | **+1.7 %** (755 MB) |
 | formicaria, *Block ads* on (uBlock Origin) | 1127 MB | **+47.8 %** (762 MB) |
+| formicaria, *Block ads* on (uBlock Origin Lite), three starts | — | **+1.2 %, +5.9 %** (median of the three +4.8 %) |
 
-Over the +10 % budget: ads on the computer stay a switch, off (the owner's rule). Firefox ESR 153's
+Full uBlock Origin is over the +10 % budget; uBlock Origin Lite (the same author's lists, applied by
+Firefox's own declarative blocking) is within it, so since 0.57.0 *Block ads* is on by default on the
+computer with Lite, and full uBlock Origin is removed where formicaria had installed it (decisions,
+2026-11-19 evening). Firefox ESR 153's
 built-in `adblock-rust` refused nothing with the preferences it exposes (tried with EasyList, first-
 and third-party requests).
 
@@ -56,7 +60,7 @@ and third-party requests).
 | | formicaria | Comparison |
 |---|---|---|
 | Computer, trackers | Firefox strict (Disconnect lists, Total Cookie Protection, fingerprinting protection, bounce tracking) | the *Firefox strict* tier; privacytests.org's published results rank Tor and Mullvad Browser first, Brave close, standard Firefox mid-field on fingerprinting |
-| Computer, ads | uBlock Origin, a switch | the best there is; +48 % memory |
+| Computer, ads | uBlock Origin Lite, on by default | full uBlock Origin is the best there is but +48 % memory; Lite +1–6 % |
 | Phone pages | Brave's engine with uBlock Origin's lists, stand-ins, scriptlets, procedural hiding; DuckDuckGo's cookie rules; debouncing | Brave's level of blocking; canvas, WebGL and audio fingerprinting answered with made-up detail per site (Brave's approach), not a uniform fingerprint |
 | Phone, other apps | DNS: app lists, CNAME, encrypted upstream | between TrackerControl/RethinkDNS (lookups and lists) and DuckDuckGo's App Tracking Protection (which also reads server names) |
 | Address (IP) | not hidden | Tor, a VPN |

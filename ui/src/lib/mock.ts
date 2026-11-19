@@ -82,7 +82,7 @@ let mockClockZone = '';
 const freshPrivacy = () => ({
   search: 'duckduckgo',
   trackers: true,
-  ads: false,
+  ads: true,
   cookies: true,
   clean_links: true,
   gpc: true,
@@ -105,6 +105,11 @@ const freshPrivacy = () => ({
   resolvers: [
     { key: 'quad9', name: 'Quad9', url: 'https://dns.quad9.net/dns-query' },
     { key: 'mullvad', name: 'Mullvad DNS', url: 'https://dns.mullvad.net/dns-query' },
+    {
+      key: 'mullvad-adblock',
+      name: 'Mullvad DNS, refusing ads and trackers',
+      url: 'https://adblock.dns.mullvad.net/dns-query',
+    },
     { key: 'network', name: "The network's own (not encrypted)", url: '' },
   ],
 });

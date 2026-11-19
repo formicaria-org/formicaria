@@ -75,6 +75,18 @@ def post(path: str, body: dict | None = None) -> dict:
         return json.loads(r.read() or b"{}")
 
 
+def wait_until_up(secs: int = 60) -> None:
+    """The test server answers (`/api/alive`), not a guessed pause: on a busy machine it took longer
+    than the two seconds once waited (2026-11-19)."""
+    for _ in range(secs * 4):
+        try:
+            urllib.request.urlopen(f"{SERVER}/api/alive", timeout=2).read()
+            return
+        except Exception:  # noqa: BLE001 - not up yet
+            time.sleep(0.25)
+    fail("the test server did not start")
+
+
 def procs_under(folder: Path) -> list[int]:
     out = []
     for pid in os.listdir("/proc"):
@@ -485,7 +497,7 @@ def main() -> None:
     server = subprocess.Popen([str(ROOT / "target" / "debug" / "fm-serve")], cwd=ROOT, env=env,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        time.sleep(2)
+        wait_until_up()
         # A vault with a git identity, so the app shows its notes rather than its first-run welcome.
         post("/api/set_identity", {"name": "Check Reader", "email": "reader@example.org"})
         post("/api/browser_setup")

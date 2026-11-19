@@ -137,9 +137,27 @@ function outermost(els: Element[]): Element[] {
 }
 
 /** **Suggestions** (research §11.4): what a page plainly offers, one press each. */
-export function suggestions(): { label: string; blocks?: Block[]; save?: boolean }[] {
-  const out: { label: string; blocks?: Block[]; save?: boolean }[] = [];
+/** A page whose point is a video or a sound: its own player, or a site known for them. */
+export function mediaPage(): boolean {
+  if (document.querySelector('video, audio')) return true;
+  return /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|soundcloud\.com|bandcamp\.com|twitch\.tv|tiktok\.com|instagram\.com)$/.test(
+    location.hostname,
+  );
+}
+
+export function suggestions(): {
+  label: string;
+  blocks?: Block[];
+  save?: boolean;
+  media?: boolean;
+}[] {
+  const out: { label: string; blocks?: Block[]; save?: boolean; media?: boolean }[] = [];
   const has = (q: string) => !!document.querySelector(q);
+  // **A video or a sound is what such a page offers first** (the owner, 2026-11-19, on a YouTube
+  // page: *"it says only 12 images and no video"*): Save media, as the ant's panel does, and not the
+  // page's thumbnails.
+  const media = mediaPage();
+  if (media) out.push({ label: 'Save media…', media: true });
   const ld = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
     .map((s) => s.textContent ?? '')
     .join(' ');
@@ -171,7 +189,7 @@ export function suggestions(): { label: string; blocks?: Block[]; save?: boolean
   const images = Array.from(document.images).filter(
     (i) => i.naturalWidth >= 120 && i.naturalHeight >= 120,
   );
-  if (images.length)
+  if (images.length && !media)
     out.push({
       label: images.length === 1 ? 'The image' : `The ${images.length} images`,
       blocks: toBlocks(images),
@@ -187,6 +205,10 @@ export function suggestions(): { label: string; blocks?: Block[]; save?: boolean
 
 const STYLE = `
   :host { all: initial; }
+  .track { flex: 1 0 140px; height: 6px; border-radius: 3px; background: #3a3a46; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: #dc2626; transition: width .25s; }
+  .fill.busy { width: 30%; animation: fm-slide 1.2s ease-in-out infinite; }
+  @keyframes fm-slide { from { margin-left: -30%; } to { margin-left: 100%; } }
   .veil { position: fixed; inset: 0; z-index: 2147483646; cursor: crosshair; background: rgba(0,0,0,.12); }
   .area { position: fixed; z-index: 2147483647; border: 2px solid #dc2626; background: rgba(220,38,38,.08);
     pointer-events: none; display: none; }
@@ -230,7 +252,9 @@ export function bubble(at: { x: number; y: number }, r: Result) {
   const say = el(
     'span',
     '',
-    r.ok ? (r.say ?? `Into “${r.title ?? 'your note'}”`) : `Not brought in: ${r.error ?? ''}`,
+    r.ok
+      ? (r.say ?? `Brought into the note “${r.title ?? 'your note'}”`)
+      : `Not brought in: ${r.error ?? ''}`,
   );
   b.append(say);
   const close = () => host.remove();
@@ -272,6 +296,16 @@ export function bubble(at: { x: number; y: number }, r: Result) {
     };
     b.append(link);
   }
+  // **Where it went, one press away** (the owner, 2026-11-19: *"I have no idea where and what was
+  // saved"*): the note it went into, opened in its tab.
+  if (r.ok && r.note && !r.open) {
+    const o = el('button', '', 'Open the note');
+    o.onclick = () => {
+      void browser.runtime.sendMessage({ type: 'open', id: r.note });
+      close();
+    };
+    b.append(o);
+  }
   if (r.ok && r.inserted && r.note) {
     const u = el('button', '', 'Undo');
     u.onclick = async () => {
@@ -288,7 +322,69 @@ export function bubble(at: { x: number; y: number }, r: Result) {
   b.onmouseenter = () => (hovered = true);
   b.onmouseleave = () => (hovered = false);
   const tick = () => (hovered ? setTimeout(tick, 2000) : close());
-  setTimeout(tick, 9000);
+  // Long enough to read and press (it was 9 s, and went unseen); a close button ends it sooner.
+  const x = el('button', '', '×');
+  x.setAttribute('aria-label', 'Close');
+  x.onclick = close;
+  b.append(x);
+  setTimeout(tick, 20000);
+}
+
+/** **Work under way, seen** (the owner, 2026-11-19: *"if it takes time … a visible bar filling in,
+ *  to suggest it is going on, or a clear error"*): a bubble with a bar that fills as the background
+ *  says how far it is (`progress`), or moves while it cannot say; then the result's own bubble. Shown
+ *  only after a moment, so a quick answer shows only its result, and an area's picture, taken by the
+ *  browser first, never has it. Quiet for 90 s, it says so. */
+let working: { step(done: number, total: number): void } | null = null;
+export async function withProgress(
+  at: { x: number; y: number },
+  text: string,
+  run: () => Promise<Result | undefined>,
+): Promise<void> {
+  const { host, root } = shadowHost('formicaria-working');
+  const b = el('div', 'bubble');
+  const say = el('span', '', text);
+  const track = el('div', 'track');
+  const fill = el('div', 'fill busy');
+  track.append(fill);
+  b.append(say, track);
+  b.setAttribute('role', 'status');
+  const w = Math.min(420, innerWidth - 16);
+  b.style.left = `${Math.max(8, Math.min(at.x, innerWidth - w - 8))}px`;
+  b.style.top = `${Math.max(8, Math.min(at.y, innerHeight - 60))}px`;
+  const show = setTimeout(() => root.append(b), 400);
+  let quiet: ReturnType<typeof setTimeout>;
+  const hush = () => {
+    clearTimeout(quiet);
+    quiet = setTimeout(() => (say.textContent = `${text} (no word from formicaria for 90 s)`), 90000);
+  };
+  hush();
+  working = {
+    step(done, total) {
+      hush();
+      if (total > 0) {
+        fill.classList.remove('busy');
+        fill.style.width = `${Math.round((100 * Math.min(done, total)) / total)}%`;
+        say.textContent = `${text} ${Math.min(done, total)} of ${total}`;
+      }
+    },
+  };
+  let r: Result | undefined;
+  try {
+    r = await run();
+  } catch (e) {
+    r = { ok: false, error: String(e) };
+  }
+  clearTimeout(show);
+  clearTimeout(quiet!);
+  working = null;
+  host.remove();
+  bubble(at, r ?? { ok: false, error: 'formicaria did not answer' });
+}
+
+/** The background's word on work under way (`{type: 'progress', done, total}`). */
+export function progress(done: number, total: number) {
+  working?.step(done, total);
 }
 
 /** Start a snip; `from` when it began with a Ctrl+Shift press on the page (the drag goes on). */
@@ -307,20 +403,25 @@ export function startSnip(from?: { x: number; y: number }) {
     const b = el('button', 'suggest', sg.label);
     b.onclick = async () => {
       stop();
-      if (sg.save) {
-        const r = await browser.runtime.sendMessage<Result>({ type: 'save-page' });
-        bubble({ x: innerWidth / 2 - 160, y: 12 }, r ?? { ok: false, error: 'no answer' });
+      if (sg.media) {
+        await browser.runtime.sendMessage({ type: 'save-media' });
         return;
       }
-      const r = await browser.runtime
-        .sendMessage<Result>({
+      const at = { x: innerWidth / 2 - 160, y: 12 };
+      if (sg.save) {
+        await withProgress(at, 'Saving the page…', () =>
+          browser.runtime.sendMessage<Result>({ type: 'save-page' }),
+        );
+        return;
+      }
+      await withProgress(at, `Bringing ${sg.label.replace(/^The /, 'the ')} in…`, () =>
+        browser.runtime.sendMessage<Result>({
           type: 'snip',
           blocks: sg.blocks ?? [],
           area: null,
           dpr: devicePixelRatio,
-        })
-        .catch((e) => ({ ok: false, error: String(e) }) as Result);
-      bubble({ x: innerWidth / 2 - 160, y: 12 }, r ?? { ok: false, error: 'no answer' });
+        }),
+      );
     };
     bar.append(b);
   }
@@ -427,8 +528,9 @@ export function startSnip(from?: { x: number; y: number }) {
   };
   save.onclick = async () => {
     stop();
-    const r = await browser.runtime.sendMessage<Result>({ type: 'save-page' });
-    bubble({ x: innerWidth / 2 - 160, y: 12 }, r ?? { ok: false, error: 'no answer' });
+    await withProgress({ x: innerWidth / 2 - 160, y: 12 }, 'Saving the page…', () =>
+      browser.runtime.sendMessage<Result>({ type: 'save-page' }),
+    );
   };
   cancel.onclick = () => stop();
   addEventListener('mousedown', down, true);
@@ -442,15 +544,14 @@ async function bring(r: DOMRect) {
   const blocks = blocksIn(r);
   // The picture is taken by the browser from what is on screen: wait for the veil to be gone.
   await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
-  const res = await browser.runtime
-    .sendMessage<Result>({
+  await withProgress({ x: r.left, y: r.bottom + 8 }, 'Bringing it in…', () =>
+    browser.runtime.sendMessage<Result>({
       type: 'snip',
       blocks,
       area: { x: r.left, y: r.top, width: r.width, height: r.height },
       dpr: devicePixelRatio,
-    })
-    .catch((e) => ({ ok: false, error: String(e) }) as Result);
-  bubble({ x: r.left, y: r.bottom + 8 }, res);
+    }),
+  );
 }
 
 export function snipping() {

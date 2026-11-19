@@ -165,6 +165,42 @@ pub fn by_key(key: &str) -> Option<&'static List> {
     LISTS.iter().find(|l| l.key == key)
 }
 
+/// **Lists that could not be fetched, tried again** (2026-11-19: a phone's first start on a poor
+/// network built its engine without EasyPrivacy, and nothing tried again until the app was started
+/// anew). While any of `lists` is not `kept`, after each of `waits` (passed to `sleep`) and holding
+/// `lock` for the turn, each missing list is fetched again, and `rebuild` runs when one has arrived.
+/// Stops once all are kept, the waits run out, or `still` says the switches have changed since.
+#[allow(clippy::too_many_arguments)]
+pub fn retry_missing<L: Copy, G>(
+    lists: &[L],
+    kept: impl Fn(L) -> bool,
+    waits: &[u64],
+    sleep: impl Fn(u64),
+    lock: impl Fn() -> G,
+    still: impl Fn() -> bool,
+    fetch: impl Fn(L),
+    rebuild: impl Fn(),
+) {
+    let missing = || lists.iter().copied().filter(|l| !kept(*l)).count();
+    for wait in waits {
+        if missing() == 0 {
+            return;
+        }
+        sleep(*wait);
+        let _turn = lock();
+        if !still() {
+            return;
+        }
+        let before = missing();
+        for l in lists.iter().copied().filter(|l| !kept(*l)) {
+            fetch(l);
+        }
+        if missing() < before {
+            rebuild();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +235,61 @@ mod tests {
             assert!(fetched_for(u).next().is_some(), "{u:?}");
         }
         assert_eq!(by_key("easylist").map(|l| l.name), Some("EasyList"));
+    }
+
+    #[test]
+    fn a_list_that_failed_is_fetched_again_and_the_engine_rebuilt_when_it_arrives() {
+        use std::cell::{Cell, RefCell};
+        let kept = RefCell::new(vec![false, true]); // the second arrived at the start
+        let (tries, rebuilt, slept) = (Cell::new(0), Cell::new(0), RefCell::new(Vec::new()));
+        super::retry_missing(
+            &[0usize, 1],
+            |l| kept.borrow()[l],
+            &[30, 60, 120, 300, 600, 1200],
+            |s| slept.borrow_mut().push(s),
+            || (),
+            || true,
+            |l| {
+                tries.set(tries.get() + 1);
+                if tries.get() == 3 {
+                    kept.borrow_mut()[l] = true; // the network fails twice, then answers
+                }
+            },
+            || rebuilt.set(rebuilt.get() + 1),
+        );
+        assert_eq!(tries.get(), 3, "only the missing list, until it arrived");
+        assert_eq!(rebuilt.get(), 1, "rebuilt once, when it arrived");
+        assert_eq!(*slept.borrow(), vec![30, 60, 120], "waiting longer each time, then done");
+    }
+
+    #[test]
+    fn the_tries_stop_when_the_switches_change_or_the_waits_run_out() {
+        use std::cell::Cell;
+        let tries = Cell::new(0);
+        let count = |_| tries.set(tries.get() + 1);
+        super::retry_missing(
+            &[0usize, 1],
+            |_| false,
+            &[0; 6],
+            |_| (),
+            || (),
+            || false,
+            count,
+            || {},
+        );
+        assert_eq!(tries.get(), 0, "switched since: nothing fetched");
+        super::retry_missing(
+            &[0usize, 1],
+            |_| false,
+            &[0; 3],
+            |_| (),
+            || (),
+            || true,
+            count,
+            || {},
+        );
+        assert_eq!(tries.get(), 6, "two lists, three turns, never arriving");
+        super::retry_missing(&[0usize, 1], |_| true, &[0; 3], |_| (), || (), || true, count, || {});
+        assert_eq!(tries.get(), 6, "all kept: nothing to do");
     }
 }

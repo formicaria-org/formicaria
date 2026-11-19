@@ -28,6 +28,13 @@ pub const ENGINES: &[(&str, &str, &str)] = &[
 pub const RESOLVERS: &[(&str, &str, &str)] = &[
     ("quad9", "Quad9", "https://dns.quad9.net/dns-query"),
     ("mullvad", "Mullvad DNS", "https://dns.mullvad.net/dns-query"),
+    // Mullvad's own lists refuse ad and tracker names for every page and app, with nothing in the
+    // browser (2026-11-19; the owner: open, widely used, maintained by others).
+    (
+        "mullvad-adblock",
+        "Mullvad DNS, refusing ads and trackers",
+        "https://adblock.dns.mullvad.net/dns-query",
+    ),
     ("network", "The network's own (not encrypted)", ""),
 ];
 
@@ -40,10 +47,10 @@ pub struct Privacy {
     pub search: String,
     /// Trackers' requests refused (EasyPrivacy on the phone; Firefox's strict protection here).
     pub trackers: bool,
-    /// Ads refused (EasyList on the phone; uBlock Origin on the computer). **On by default on the
-    /// phone**, where measured it costs about 5 MB and 2 µs a request
-    /// (`docs/context/phone-blocking-2026-11-17.md`); **off on a computer**, where it means
-    /// installing uBlock Origin (+66 % memory, 2026-11-15).
+    /// Ads refused. **On by default everywhere**: on the phone the engine costs about 5 MB and 2 µs a
+    /// request (`docs/context/phone-blocking-2026-11-17.md`); on a computer it is **uBlock Origin
+    /// Lite**, measured warm at +1–6 % memory against Firefox (2026-11-19; full uBlock Origin +48 %),
+    /// within the +10 % budget the owner set for it to be on by default.
     pub ads: bool,
     /// Cookie consent pop-ups answered "reject" by themselves.
     pub cookies: bool,
@@ -82,7 +89,7 @@ impl Default for Privacy {
         Privacy {
             search: "duckduckgo".into(),
             trackers: true,
-            ads: cfg!(target_os = "android"),
+            ads: true,
             cookies: true,
             clean_links: true,
             gpc: true,
@@ -213,7 +220,7 @@ mod tests {
         let p = Privacy::default();
         assert_eq!(p.search, "duckduckgo");
         assert!(p.trackers && p.cookies && p.clean_links && p.gpc && p.https_only);
-        assert_eq!(p.ads, cfg!(target_os = "android"));
+        assert!(p.ads, "ads refused by default on every device (2026-11-19)");
         assert!(!p.app_trackers && !p.around);
         assert_eq!(p.dns, "quad9", "encrypted lookups by default (the owner, 2026-11-19)");
         // An older or partial file reads as the defaults for what it does not say.

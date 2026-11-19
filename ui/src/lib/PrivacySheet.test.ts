@@ -27,7 +27,7 @@ it('shows the switches as this device has them, and a change reaches the server 
   })) as HTMLInputElement;
   expect(cookies.checked).toBe(true);
   expect((screen.getByRole('switch', { name: 'Block ads' }) as HTMLInputElement).checked).toBe(
-    false,
+    true,
   );
   await fireEvent.click(cookies);
   await waitFor(async () =>
@@ -142,7 +142,12 @@ it('lookups go encrypted to Quad9 at first, and another resolver can be chosen',
     name: 'Encrypted lookups',
   })) as HTMLSelectElement;
   expect(pick.value).toBe('quad9');
-  expect([...pick.options].map((o) => o.value)).toEqual(['quad9', 'mullvad', 'network']);
+  expect([...pick.options].map((o) => o.value)).toEqual([
+    'quad9',
+    'mullvad',
+    'mullvad-adblock',
+    'network',
+  ]);
   await fireEvent.change(pick, { target: { value: 'mullvad' } });
   await waitFor(async () =>
     expect(((await mock.handle('privacy', {})) as { dns: string }).dns).toBe('mullvad'),

@@ -15819,3 +15819,49 @@ registry: `privacy-plan-2026-11-19.md`; coverage: `privacy-baseline-2026-11.md`.
 **The four questions.** `#ui`, `#toolchain`, `#data`. **Widens what ships and what is sent**: lists
 fetched (uBlock Origin's, Peter Lowe's, DuckDuckGo's app list, Brave's debounce, HaGeZi's), uBlock
 Origin's stand-ins and scriptlets in the APK (429 KB), the engine's CSS parser, and lookups to Quad9 by default.
+
+## 2026-11-19 (evening) — the owner using it: the two buttons, work seen, uBlock Origin Lite `#ui` `#toolchain`
+
+The owner, saving a YouTube video: *"when I click on fm icon on the top bar it says only 12 images
+and no video"*, *"I have no idea where and what was saved"*, *"if it takes time to bring a content
+the process should be a visible bar filling in … or a clear error"*, *"no top left fm icon"*, *"see
+it yourself"*; on ad blocking: *"maybe there is an equally open and available option that is
+faster?"*, *"well used across the spectrum, we do not want to maintain it"*.
+
+1. **The two buttons' icons were the wrong way round**: the tab row's menu (Save media, Privacy,
+   Settings, Help) wore a bookmark, and the address bar's bring-into-a-note button wore formicaria's
+   ant, so "the ant" led to the wrong one. The menu now wears the ant; the bring-in button a page with
+   an arrow into it (filled when notes name the page). The manual says where each is.
+2. **The bring-in button offers Save media first on a video or music page** (its own player, or a
+   site known for them), and not the page's thumbnails.
+3. **Work under way is seen**: bringing images or an area in shows a bar filling file by file, saving
+   a page a moving bar; then where it went, with **Open the note** and Undo (20 s, an ×), or the
+   error; 90 s without word says so.
+4. **Ads refused by default on the computer, by uBlock Origin Lite** (the same author, the same
+   lists, Mozilla-Recommended; formicaria keeps only its id): measured warm **+1.2 % and +5.9 %**
+   where it was installed (median of the three starts +4.8 %), against full uBlock Origin's +48 %.
+   Full uBlock Origin is removed where formicaria installed it (`RETIRED_ADDONS`); one the person
+   installed stays. A device's saved switches are kept; the new default is for new setups.
+5. **The switches' extensions are made so at every start**: an install cut short by the browser
+   closing was never tried again (*Block ads* could be on with nothing blocking). And they are made
+   so **after** the switches are recorded: with *Block ads* on by default, applying the switches
+   waited for uBlock Origin Lite's download, so strict protection was not yet recorded as applied
+   (the release's `browser-check` caught it: no reading in two starts of three).
+   **On the phone, a list that could not be fetched is tried again during the session** (30 s, then
+   1, 2, 5, 10 and 20 minutes; the engine rebuilt when it arrives): the release's
+   `phone-media-check` found the pages' engine without EasyPrivacy and uBO Privacy after a first start
+   on the emulator's poor network, with nothing trying again until the app was started anew (Facebook's
+   pixel, one of the five, not refused). The turns are `fm_block::lists::retry_missing`, tested in `fm-block`;
+   the app blocker's lists the same.
+6. **Mullvad DNS, refusing ads and trackers** (`adblock.dns.mullvad.net`) is offered with the
+   encrypted lookups: blocking for every page and app with nothing in the browser, Mullvad's upkeep.
+7. **The checks look**: `usability-check`'s *what a person sees* (`FM_USABILITY_ONLY=look`) opens
+   formicaria's browser on a video page, draws the window to a picture and requires formicaria's
+   buttons to be drawn, not only placed; both browser checks wait for their server to answer.
+   *Someone who counts on the protections* counts a tracker refused by whoever refused it (Firefox's
+   blocking log, or asked with no answer from its server) and opens the page until it is, for up to a
+   minute: a new profile reads Firefox's tracker lists after its first start, and with Lite
+   downloading at the same time a fixed 10 s once read the page before them (nothing refused).
+
+**The four questions.** `#ui`, `#toolchain`. Changes a default (ads on, on a computer) within the
+budget the owner set for it. Widens nothing that ships.

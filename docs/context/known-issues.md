@@ -4,6 +4,22 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## Ad blocking on a computer: what the measurement did not settle (2026-11-19)
+
+uBlock Origin Lite was installed in two of the three measured starts (+1.2 %, +5.9 % memory against
+Firefox); the first start's had not finished installing from addons.mozilla.org by the measure, the
+cause the every-start check of the switches' extensions (`formicaria.cfg`, `addonsChecked`) now
+repairs on the next start. Not yet seen: a long day's memory with it, and how much less it blocks than
+full uBlock Origin on the hardest sites. **YouTube's consent page** ("Before you continue") stood in a
+fresh test profile of `usability-check`'s *what a person sees*: not yet known whether Firefox's cookie
+banner rules had not loaded yet or do not cover it.
+
+**A new browser profile's first minute protects less**: Firefox reads its tracker lists from
+Mozilla's list service after the first start, and uBlock Origin Lite installs from addons.mozilla.org
+then too. Until they arrive, trackers on a page can load (seen in `usability-check`, 2026-11-19,
+release 0.57.0's gate). Afterwards every start has both. Not repaired: it would mean shipping the
+lists in the kit.
+
 ## A kit change is not live until the kit is refreshed — and a check must start over the old one (2026-11-19)
 
 The browser's kit (`browser/kit/`) is compiled into `fm-serve` but lives in the browser's folder; a

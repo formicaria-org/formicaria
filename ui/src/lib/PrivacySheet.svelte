@@ -43,7 +43,7 @@
       key: 'ads',
       name: 'Block ads',
       line: 'Ads are refused, and the empty boxes they leave are hidden. Uses more memory.',
-      computerLine: 'uBlock Origin, installed in formicaria’s browser while this is on.',
+      computerLine: 'uBlock Origin Lite, installed in formicaria’s browser while this is on.',
     },
     {
       key: 'cookies',

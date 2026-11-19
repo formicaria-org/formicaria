@@ -74,7 +74,8 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
 
 ## One row: your tabs
 
-- **On formicaria's own tabs there is one row**: formicaria's button (the ant: its options, Settings
+- **On formicaria's own tabs there is one row**: formicaria's button (the ant, at the left end of the
+  tab row on every tab: Save media, Privacy, Settings
   and Help, and a search of your notes and the web), your tabs, **+**, and **⚙ Settings** at the right
   end. The address row appears only on web pages, which need one.
 - **Settings is always at the top right** (⚙, at the right end of the tab row), on every tab: a note,
@@ -142,8 +143,9 @@ to stop.
 **show formicaria's icon beside it** (the starting choice), **bring it in at once** (every selection
 goes in; hold Alt to just select; a double-click on a word never does), or **nothing**.
 
-**This page is in your notes**: when a note already names the page you are on, the ant in the
-address bar is **filled red**; press it, and the snip's bar says **In 2 of your notes**: press that to
+**Bring into a note** is the page-with-an-arrow button in the address bar; on a page with a video
+or a sound it offers **Save media…** first. **This page is in your notes**: when a note already names
+the page you are on, that button is **filled red**; press it, and the snip's bar says **In 2 of your notes**: press that to
 see them, each with the line that names the page, and open one beside the page.
 
 **Search the whole library from the address bar**: type **fm**, a space, and what you are looking

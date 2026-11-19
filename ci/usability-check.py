@@ -317,30 +317,64 @@ def privacy_minded(ff: Path, work: Path) -> None:
                 break
             time.sleep(0.5)
         check(who, "the privacy switches reach the browser", applied is not None and applied >= 0, f"v={applied}")
-        time.sleep(10)  # the category's protections set, and the tracker lists read
-        goto(m, page, 6)
+        # **Whoever refuses them, and once the lists are there** (2026-11-19). A new profile reads its
+        # tracker lists from Mozilla's list service after its first start, and with uBlock Origin Lite
+        # downloading at the same first start a fixed 10 s sometimes read the page before them (nothing
+        # refused; Firefox's "last update" preference proved no better a signal). So the page is opened
+        # until the trackers are refused, for up to a minute. A tracker counts as refused when Firefox
+        # recorded it refused or stood in for (its blocking log), or when the page asked for it and no
+        # answer from its server came back (Lite, which answers before Firefox's protection sees it).
+        chrome(m, """
+          const net = window.__fmNet = {asked: [], answered: []};
+          const host = (s) => { try { return s.QueryInterface(Ci.nsIChannel).URI.host; } catch (e) { return ''; } };
+          const obs = window.__fmNetObs = { observe(s, t) {
+            (t === 'http-on-opening-request' ? net.asked : net.answered).push(host(s)); } };
+          for (const t of ['http-on-opening-request', 'http-on-examine-response',
+                           'http-on-examine-cached-response', 'http-on-examine-merged-response'])
+            Services.obs.addObserver(obs, t);
+          return true;""")
+
+        def blocking_log() -> set:
+            m.cmd("Marionette:SetContext", {"value": "chrome"})
+            try:
+                log = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "script": """
+                  const done = arguments[arguments.length - 1];
+                  Promise.resolve(gBrowser.selectedBrowser.getContentBlockingLog()).then(done, (e) => done(String(e)));"""})["value"]
+            finally:
+                m.cmd("Marionette:SetContext", {"value": "content"})
+            try:
+                entries = json.loads(log) if isinstance(log, str) else {}
+            except ValueError:
+                entries = {}
+            # STATE_BLOCKED_TRACKING_CONTENT 0x1000, …SOCIALTRACKING 0x10000, …FINGERPRINTING 0x40,
+            # STATE_REPLACED_TRACKING_CONTENT (a stand-in) 0x10, STATE_ALLOWED_TRACKING_CONTENT… not counted.
+            return {o for o, rows in entries.items() for r in rows if r and r[1] and (r[0] & (0x1000 | 0x10000 | 0x40 | 0x10))}
+
+        time.sleep(10)
+        for attempt in range(1, 7):
+            chrome(m, "window.__fmNet.asked.length = 0; window.__fmNet.answered.length = 0; return true;")
+            goto(m, page, 6)
+            net = chrome(m, "return window.__fmNet") or {}
+            refused = blocking_log()
+
+            def kept_out(part: str) -> bool:
+                asked = any(part in h for h in net.get("asked", []))
+                answered = any(part in h for h in net.get("answered", []))
+                return any(part in o for o in refused) or (asked and not answered)
+            ga, fb = kept_out("google-analytics.com"), kept_out("facebook.net")
+            if ga and fb:
+                break
+            time.sleep(4)
+        exts = chrome(m, "return JSON.parse(Services.prefs.getStringPref('formicaria.privacy.addons', '[]'))")
         fm = content(m, "return window.fm || null") or {}
         check(who, "the page's own script runs", fm.get("app") == 1, json.dumps(fm)[:300])
-        # Firefox's own record of what it did on the page: refused, or (Google Analytics) answered by a
-        # harmless stand-in ("shimmed"), whose `onload` still fires.
-        m.cmd("Marionette:SetContext", {"value": "chrome"})
-        try:
-            log = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "script": """
-              const done = arguments[arguments.length - 1];
-              Promise.resolve(gBrowser.selectedBrowser.getContentBlockingLog()).then(done, (e) => done(String(e)));"""})["value"]
-        finally:
-            m.cmd("Marionette:SetContext", {"value": "content"})
-        try:
-            entries = json.loads(log) if isinstance(log, str) else {}
-        except ValueError:
-            entries = {}
-        # STATE_BLOCKED_TRACKING_CONTENT 0x1000, …SOCIALTRACKING 0x10000, …FINGERPRINTING 0x40,
-        # STATE_REPLACED_TRACKING_CONTENT (a stand-in) 0x10, STATE_ALLOWED_TRACKING_CONTENT… not counted.
-        refused = {o for o, rows in entries.items() for r in rows if r and r[1] and (r[0] & (0x1000 | 0x10000 | 0x40 | 0x10))}
-        ga = any("google-analytics.com" in o for o in refused)
-        fb = any("facebook.net" in o for o in refused) or not fm.get("fb")
+        trackers = lambda xs: sorted(h for h in set(xs) if "google" in h or "facebook" in h)
+        print(f"usability:      trackers, opening {attempt}: Firefox refused {sorted(refused)}; asked "
+              f"{trackers(net.get('asked', []))}, answered {trackers(net.get('answered', []))}; extensions {exts}")
         check(who, "trackers are refused (Facebook's pixel; Google Analytics stood in for)", ga and fb,
-              f"refused {sorted(refused)}; page {json.dumps({k: fm.get(k) for k in ('ga', 'fb')})}")
+              f"after {attempt} openings: Firefox refused {sorted(refused)}; answered "
+              f"{trackers(net.get('answered', []))}; extensions {exts}; "
+              f"page {json.dumps({k: fm.get(k) for k in ('ga', 'fb')})}")
         check(who, "sites are told not to sell or share (Sec-GPC: 1)",
               (fm.get("headers") or {}).get("sec-gpc") == "1", json.dumps(fm.get("headers"))[:300])
         content(m, "document.getElementById('tracked').click(); return true;")
@@ -373,6 +407,51 @@ def privacy_minded(ff: Path, work: Path) -> None:
         bc.stop(ff)
     finally:
         site.terminate()
+
+
+def look(ff: Path, work: Path) -> None:
+    """**What a person sees, as pictures** (the owner, 2026-11-19: *"see it yourself"*): formicaria's
+    browser on a video page, the whole window drawn to `work/look-*.png`, and where formicaria's own
+    buttons are, measured. Run on its own: `FM_USABILITY_ONLY=look`."""
+    who = "what a person sees"
+    m = launch(ff, work / "profile-look", "https://www.youtube.com/watch?v=Cr8K88UcO0s", 'user_pref("browser.window.width", 1400);\nuser_pref("browser.window.height", 900);\n')
+    time.sleep(10)
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    try:
+        # The video's tab in front, as the person had it (formicaria opens its notes beside it).
+        m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+          const t = gBrowser.tabs.find((t) => /youtube/.test(t.linkedBrowser.currentURI.spec));
+          if (t) gBrowser.selectedTab = t;"""})
+        time.sleep(2)
+        icons = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+          const ant = document.getElementById('browser_formicaria-org_github_io-browser-action');
+          const page = document.getElementById('pageAction-urlbar-browser_formicaria-org_github_io');
+          const img = (e) => e && (getComputedStyle(e).listStyleImage + ' ' + (e.querySelector('image, .urlbar-icon, .toolbarbutton-icon')?.getAttribute('src') ?? ''));
+          return { ant: img(ant), page: img(page) };"""})["value"]
+        print(f"usability: [{who}] icons: {json.dumps(icons)[:400]}")
+        where = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+          const out = {};
+          for (const id of ['browser_formicaria-org_github_io-browser-action', 'formicaria-settings', 'formicaria-home', 'pageActionButton']) {
+            const e = document.getElementById(id);
+            const r = e?.getBoundingClientRect();
+            out[id] = e ? { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y),
+              hidden: e.hidden, display: getComputedStyle(e).display, parent: e.parentElement?.id } : null;
+          }
+          out.urlbarButtons = [...document.querySelectorAll('#page-action-buttons > *, .urlbar-page-action')].map((e) => e.id).filter(Boolean);
+          out.tabsToolbar = [...(document.getElementById('TabsToolbar-customization-target')?.children ?? [])].map((e) => e.id);
+          return out;"""})["value"]
+        print(f"usability: [{who}] buttons: {json.dumps(where)}")
+        shot = m.cmd("WebDriver:TakeScreenshot", {"full": False, "hash": False})["value"]
+        (work / "look-window.png").write_bytes(base64.b64decode(shot))
+    finally:
+        m.cmd("Marionette:SetContext", {"value": "content"})
+    ant = (where or {}).get("browser_formicaria-org_github_io-browser-action") or {}
+    check(who, "the ant is drawn in the window", bool(ant) and ant.get("w", 0) > 0 and ant.get("h", 0) > 0, json.dumps(ant))
+    try:
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception:  # noqa: BLE001
+        pass
+    bc.stop(ff)
 
 
 def previous_release() -> str | None:
@@ -704,7 +783,7 @@ def main() -> None:
     server = subprocess.Popen([str(ROOT / "target" / "debug" / "fm-serve")], cwd=ROOT, env=env,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        time.sleep(2)
+        bc.wait_until_up()
         bc.post("/api/set_identity", {"name": "Check Reader", "email": "reader@example.org"})
         bc.post("/api/browser_setup")
         s = {}
@@ -725,6 +804,7 @@ def main() -> None:
             "returning": lambda: returning_user(ff, work), "new": lambda: new_person(ff, work),
             "second-day": lambda: opening_on_a_second_day(ff), "updated": lambda: after_an_update(ff),
             "privacy": lambda: privacy_minded(ff, work),
+            "look": lambda: look(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),
         }
@@ -733,6 +813,8 @@ def main() -> None:
         for name, persona in personas.items():
             if only != [""] and name not in only:
                 continue
+            if only == [""] and name == "look":
+                continue  # pictures, on request
             try:
                 persona()
             except Exception as e:  # noqa: BLE001 - a persona that cannot finish is a failure, said

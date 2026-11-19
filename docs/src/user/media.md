@@ -4,8 +4,9 @@ On a web page, **Save media** keeps its video, or its sound, in your library: a 
 video in **Videos**, or an attachment of a note. Embedded players count too: a news article with a
 YouTube video in it offers that video.
 
-**Where:** on a computer, the ant's **Save media on this page**, or right-click a page, a video or
-a sound → **Save media in formicaria…**; on the phone, ≡ → **Save media** while a web page is in
+**Where:** on a computer, the ant at the left end of the tab row → **Save media on this page**, the
+address bar's bring-in button → **Save media…** on a video or music page, or right-click a page, a
+video or a sound → **Save media in formicaria…**; on the phone, ≡ → **Save media** while a web page is in
 front.
 
 ## Choosing

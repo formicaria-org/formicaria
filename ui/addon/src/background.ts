@@ -645,7 +645,12 @@ async function snip(
   blocks: Block[],
   shot: (() => Promise<Uint8Array>) | null,
   sub: (area: NonNullable<Block['rect']>) => Promise<Uint8Array>,
+  tell: (done: number, total: number) => void = () => {},
 ): Promise<Reply> {
+  // How far it is, for the page's bar (`snip.ts`'s `withProgress`): one step per file kept.
+  const total = blocks.filter((b) => (b.kind === 'image' && b.src) || (b.kind === 'picture' && b.rect)).length;
+  let done = 0;
+  if (total) tell(0, total);
   const asPicture = async () => {
     if (!shot) throw new Error('no area to picture');
     const bytes = await shot();
@@ -689,6 +694,7 @@ async function snip(
       } catch {
         out.push(`[Image${b.alt ? `: ${b.alt.replace(/[[\]]/g, '')}` : ''}](${b.src})`);
       }
+      tell(++done, total);
     } else if (b.kind === 'video' || b.kind === 'audio') {
       out.push(
         mediaLinked({ ...p, kind: b.kind, src: b.src, time: b.time }).replace(/ — \[.*$/, ''),
@@ -696,6 +702,7 @@ async function snip(
     } else if (b.kind === 'picture' && b.rect) {
       const kept = await store(await sub(b.rect), 'figure.png');
       out.push(`![](asset:${kept.ref})`);
+      tell(++done, total);
     }
   }
   flush();
@@ -812,7 +819,9 @@ export async function pageNotes(tabId: number, url: string): Promise<PageNote[]>
     }
   }
   seen.set(tabId, found);
-  // **The page's ant, in the address bar** (research §11.3, rule 4): filled when notes name the page.
+  // **The page's bring-in button, in the address bar** (research §11.3, rule 4): filled when notes name
+  // the page. A page with an arrow into it, not the ant: the ant is formicaria's own menu, in the tab
+  // row (the owner, 2026-11-19, looking for Save media under the ant here).
   const n = found.length;
   void pageAction
     .setIcon({ tabId, path: n ? 'icon-page-in.svg' : 'icon-page.svg' })
@@ -970,7 +979,10 @@ omnibox.onInputEntered.addListener((text) => {
     shot.catch(() => {});
     const cut = (a: { x: number; y: number; width: number; height: number }) => crop(shot, a, dpr);
     quietNow = true;
-    return snip(p, (m.blocks as Block[]) ?? [], area ? () => cut(area) : null, cut).finally(
+    const tab = st.id;
+    const tell = (done: number, total: number) =>
+      void browser.tabs.sendMessage(tab, { type: 'progress', done, total }).catch(() => {});
+    return snip(p, (m.blocks as Block[]) ?? [], area ? () => cut(area) : null, cut, tell).finally(
       () => (quietNow = false),
     );
   }

@@ -103,46 +103,92 @@ pub fn configure(trackers: bool, ads: bool, links: bool) {
         }
     }
     std::thread::spawn(move || {
-        let _one = BUILDING.lock().unwrap_or_else(|e| e.into_inner());
-        if WANT.lock().map(|w| *w != want).unwrap_or(true) {
-            return; // a newer choice came while this one waited: that one builds
-        }
-        let Some(d) = dir() else { return };
-        let _ = std::fs::create_dir_all(&d);
-        let lists = wanted(trackers, ads, links);
-        let key = format!("engine-{}{}{}.bin", u8::from(trackers), u8::from(ads), u8::from(links));
-        let cached = d.join(&key);
-        let lists_fresh = lists.iter().all(|l| fresh(&path_of(&d, l), l.refresh_days));
-        let mut engine = if lists_fresh && fresh(&cached, 7) {
-            std::fs::read(&cached).ok().and_then(|b| Blocker::load(&b))
-        } else {
-            None
+        let lists = {
+            let _one = BUILDING.lock().unwrap_or_else(|e| e.into_inner());
+            if WANT.lock().map(|w| *w != want).unwrap_or(true) {
+                return; // a newer choice came while this one waited: that one builds
+            }
+            build_pages(want)
         };
-        if engine.is_none() && !lists.is_empty() {
-            let texts: Vec<String> = lists.iter().filter_map(|l| list(&d, l)).collect();
-            if !texts.is_empty() {
-                let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-                let b = Blocker::new(&refs);
-                let _ = std::fs::write(&cached, b.save());
-                engine = Some(b);
-            }
-        }
-        if let Some(e) = engine.as_mut() {
-            e.use_resources(RESOURCES);
-        }
-        let debouncer = links.then(|| {
-            let text = fm_block::lists::by_key("debounce").and_then(|l| list(&d, l)).unwrap_or_default();
-            Debouncer::new(&[&text])
-        });
-        if WANT.lock().map(|w| *w == want).unwrap_or(false) {
-            if let Ok(mut e) = ENGINE.write() {
-                *e = engine.map(Arc::new);
-            }
-            if let Ok(mut dd) = DEBOUNCE.write() {
-                *dd = debouncer.map(Arc::new);
-            }
-        }
+        retry_missing(
+            &lists,
+            || WANT.lock().map(|w| *w == want).unwrap_or(false),
+            || {
+                build_pages(want);
+            },
+        );
     });
+}
+
+/// The pages' engine and the unwrapper for these switches, installed if they are still wanted; the
+/// lists it wanted, for `retry_missing`.
+fn build_pages(want: (bool, bool, bool)) -> Vec<&'static List> {
+    let (trackers, ads, links) = want;
+    let Some(d) = dir() else { return Vec::new() };
+    let _ = std::fs::create_dir_all(&d);
+    let lists = wanted(trackers, ads, links);
+    let key = format!("engine-{}{}{}.bin", u8::from(trackers), u8::from(ads), u8::from(links));
+    let cached = d.join(&key);
+    let lists_fresh = lists.iter().all(|l| fresh(&path_of(&d, l), l.refresh_days));
+    let mut engine = if lists_fresh && fresh(&cached, 7) {
+        std::fs::read(&cached).ok().and_then(|b| Blocker::load(&b))
+    } else {
+        None
+    };
+    if engine.is_none() && !lists.is_empty() {
+        let texts: Vec<String> = lists.iter().filter_map(|l| list(&d, l)).collect();
+        if !texts.is_empty() {
+            let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+            let b = Blocker::new(&refs);
+            let _ = std::fs::write(&cached, b.save());
+            engine = Some(b);
+        }
+    }
+    if let Some(e) = engine.as_mut() {
+        e.use_resources(RESOURCES);
+    }
+    let debouncer = links.then(|| {
+        let text =
+            fm_block::lists::by_key("debounce").and_then(|l| list(&d, l)).unwrap_or_default();
+        Debouncer::new(&[&text])
+    });
+    if WANT.lock().map(|w| *w == want).unwrap_or(false) {
+        if let Ok(mut e) = ENGINE.write() {
+            *e = engine.map(Arc::new);
+        }
+        if let Ok(mut dd) = DEBOUNCE.write() {
+            *dd = debouncer.map(Arc::new);
+        }
+    }
+    let mut lists = lists;
+    if links {
+        lists.extend(fm_block::lists::by_key("debounce"));
+    }
+    lists
+}
+
+/// **Lists that could not be fetched are tried again during the session** (2026-11-19): a first
+/// start on a poor network built the engine without EasyPrivacy, and nothing tried again until the
+/// app was started anew. While any wanted list has no kept copy, its download is tried again after
+/// 30 s, 1, 2, 5, 10 and 20 minutes, and the engine rebuilt (`rebuild`) when one arrives; it stops
+/// when the switches change (`still`). The turns are `fm_block::lists::retry_missing`, tested there.
+fn retry_missing(lists: &[&'static List], still: impl Fn() -> bool, rebuild: impl Fn()) {
+    if !cfg!(feature = "update") {
+        return; // nothing is fetched in this build: a missing list stays missing
+    }
+    let Some(d) = dir() else { return };
+    fm_block::lists::retry_missing(
+        lists,
+        |l| path_of(&d, l).exists(),
+        &[30, 60, 120, 300, 600, 1200],
+        |s| std::thread::sleep(Duration::from_secs(s)),
+        || BUILDING.lock().unwrap_or_else(|e| e.into_inner()),
+        still,
+        |l| {
+            let _ = list(&d, l);
+        },
+        rebuild,
+    );
 }
 
 /// The app blocker's switches changed: build its names (the lists for apps, and the encrypted-DNS
@@ -163,27 +209,46 @@ pub fn configure_apps(apps: bool, around: bool) {
         return;
     }
     std::thread::spawn(move || {
-        let _one = BUILDING.lock().unwrap_or_else(|e| e.into_inner());
-        if WANT_APPS.lock().map(|w| *w != want).unwrap_or(true) {
-            return;
-        }
-        let Some(d) = dir() else { return };
-        let _ = std::fs::create_dir_all(&d);
-        let mut set = HostSet::new();
-        let uses: &[Use] = if around { &[Use::Apps, Use::DnsServices] } else { &[Use::Apps] };
-        for u in uses {
-            for l in fetched_for(*u) {
-                if let Some(t) = list(&d, l) {
-                    set.add(&t);
-                }
+        let lists = {
+            let _one = BUILDING.lock().unwrap_or_else(|e| e.into_inner());
+            if WANT_APPS.lock().map(|w| *w != want).unwrap_or(true) {
+                return;
             }
-        }
-        if WANT_APPS.lock().map(|w| *w == want).unwrap_or(false) {
-            if let Ok(mut a) = APPS.write() {
-                *a = Some(Arc::new(set));
-            }
-        }
+            build_apps(want)
+        };
+        retry_missing(
+            &lists,
+            || WANT_APPS.lock().map(|w| *w == want).unwrap_or(false),
+            || {
+                build_apps(want);
+            },
+        );
     });
+}
+
+/// The app blocker's names for these switches, installed if they are still wanted; the lists it
+/// wanted, for `retry_missing`.
+fn build_apps(want: (bool, bool)) -> Vec<&'static List> {
+    let (_, around) = want;
+    let Some(d) = dir() else { return Vec::new() };
+    let _ = std::fs::create_dir_all(&d);
+    let mut set = HostSet::new();
+    let mut lists = Vec::new();
+    let uses: &[Use] = if around { &[Use::Apps, Use::DnsServices] } else { &[Use::Apps] };
+    for u in uses {
+        for l in fetched_for(*u) {
+            lists.push(l);
+            if let Some(t) = list(&d, l) {
+                set.add(&t);
+            }
+        }
+    }
+    if WANT_APPS.lock().map(|w| *w == want).unwrap_or(false) {
+        if let Ok(mut a) = APPS.write() {
+            *a = Some(Arc::new(set));
+        }
+    }
+    lists
 }
 
 fn engine() -> Option<Arc<Blocker>> {
@@ -251,7 +316,9 @@ pub extern "system" fn Java_dev_formicaria_notes_Blocker_verdict(
     let v = match e.verdict(&u, &p, &k) {
         Verdict::Allow => String::new(),
         Verdict::Block => "-".into(),
-        Verdict::StandIn(m, b) => format!("{m}\n{}", base64::engine::general_purpose::STANDARD.encode(b)),
+        Verdict::StandIn(m, b) => {
+            format!("{m}\n{}", base64::engine::general_purpose::STANDARD.encode(b))
+        }
     };
     out(&mut env, &v)
 }
@@ -333,7 +400,10 @@ pub extern "system" fn Java_dev_formicaria_notes_Blocker_hostBlocked(
 /// What the blocking has now, as JSON: whether the pages' engine is built, the switches it was built
 /// for, and each kept list's size (the Privacy sheet's "lists" line, and the phone check's evidence).
 #[no_mangle]
-pub extern "system" fn Java_dev_formicaria_notes_Blocker_state(mut env: JNIEnv, _class: JClass) -> jstring {
+pub extern "system" fn Java_dev_formicaria_notes_Blocker_state(
+    mut env: JNIEnv,
+    _class: JClass,
+) -> jstring {
     let lists: serde_json::Map<String, serde_json::Value> = dir()
         .map(|d| {
             fm_block::lists::LISTS
@@ -357,7 +427,10 @@ pub extern "system" fn Java_dev_formicaria_notes_Blocker_state(mut env: JNIEnv, 
 
 /// The pages' engine is built (until then every request goes through).
 #[no_mangle]
-pub extern "system" fn Java_dev_formicaria_notes_Blocker_ready(_env: JNIEnv, _class: JClass) -> jboolean {
+pub extern "system" fn Java_dev_formicaria_notes_Blocker_ready(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jboolean {
     on(engine().is_some())
 }
 

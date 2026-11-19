@@ -10,7 +10,7 @@
 //
 // What happened is said in a bubble on the spot, with Undo. It reads only what the person selected or
 // drew, never acts on what the page says, and draws in closed shadow roots the page cannot see into.
-import { bubble, snipping, startSnip } from './snip';
+import { bubble, progress, snipping, startSnip } from './snip';
 import { offersFor as hows, type How } from '../../src/lib/web/offers';
 
 declare const browser: {
@@ -39,8 +39,10 @@ browser.storage.onChanged.addListener((c, area) => {
   if (c.after) after = (c.after.newValue as After) ?? 'offer';
   if (c.front) front = (c.front.newValue as string) ?? '';
 });
-browser.runtime.onMessage.addListener((m) => {
+browser.runtime.onMessage.addListener((msg) => {
+  const m = msg as { type?: string; done?: number; total?: number } | undefined;
   if (m?.type === 'snip') startSnip();
+  if (m?.type === 'progress') progress(Number(m.done) || 0, Number(m.total) || 0);
 });
 
 // formicaria's mark: the ant on its red square (`browser/kit/branding/about-logo.svg`).

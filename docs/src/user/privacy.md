@@ -12,7 +12,7 @@ and **Settings → Privacy** on both.
 |---|---|---|
 | **Search with** | The engine the web field searches: DuckDuckGo, Startpage, Brave Search, Mojeek or Kagi. All private. | DuckDuckGo |
 | **Block trackers** | Requests to companies that follow you from site to site are refused. On a computer this is Firefox's strict tracking protection. | yes |
-| **Block ads** | Ads are refused and the empty boxes they leave are hidden. Uses more memory. On a computer it installs uBlock Origin in formicaria's browser. | no |
+| **Block ads** | Ads are refused and the empty boxes they leave are hidden. On a computer it installs uBlock Origin Lite in formicaria's browser (the full uBlock Origin used five times the memory). | yes |
 | **Refuse cookie pop-ups** | Consent banners are answered "reject" for you and closed. On the phone this uses DuckDuckGo's own rules; on a computer, Firefox's cookie banner reduction. | yes |
 | **Clean tracking links** | Tracking parts of an address (`utm_…`, `fbclid`, `gclid`…) are taken off before the page opens. | yes |
 | **Tell sites not to sell or share** | Global Privacy Control: a signal that sites must honour in some places (California, parts of the EU). | yes |
@@ -36,7 +36,7 @@ tracking parts from links (with formicaria's longer list of them). **More sites*
 cookie pop-up rules, run by formicaria's own add-on. Extensions are added only where you ask (open
 source, from addons.mozilla.org), installed while their switch is on and removed when it is off:
 
-- **Block ads** → uBlock Origin;
+- **Block ads** → uBlock Origin Lite (if you installed the full uBlock Origin yourself, it stays);
 - **DuckDuckGo's protections too** → DuckDuckGo Privacy Essentials, its own tracker list on top of
   Firefox's.
 
