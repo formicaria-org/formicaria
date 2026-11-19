@@ -15865,3 +15865,22 @@ faster?"*, *"well used across the spectrum, we do not want to maintain it"*.
 
 **The four questions.** `#ui`, `#toolchain`. Changes a default (ads on, on a computer) within the
 budget the owner set for it. Widens nothing that ships.
+
+## 2026-11-19 (night) — a click on the Settings page closed formicaria's browser `#ui`
+
+The owner, on 0.56.0: *"the update lines were out but not clickable, as I tried to click on a random
+place it crashed. Tried again and it crushed"*. Not a crash: the browser quit cleanly
+(`sessionCheckpoints.json`), its one window `closedAt`, its one tab formicaria's Settings page with one
+entry in its history. The page drew Settings as the app's panel, over a darkened layer covering the
+whole page (the update notice included) that closes Settings on a click; a feature page closed by
+`window.close()` when there was nothing to go back to, which Firefox allows a page with one history
+entry, so the only window closed and the browser with it. The next start restored the same page.
+
+1. **Leaving a feature page never closes the window** (`Feature.svelte`'s `leave`): back if there is
+   somewhere to go, else the notes. Settings and a note alike.
+2. **Settings on its own page is a page** (`SettingsPanel`'s `page`): no layer, in the page's flow,
+   below the update notice, which stays clickable.
+3. Tests (`Feature.test.ts`) fail on the old code: no layer on the Settings page, leaving it goes to
+   the notes, `window.close` never called.
+
+**The four questions.** `#ui`. Fixes a defect; widens nothing.

@@ -47,6 +47,12 @@
 
   let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
 
+  /** **Leaving a feature page never closes the window** (2026-11-19). It went back, or else closed
+   *  the window: a page opened on its own (restored at start, one entry in its history) closed the
+   *  only window, and the browser with it, and the next start restored the same page. Back if there
+   *  is somewhere to go back to, else the notes. */
+  const leave = () => (history.length > 1 ? history.back() : go('/f/group/Library'));
+
   // **Settings is never nowhere** (2026-11-19; the owner, after 0.55.0: *"One should update and have
   // everything there automatically"*). It is the window's, at the right end of the tab row; while that
   // button cannot be there (formicaria's browser not the one open, or still on an older kit) the page
@@ -245,7 +251,8 @@
       <SettingsPanel
         layout="single"
         onlayout={() => {}}
-        onclose={() => (history.length > 1 ? history.back() : window.close())}
+        onclose={leave}
+        page
         onkeyschanged={() => {}}
         commands={[]}
         columns="auto"
@@ -359,7 +366,7 @@
         }}
         onreorder={() => {}}
         onresize={() => {}}
-        onclose={() => window.close()}
+        onclose={leave}
         onfocus={() => {}}
         headed={false}
       />

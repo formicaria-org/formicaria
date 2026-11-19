@@ -81,3 +81,39 @@ it('every view offers a new note, opened in a tab of its own', async () => {
   await fireEvent.click(await screen.findByRole('button', { name: '＋ New note' }));
   await vi.waitFor(() => expect(opened.mock.calls[0]?.[0]).toMatch(/^\/f\/note\/[0-9A-Z]{26}$/));
 });
+
+// **Leaving a page never closes the browser** (2026-11-19). Settings opened on its own (restored at
+// start: one entry in its history) closed the window when it was left, and a darkened layer over the
+// whole page, the update notice included, left it on any click. The owner: *"the update lines were
+// out but not clickable, as I tried to click on a random place it crashed"*.
+it('Settings on its own page: no layer over the page, and leaving it goes to the notes', async () => {
+  const went: string[] = [];
+  const closed = vi.spyOn(window, 'close').mockImplementation(() => {});
+  vi.spyOn(history, 'length', 'get').mockReturnValue(1);
+  history.replaceState(null, '', '/f/settings');
+  render(Feature, { props: { go: (u: string) => went.push(u) } });
+  const x = await screen.findByRole('button', { name: 'close' });
+  expect(screen.queryByRole('button', { name: 'close settings' })).toBeNull();
+  await fireEvent.click(x);
+  await fireEvent.keyDown(window, { key: 'Escape' });
+  expect(closed).not.toHaveBeenCalled();
+  expect(went[0]).toBe('/f/group/Library');
+});
+
+it('a note opened on its own, closed, goes to the notes, not out of the browser', async () => {
+  const [made] = (await mock.handle('create_notes', {
+    notes: [{ title: 'Alone', body: 'One entry in its history.', props: {} }],
+  })) as { id: string }[];
+  const went: string[] = [];
+  const closed = vi.spyOn(window, 'close').mockImplementation(() => {});
+  vi.spyOn(history, 'length', 'get').mockReturnValue(1);
+  history.replaceState(null, '', `/f/note/${made.id}`);
+  render(Feature, { props: { go: (u: string) => went.push(u) } });
+  await screen.findByText('One entry in its history.');
+  const close = document.querySelector<HTMLButtonElement>(
+    'button[aria-label="close"], button[title="Close"]',
+  );
+  if (close) await fireEvent.click(close);
+  await fireEvent.keyDown(window, { key: 'Escape' });
+  expect(closed).not.toHaveBeenCalled();
+});

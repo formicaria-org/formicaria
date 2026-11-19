@@ -130,8 +130,14 @@
     section = '',
     category,
     onkeyschanged,
+    page = false,
   }: {
     onclose: () => void;
+    /** **Settings as a page of its own** (`/f/settings`), not a panel over another screen: no
+     *  darkened layer that closes it on a click elsewhere, and not drawn over the page's own lines
+     *  (an update notice above it stays clickable). 2026-11-19: on the page, the layer covered the
+     *  update notice, and a click on it closed Settings — and with it the browser. */
+    page?: boolean;
     /** Opens the new-vault form — create, join, restore or import. */
     onnewvault: () => void;
     /** Told when the set of vaults changed here (one removed, one taken back). */
@@ -1085,8 +1091,10 @@
 
 <svelte:window onkeydown={(e) => (capturing ? capture(e) : onkeydown(e))} />
 
-<div class="settings-overlay">
-  <button class="settings-backdrop" aria-label="close settings" onclick={onclose}></button>
+<div class="settings-overlay" class:page>
+  {#if !page}
+    <button class="settings-backdrop" aria-label="close settings" onclick={onclose}></button>
+  {/if}
   <div
     class="panel"
     class:actions-only={actionsMode}
@@ -2249,6 +2257,13 @@
     .settings-overlay {
       padding-bottom: max(var(--safe-bottom), var(--bar-floor));
     }
+  }
+  /* On its own page: in the page's flow, below anything above it, not over it. */
+  .settings-overlay.page {
+    position: static;
+    height: auto;
+    padding-top: var(--space-4);
+    z-index: auto;
   }
   .settings-backdrop {
     position: fixed;

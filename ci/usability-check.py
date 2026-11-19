@@ -409,6 +409,50 @@ def privacy_minded(ff: Path, work: Path) -> None:
         site.terminate()
 
 
+def settings_alone(ff: Path, work: Path) -> None:
+    """**Settings, the only tab, clicked around** (2026-11-19; the owner: *"the update lines were out
+    but not clickable, as I tried to click on a random place it crashed"*). formicaria's Settings page
+    opened on its own (one tab, one entry in its history, as a start restores it); a click beside the
+    panel, a click where the update notice is, then its ✕: the browser still open after each, and
+    leaving Settings lands on the notes."""
+    who = "someone on the Settings page alone"
+    m = launch(ff, work / "profile-settings", f"{SERVER}/f/settings")
+    time.sleep(6)
+    alive = lambda: chrome(m, "return gBrowser.tabs.length")  # noqa: E731 - raises once the browser has gone
+
+    def click_at(x: int, y: int) -> None:
+        m.cmd("WebDriver:PerformActions", {"actions": [{
+            "type": "pointer", "id": "mouse", "parameters": {"pointerType": "mouse"},
+            "actions": [{"type": "pointerMove", "x": x, "y": y, "origin": "viewport"},
+                        {"type": "pointerDown", "button": 0}, {"type": "pointerUp", "button": 0}]}]})
+        m.cmd("WebDriver:ReleaseActions", {})
+        time.sleep(2)
+
+    try:
+        # One tab, as restored: any other the start opened is closed first.
+        chrome(m, """for (const t of [...gBrowser.tabs]) if (t !== gBrowser.selectedTab) gBrowser.removeTab(t);
+                     return true;""")
+        shown = wait_for(m, "return !!document.querySelector('[role=dialog], .panel')", 20)
+        check(who, "Settings shows on its own page", bool(shown))
+        check(who, "nothing covers the page to close Settings on a click",
+              content(m, "return document.querySelector('.settings-backdrop') === null") is True)
+        click_at(12, 400)   # beside the panel
+        click_at(200, 12)   # the top line, where the update notice is
+        still = alive()
+        check(who, "a click beside Settings leaves the browser open", bool(still), f"tabs {still}")
+        content(m, "document.querySelector('button[aria-label=close]')?.click(); return true;")
+        time.sleep(3)
+        still = alive()
+        landed = content(m, "return location.pathname") or ""
+        check(who, "closing Settings goes to the notes, the browser still open",
+              bool(still) and landed.startswith("/f/group/Library"), f"tabs {still}, at {landed}")
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001 - the browser gone takes the connection with it
+        # Said, and nothing more asked of a connection whose browser has gone (asking hung).
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
 def look(ff: Path, work: Path) -> None:
     """**What a person sees, as pictures** (the owner, 2026-11-19: *"see it yourself"*): formicaria's
     browser on a video page, the whole window drawn to `work/look-*.png`, and where formicaria's own
@@ -804,6 +848,7 @@ def main() -> None:
             "returning": lambda: returning_user(ff, work), "new": lambda: new_person(ff, work),
             "second-day": lambda: opening_on_a_second_day(ff), "updated": lambda: after_an_update(ff),
             "privacy": lambda: privacy_minded(ff, work),
+            "settings": lambda: settings_alone(ff, work),
             "look": lambda: look(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),
