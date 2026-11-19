@@ -321,6 +321,11 @@ myrme-bump = "sh ci/myrme-bump.sh"
 browser-bump = "python3 ci/browser-bump.py"
 # The media tools a computer fetches for *Save media* (yt-dlp, ffmpeg), pinned per release.
 media-bump = "python3 ci/media-bump.py"
+# uBlock Origin's stand-ins and scriptlets for the phone's pages, from one pinned uBlock release
+# (`privacy-plan-2026-11-19.md` 3.2): written to `mobile/src-tauri/block/`, kept in the repo.
+block-resources = "sh ci/block-resources.sh"
+# What each list set refuses of a corpus of real requests (`privacy-plan-2026-11-19.md` 1.4).
+privacy-coverage = "sh ci/privacy-coverage.sh"
 # Usability checks: formicaria's browser walked as different people use it (2026-11-17).
 usability-check = "python3 ci/usability-check.py"
 browser-check = "python3 ci/browser-check.py"

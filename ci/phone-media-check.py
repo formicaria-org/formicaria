@@ -288,6 +288,38 @@ def app_view() -> Cdp:
     raise RuntimeError(f"the app's page is not in its web view: pages {seen}")
 
 
+def page_view(part: str) -> Cdp | None:
+    """A page view's own web view (a web page formicaria draws), found by its address, through the same
+    debugging socket as the app's (`app_view` forwards it)."""
+    for _ in range(15):
+        try:
+            pages = json.load(urllib.request.urlopen("http://127.0.0.1:9333/json", timeout=5))
+            page = next(p for p in pages if part in p.get("url", "") and "webSocketDebuggerUrl" in p)
+            return Cdp(page["webSocketDebuggerUrl"])
+        except Exception:  # noqa: BLE001 - not open yet
+            time.sleep(2)
+    return None
+
+
+# **Known trackers and ads, added to a real page** (`privacy-plan-2026-11-19.md` 1.3): five requests
+# every list set refuses, made from a Wikipedia page drawn by formicaria; the page view's own count
+# (`fm-page-privacy`) must rise by five.
+INJECT_JS = r"""
+(() => {
+  for (const u of ['https://www.google-analytics.com/analytics.js',
+                   'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
+                   'https://connect.facebook.net/en_US/fbevents.js',
+                   'https://static.hotjar.com/c/hotjar-1.js',
+                   'https://securepubads.g.doubleclick.net/tag/js/gpt.js']) {
+    const s = document.createElement('script');
+    s.src = u + '?fm=' + Date.now();
+    document.head.appendChild(s);
+  }
+  return true;
+})()
+"""
+
+
 ROLLER_JS = r"""
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -424,6 +456,79 @@ CASE_JS = r"""
            raw: done === 'ok' ? [] : raw.slice(-2) };
 })()
 """
+
+
+# **The phone's protections, on real pages** (`privacy-plan-2026-11-19.md` 1.3): a link with tracking
+# parts and a tracker's redirect, each opened as a person does (+, the address, Enter), then known
+# trackers and ads added to a real page; what the page view reported back (`fm-page-privacy`,
+# `fm-page`) read here.
+PRIVACY_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  const seen = { blocked: 0, urls: [] };
+  addEventListener('fm-page-privacy', (e) => { seen.blocked = Math.max(seen.blocked, e.detail.blocked || 0); });
+  addEventListener('fm-page', (e) => { if (e.detail.url) seen.urls.push(e.detail.url); });
+  const open = async (address, wait) => {
+    document.querySelector('button[aria-label="close save media"]')?.click();
+    document.querySelector('button[aria-label="close the new tab"]')?.click();
+    const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 30);
+    if (!plus) return false;
+    plus.click();
+    const field = await until(() => document.querySelector('input[aria-label="a web address or a search"]'), 15);
+    if (!field) return false;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, address);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(500);
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(wait);
+    return true;
+  };
+  const out = {};
+  // The first start fetches the lists and builds the engine: how long, and only then the test.
+  const t0 = Date.now();
+  out.ready = !!(await until(() => window.__fmPage.blockReady && window.__fmPage.blockReady(), 300));
+  out.ready_s = Math.round((Date.now() - t0) / 1000);
+  try { out.state = JSON.parse(window.__fmPage.blockState()); } catch (e) { out.state = String(e); }
+  out.verdicts = ['https://www.google-analytics.com/analytics.js', 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
+    'https://en.wikipedia.org/static/images/icons/wikipedia.png']
+    .map((u) => { try { return window.__fmPage.blockVerdict(u, 'https://en.wikipedia.org/wiki/Formica', 'script'); } catch (e) { return String(e); } });
+  seen.urls = [];
+  await open('https://en.wikipedia.org/wiki/Ant?utm_source=mail&fbclid=abc123&oldid=1', 8000);
+  out.cleaned = seen.urls.slice();
+  seen.urls = [];
+  await open('https://www.google.com/url?q=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FFormica&sa=t&usg=x', 8000);
+  out.unwrapped = seen.urls.slice();
+  // A page with no content security policy of its own, for the known trackers to be added to
+  // (Wikipedia's refuses other sites' scripts before any request is made).
+  await open('https://example.com/', 6000);
+  return out;
+})()
+"""
+
+VPN_JS = r"""
+(async (on) => {
+  const inv = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke('fm', { cmd, args })
+    .then((t) => (typeof t === 'string' ? JSON.parse(t) : t));
+  const p = await inv('set_privacy', { app_trackers: on });
+  window.__fmPage.privacy(JSON.stringify(p));
+  for (let i = 0; i < 240; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    const st = JSON.parse(window.__fmVpn.state());
+    if (st.on === on && (!on || st.ready)) return st;
+  }
+  return JSON.parse(window.__fmVpn.state());
+})(%s)
+"""
+
+
+def resolves(name: str) -> bool:
+    """A lookup made on the phone (a shell `ping`, which asks the phone's resolver as apps do)."""
+    out = adb("shell", "ping", "-c", "1", "-W", "3", name, check_rc=False, timeout=60)
+    return "unknown host" not in out and ("PING" in out or "bytes from" in out)
 
 
 LOGCAT = WORK / "logcat.txt"
@@ -592,6 +697,53 @@ def main() -> None:
             check("the roller shows the open items", (got.get("items") or 0) >= 2, str(got))
             check("a roll brings the next item to the front", bool(got.get("moved")), str(got))
         say(f"memory after every case: {app_memory()}")
+        # **The protections** (`privacy-plan-2026-11-19.md` 1.3), unless only some media cases run.
+        if not only or "privacy" in only:
+            got = cdp.evaluate(PRIVACY_JS) or {}
+            say(f"privacy: {json.dumps(got)[:1500]}")
+            check("the pages' lists are read within five minutes of the first start", bool(got.get("ready")),
+                  f"{got.get('ready_s')} s")
+            cdp.evaluate("window.__fmMax = {}; addEventListener('fm-page-privacy', (e) => {"
+                         " window.__fmMax[e.detail.id] = Math.max(window.__fmMax[e.detail.id] || 0, e.detail.blocked || 0); }); true")
+            pv = page_view("example.com")
+            refused = 0
+            if pv:
+                pv.evaluate(INJECT_JS)
+                time.sleep(8)
+                refused = max(cdp.evaluate("Object.values(window.__fmMax)") or [0])
+                say(f"  the phone's own counts: {cdp.evaluate('window.__fmPage.blockState()')[:600]}")
+                # What the page got for each (an empty answer is a refusal), and whether the engine
+                # answers the page's own questions through the bridge.
+                seen = pv.evaluate("""(() => ({
+                  bridge: typeof __fmPagePrivacy,
+                  ran: { googletag: typeof googletag, fbq: typeof fbq, ga: typeof gaplugins },
+                  hide: (() => { try { return __fmPagePrivacy.hide(location.href).length; } catch (e) { return String(e); } })(),
+                  got: performance.getEntriesByType('resource')
+                    .filter((e) => /google-analytics|googlesyndication|fbevents|hotjar|gpt[.]js/.test(e.name))
+                    .map((e) => [e.name.slice(8, 50), e.transferSize, e.encodedBodySize, e.responseStatus]),
+                }))()""")
+                say(f"  the page's view of it: {json.dumps(seen)[:900]}")
+            check("five known trackers and ads added to a page are refused", refused >= 5,
+                  f"refused {refused}" + ("" if pv else "; the page view could not be reached"))
+            cleaned = got.get("cleaned") or []
+            check("a link loses its tracking parts", any("wiki/Ant" in u for u in cleaned)
+                  and not any("utm_source" in u or "fbclid" in u for u in cleaned), str(cleaned)[:400])
+            unwrapped = got.get("unwrapped") or []
+            check("a tracker's redirect is skipped (google.com/url)", any("wiki/Formica" in u for u in unwrapped)
+                  and not any("google.com/url" in u for u in unwrapped), str(unwrapped)[:400])
+            say(f"memory with the pages' lists in use: {app_memory()}")
+            # The app blocker, end to end: Android's consent given as a person gives it (`appops`).
+            adb("shell", "appops", "set", PKG, "ACTIVATE_VPN", "allow", check_rc=False)
+            before = resolves("app-measurement.com")
+            st = cdp.evaluate(VPN_JS % "true") or {}
+            say(f"app blocker on: {json.dumps(st)[:400]}")
+            check("the app blocker starts, its lists read", bool(st.get("on")) and bool(st.get("ready")), str(st)[:300])
+            tracker = resolves("app-measurement.com")
+            ordinary = resolves("en.wikipedia.org")
+            check("an app's tracker lookup is refused, an ordinary one answered",
+                  not tracker and ordinary, f"tracker answered: {tracker}; ordinary answered: {ordinary}; before: {before}")
+            st = cdp.evaluate(VPN_JS % "false") or {}
+            check("off, every lookup is answered again", not st.get("on") and resolves("app-measurement.com"), str(st)[:300])
         # **yt-dlp updates itself** (2026-11-18: it never had: a null class loader, then R8). A fault in
         # the app's code fails; GitHub refusing (60 unsigned requests an hour per address, this
         # computer's) or no network is said, not failed.

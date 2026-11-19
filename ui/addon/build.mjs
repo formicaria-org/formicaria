@@ -15,7 +15,7 @@ const stage = join(out, 'stage');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
-for (const name of ['content', 'background', 'choose', 'bridge', 'select', 'pick', 'launcher', 'shot']) {
+for (const name of ['content', 'background', 'choose', 'bridge', 'select', 'pick', 'launcher', 'shot', 'consent']) {
   await build({
     configFile: false,
     publicDir: false,
@@ -39,7 +39,7 @@ for (const name of ['content', 'background', 'choose', 'bridge', 'select', 'pick
 // into `dist/page/`, which the app hands to its shell (`privacy.svelte.ts`).
 const pageOut = join(here, '..', 'dist', 'page');
 rmSync(pageOut, { recursive: true, force: true });
-for (const name of ['consent']) {
+for (const name of ['consent', 'procedural', 'fingerprint']) {
   await build({
     configFile: false,
     publicDir: false,

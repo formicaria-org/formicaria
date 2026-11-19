@@ -1,0 +1,34 @@
+# **Names apps look up** (`privacy-plan-2026-11-19.md` 1.4): `<kind> <name>`. tracker: analytics,
+# attribution and ad SDKs inside apps; ordinary: what apps need to work.
+tracker app-measurement.com
+tracker firebase-settings.crashlytics.com
+tracker graph.facebook.com
+tracker an.facebook.com
+tracker app.adjust.com
+tracker inapps.appsflyer.com
+tracker t.appsflyer.com
+tracker api2.branch.io
+tracker api.mixpanel.com
+tracker api2.amplitude.com
+tracker googleads.g.doubleclick.net
+tracker ads.mopub.com
+tracker sdk.iad-01.braze.com
+tracker startup.mobile.yandex.net
+tracker api.segment.io
+tracker settings.crashlytics.com
+tracker sessions.bugsnag.com
+tracker live.chartboost.com
+tracker ads.unity3d.com
+tracker api.onesignal.com
+ordinary api.github.com
+ordinary www.googleapis.com
+ordinary play.googleapis.com
+ordinary connectivitycheck.gstatic.com
+ordinary api.spotify.com
+ordinary graph.microsoft.com
+ordinary chat.signal.org
+ordinary api.telegram.org
+ordinary en.wikipedia.org
+ordinary mtalk.google.com
+ordinary android.clients.google.com
+ordinary www.whatsapp.com

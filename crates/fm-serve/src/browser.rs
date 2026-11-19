@@ -35,10 +35,9 @@ pub const PRIVACY_ADDONS: &[(&str, &str, &str)] = &[
     // DuckDuckGo's own tracker list and protections (Apache-2.0), on top of Firefox's strict
     // protection: its own switch, off by default (+19 % memory measured with it, over the budget).
     ("ddg", "jid1-ZAdIEUB7XOzOJw@jetpack", "duckduckgo-for-firefox"),
-    // Refuse cookie pop-ups: Aarhus University's Consent-O-Matic (MIT).
-    ("cookies", "gdpr@cavi.au.dk", "consent-o-matic"),
-    // Clean tracking links: ClearURLs (LGPL-3.0).
-    ("clean_links", "{74145f27-f039-47ce-a470-a662b129930a}", "clearurls"),
+    // Cookie pop-ups and tracking links are Firefox's own work, and *More sites* formicaria's own
+    // add-on's (DuckDuckGo's cookie rules) with a wider strip list: Consent-O-Matic and ClearURLs
+    // are no longer installed (`privacy-plan-2026-11-19.md` 5.1; `formicaria.cfg`'s `RETIRED_ADDONS`).
     // Block ads: uBlock Origin (GPL-3.0).
     ("ads", UBLOCK_ID, "ublock-origin"),
 ];
@@ -47,9 +46,6 @@ pub const PRIVACY_ADDONS: &[(&str, &str, &str)] = &[
 fn switch_on(p: &fm_app::privacy::Privacy, name: &str) -> bool {
     match name {
         "ddg" => p.ddg,
-        // Firefox's own protection does these; the extensions only for *more sites* (L1, 2026-11-18).
-        "cookies" => p.cookies && p.more_sites,
-        "clean_links" => p.clean_links && p.more_sites,
         "ads" => p.ads,
         _ => false,
     }
@@ -69,6 +65,9 @@ pub const EXTENSION_ROUTES: &[&str] = &[
     // (`decisions.md` 2026-11-15, late night): both read-only.
     "/api/page_notes",
     "/api/search",
+    // This device's privacy switches, read-only: the add-on runs the cookie rules for *More sites*
+    // only while they are on (`privacy-plan-2026-11-19.md` 5.1).
+    "/api/privacy",
     // **Bring in = put** (`actions.rs`, `decisions.md` 2026-11-17): the add-on writes a piece into a
     // note on the server, the one way content moves in; open or not.
     "/api/put",
@@ -607,6 +606,11 @@ pub fn launch(url: &str, xpi: &[u8], server: &str) -> Result<(), String> {
     // A copy prepared in the background (a newer kit, a security point release) goes in now, while
     // nothing runs: two renames, no wait (`browser-plan` §16).
     crate::browser_kit::swap_in_prepared(&d);
+    // **And this formicaria's kit, in place, before the browser opens** (2026-11-19; the owner, after
+    // 0.55.0's Settings was nowhere: *"One should update and have everything there automatically"*).
+    // Without it the first start after an update opened the previous kit, and the new one was only
+    // prepared afterwards, for the start after that.
+    crate::browser_kit::refresh_kit(&d);
     prepare(&d, xpi, server)?;
     let url = start_address(&d.join("profile"), crate::browser_kit::running(&d), url);
     let started = std::process::Command::new(firefox_bin(&d))
@@ -652,6 +656,10 @@ pub fn status(st: &BrowserState) -> Value {
         "web_push": prefs.web_push,
         "side_tabs": prefs.side_tabs,
         "running": d.as_deref().is_some_and(crate::browser_kit::running),
+        // The browser's files are this formicaria's (its Settings button and the rest): the pages show
+        // their own ⚙ while not (`Feature.svelte`).
+        "kit_current": d.as_deref().and_then(crate::browser_kit::applied_stamp).as_deref()
+            == Some(crate::browser_kit::kit_stamp().as_str()),
         "folder": d.map(|p| p.display().to_string()),
     })
 }
@@ -839,7 +847,7 @@ mod tests {
     /// defaults install no extension at all; cookie pop-ups and tracking links bring theirs only
     /// with *More sites*.
     #[test]
-    fn the_defaults_install_no_extension_and_more_sites_brings_two() {
+    fn the_defaults_install_no_extension_and_more_sites_brings_none_either() {
         let ext = |p: &fm_app::privacy::Privacy| {
             policies(Path::new("/x"), "K", "http://127.0.0.1:8765", &Prefs::default(), p)
                 ["policies"]["ExtensionSettings"]
@@ -847,17 +855,20 @@ mod tests {
         };
         let d = fm_app::privacy::Privacy::default();
         assert!(d.cookies && d.clean_links && !d.more_sites);
-        let none = ext(&d);
-        for (switch, id, _) in PRIVACY_ADDONS {
-            assert!(none.get(id).is_none(), "{switch} installs nothing by default");
+        for p in [d.clone(), fm_app::privacy::Privacy { more_sites: true, ..d.clone() }] {
+            let got = ext(&p);
+            for (switch, id, _) in PRIVACY_ADDONS {
+                assert!(got.get(id).is_none(), "{switch} installs nothing");
+            }
+            for retired in ["gdpr@cavi.au.dk", "{74145f27-f039-47ce-a470-a662b129930a}"] {
+                assert!(got.get(retired).is_none(), "{retired} is never installed again");
+            }
         }
-        let more = ext(&fm_app::privacy::Privacy { more_sites: true, ..d.clone() });
-        for (switch, id, _) in PRIVACY_ADDONS {
-            let want = matches!(*switch, "cookies" | "clean_links");
-            assert_eq!(more.get(id).is_some(), want, "{switch} with more sites");
-        }
-        let off = ext(&fm_app::privacy::Privacy { more_sites: true, cookies: false, ..d });
-        assert!(off.get("gdpr@cavi.au.dk").is_none(), "no pop-up refusing, no extension for it");
+        let cfg = include_str!("../../../browser/kit/formicaria.cfg");
+        assert!(
+            cfg.contains("RETIRED_ADDONS") && cfg.contains("gdpr@cavi.au.dk"),
+            "and the kit removes them"
+        );
     }
 
     #[test]
@@ -900,7 +911,8 @@ mod tests {
         assert!(!user_js().contains("user_pref"));
         let cfg = include_str!("../../../browser/kit/formicaria.cfg");
         for want in [
-            "defaultPref(\"browser.contentblocking.category\", \"strict\")",
+            // Strict is set by changing the category (2026-11-19): a default left it "custom".
+            "Services.prefs.setStringPref(\"browser.contentblocking.category\", category)",
             "defaultPref(\"dom.security.https_only_mode\", true)",
             "defaultPref(\"privacy.globalprivacycontrol.enabled\", true)",
             // The Privacy sheet's switches reach Firefox's own protections (2026-11-17).

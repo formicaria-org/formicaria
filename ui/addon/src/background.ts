@@ -1347,3 +1347,48 @@ function paint() {
 paint();
 globalThis.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', paint);
 more.runtime.onStartup.addListener(paint);
+
+// --- 2026-11-19: cookie pop-ups on more sites, without an extension ------------------------------
+
+/** **DuckDuckGo's cookie rules on every page while *More sites* is on** (`privacy-plan-2026-11-19.md`
+ *  5.1): this device's switches read from formicaria (as the startup script reads them), and the
+ *  page script (`consent.ts`) registered or taken back to match; sites with protections off are left
+ *  out. Read at the start and every 20 s: a few bytes from this machine. */
+let consentScript: { unregister(): Promise<void> } | null = null;
+let consentFor = '';
+async function syncConsent() {
+  try {
+    const c = await config();
+    const p = (await call(c.server, c.key, 'privacy', '{}', true)) as {
+      cookies?: boolean;
+      more_sites?: boolean;
+      sites_off?: string[];
+    } | null;
+    const want = !!(p?.cookies && p.more_sites);
+    const off = (p?.sites_off ?? []).filter((s) => /^[a-z0-9.-]+$/i.test(s));
+    const key = want ? JSON.stringify(off) : '';
+    if (key === consentFor) return;
+    await consentScript?.unregister().catch(() => {});
+    consentScript = null;
+    consentFor = key;
+    if (!want) return;
+    const cs = (
+      browser as unknown as {
+        contentScripts: {
+          register(o: Record<string, unknown>): Promise<{ unregister(): Promise<void> }>;
+        };
+      }
+    ).contentScripts;
+    consentScript = await cs.register({
+      matches: ['http://*/*', 'https://*/*'],
+      excludeMatches: ['http://127.0.0.1/*', ...off.flatMap((s) => [`*://${s}/*`, `*://*.${s}/*`])],
+      js: [{ file: '/consent.js' }],
+      runAt: 'document_start',
+      allFrames: false,
+    });
+  } catch {
+    /* formicaria not reachable yet: asked again shortly */
+  }
+}
+void syncConsent();
+setInterval(() => void syncConsent(), 20000);

@@ -27,15 +27,17 @@ function tell(p: ipc.Privacy) {
   } catch {
     /* an older shell: it keeps its own defaults */
   }
-  // The cookie pop-up script (`ui/page/consent.ts`, built into `dist/page/`), once.
+  // The scripts the pages run (`ui/page/`, built into `dist/page/`), once: the cookie pop-ups, and
+  // the lists' procedural hide rules, and the fingerprinting defence.
   if (!scriptGiven && s.pageScript) {
     scriptGiven = true;
-    void fetch('/page/consent.js')
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
-      .then((t) => s.pageScript?.('consent', t))
-      .catch(() => {
-        scriptGiven = false;
-      });
+    for (const name of ['consent', 'procedural', 'fingerprint'])
+      void fetch(`/page/${name}.js`)
+        .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+        .then((t) => s.pageScript?.(name, t))
+        .catch(() => {
+          scriptGiven = false;
+        });
   }
 }
 

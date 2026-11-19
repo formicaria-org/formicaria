@@ -17,6 +17,7 @@ and **Settings → Privacy** on both.
 | **Clean tracking links** | Tracking parts of an address (`utm_…`, `fbclid`, `gclid`…) are taken off before the page opens. | yes |
 | **Tell sites not to sell or share** | Global Privacy Control: a signal that sites must honour in some places (California, parts of the EU). | yes |
 | **Secure connections only** | Pages open over https. A site with no secure version shows a page first, with **Open it anyway, this time**. | yes |
+| **Encrypted lookups** | Which sites you open is hidden from your network: the names are looked up over an encrypted connection, by Quad9 (or Mullvad DNS). That service sees the names instead. *The network's own* turns it off. On a computer, formicaria's browser; on the phone, the apps covered by *Block trackers in other apps*. | Quad9 |
 | **Block trackers in other apps** | The whole phone: see below. | no |
 
 **On the page in front** (the phone), the sheet says what the protections did there: how many
@@ -28,19 +29,24 @@ and its subdomains. The sites are listed in the sheet, each with **Protect again
 **Forget web data** (🔥) forgets every web page's cookies, stored data, cache and history on this
 device, after asking. Your notes, the files you kept, and formicaria's own settings stay.
 
-**On a computer, Firefox's own protection does the work**: its strict tracking protection, its
-cookie banner reduction and its stripping of tracking parts from links. Extensions are added only
-where you ask (all Mozilla-Recommended, open source, from addons.mozilla.org), installed while their
-switch is on and removed when it is off:
+**On a computer, Firefox's own protection does the work**: its strict tracking protection (which
+also blocks known fingerprinting scripts, gives fingerprinting scripts made-up answers, and stops
+trackers that bounce you through their own sites), its cookie banner reduction, and its stripping of
+tracking parts from links (with formicaria's longer list of them). **More sites** adds DuckDuckGo's
+cookie pop-up rules, run by formicaria's own add-on. Extensions are added only where you ask (open
+source, from addons.mozilla.org), installed while their switch is on and removed when it is off:
 
 - **Block ads** → uBlock Origin;
-- **More sites, with extensions** → Consent-O-Matic and ClearURLs, for the cookie pop-ups and
-  tracking links Firefox's own lists miss;
 - **DuckDuckGo's protections too** → DuckDuckGo Privacy Essentials, its own tracker list on top of
   Firefox's.
 
-Each extension costs memory (with the two of *More sites* the browser measured about a fifth more),
-so they start off. An extension you installed yourself is never removed.
+An extension you installed yourself is never removed.
+
+**On the phone**, formicaria's pages are protected by the same lists people use with uBlock Origin
+(EasyList, EasyPrivacy, uBlock Origin's own and Peter Lowe's), with uBlock Origin's harmless
+stand-ins for refused scripts, so pages break less. Tracking links are cleaned: tracking parts taken
+off, and a tracker's redirect (a link through `google.com/url`, `l.facebook.com`…) skipped straight
+to where it goes.
 
 On a computer, the switches reach formicaria's browser within a few seconds. Firefox's own
 settings stay yours: formicaria changes one only when you change its switch here.
@@ -51,12 +57,31 @@ Trackers inside your *other* apps are refused for the whole phone: formicaria ru
 answers the phone's address lookups and refuses the addresses of known trackers. Nothing leaves the
 phone. Only in the F-Droid build of formicaria.
 
+Its lists are made for apps: DuckDuckGo's app tracker list, EasyPrivacy and Peter Lowe's, fetched
+by the phone (none is inside the app). A tracker hidden behind another name is refused too. The
+lookups it lets through go encrypted to the service chosen in **Encrypted lookups**.
+
 - **One VPN at a time:** while it is on, another VPN (for work or privacy) cannot run.
 - Android shows its key icon while it is on, and asks once for permission.
-- An app that finds its servers by its own private lookup is not seen.
+- **Android's Private DNS** set to a provider sends every app's lookups there, past the block: the
+  sheet says so. Set it to Automatic or Off to use the block.
+- An app that looks addresses up through its own encrypted service is not seen. **Stop apps going
+  around the block** refuses those services, so the app uses the phone's lookups; an app that
+  insists can stop working, and can be let through.
+
+## What is not protected
+
+- **Your address (IP)**: sites still see where you connect from. That is a VPN's or Tor's work.
+- **Your browser's fingerprint, fully**: formicaria's browser blocks known fingerprinting scripts and
+  gives the rest made-up answers to the usual questions, but does not make every browser look the
+  same, as Tor Browser does. On the phone, pages that read a drawing, a 3D drawing or a sound to
+  tell your phone apart get tiny made-up differences, the same on that site and different on every
+  other (new each time the fire button is pressed), while *Block trackers* is on.
+- **On an iPhone** formicaria opens web pages in Safari, whose own protection applies.
 
 ## What formicaria itself sends
 
-Nothing about you: no telemetry, no account. These features add two kinds of contact, each only
-when its switch is on: the block lists are downloaded from their publishers about once a week, and
-the media tools update themselves (see [Saving media](./media.md)).
+Nothing about you: no telemetry, no account. These features add contact, each only while its
+switch is on: the block lists are downloaded from their publishers (about weekly; uBlock Origin's
+quick fixes daily), the names of the sites you open go to the encrypted-lookup service you chose
+(Quad9 at first), and the media tools update themselves (see [Saving media](./media.md)).

@@ -72,6 +72,8 @@ fm-block = { path = "../../crates/fm-block" }
 # Save media's MP3 and tags without ffmpeg (35 MB less in the APK; `decisions.md` 2026-11-17).
 fm-audio = { path = "../../crates/fm-audio" }
 jni = "0.21"
+# The stand-ins handed to the page views as base64 (`src/block.rs`); already in the tree through `adblock`.
+base64 = "0.22"
 
 # Myrme takes `fm-fetch` from formicaria by tag; this shell builds against the crate in this checkout,
 # so the two are one (the desktop workspace has the same patch).

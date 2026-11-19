@@ -15739,3 +15739,83 @@ The owner: *"brainstorm ways to lean the fm"*, then *"plan and execute"* (`lean-
    7 MB in the APK), Excalidraw for the whiteboard (and so React, 2.8 MB of the bundle), and both the
    phone's Python for Save media (14 MB) and its assistant (18 MB). Lean work goes elsewhere first.
 
+
+## 2026-11-19 — an update brings everything at once: the browser's kit before it opens `#ui` `#toolchain`
+
+The owner, after updating to 0.55.0 and finding Settings nowhere (it had moved into the browser's
+tab row as a kit button, and the page's own link was taken away): *"it is not normal to have all
+these issues, to wait for multiple loads to get the features. One should update and have everything
+there automatically and in a reasonable time. Full stop."* The rule, for every part that updates
+apart from the program (kit, add-on, lists): **live with the update itself, never at a later start.**
+
+1. **Every start brings the kit up to date before the browser opens** (`browser::launch` →
+   `refresh_kit`): the files written again in place, a few hundred ms. Before, only the relaunch after
+   an in-app update did it; a plain start opened the previous kit and prepared the new one (a whole
+   ESR copy into `firefox.next`) afterwards, for the start after that. The in-app update path
+   (`watchBuild` → `/api/browser_relaunch` → `relaunch_when_closed`) already refreshed it.
+2. **Settings is never nowhere**: `browser_status` says `kit_current`, and a feature page shows its
+   own **⚙ Settings** while the window cannot (formicaria's browser not the one open, or on an older
+   kit). Refines *Settings top right* (2026-11-18): the tab row's button stays the one door when present.
+3. **The restart notice is on the feature pages** (`BrowserRestartBanner`; it had stayed in the
+   whole-app page the computer stopped showing in 0.49). It is now only for a Firefox security point
+   release prepared while the browser runs.
+4. **The update path is checked**: `usability-check`'s *someone who just updated* starts the browser
+   on the previous release's kit (from its tag) and requires this kit in place at the first start,
+   Settings drawn and working, nothing waiting. Without point 1 it fails (tried).
+
+**The four questions.** `#ui`, `#toolchain`. Extends *formicaria's browser is a kit applied to
+Mozilla's ESR* (2026-11-15, evening) and *Settings top right* (2026-11-18). Widens nothing that ships.
+
+## 2026-11-19 (later) — stronger privacy on every platform, as built `#ui` `#toolchain` `#data`
+
+The owner, after a comparison with the state of the art: *"I guess we can still improve … finish the
+privacy plan after replanning it in detail"*, *"and then release"*. Plan, measures and the list
+registry: `privacy-plan-2026-11-19.md`; coverage: `privacy-baseline-2026-11.md`.
+
+1. **Formicaria's browser was never really in strict mode** (found by the new privacy persona): the
+   kit made "strict" a *default*, and Firefox sets a category's protections only when the category
+   *changes*, so they stayed at standard and Firefox called it "custom". The kit now changes the
+   category as the *Block trackers* switch says (`RULES` 4: every browser applies it once more).
+   Refines *privacy switches* (2026-11-17, point 1) and the self-check (`strictApplied`).
+2. **Encrypted lookups, on by default** (owner): `Privacy::dns`, Quad9 (Mullvad DNS, or the network's
+   own, offered). The computer's browser uses Firefox's DNS over HTTPS (mode 2, the system's as
+   fallback); the phone's app blocker sends the lookups it lets through by DNS over HTTPS. **A new
+   contact by default**: the names of the sites opened reach the chosen service.
+3. **The phone's pages at Brave's level**, with the same engine: + uBlock Origin's lists (filters,
+   Privacy, Unbreak, Quick fixes, Badware) and Peter Lowe's; uBlock Origin's **stand-ins** carried in
+   the APK (`mobile/src-tauri/block/`, GPL-3.0 like the APK; `pixi run block-resources`); procedural
+   hiding (`ui/page/procedural.ts`, the engine's `css-validation`); link cleaning by the lists'
+   `$removeparam` and Brave's **debounce** rules plus formicaria's own few; service-worker requests
+   checked; `Sec-Fetch-Dest` for a request's type; no `X-Requested-With`; third-party cookies refused.
+   **Scriptlets** (153, registered per origin at document start, so a site's CSP cannot refuse them):
+   `pixi run block-resources` runs uBlock Origin's own source (a pinned tag, its archive's SHA-256
+   checked) in Node to read them, as Brave's packager does (owner, 2026-11-19: *"yes, run
+   block-resources for the scriptlets too"*). 429 KB in the APK with the 46 stand-ins.
+4. **The app blocker has lists made for apps** (`fm_block::hosts`): EasyPrivacy's whole-site rules,
+   **DuckDuckGo's app tracker list** and Peter Lowe's. Both of the latter are **non-commercial**
+   (CC BY-NC-SA 4.0; McRae GPL): fetched by the phone at run time for its own use, never in the APK
+   (owner: *DuckDuckGo's too*). A tracker behind a CNAME is refused; answers kept for their TTL; IPv6
+   lookups answered; **Private DNS set to a provider is detected and said** (the block cannot see
+   lookups then). **Stop apps going around the block** (`Privacy::around`, off): HaGeZi's list of
+   public encrypted-DNS services refused.
+5. **More sites installs no extension**: DuckDuckGo's cookie rules run by formicaria's own add-on
+   (registered only while the switch is on), and Firefox strips 289 more tracking parts plus the
+   `utm_*` in use (`privacy.query_stripping.strip_list`). Consent-O-Matic and ClearURLs are removed
+   where formicaria installed them (`RETIRED_ADDONS`). Reverses *lean L1* point 2's extensions.
+6. **Ads on the computer stay a switch, off**: Firefox's built-in `adblock-rust` (ESR 153's
+   `ContentClassifier`) was tried and, with the preferences it exposes, refused nothing; uBlock Origin
+   measured warm **+47.8 %** (1127 MB against 762 MB), over the +10 % budget (the owner: on by
+   default only within it). With the default switches, strict really on and DNS over HTTPS: **+1.7 %**. `browser-check` takes `FM_CHECK_PRIVACY` to measure with other switches.
+7. **One list registry** (`fm_block::lists`): every list's address, licence, interval and use, the
+   phone's fetching read from it; a test keeps `THIRD-PARTY.md` naming each, and refuses a
+   non-commercial list marked as shipped.
+8. **The iPhone shows no page inside the app** (links go to Safari, whose own protection applies):
+   nothing to block there; the manual says so.
+9. **The phone's pages answer fingerprinting with made-up detail** (`ui/page/fingerprint.ts`, Brave's
+   "farbling"): canvas, WebGL and audio readings changed invisibly, the same on a site for a session
+   and different between sites, keyed by a per-session secret the fire button renews; the graphics
+   card's name not given. While *Block trackers* is on.
+
+**The four questions.** `#ui`, `#toolchain`, `#data`. **Widens what ships and what is sent**: lists
+fetched (uBlock Origin's, Peter Lowe's, DuckDuckGo's app list, Brave's debounce, HaGeZi's), uBlock
+Origin's stand-ins and scriptlets in the APK (429 KB), the engine's CSS parser, and lookups to Quad9 by default.

@@ -3,9 +3,25 @@ name = "fm-block"
 version = "0.1.0"
 edition.workspace = true
 license = "MIT"
-description = "Ad and tracker blocking for formicaria's phone page views: the community's filter lists through Brave's adblock-rust. Pure: rules in, verdicts out."
+description = "Ad and tracker blocking for formicaria: the community's filter lists through Brave's adblock-rust for page views, a name set and DNS answers for the phone-wide block, link unwrapping. Pure: rules in, verdicts out."
 
 [dependencies]
 # Brave's engine (MPL-2.0; Firefox 149 ships it). Without `single-thread`, so one engine answers
 # the page views' requests from several threads (`decisions.md` 2026-11-17).
-adblock = { version = "0.13", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+# `css-validation`: the procedural hide rules (`:has-text`…) parsed into actions, as Brave does (2026-11-19).
+adblock = { version = "0.13", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling", "css-validation"] }
+# Already in the build through `adblock`: the stand-ins' bytes, the debounce rules, the lists' JSON.
+base64 = "0.22"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+percent-encoding = "2"
+
+[features]
+# Only for `pixi run block-resources` (the `assemble` example): uBlock Origin's stand-ins read from
+# its source tree. Never in the app.
+assemble = ["adblock/resource-assembler"]
+
+[[example]]
+name = "assemble"
+required-features = ["assemble"]

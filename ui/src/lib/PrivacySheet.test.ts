@@ -120,7 +120,7 @@ it('other apps’ trackers are offered only where the build can block them', asy
 
 it('the web field searches the engine chosen', async () => {
   render(PrivacySheet);
-  const pick = (await screen.findByRole('combobox')) as HTMLSelectElement;
+  const pick = (await screen.findByRole('combobox', { name: /Search with/ })) as HTMLSelectElement;
   await fireEvent.change(pick, { target: { value: 'mojeek' } });
   await waitFor(async () =>
     expect(((await mock.handle('privacy', {})) as { search: string }).search).toBe('mojeek'),
@@ -133,4 +133,48 @@ it('the web field searches the engine chosen', async () => {
     screen.getByRole('button', { name: 'Search the web for “leafcutter ants”' }),
   );
   await waitFor(() => expect(went).toContain('mojeek.com/search?q=leafcutter%20ants'));
+});
+
+// **Encrypted lookups, on by default** (the owner, 2026-11-19), and the resolver chosen.
+it('lookups go encrypted to Quad9 at first, and another resolver can be chosen', async () => {
+  render(PrivacySheet);
+  const pick = (await screen.findByRole('combobox', {
+    name: 'Encrypted lookups',
+  })) as HTMLSelectElement;
+  expect(pick.value).toBe('quad9');
+  expect([...pick.options].map((o) => o.value)).toEqual(['quad9', 'mullvad', 'network']);
+  await fireEvent.change(pick, { target: { value: 'mullvad' } });
+  await waitFor(async () =>
+    expect(((await mock.handle('privacy', {})) as { dns: string }).dns).toBe('mullvad'),
+  );
+  expect(JSON.parse(told.at(-1)!).dns).toBe('mullvad');
+});
+
+// **What the app block cannot see, said** (`privacy-plan-2026-11-19.md` 2.6), and the switch that
+// stops apps going around it (4.3), offered once the block is on.
+it('the app block warns when Private DNS hides lookups, and offers to stop apps going around it', async () => {
+  g.__fmPage = { privacy: () => {}, vpn: () => true };
+  g.__fmVpn = {
+    state: () =>
+      JSON.stringify({ on: true, apps: [], allowed: [], ready: true, private_dns: 'dns.example' }),
+    allow: () => {},
+  };
+  try {
+    render(PrivacySheet, { vpn: true });
+    expect(screen.queryByRole('switch', { name: 'Stop apps going around the block' })).toBeNull();
+    await fireEvent.click(
+      await screen.findByRole('switch', { name: 'Block trackers in other apps' }),
+    );
+    expect((await screen.findByRole('alert')).textContent).toContain('dns.example');
+    const around = (await screen.findByRole('switch', {
+      name: 'Stop apps going around the block',
+    })) as HTMLInputElement;
+    expect(around.checked).toBe(false);
+    await fireEvent.click(around);
+    await waitFor(async () =>
+      expect(((await mock.handle('privacy', {})) as { around: boolean }).around).toBe(true),
+    );
+  } finally {
+    delete g.__fmVpn;
+  }
 });

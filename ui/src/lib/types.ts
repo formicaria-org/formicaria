@@ -1497,6 +1497,8 @@ export interface BrowserStatus {
   update_ready?: boolean;
   /** formicaria's browser is open right now (an update then waits for its restart). */
   running?: boolean;
+  /** The browser's files are this formicaria's: its tab row carries ⚙ Settings. */
+  kit_current?: boolean;
   /** Sites may notify while their tab is closed (off by default). */
   web_push?: boolean;
   /** Tabs down the side (always shown) instead of across the top. */

@@ -39,21 +39,39 @@ it('a feature shows its views as a strip, and a card opens its note in a tab of 
   expect(opened.mock.calls[0]?.[0]).toMatch(/^\/f\/note\/[0-9A-Z]{26}$/);
 });
 
-// Help from every view. Settings is not here: it is at the right end of the browser's tab row, on
-// every tab (the owner, 2026-11-18: *"why not simply add settings on top right … why embed it only
-// on one page?"*; `browser/kit/formicaria.cfg`, checked by `browser-check`).
+// Help from every view. Settings is the window's, at the right end of the browser's tab row, on every
+// tab (the owner, 2026-11-18: *"why not simply add settings on top right … why embed it only on one
+// page?"*; `browser/kit/formicaria.cfg`, checked by `browser-check`) — and the page's own only while
+// the window cannot show it (2026-11-19: after an update the owner found Settings nowhere).
+const linkIn = (strip: HTMLElement, name: string) =>
+  [...strip.querySelectorAll('a')].find((a) => a.textContent?.trim() === name);
+
 it.each(['/f/group/Tasks', '/f/group/Library', '/f/collaboration', '/f/agenda'])(
-  '%s offers Help, and leaves Settings to the window',
+  '%s offers Help, and leaves Settings to a window that has it',
   async (url) => {
+    mock.setBrowserRunning(true, true);
     history.replaceState(null, '', url);
     render(Feature);
     const strip = await screen.findByRole('navigation', { name: /views/ });
-    const link = (name: string) =>
-      [...strip.querySelectorAll('a')].find((a) => a.textContent?.trim() === name);
-    expect(link('Settings')).toBeUndefined();
-    expect(link('Help')?.getAttribute('href')).toBe('/manual/');
+    // The answer about the window has come (a tick), and still no Settings of its own.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(linkIn(strip, '⚙ Settings')).toBeUndefined();
+    expect(linkIn(strip, 'Help')?.getAttribute('href')).toBe('/manual/');
   },
 );
+
+it.each([
+  ['formicaria’s browser still on an older kit', true, false],
+  ['another browser showing the page', false, false],
+])('Settings is on the page itself when the window has none: %s', async (_, running, kit) => {
+  mock.setBrowserRunning(running, kit);
+  history.replaceState(null, '', '/f/group/Library');
+  render(Feature);
+  const strip = await screen.findByRole('navigation', { name: /views/ });
+  await vi.waitFor(() =>
+    expect(linkIn(strip, '⚙ Settings')?.getAttribute('href')).toBe('/f/settings'),
+  );
+});
 
 // The owner on 0.52: *"how are notes added? The plus disappeared from every view"*.
 it('every view offers a new note, opened in a tab of its own', async () => {

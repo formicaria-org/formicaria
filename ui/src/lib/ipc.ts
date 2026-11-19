@@ -1199,10 +1199,15 @@ export interface Privacy {
   app_trackers: boolean;
   ddg: boolean;
   more_sites: boolean;
+  /** Where lookups go: a key of `resolvers` (Quad9 by default; `network`: unencrypted, as before). */
+  dns: string;
+  /** The phone: public encrypted-DNS services refused, so apps cannot go around the block. */
+  around: boolean;
   sites_off: string[];
   fired: number;
   v: number;
   engines: { key: string; name: string; url: string }[];
+  resolvers: { key: string; name: string; url: string }[];
 }
 export type PrivacyChange = Partial<
   Pick<
@@ -1217,6 +1222,8 @@ export type PrivacyChange = Partial<
     | 'app_trackers'
     | 'ddg'
     | 'more_sites'
+    | 'dns'
+    | 'around'
   >
 > & { site_off?: string; site_on?: string; fire?: boolean };
 export const privacy = () => invoke<Privacy>('privacy');

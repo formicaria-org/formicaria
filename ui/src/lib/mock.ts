@@ -90,6 +90,8 @@ const freshPrivacy = () => ({
   app_trackers: false,
   ddg: false,
   more_sites: false,
+  dns: 'quad9',
+  around: false,
   sites_off: [] as string[],
   fired: 0,
   v: 0,
@@ -99,6 +101,11 @@ const freshPrivacy = () => ({
     { key: 'brave', name: 'Brave Search', url: 'https://search.brave.com/search?q=%s' },
     { key: 'mojeek', name: 'Mojeek', url: 'https://www.mojeek.com/search?q=%s' },
     { key: 'kagi', name: 'Kagi', url: 'https://kagi.com/search?q=%s' },
+  ],
+  resolvers: [
+    { key: 'quad9', name: 'Quad9', url: 'https://dns.quad9.net/dns-query' },
+    { key: 'mullvad', name: 'Mullvad DNS', url: 'https://dns.mullvad.net/dns-query' },
+    { key: 'network', name: "The network's own (not encrypted)", url: '' },
   ],
 });
 let mockPrivacy = freshPrivacy();
@@ -628,6 +635,7 @@ let mockBrowser = {
   pinned: '153.7.0esr',
   update_ready: false,
   running: false,
+  kit_current: false,
   busy: false,
   phase: '',
   done: 0,
@@ -883,7 +891,14 @@ const FIXTURE_VAULTS = JSON.parse(JSON.stringify(mockVaults)) as typeof mockVaul
 /// so a test that turned the agent on, or refused a recording, silently changed the starting
 /// conditions of every later test in the same file. That is the precise trap the comment on
 /// `clearFaults` warns about, reintroduced by the function written to fix it.
+/// Test-only: formicaria's browser open (or not) with this formicaria's kit (or an older one), as
+/// `browser_status` says it; what decides whether a page shows its own ⚙ Settings.
+export function setBrowserRunning(running: boolean, kitCurrent: boolean): void {
+  mockBrowser = { ...mockBrowser, running, kit_current: kitCurrent };
+}
+
 export function reset(): void {
+  mockBrowser = { ...mockBrowser, running: false, kit_current: false };
   mockDeleted.length = 0;
   mockClockZone = '';
   mockPrivacy = freshPrivacy();
@@ -3037,6 +3052,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           throw new Error(`no search engine called ${c.search}`);
         mockPrivacy.search = c.search;
       }
+      if (typeof c.dns === 'string') {
+        if (!mockPrivacy.resolvers.some((r) => r.key === c.dns))
+          throw new Error(`no resolver called ${c.dns}`);
+        mockPrivacy.dns = c.dns;
+      }
       for (const k of [
         'trackers',
         'ads',
@@ -3047,6 +3067,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         'app_trackers',
         'ddg',
         'more_sites',
+        'around',
       ] as const)
         if (typeof c[k] === 'boolean') mockPrivacy[k] = c[k] as boolean;
       const site = (x: unknown) =>

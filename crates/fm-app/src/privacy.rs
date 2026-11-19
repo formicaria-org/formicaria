@@ -21,6 +21,16 @@ pub const ENGINES: &[(&str, &str, &str)] = &[
     ("kagi", "Kagi", "https://kagi.com/search?q=%s"),
 ];
 
+/// **Where address lookups go** (`privacy-plan-2026-11-19.md` 4.2, 5.3; the owner, 2026-11-19:
+/// encrypted, on by default): `(key, name, DNS-over-HTTPS address)`. `network` is the network's own
+/// resolver, unencrypted, as before. On the phone it serves the app blocker (while on); on the
+/// computer, formicaria's browser (Firefox's DNS over HTTPS, the system's lookups as fallback).
+pub const RESOLVERS: &[(&str, &str, &str)] = &[
+    ("quad9", "Quad9", "https://dns.quad9.net/dns-query"),
+    ("mullvad", "Mullvad DNS", "https://dns.mullvad.net/dns-query"),
+    ("network", "The network's own (not encrypted)", ""),
+];
+
 /// This device's choices. Every field has its default, so a file from an older version (or none)
 /// reads as the defaults for what it does not say.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,6 +63,12 @@ pub struct Privacy {
     /// and its query stripping); on, Consent-O-Matic and ClearURLs are added for the sites Firefox's
     /// lists miss. Off by default: a warm start measured +23 % memory with both, against Firefox.
     pub more_sites: bool,
+    /// Where lookups go: a key of [`RESOLVERS`]. Quad9 by default (the owner, 2026-11-19).
+    pub dns: String,
+    /// The phone: *Stop apps going around the block*: the names of public encrypted-DNS services
+    /// refused, so apps use the phone's lookups (which the block sees). Off by default: an app that
+    /// insists on its own can break.
+    pub around: bool,
     /// Sites with every protection off (host names, lower case), because they broke.
     pub sites_off: Vec<String>,
     /// How many times the fire button was pressed: the browser forgets when this moves.
@@ -74,6 +90,8 @@ impl Default for Privacy {
             app_trackers: false,
             ddg: false,
             more_sites: false,
+            dns: "quad9".into(),
+            around: false,
             sites_off: Vec::new(),
             fired: 0,
             v: 0,
@@ -122,6 +140,12 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
         }
         p.search = s.to_string();
     }
+    if let Some(s) = change.get("dns").and_then(Value::as_str) {
+        if !RESOLVERS.iter().any(|(k, ..)| *k == s) {
+            return Err(format!("no resolver called {s}"));
+        }
+        p.dns = s.to_string();
+    }
     for (k, slot) in [
         ("trackers", &mut p.trackers),
         ("ads", &mut p.ads),
@@ -132,6 +156,7 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
         ("app_trackers", &mut p.app_trackers),
         ("ddg", &mut p.ddg),
         ("more_sites", &mut p.more_sites),
+        ("around", &mut p.around),
     ] {
         if let Some(b) = change.get(k).and_then(Value::as_bool) {
             *slot = b;
@@ -172,6 +197,10 @@ pub fn answer(p: &Privacy) -> Value {
         .iter()
         .map(|(key, name, url)| json!({ "key": key, "name": name, "url": url }))
         .collect();
+    v["resolvers"] = RESOLVERS
+        .iter()
+        .map(|(key, name, url)| json!({ "key": key, "name": name, "url": url }))
+        .collect();
     v
 }
 
@@ -185,7 +214,8 @@ mod tests {
         assert_eq!(p.search, "duckduckgo");
         assert!(p.trackers && p.cookies && p.clean_links && p.gpc && p.https_only);
         assert_eq!(p.ads, cfg!(target_os = "android"));
-        assert!(!p.app_trackers);
+        assert!(!p.app_trackers && !p.around);
+        assert_eq!(p.dns, "quad9", "encrypted lookups by default (the owner, 2026-11-19)");
         // An older or partial file reads as the defaults for what it does not say.
         let old: Privacy = serde_json::from_str(r#"{"gpc": false}"#).unwrap();
         assert!(!old.gpc && old.trackers && old.search == "duckduckgo");
@@ -214,6 +244,22 @@ mod tests {
         assert_eq!(p.sites_off.len(), 1, "not twice");
         let p = apply(p, &json!({ "site_on": "http://example.org/" })).unwrap();
         assert!(p.sites_off.is_empty());
+    }
+
+    #[test]
+    fn the_resolver_is_one_of_the_offered() {
+        let p = apply(Privacy::default(), &json!({ "dns": "mullvad", "around": true })).unwrap();
+        assert_eq!(p.dns, "mullvad");
+        assert!(p.around);
+        assert!(apply(p, &json!({ "dns": "8.8.8.8" })).is_err());
+        for (k, _, url) in RESOLVERS {
+            assert!(
+                url.is_empty() == (*k == "network")
+                    && (url.is_empty() || url.starts_with("https://")),
+                "{k}"
+            );
+        }
+        assert_eq!(answer(&Privacy::default())["resolvers"][0]["key"], "quad9");
     }
 
     #[test]

@@ -694,6 +694,12 @@ the app before anything is fetched and recorded per model in `models.toml`.
 | AndroidX Media3 (ExoPlayer, session) | inside the Android app | Apache-2.0 | <https://github.com/androidx/media> |
 | DuckDuckGo autoconsent (cookie pop-up rules) | inside the Android app's page script | MPL-2.0 | <https://github.com/duckduckgo/autoconsent> |
 | EasyList, EasyPrivacy | downloaded on the phone, weekly, when blocking is on | GPL-3.0 / CC BY-SA 3.0 | <https://easylist.to> |
+| uBlock filters, uBlock filters – Privacy, uBlock filters – Unbreak, uBlock filters – Quick fixes, uBlock filters – Badware risks, AdGuard/uBO – URL Tracking Protection | downloaded on the phone when blocking or link cleaning is on | GPL-3.0 | <https://github.com/uBlockOrigin/uAssets> |
+| uBlock Origin's resources (stand-ins and scriptlets) | inside the Android app (assembled from a pinned uBlock release) | GPL-3.0 | <https://github.com/gorhill/uBlock> |
+| Peter Lowe's ad and tracking server list | downloaded on the phone, never shipped | McRae GPL v4 (non-commercial use) | <https://pgl.yoyo.org/adservers/> |
+| Brave's debounce rules | downloaded on the phone | MPL-2.0 | <https://github.com/brave/adblock-lists> |
+| DuckDuckGo App Tracker Blocklist | downloaded on the phone while *Block trackers in other apps* is on, never shipped | CC BY-NC-SA 4.0 | <https://github.com/duckduckgo/tracker-blocklists> |
+| HaGeZi – encrypted DNS services | downloaded on the phone while *Stop apps going around the block* is on | GPL-3.0 | <https://github.com/hagezi/dns-blocklists> |
 
 ## Data carried in the binary (the food list)
 

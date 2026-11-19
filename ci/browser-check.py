@@ -497,6 +497,11 @@ def main() -> None:
         if s.get("error") or not s.get("installed"):
             fail(f"setup: {s.get('error')}")
         print(f"browser-check: set up {s.get('version')} (pinned {s.get('pinned')})")
+        # **Measured with other switches** (`privacy-plan-2026-11-19.md` 5.2): `FM_CHECK_PRIVACY` is
+        # a change to this device's switches, e.g. `{"ads": true}`, applied before the starts.
+        if os.environ.get("FM_CHECK_PRIVACY"):
+            post("/api/set_privacy", json.loads(os.environ["FM_CHECK_PRIVACY"]))
+            print(f"browser-check: privacy switches {os.environ['FM_CHECK_PRIVACY']}")
         browser = work / "config" / "formicaria" / "browser"
         ff = browser / "firefox"
 

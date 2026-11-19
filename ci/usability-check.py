@@ -13,6 +13,10 @@ profile of its own (never the owner's), against a real server with its own setti
   updates, Privacy, Save media.
 - **Someone who saved a page and reads it later** — its copy must open as a page, not a download.
 - **A keyboard user** — the new tab's field takes words and goes, without the mouse.
+- **Someone who counts on the protections** — the privacy test site (`ci/privacy_site.py`): trackers
+  refused, GPC sent, tracking parts stripped, strict's fingerprinting protection, encrypted lookups.
+- **Someone who just updated** — the browser still holds the previous release's kit; at the first
+  start the new kit must be in place, Settings in the tab row, nothing waiting for another restart.
 
 Prints each check and its result; exits 1 if any failed. Run: `pixi run usability-check`.
 """
@@ -238,7 +242,7 @@ def new_person(ff: Path, work: Path) -> None:
         # Privacy.
         goto(m, f"{SERVER}/f/privacy", 4)
         sw = wait_for(m, "const s=[...document.querySelectorAll('[role=switch]')].map(x=>x.getAttribute('aria-label')); return s.length?s:null") or []
-        for want in ["Block trackers", "Block ads", "Refuse cookie pop-ups", "Clean tracking links", "More sites, with extensions", "DuckDuckGo's protections too"]:
+        for want in ["Block trackers", "Block ads", "Refuse cookie pop-ups", "Clean tracking links", "More sites", "DuckDuckGo's protections too"]:
             check(who, f"Privacy has the switch “{want}”", want in sw, f"switches: {sw}")
 
         # Save media, with a page's embedded video.
@@ -288,6 +292,148 @@ def opening_on_a_second_day(ff: Path) -> None:
                 break
             time.sleep(0.5)
         bc.stop(ff)
+
+
+PRIVACY_PORT = 8794
+
+
+def privacy_minded(ff: Path, work: Path) -> None:
+    """**Someone who counts on the protections** (`privacy-plan-2026-11-19.md` 1.2): the privacy test
+    site (`ci/privacy_site.py`) opened in formicaria's browser as it comes, and what each protection
+    actually did there read back: trackers refused, the page's own script run, the "do not sell"
+    signal sent, tracking parts taken off a link to another site, the strict mode's fingerprinting and
+    bounce-tracking protection on, lookups encrypted to the chosen resolver, and *More sites* bringing
+    no extension."""
+    who = "someone who counts on the protections"
+    site = subprocess.Popen([sys.executable, str(ROOT / "ci" / "privacy_site.py"), str(PRIVACY_PORT)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    page = f"http://127.0.0.1:{PRIVACY_PORT}/page.html?other=http://localhost:{PRIVACY_PORT}"
+    try:
+        m = launch(ff, work / "profile-privacy", f"{SERVER}/f/group/Library")
+        applied = None
+        for _ in range(40):
+            applied = chrome(m, "return Services.prefs.getIntPref('formicaria.privacy.v', -1)")
+            if applied is not None and applied >= 0:
+                break
+            time.sleep(0.5)
+        check(who, "the privacy switches reach the browser", applied is not None and applied >= 0, f"v={applied}")
+        time.sleep(10)  # the category's protections set, and the tracker lists read
+        goto(m, page, 6)
+        fm = content(m, "return window.fm || null") or {}
+        check(who, "the page's own script runs", fm.get("app") == 1, json.dumps(fm)[:300])
+        # Firefox's own record of what it did on the page: refused, or (Google Analytics) answered by a
+        # harmless stand-in ("shimmed"), whose `onload` still fires.
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        try:
+            log = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "script": """
+              const done = arguments[arguments.length - 1];
+              Promise.resolve(gBrowser.selectedBrowser.getContentBlockingLog()).then(done, (e) => done(String(e)));"""})["value"]
+        finally:
+            m.cmd("Marionette:SetContext", {"value": "content"})
+        try:
+            entries = json.loads(log) if isinstance(log, str) else {}
+        except ValueError:
+            entries = {}
+        # STATE_BLOCKED_TRACKING_CONTENT 0x1000, …SOCIALTRACKING 0x10000, …FINGERPRINTING 0x40,
+        # STATE_REPLACED_TRACKING_CONTENT (a stand-in) 0x10, STATE_ALLOWED_TRACKING_CONTENT… not counted.
+        refused = {o for o, rows in entries.items() for r in rows if r and r[1] and (r[0] & (0x1000 | 0x10000 | 0x40 | 0x10))}
+        ga = any("google-analytics.com" in o for o in refused)
+        fb = any("facebook.net" in o for o in refused) or not fm.get("fb")
+        check(who, "trackers are refused (Facebook's pixel; Google Analytics stood in for)", ga and fb,
+              f"refused {sorted(refused)}; page {json.dumps({k: fm.get(k) for k in ('ga', 'fb')})}")
+        check(who, "sites are told not to sell or share (Sec-GPC: 1)",
+              (fm.get("headers") or {}).get("sec-gpc") == "1", json.dumps(fm.get("headers"))[:300])
+        content(m, "document.getElementById('tracked').click(); return true;")
+        time.sleep(4)
+        landed = content(m, "return location.href") or ""
+        check(who, "a link to another site loses its tracking parts", "landing.html" in landed and "id=7" in landed
+              and not any(t in landed for t in ("fbclid", "utm_source", "gclid")), landed)
+        prefs = chrome(m, """return {
+          category: Services.prefs.getStringPref('browser.contentblocking.category', ''),
+          strict: Services.prefs.getStringPref('browser.contentblocking.features.strict', ''),
+          trr: Services.prefs.getIntPref('network.trr.mode', 0),
+          uri: Services.prefs.getStringPref('network.trr.uri', ''),
+          strip: Services.prefs.getStringPref('privacy.query_stripping.strip_list', '').split(' ').length,
+        }""") or {}
+        feats = set(str(prefs.get("strict", "")).split(","))
+        check(who, "strict protection, with fingerprinting and bounce-tracking protection",
+              prefs.get("category") == "strict" and {"fpp", "btp", "qps", "fp"} <= feats, json.dumps(prefs)[:300])
+        check(who, "lookups go encrypted to Quad9 (the system's only as fallback)",
+              prefs.get("trr") == 2 and "quad9" in str(prefs.get("uri")), json.dumps(prefs)[:300])
+        check(who, "Firefox strips the wider list of tracking parts", (prefs.get("strip") or 0) > 200, json.dumps(prefs)[:300])
+        bc.post("/api/set_privacy", {"more_sites": True})
+        time.sleep(12)
+        addons = chrome(m, "return Services.prefs.getStringPref('formicaria.privacy.addons', '[]')") or "[]"
+        check(who, "More sites brings no extension", "gdpr@cavi.au.dk" not in addons and "74145f27" not in addons, addons)
+        bc.post("/api/set_privacy", {"more_sites": False})
+        try:
+            m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+        except Exception:  # noqa: BLE001 - the connection goes with the browser
+            pass
+        bc.stop(ff)
+    finally:
+        site.terminate()
+
+
+def previous_release() -> str | None:
+    """The newest release tag before this tree: what a person updating comes from."""
+    r = subprocess.run(["git", "describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD"], cwd=ROOT,
+                       capture_output=True, text=True)
+    return r.stdout.strip() or None
+
+
+def after_an_update(ff: Path) -> None:
+    """**Updated, and everything there at the first start** (2026-11-19; the owner, after 0.55.0's
+    Settings was nowhere: *"One should update and have everything there automatically and in a
+    reasonable time. Full stop."*). The browser holds the previous release's kit, as an update leaves
+    it; formicaria opens it as the launcher does, and at that first start the kit must be this one,
+    Settings in the tab row and working, and nothing left waiting for another restart."""
+    who = "after an update, at the first start"
+    bc.stop(ff)
+    tag = previous_release()
+    old = subprocess.run(["git", "show", f"{tag}:browser/kit/formicaria.cfg"], cwd=ROOT,
+                         capture_output=True, text=True).stdout if tag else ""
+    (ff / "formicaria.cfg").write_text(old or "// an older kit\n")
+    (ff / "formicaria" / "kit-stamp").write_text("0000000000000000")
+    check(who, "the browser starts on the previous release's kit", not bc.post("/api/browser_status").get("kit_current"),
+          f"kit from {tag}")
+    t0 = time.time()
+    bc.post("/api/browser_open")
+    m = bc.Marionette()
+    m.cmd("WebDriver:NewSession", {"capabilities": {}})
+    seen = "no button"
+    for _ in range(60):
+        seen = chrome(m, """
+          const b = document.getElementById('formicaria-settings');
+          if (!b) return 'no button';
+          const r = b.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 ? 'drawn' : 'not drawn';""")
+        if seen == "drawn":
+            break
+        time.sleep(0.5)
+    took = time.time() - t0
+    st = bc.post("/api/browser_status")
+    check(who, "this release's kit is in place at once", st.get("kit_current") is True, json.dumps(st)[:300])
+    check(who, "Settings is in the tab row at the first start, within 10 s", seen == "drawn" and took < 10,
+          f"{seen} after {took:.1f} s")
+    if seen == "drawn":
+        pressed = click_in_window(m, "#formicaria-settings")
+        time.sleep(3)
+        shown = chrome(m, "return window.gBrowser.selectedBrowser.currentURI.spec")
+        check(who, "and it opens Settings", pressed == "pressed" and shown.startswith(f"{SERVER}/f/settings"),
+              f"{pressed}; shown {shown}")
+    time.sleep(5)  # the background preparation, had it anything to do, has started by now
+    st = bc.post("/api/browser_status")
+    check(who, "nothing is left waiting for another restart", not st.get("update_ready"), json.dumps(st)[:300])
+    try:
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception:  # noqa: BLE001 - the connection goes with the browser
+        pass
+    for _ in range(60):
+        if not bc.procs_under(ff):
+            break
+        time.sleep(0.5)
+    bc.stop(ff)
 
 
 # **Real pages, kept through the app** (the owner, 2026-11-17: *"test with known pages with different
@@ -577,7 +723,9 @@ def main() -> None:
             shutil.copytree(TOOLS_CACHE, tools, dirs_exist_ok=True)
         personas = {
             "returning": lambda: returning_user(ff, work), "new": lambda: new_person(ff, work),
-            "second-day": lambda: opening_on_a_second_day(ff), "reader": lambda: saved_page_reader(work),
+            "second-day": lambda: opening_on_a_second_day(ff), "updated": lambda: after_an_update(ff),
+            "privacy": lambda: privacy_minded(ff, work),
+            "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),
         }
         # `FM_USABILITY_ONLY=media` runs one while working on it; a release runs them all.

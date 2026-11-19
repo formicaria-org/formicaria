@@ -28,6 +28,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import java.io.File
@@ -40,6 +41,7 @@ class MainActivity : TauriActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
+    watchServiceWorkers()
     // Extend into the cutout on both short edges, so the inset the window reports is the real
     // one rather than a letterboxed zero. Without this the page can be told there is nothing
     // there while the camera is sitting on top of it.
@@ -393,7 +395,25 @@ class MainActivity : TauriActivity() {
 
   private fun open(id: String, page: WebView, url: String) {
     val next = rewrite(id, url) ?: url
+    scriptletsFor(id, page, next)
     page.loadUrl(next, PagePrivacy.headers(next))
+  }
+
+  /** **A site's scriptlets** (`privacy-plan-2026-11-19.md` 3.3), registered for its origin before
+   *  its page opens: the page view runs them at the document's start, so the site's own rules
+   *  (its CSP) cannot refuse them. Once per origin and page; again when the switches change. */
+  private val scriptlets = HashMap<String, HashMap<String, ScriptHandler>>()
+  private fun scriptletsFor(id: String, page: WebView, url: String) {
+    if (!(PagePrivacy.trackers || PagePrivacy.ads) || PagePrivacy.off(url)) return
+    if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+    val u = try { Uri.parse(url) } catch (e: Exception) { return }
+    if (u.scheme != "https" && u.scheme != "http") return
+    val origin = "${u.scheme}://${u.authority}"
+    val mine = scriptlets.getOrPut(id) { HashMap() }
+    if (origin in mine) return
+    val code = try { Blocker.scriptlets(url) } catch (e: Throwable) { "" }
+    if (code.isEmpty()) return
+    try { mine[origin] = WebViewCompat.addDocumentStartJavaScript(page, code, setOf(origin)) } catch (e: Exception) { }
   }
 
   /** **A saved page** (a note's copy of one): read from the vault's own file, shown as it was saved,
@@ -408,9 +428,33 @@ class MainActivity : TauriActivity() {
     } catch (e: Exception) { }
   }
 
+  /** **A page's service workers ask too** (`privacy-plan-2026-11-19.md` 2.1): their requests reach
+   *  no page view's client, so they are checked here, against the page that made them (`Referer`,
+   *  else the page last opened). Set before any page view exists, as Android requires. */
+  private fun watchServiceWorkers() {
+    if (!WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE) ||
+      !WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_SHOULD_INTERCEPT_REQUEST)) return
+    try {
+      androidx.webkit.ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(
+        object : androidx.webkit.ServiceWorkerClientCompat() {
+          override fun shouldInterceptRequest(req: WebResourceRequest): android.webkit.WebResourceResponse? {
+            if (!(PagePrivacy.trackers || PagePrivacy.ads)) return null
+            val h = req.requestHeaders
+            val page = h["Referer"] ?: h["referer"] ?: pageUrls.values.lastOrNull() ?: return null
+            if (PagePrivacy.off(page)) return null
+            val u = req.url.toString()
+            val kind = Blocker.kind(u, h["Accept"] ?: h["accept"], false, h["Sec-Fetch-Dest"] ?: h["sec-fetch-dest"])
+            return Blocker.response(try { Blocker.verdict(u, page, kind) } catch (e: Throwable) { "" })
+          }
+        })
+    } catch (e: Exception) { }
+  }
+
   /** The scripts a page gets at its start, as the switches stand now (re-given when they change). */
   private fun giveScripts(id: String, page: WebView) {
     scripts.remove(id)?.forEach { it.remove() }
+    scriptlets.remove(id)?.values?.forEach { it.remove() }
+    page.url?.let { scriptletsFor(id, page, it) }
     if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
     scripts[id] = PagePrivacy.startScripts().map { WebViewCompat.addDocumentStartJavaScript(page, it, setOf("*")) }
   }
@@ -427,6 +471,8 @@ class MainActivity : TauriActivity() {
       }
     }
     pages.values.forEach { it.clearCache(true); it.clearHistory(); it.clearFormData() }
+    // A new session for the fingerprinting defence: sites' readings no longer match the old ones.
+    PagePrivacy.reseed()
     android.webkit.WebViewDatabase.getInstance(this).clearHttpAuthUsernamePassword()
     counts.clear()
   }
@@ -445,6 +491,10 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun hideNames(url: String, classes: String, ids: String): String =
       if (PagePrivacy.off(url)) "" else try { Blocker.hideNames(url, classes, ids) } catch (e: Throwable) { "" }
+
+    /// The site's procedural hide rules (`ui/page/procedural.ts` applies them), a JSON array.
+    @JavascriptInterface
+    fun procedural(url: String): String = if (PagePrivacy.off(url)) "[]" else try { Blocker.procedural(url) } catch (e: Throwable) { "[]" }
   }
 
   private fun tellApp(id: String, page: WebView) {
@@ -459,6 +509,11 @@ class MainActivity : TauriActivity() {
     page.settings.domStorageEnabled = true
     page.settings.builtInZoomControls = true
     page.settings.displayZoomControls = false
+    // **What the page view tells sites** (`privacy-plan-2026-11-19.md` 2.3): not this app's name
+    // (Android's `X-Requested-With`), and no cookies for other sites inside a page.
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
+      try { WebSettingsCompat.setRequestedWithHeaderOriginAllowList(page.settings, emptySet()) } catch (e: Exception) { }
+    CookieManager.getInstance().setAcceptThirdPartyCookies(page, false)
     page.webViewClient = object : WebViewClient() {
       override fun doUpdateVisitedHistory(view: WebView, u: String?, reload: Boolean) {
         pageUrls[id] = view.url ?: ""
@@ -481,7 +536,9 @@ class MainActivity : TauriActivity() {
           return true
         }
         if (!req.isForMainFrame || req.method != "GET") return false
-        val next = rewrite(id, u) ?: return false
+        val next = rewrite(id, u)
+        scriptletsFor(id, view, next ?: u)
+        if (next == null) return false
         view.loadUrl(next, PagePrivacy.headers(next))
         return true
       }
@@ -491,10 +548,12 @@ class MainActivity : TauriActivity() {
         val u = req.url.toString()
         val pageUrl = pageUrls[id] ?: ""
         if ((PagePrivacy.trackers || PagePrivacy.ads) && !PagePrivacy.off(pageUrl) && !req.isForMainFrame) {
-          val kind = Blocker.kind(u, req.requestHeaders["Accept"], false)
-          if (try { Blocker.check(u, pageUrl, kind) } catch (e: Throwable) { false }) {
+          val h = req.requestHeaders
+          val kind = Blocker.kind(u, h["Accept"] ?: h["accept"], false, h["Sec-Fetch-Dest"] ?: h["sec-fetch-dest"])
+          val answer = Blocker.response(try { Blocker.verdict(u, pageUrl, kind) } catch (e: Throwable) { "" })
+          if (answer != null) {
             runOnUiThread { counts.getOrPut(id) { PageCounts() }.blocked++; tellCountsSoon(id) }
-            return android.webkit.WebResourceResponse("text/plain", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))
+            return answer
           }
         }
         if (MEDIA_URL.containsMatchIn(u)) {
@@ -591,7 +650,7 @@ class MainActivity : TauriActivity() {
   }
   inner class VpnShell {
     @JavascriptInterface
-    fun state(): String = TrackerVpn.state { pkg ->
+    fun state(): String = TrackerVpn.state(this@MainActivity) { pkg ->
       try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
     }
     /// Let an app through (its trackers no longer refused), or refuse them again.
@@ -690,6 +749,26 @@ class MainActivity : TauriActivity() {
   }
 
   inner class Pages {
+    /// The pages' lists are read (until then every request goes through): the first start fetches
+    /// them, so protection begins a little after it (`phone-media-check` waits on this).
+    @JavascriptInterface
+    fun blockReady(): Boolean = try { Blocker.ready() } catch (e: Throwable) { false }
+
+    /// The engine's decision for one request (`""` through, `"-"` refused, else a stand-in's type):
+    /// what a "why was this refused" view and the phone check ask.
+    @JavascriptInterface
+    fun blockVerdict(url: String, page: String, kind: String): String =
+      try { Blocker.verdict(url, page, kind).substringBefore('\n') } catch (e: Throwable) { "error: $e" }
+
+    /// What the blocking has now (`Blocker.state`): the engine, its switches, each list's size.
+    @JavascriptInterface
+    fun blockState(): String = try {
+      val o = JSONObject(Blocker.state())
+      val c = JSONObject()
+      for ((k, v) in counts) c.put(k, v.blocked)
+      o.put("counts", c).toString()
+    } catch (e: Throwable) { "{}" }
+
     /// Draw the item's page over that box (the app's CSS pixels), opening it at `url` the first time.
     @JavascriptInterface
     fun show(id: String, url: String, x: Double, y: Double, w: Double, h: Double) {
@@ -751,7 +830,10 @@ class MainActivity : TauriActivity() {
     fun privacy(json: String) {
       val fire = try { PagePrivacy.update(json) } catch (e: Exception) { false }
       // The phone-wide block asks the same engine, with the trackers' list.
-      try { Blocker.configure(PagePrivacy.trackers || PagePrivacy.appTrackers, PagePrivacy.ads) } catch (e: Throwable) { }
+      try {
+        Blocker.configure(PagePrivacy.trackers, PagePrivacy.ads, PagePrivacy.cleanLinks)
+        Blocker.configureApps(PagePrivacy.appTrackers, PagePrivacy.around)
+      } catch (e: Throwable) { }
       runOnUiThread { try { vpnWanted(PagePrivacy.appTrackers) } catch (e: Throwable) { } }
       runOnUiThread {
         pages.forEach { (id, p) -> giveScripts(id, p) }
@@ -763,6 +845,8 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun pageScript(name: String, text: String) {
       if (name == "consent") PagePrivacy.consentScript = text
+      if (name == "procedural") PagePrivacy.proceduralScript = text
+      if (name == "fingerprint") PagePrivacy.fingerprintScript = text
       runOnUiThread { pages.forEach { (id, p) -> giveScripts(id, p) } }
     }
 

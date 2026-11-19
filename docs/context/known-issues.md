@@ -4,6 +4,15 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## A kit change is not live until the kit is refreshed — and a check must start over the old one (2026-11-19)
+
+The browser's kit (`browser/kit/`) is compiled into `fm-serve` but lives in the browser's folder; a
+new formicaria with an old kit applied shows the **old** browser (0.55.0: Settings nowhere). Every
+start refreshes it before opening (`browser::launch`); `usability-check`'s *someone who just
+updated* is the guard. **Trap:** a fresh-profile check (`browser-check`, the other personas) applies
+the new kit to a new folder and can never see this; and never remove a fallback (the page's own
+link) before its replacement is proven live through the update path.
+
 ## The phone's release build is not its debug build — test the one people get (2026-11-18)
 
 **Trap, sprung in 0.54.0.** The release APK is shrunk and renamed by R8 (`isMinifyEnabled = true`);
@@ -2928,13 +2937,19 @@ environment; build from a `git worktree` with this checkout's environment instea
 ## Not yet tried on a phone (2026-11-17, the media and privacy plan)
 
 Built, compiled, and tested on the app's side; **not run on a device**, none being attached:
-- **The tracker block's VPN** (`TrackerVpn.kt`): the DNS packets it answers and forwards, per-app
-  counts (Android 10+), *Let it through*. A broken answer would leave apps unable to look up
-  addresses while it is on: turning the switch off restores them.
+- **The tracker block's VPN**: **run on the emulator since 2026-11-19** (`phone-media-check`: a
+  tracker's lookup refused, an ordinary one answered by DNS over HTTPS, off restoring all). Not yet
+  seen: the per-app counts with a real app (the check asks from the shell), IPv6-only networks, and a
+  phone's own Private DNS warning.
 - **The media service** (`PlaybackService.kt`, Media3 1.6.1): the lock screen, notification and
   headset keys, and the app mirroring them.
 - **Save media inside the app** (`MediaRun.kt`, youtubedl-android 0.18.1): the first unpacking of
   Python, the update, a real download; a video's two streams joined by `MediaMuxer`; MP3 and tags
   by `fm-audio` on the device (tested on the computer only).
-- **Blocking in page views** (`fm-block` through JNI): requests refused, hide rules applied; the
-  engine's cost on a phone (`phone-blocking-2026-11-17.md` has the computer's).
+- **Blocking in page views**: **run on the emulator since 2026-11-19** (`phone-media-check`: the lists
+  read 6–16 s after a first start; five known trackers and ads added to `example.com` refused, one
+  answered by uBlock Origin's stand-in; Wikipedia's own analytics refused; links cleaned, a Google
+  redirect skipped; 134–153 MB with every list). Not yet seen: the scriptlets and the fingerprinting
+  defence on a site that uses them, and a real phone's memory. **Trap for a test:** a page's content
+  security policy refuses other sites' scripts before any request is made (Wikipedia's does), so
+  trackers added to such a page never reach the blocker; add them to a page without one.

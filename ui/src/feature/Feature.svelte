@@ -1,6 +1,7 @@
 <script lang="ts">
   import { toggledTheme } from '../lib/start';
   import UpdateBanner from '../lib/UpdateBanner.svelte';
+  import BrowserRestartBanner from '../lib/BrowserRestartBanner.svelte';
   import { watchForUpdates } from '../lib/updater.svelte';
   import { untrack as untrackUpdates } from 'svelte';
   // **A newer version is offered on every page** (the owner on 0.49/0.50: *"impossible for me to
@@ -45,6 +46,18 @@
   import { noteShown, lastNote } from '../lib/lastNote';
 
   let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
+
+  // **Settings is never nowhere** (2026-11-19; the owner, after 0.55.0: *"One should update and have
+  // everything there automatically"*). It is the window's, at the right end of the tab row; while that
+  // button cannot be there (formicaria's browser not the one open, or still on an older kit) the page
+  // shows its own. Unknown, or the question failing, counts as not there.
+  let windowHasSettings = $state(true);
+  onMount(() => {
+    ipc.browserStatus().then(
+      (st) => (windowHasSettings = !!(st.running && st.kit_current)),
+      () => (windowHasSettings = false),
+    );
+  });
 
   const route: Route = parseRoute(location.pathname);
 
@@ -201,6 +214,7 @@
 
 <div class="feature">
   <UpdateBanner />
+  <BrowserRestartBanner />
   {#if route.kind === 'new'}
     <NewTab {go} />
   {:else if route.kind === 'media'}
@@ -296,8 +310,9 @@
           {/each}
         {/if}
         <!-- **Help from every view**, a plain link. Settings is the window's, at the right end of the
-             tab row on every tab (owner, 2026-11-18: *"why not simply add settings on top right as per
-             usual apps"*; `browser/kit/formicaria.cfg`). -->
+             tab row on every tab (owner, 2026-11-18: *"why not simply add settings on top right as
+             per usual apps"*; `browser/kit/formicaria.cfg`), and here only while the window cannot
+             show it (`windowHasSettings`). -->
         <span class="system">
           <!-- **A new note from every view** (owner on 0.52: *"how are notes added? The plus
                disappeared from every view"*): in a tab of its own, straight in the editor. -->
@@ -307,6 +322,11 @@
           <a href="/manual/" target="_blank" rel="noopener" title="Help: how formicaria works"
             >Help</a
           >
+          {#if !windowHasSettings}
+            <a href="/f/settings" title="Settings: privacy, updates, mail for meetings, and more"
+              >⚙ Settings</a
+            >
+          {/if}
         </span>
       </nav>
     {/if}

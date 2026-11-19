@@ -26,6 +26,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Music** | `music-plan-2026-11-13.md` (rulings M1–M5 first) |
 | **Where code lives; the size budget** (adding a crate, module, phone feature) | `structure.md` |
 | **Making formicaria leaner** | `lean-plan-2026-11-18.md` (steps, measured before and after) |
+| **Stronger privacy** | `privacy-plan-2026-11-19.md` · `privacy-baseline-2026-11.md` |
 | **Privacy, blocking, saving media from sites** | `web-media-privacy-plan-2026-11-17.md` · `phone-blocking-2026-11-17.md` (the engine's cost) |
 | **Own browser**, workspace, sources | `browser-plan-2026-11-15.md` · `web-browsing-research-2026-11-15.md` · `workspace-design-2026-11-15.md` · `data-sources-research-2026-11-15.md` |
 | **Calendars, Gmail, the meeting pass; any time or zone** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail,zone}`, `fm_agent::meetings`) | `time-zones-audit-2026-10-24.md` · `decisions.md#agent` (2026-10-09: read-only, secrets per machine, Rust dates) · `known-issues.md` · `outstanding.md` §2.16 |

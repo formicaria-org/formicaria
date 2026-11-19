@@ -13,10 +13,22 @@ object PagePrivacy {
   @Volatile var gpc = true
   @Volatile var httpsOnly = true
   @Volatile var appTrackers = false
+  /** *Stop apps going around the block*: public encrypted-DNS services refused. */
+  @Volatile var around = false
+  /** Where the app blocker sends the lookups it lets through (DNS over HTTPS; empty: the network's). */
+  @Volatile var resolver = "https://dns.quad9.net/dns-query"
   @Volatile var fired = -1L
   @Volatile var sitesOff: List<String> = emptyList()
   /** The cookie pop-up script (`ui/page/consent.ts`), handed over by the app. */
   @Volatile var consentScript: String? = null
+  /** The procedural hide rules' interpreter (`ui/page/procedural.ts`), handed over by the app. */
+  @Volatile var proceduralScript: String? = null
+  /** The fingerprinting defence (`ui/page/fingerprint.ts`), handed over by the app. */
+  @Volatile var fingerprintScript: String? = null
+  /** This session's secret for it: sites' readings stay the same within a session, differ between
+   *  sites, and change when the fire button is pressed. Never sent anywhere. */
+  @Volatile private var seed: String = java.util.UUID.randomUUID().toString()
+  fun reseed() { seed = java.util.UUID.randomUUID().toString() }
   /** Sites the person chose to open without a secure connection, this session. */
   val insecureOk: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -31,6 +43,12 @@ object PagePrivacy {
     gpc = o.optBoolean("gpc", true)
     httpsOnly = o.optBoolean("https_only", true)
     appTrackers = o.optBoolean("app_trackers", false)
+    around = o.optBoolean("around", false)
+    val dns = o.optString("dns", "quad9")
+    val offered = o.optJSONArray("resolvers")
+    resolver = (0 until (offered?.length() ?: 0)).map { offered!!.getJSONObject(it) }
+      .firstOrNull { it.optString("key") == dns }?.optString("url")
+      ?: if (dns == "network") "" else "https://dns.quad9.net/dns-query"
     val arr = o.optJSONArray("sites_off") ?: JSONArray()
     sitesOff = (0 until arr.length()).map { arr.optString(it).lowercase() }.filter { it.isNotEmpty() }
     val f = o.optLong("fired", 0)
@@ -55,9 +73,17 @@ object PagePrivacy {
   )
   private fun tracking(k: String) = k.lowercase().let { it.startsWith("utm_") || it in TRACKING }
 
-  /** The address without its tracking parameters, or null when it had none. */
+  /** The address without its tracking parameters, or null when it had none: a tracker's redirect
+   *  skipped and the lists' `$removeparam` rules (`Blocker.cleanLink`), then the names below. */
   fun clean(url: String): String? {
     if (!cleanLinks || off(url)) return null
+    val listed = try { Blocker.cleanLink(url) } catch (e: Throwable) { "" }
+    val start = if (listed.isNotEmpty()) listed else url
+    val own = cleanOwn(start)
+    return own ?: listed.ifEmpty { null }
+  }
+
+  private fun cleanOwn(url: String): String? {
     val u = try { Uri.parse(url) } catch (e: Exception) { return null }
     if (u.isOpaque || u.encodedQuery.isNullOrEmpty()) return null
     val names = u.queryParameterNames
@@ -92,6 +118,10 @@ object PagePrivacy {
     // The lists' hide rules: the page's own, then the generic ones for the names it uses, again as
     // it changes (at most once a second).
     if (trackers || ads) out += guard(HIDE)
+    val procedural = proceduralScript
+    if ((trackers || ads) && procedural != null) out += guard(procedural)
+    val fingerprint = fingerprintScript
+    if (trackers && fingerprint != null) out += guard("window.__fmSeed=\"$seed\";\n$fingerprint")
     return out
   }
 
@@ -138,15 +168,50 @@ What you send or see there can be read on the way.</p>
 /** **The blocking engine** in the app's Rust library (`mobile/src-tauri/src/block.rs`): asked for
  *  every request a page makes. Answers "allow" until its lists are ready. */
 object Blocker {
-  @JvmStatic external fun configure(trackers: Boolean, ads: Boolean)
-  @JvmStatic external fun check(url: String, page: String, kind: String): Boolean
+  @JvmStatic external fun configure(trackers: Boolean, ads: Boolean, links: Boolean)
+  @JvmStatic external fun configureApps(apps: Boolean, around: Boolean)
+  /** `""` let through, `"-"` refused, otherwise a stand-in: `<media type>\n<base64>`. */
+  @JvmStatic external fun verdict(url: String, page: String, kind: String): String
+  @JvmStatic external fun cleanLink(url: String): String
   @JvmStatic external fun hide(url: String): String
   @JvmStatic external fun hideNames(url: String, classes: String, ids: String): String
+  @JvmStatic external fun scriptlets(url: String): String
+  @JvmStatic external fun procedural(url: String): String
   @JvmStatic external fun hostBlocked(host: String): Boolean
+  @JvmStatic external fun ready(): Boolean
+  @JvmStatic external fun state(): String
+  @JvmStatic external fun appsReady(): Boolean
+  @JvmStatic external fun dnsName(q: ByteArray): String
+  @JvmStatic external fun dnsRefuse(q: ByteArray): ByteArray
+  @JvmStatic external fun dnsCloaked(answer: ByteArray): Boolean
+  @JvmStatic external fun dnsTtl(answer: ByteArray): Int
+  @JvmStatic external fun dnsWithId(answer: ByteArray, question: ByteArray): ByteArray
 
-  /** A request's type as the lists name them, from what the page view knows of it. */
-  fun kind(url: String, accept: String?, mainFrame: Boolean): String {
+  /** A request's answer from its verdict: null to let it through. */
+  fun response(v: String): android.webkit.WebResourceResponse? {
+    if (v.isEmpty()) return null
+    if (v == "-") return android.webkit.WebResourceResponse("text/plain", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))
+    val mime = v.substringBefore('\n')
+    val bytes = try { android.util.Base64.decode(v.substringAfter('\n'), android.util.Base64.DEFAULT) } catch (e: Exception) { ByteArray(0) }
+    val type = mime.substringBefore(';').trim()
+    return android.webkit.WebResourceResponse(type, if (type.startsWith("text/") || type.contains("javascript")) "utf-8" else null, java.io.ByteArrayInputStream(bytes))
+  }
+
+  /** A request's type as the lists name them: the page view's own word (`Sec-Fetch-Dest`) when it
+   *  gives one, otherwise read from what is asked for. */
+  fun kind(url: String, accept: String?, mainFrame: Boolean, dest: String? = null): String {
     if (mainFrame) return "document"
+    when (dest) {
+      "script", "worker", "sharedworker", "serviceworker" -> return "script"
+      "image" -> return "image"
+      "style" -> return "stylesheet"
+      "font" -> return "font"
+      "audio", "video", "track" -> return "media"
+      "iframe", "frame" -> return "sub_frame"
+      "object", "embed" -> return "object"
+      "document" -> return "sub_frame"
+      "empty" -> return "xmlhttprequest"
+    }
     val path = url.substringBefore('?').substringBefore('#').lowercase()
     val a = accept ?: ""
     return when {

@@ -85,7 +85,15 @@
         __fmVpn?: { state(): string; allow(pkg: string, through: boolean): void };
       }
     ).__fmVpn;
-  let vpnState = $state<{ on: boolean; apps: VpnApp[]; allowed: string[] } | null>(null);
+  let vpnState = $state<{
+    on: boolean;
+    apps: VpnApp[];
+    allowed: string[];
+    /** The app lists are read (until then every name is answered). */
+    ready?: boolean;
+    /** Android's Private DNS set to this provider: lookups go there, not through the block. */
+    private_dns?: string | null;
+  } | null>(null);
   let vpnRefused = $state(false);
   $effect(() => {
     if (computer || !p?.app_trackers || !vpnShell()) return;
@@ -163,6 +171,27 @@
       </select>
     </label>
 
+    <!-- **Where address lookups go** (the owner, 2026-11-19: encrypted, on by default). -->
+    <label class="row">
+      <span class="text">
+        <span class="name">Encrypted lookups</span>
+        <span class="muted"
+          >{computer
+            ? 'Which sites you open is hidden from your network; this service sees the names instead.'
+            : 'With Block trackers in other apps on, the phone’s lookups are hidden from your network; this service sees the names instead.'}</span
+        >
+      </span>
+      <select
+        aria-label="Encrypted lookups"
+        value={p.dns}
+        onchange={(e) => set({ dns: (e.currentTarget as HTMLSelectElement).value })}
+      >
+        {#each p.resolvers ?? [] as r (r.key)}
+          <option value={r.key}>{r.name}</option>
+        {/each}
+      </select>
+    </label>
+
     {#each SWITCHES as s (s.key)}
       <label class="row">
         <span class="text">
@@ -182,17 +211,16 @@
     {#if computer}
       <label class="row">
         <span class="text">
-          <span class="name">More sites, with extensions</span>
+          <span class="name">More sites</span>
           <span class="muted"
-            >Consent-O-Matic and ClearURLs, for the cookie pop-ups and tracking links Firefox's own
-            lists miss. Uses more memory: formicaria's browser measured about a fifth more with
-            them.</span
+            >Cookie pop-ups Firefox's own rules miss: DuckDuckGo's rules, run by formicaria's own
+            add-on, no extension to install.</span
           >
         </span>
         <input
           type="checkbox"
           role="switch"
-          aria-label="More sites, with extensions"
+          aria-label="More sites"
           checked={p.more_sites}
           onchange={(e) => set({ more_sites: (e.currentTarget as HTMLInputElement).checked })}
         />
@@ -220,9 +248,8 @@
           <span class="name">Block trackers in other apps</span>
           <span class="muted">
             {#if vpn}
-              The whole phone: a local VPN refuses trackers' addresses. Nothing leaves the phone.
-              While on, another VPN cannot run; trackers an app reaches by its own private lookup
-              slip by.
+              The whole phone: a local VPN refuses trackers' addresses, from lists made for apps.
+              While on, another VPN cannot run.
             {:else}
               Not in this build of formicaria: update it.
             {/if}
@@ -242,6 +269,32 @@
       </label>
       {#if vpnRefused}
         <p class="muted">Android's permission was not given, so the block is off.</p>
+      {/if}
+      {#if p.app_trackers && vpnState?.private_dns}
+        <p class="warn" role="alert">
+          Android's Private DNS is set to <b>{vpnState.private_dns}</b>, so other apps look
+          addresses up there and the block cannot see them. To use the block, set Android's Settings
+          → Network → Private DNS to Automatic or Off.
+        </p>
+      {/if}
+      {#if p.app_trackers}
+        <label class="row">
+          <span class="text">
+            <span class="name">Stop apps going around the block</span>
+            <span class="muted"
+              >Refuses the public encrypted-lookup services some apps use on their own, so their
+              lookups come through the block. An app that insists on its own can stop working: let
+              it through below.</span
+            >
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Stop apps going around the block"
+            checked={p.around}
+            onchange={(e) => set({ around: (e.currentTarget as HTMLInputElement).checked })}
+          />
+        </label>
       {/if}
       {#if p.app_trackers && vpnState}
         <div class="apps" aria-label="apps and their trackers">
@@ -346,6 +399,12 @@
   }
   .muted {
     opacity: 0.7;
+    font-size: 0.9em;
+  }
+  .warn {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--accent);
     font-size: 0.9em;
   }
   input[type='checkbox'] {

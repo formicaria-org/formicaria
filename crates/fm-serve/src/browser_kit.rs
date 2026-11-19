@@ -794,6 +794,31 @@ mod tests {
         assert!(!swap_in_prepared(d), "nothing prepared, nothing swapped");
     }
 
+    /// **An update's kit is in place before the browser opens** (2026-11-19: 0.55.0's Settings
+    /// button was nowhere, the previous kit still applied): a browser folder holding an older kit is
+    /// brought up to date by the start, at once; one already current is left alone.
+    #[test]
+    fn an_older_kit_is_brought_up_to_date_before_the_browser_opens() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let ff = d.join("firefox");
+        std::fs::create_dir_all(res_dir(&ff).join("browser")).unwrap();
+        std::fs::create_dir_all(res_dir(&ff).join("formicaria")).unwrap();
+        sample_jar(&res_dir(&ff).join("browser").join("omni.ja"));
+        std::fs::write(res_dir(&ff).join("formicaria.cfg"), "// the previous release's kit\n")
+            .unwrap();
+        std::fs::write(res_dir(&ff).join("formicaria").join("kit-stamp"), "0000000000000000")
+            .unwrap();
+        assert!(refresh_kit(d), "an older kit is replaced");
+        assert_eq!(applied_stamp(d).as_deref(), Some(kit_stamp().as_str()));
+        let cfg = std::fs::read_to_string(res_dir(&ff).join("formicaria.cfg")).unwrap();
+        assert!(
+            cfg.contains("formicaria-settings"),
+            "this release's kit, with its Settings button"
+        );
+        assert!(!refresh_kit(d), "a current kit is left alone");
+    }
+
     #[test]
     fn the_stamp_changes_with_the_kit() {
         assert_eq!(kit_stamp(), kit_stamp());

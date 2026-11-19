@@ -239,6 +239,12 @@ npm_licences() {
     echo "| AndroidX Media3 (ExoPlayer, session) | inside the Android app | Apache-2.0 | <https://github.com/androidx/media> |"
     echo "| DuckDuckGo autoconsent (cookie pop-up rules) | inside the Android app's page script | MPL-2.0 | <https://github.com/duckduckgo/autoconsent> |"
     echo "| EasyList, EasyPrivacy | downloaded on the phone, weekly, when blocking is on | GPL-3.0 / CC BY-SA 3.0 | <https://easylist.to> |"
+    echo '| uBlock filters, uBlock filters – Privacy, uBlock filters – Unbreak, uBlock filters – Quick fixes, uBlock filters – Badware risks, AdGuard/uBO – URL Tracking Protection | downloaded on the phone when blocking or link cleaning is on | GPL-3.0 | <https://github.com/uBlockOrigin/uAssets> |'
+    echo '| uBlock Origin'\''s resources (stand-ins and scriptlets) | inside the Android app (assembled from a pinned uBlock release) | GPL-3.0 | <https://github.com/gorhill/uBlock> |'
+    echo '| Peter Lowe'\''s ad and tracking server list | downloaded on the phone, never shipped | McRae GPL v4 (non-commercial use) | <https://pgl.yoyo.org/adservers/> |'
+    echo '| Brave'\''s debounce rules | downloaded on the phone | MPL-2.0 | <https://github.com/brave/adblock-lists> |'
+    echo '| DuckDuckGo App Tracker Blocklist | downloaded on the phone while *Block trackers in other apps* is on, never shipped | CC BY-NC-SA 4.0 | <https://github.com/duckduckgo/tracker-blocklists> |'
+    echo '| HaGeZi – encrypted DNS services | downloaded on the phone while *Stop apps going around the block* is on | GPL-3.0 | <https://github.com/hagezi/dns-blocklists> |'
     echo
     # **Part four: data the binary carries.** The food list is not software and `cargo tree`
     # cannot see it, but it is compiled into every binary that links `fm-app`
