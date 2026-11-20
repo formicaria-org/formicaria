@@ -92,3 +92,63 @@ it("offers a Commons file page's video as itself", () => {
   // Pictures are not media to fetch.
   expect(wikimediaFile('https://en.wikipedia.org/wiki/File:Ant.jpg')).toBeNull();
 });
+
+// **Bandcamp, and players yt-dlp reads only at another address** (2026-11-20: a Bandcamp page said
+// it held a video, and saving it failed with yt-dlp's "Unsupported URL" — its own page declares its
+// sound player as `og:video`, at the player's address, which yt-dlp refuses).
+const BANDCAMP_HEAD = `<title>Test song | youtube-dl</title>
+  <meta property="og:type" content="song">
+  <meta property="og:url" content="https://youtube-dl.bandcamp.com/track/youtube-dl-test-song">
+  <meta property="og:video" content="https://bandcamp.com/EmbeddedPlayer/v=2/track=1812978515/size=large/tracklist=false/artwork=small/">
+  <meta property="og:video:secure_url" content="https://bandcamp.com/EmbeddedPlayer/v=2/track=1812978515/size=large/tracklist=false/artwork=small/">
+  <meta property="og:video:type" content="text/html">`;
+
+it('a Bandcamp page offers its own page as its sound, never a video', () => {
+  const page = 'https://youtube-dl.bandcamp.com/track/youtube-dl-test-song';
+  const c = findMedia(doc(BANDCAMP_HEAD), page);
+  expect(c).toEqual([{ url: page, kind: 'player', label: 'Bandcamp audio' }]);
+  expect(c.some((x) => x.url.includes('EmbeddedPlayer'))).toBe(false);
+  expect(c.some((x) => /video/i.test(x.label))).toBe(false);
+});
+
+it('a Bandcamp player on another site is offered at its page, from the embed code’s link', () => {
+  const d = doc(`<title>Review</title>
+    <iframe src="https://bandcamp.com/EmbeddedPlayer/album=1234/size=large/" seamless><a href="https://artist-x.bandcamp.com/album/first-light">First light by Artist X</a></iframe>
+    <iframe src="https://bandcamp.com/EmbeddedPlayer/album=999/size=small/"></iframe>`);
+  const c = findMedia(d, 'https://blog.example/review');
+  // The player without a link to its page is left out: yt-dlp cannot read its address.
+  expect(c.map((x) => [x.kind, x.url, x.label])).toEqual([
+    ['player', 'https://artist-x.bandcamp.com/album/first-light', 'Bandcamp audio'],
+    ['page', 'https://blog.example/review', 'The page itself: Review'],
+  ]);
+});
+
+it('players are offered at the address yt-dlp reads, and sound is said as sound', () => {
+  expect(playerOf('https://www.tiktok.com/embed/v2/6703795545337597190')?.url).toBe(
+    'https://www.tiktok.com/embed/6703795545337597190',
+  );
+  expect(
+    playerOf('https://embed.podcasts.apple.com/us/podcast/a-show/id1200361736?i=1000526263296')
+      ?.url,
+  ).toBe('https://podcasts.apple.com/us/podcast/a-show/id1200361736?i=1000526263296');
+  // yt-dlp refuses every Spotify address: not offered.
+  expect(playerOf('https://open.spotify.com/embed/episode/4Z7GAJ50bgctf6uclHlWKo')).toBeNull();
+  const c = findMedia(
+    doc(
+      '<iframe src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/1"></iframe>',
+    ),
+    'https://site.example/p',
+  );
+  expect(c[0].label).toBe('SoundCloud audio');
+});
+
+it('a page declaring an HTML player as its video says "player", not "video"', () => {
+  const d = doc(`<meta property="og:video" content="https://cdn.example/embed/42">
+    <meta property="og:video:type" content="text/html">`);
+  const c = findMedia(d, 'https://site.example/p');
+  expect(c[0]).toEqual({
+    url: 'https://cdn.example/embed/42',
+    kind: 'player',
+    label: 'Player: cdn.example',
+  });
+});

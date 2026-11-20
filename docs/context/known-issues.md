@@ -3034,6 +3034,22 @@ environment; build from a `git worktree` with this checkout's environment instea
   of it has been tried on a phone; a large upload goes through the chunked path, untested with
   audio on a device.
 
+## Save media: players yt-dlp reads only at another address (2026-11-20)
+
+`ui/src/lib/web/media.ts`'s `PLAYERS`: each player's address is mapped to the one yt-dlp's own
+patterns accept (checked against 2026.10.26's extractors as text): TikTok `embed/v2/<id>` →
+`embed/<id>`, Apple Podcasts `embed.` → `podcasts.apple.com`, Bandcamp's `EmbeddedPlayer` → the
+track's or album's page. Spotify is not listed (yt-dlp refuses it).
+
+- **A Bandcamp player on another site is offered only when its page is on that page**: the
+  embed code's link inside the frame, or the page's `og:url`. A site that strips the link leaves the
+  player out; reading the player page's `linkback` would need a request the computer has no route
+  for (`web_resource` is the phone's).
+- **An artist's own domain** (a Bandcamp page not under `bandcamp.com`) is offered as the page
+  itself, which yt-dlp may not read.
+- **When yt-dlp changes its patterns, this table can go stale**: nothing checks it against a newer
+  yt-dlp.
+
 ## Not yet tried on a phone (2026-11-17, the media and privacy plan)
 
 Built, compiled, and tested on the app's side; **not run on a device**, none being attached:
