@@ -16044,3 +16044,35 @@ taken there, not only typed as a path on a computer.
 **Not verified on a device** until the owner's own check with a watch (the coach plan's E0).
 **The four questions.** `#ui` `#track-m` `#data`; reverses one standing line on the phone only (banner
 added there); widens what ships (an intent filter, a persisted folder permission).
+
+## 2026-11-20 (night) — formicaria sets up Gadgetbridge and asks it to sync `#track-m` `#data`
+
+The owner, after weighing a fork of Gadgetbridge built into fm against keeping it apart: *"go with
+the recommended path"* — Gadgetbridge stays its own app; fm makes it easy to set up and drives the
+part it allows from outside. A fork was set aside: Gadgetbridge is AGPL (the phone app would become
+AGPL as a whole), large, changes often for Garmin, and would make fm a Bluetooth companion app,
+which *Watch data enters fm as files another app wrote* rules out.
+
+1. **fm still reads files only, and never talks to the watch.** This entry adds no Bluetooth and
+   no account; Gadgetbridge pairs, syncs and writes the FIT files fm already reads.
+2. **fm may know whether Gadgetbridge is installed**: the manifest's `<queries>` names its three
+   packages (the release and its two nightly builds) and no other app. Settings offers **Get
+   Gadgetbridge** (its F-Droid page) or **Open Gadgetbridge**, and lists the four set-up steps by
+   Gadgetbridge's own setting names.
+3. **One message of Gadgetbridge's own Intent API, switched on by the person in Gadgetbridge**
+   (*Allow activity sync trigger*, off by default): **Sync now** sends `…command.ACTIVITY_SYNC` to
+   Gadgetbridge's package, then looks at the granted folder 30 s, 90 s and 180 s later, besides the
+   look on every opening and return. **Gadgetbridge's end-of-sync announcement
+   (`…action.ACTIVITY_SYNC_FINISH`) is not heard**: hearing it takes a `BroadcastReceiver`, and the
+   APK carries none since Play Protect's verdict (2026-10-31, *Play Protect's verdict cleared in
+   0.24.5*; `ci/checks.sh` refuses one, a runtime-registered one included). A first draft listened
+   for it; the gate refused it, and the gate stands.
+4. **Later, not now:** a destination for fm in Gadgetbridge's own workout upload (it uploads to
+   Endurain and Wanderer today), so each activity reaches fm without a folder — a contribution to
+   Gadgetbridge, under its licence, if the folder proves a chore.
+
+Checked against Gadgetbridge's source at `93d4d79` (2026-11-19): `IntentApiReceiver.java`,
+`GB.signalActivityDataFinish`, `GarminSupport.finishFileSync`. **Not tried on a phone with a
+watch.** **The four questions.** `#track-m` `#data`; extends *The phone takes watch files* without
+reversing anything, and keeps *Play Protect's verdict cleared* (no receiver, no permission); widens
+what ships (a `<queries>` entry naming one app, a broadcast sent when the person asks).

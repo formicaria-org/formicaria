@@ -557,6 +557,21 @@ No attachment note is made; the file is kept beside its entry.
   formicaria or come back to it, new `.fit` files there are added; a file still being written is
   left for next time. If Android takes the permission back, or the folder moves, the section says the
   folder is **no longer readable** — choose it again. **Stop reading it** gives the permission back.
+- **Gadgetbridge, from here.** The same section says whether Gadgetbridge is on the phone. If not,
+  **Get Gadgetbridge** opens its page on F-Droid; if it is, **Open Gadgetbridge** opens it.
+  **Set it up once** lists the steps:
+  1. In Gadgetbridge, add your watch and let it pair.
+  2. In Gadgetbridge's **Settings → Automations → Auto export FIT tracks**, turn on **Auto export
+     enabled** and choose a folder. Activities synced before this is on are not exported.
+  3. In formicaria, choose that same folder.
+  4. In Gadgetbridge's **Settings → Developer options → Intent API**, turn on **Allow activity sync
+     trigger**.
+
+  After step 4, **Sync now** asks Gadgetbridge to fetch the watch's new activities, and formicaria
+  looks at the folder again over the next three minutes, while Gadgetbridge syncs and exports — and,
+  as always, each time you open formicaria or come back to it. Gadgetbridge does not answer a
+  request it is not allowed to take, so if nothing comes, check that switch. formicaria still never
+  talks to the watch itself.
 
 ### Coach
 

@@ -250,8 +250,11 @@ class MainActivity : TauriActivity() {
   /// List the granted folder and copy what is new into the cache — **off the main thread**.
   private fun lookWatchFolder() {
     val tree = watchPrefs().getString("tree", null) ?: return
-    if (watchLooking) return
+    // Asked while a look is under way (a timed look after *Sync now* meeting a return to the app):
+    // one more look after it, so a file written meanwhile is not left until the next opening.
+    if (watchLooking) { watchLookAgain = true; return }
     watchLooking = true
+    watchLookAgain = false
     Thread {
       try {
         val uri = Uri.parse(tree)
@@ -285,8 +288,29 @@ class MainActivity : TauriActivity() {
       } finally {
         watchLooking = false
         tellWatch()
+        if (watchLookAgain) runOnUiThread { lookWatchFolder() }
       }
     }.start()
+  }
+
+  // ── The watch's app: Gadgetbridge, set up and asked from here ───────────────────────────────────
+  //
+  // `decisions.md` 2026-11-20 (night), *formicaria sets up Gadgetbridge and asks it to sync*. fm
+  // still never talks to the watch: Gadgetbridge does, and writes the files fm reads. What fm adds
+  // is knowing whether Gadgetbridge is installed (the manifest's `<queries>` names its packages, and
+  // only those), opening it or its F-Droid page, and one message of Gadgetbridge's own Intent API,
+  // which the person switches on in Gadgetbridge: **"Allow activity sync trigger"** (fm's *Sync
+  // now* sends `ACTIVITY_SYNC` to Gadgetbridge's package). Gadgetbridge can also announce the end
+  // of a sync, but hearing it takes a receiver, and the APK carries none (Play Protect, 2026-10-31,
+  // `ci/checks.sh`): the folder is looked at a few times after *Sync now* instead, and as before on
+  // every opening and return to the app.
+  @Volatile private var watchLookAgain = false
+  @Volatile private var watchAppAsked = 0L
+
+  /// The installed Gadgetbridge's package (release first, then the nightly builds), or `null`.
+  @Suppress("DEPRECATION")
+  private fun watchApp(): String? = GB_PACKAGES.firstOrNull {
+    try { packageManager.getPackageInfo(it, 0); true } catch (e: Exception) { false }
   }
 
   private fun tellWatch() {
@@ -319,7 +343,44 @@ class MainActivity : TauriActivity() {
         .put("held", synchronized(watchFiles) { watchFiles.size })
         .put("waiting", watchWaiting)
         .put("tooLarge", watchTooLarge)
+        .put("app", watchApp() ?: "")
+        .put("asked", watchAppAsked)
         .toString()
+    }
+
+    /// Open Gadgetbridge (its own screen, to pair the watch or change its settings).
+    @JavascriptInterface
+    fun openApp() {
+      runOnUiThread {
+        try {
+          val pkg = watchApp() ?: return@runOnUiThread
+          packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+        } catch (e: Exception) { }
+      }
+    }
+
+    /// Gadgetbridge's page on F-Droid, where it is published (the F-Droid app takes the link when
+    /// it is installed, the browser otherwise).
+    @JavascriptInterface
+    fun getApp() {
+      runOnUiThread {
+        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GB_STORE))) } catch (e: Exception) { }
+      }
+    }
+
+    /// **Sync now**: ask Gadgetbridge to fetch the watch's new activities. Gadgetbridge ignores it
+    /// unless its *Allow activity sync trigger* is on; nothing comes back to say so. The folder is
+    /// looked at a few times over the next minutes, while Gadgetbridge syncs and exports.
+    @JavascriptInterface
+    fun sync() {
+      val pkg = watchApp() ?: return
+      try {
+        sendBroadcast(Intent(GB_SYNC).setPackage(pkg))
+        watchAppAsked = System.currentTimeMillis()
+      } catch (e: Exception) { return }
+      val main = android.os.Handler(android.os.Looper.getMainLooper())
+      for (ms in WATCH_SYNC_LOOKS) main.postDelayed({ lookWatchFolder() }, ms)
+      tellWatch()
     }
 
     @JavascriptInterface
@@ -1243,6 +1304,17 @@ class MainActivity : TauriActivity() {
     /// The most files one look at the watch's folder lists, and how many it remembers as taken.
     private const val MAX_WATCH_LISTED = 5000
     private const val MAX_WATCH_SEEN = 20000
+    /// Gadgetbridge's packages: the release, then its two nightly builds.
+    private val GB_PACKAGES = listOf(
+      "nodomain.freeyourgadget.gadgetbridge",
+      "nodomain.freeyourgadget.gadgetbridge.nightly",
+      "nodomain.freeyourgadget.gadgetbridge.nightly_nopebble",
+    )
+    /// Gadgetbridge's Intent API: the sync trigger it takes.
+    private const val GB_SYNC = "nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC"
+    private const val GB_STORE = "https://f-droid.org/packages/nodomain.freeyourgadget.gadgetbridge/"
+    /// After *Sync now*, the folder's looks while Gadgetbridge syncs and exports.
+    private val WATCH_SYNC_LOOKS = listOf(30_000L, 90_000L, 180_000L)
     /// The most of a page's HTML handed over to be saved (characters).
     private const val MAX_PAGE = 5_000_000
     /// The selection bar's *Bring into note*.

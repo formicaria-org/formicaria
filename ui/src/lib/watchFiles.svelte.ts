@@ -21,6 +21,9 @@ type Bridge = {
   done(keys: string): void;
   send?(name: string, data: string): void;
   save?(name: string, data: string): void;
+  openApp?(): void;
+  getApp?(): void;
+  sync?(): void;
 };
 
 const bridge = (): Bridge | null => (globalThis as { __fmWatch?: Bridge }).__fmWatch ?? null;
@@ -36,6 +39,10 @@ export interface FolderState {
   held: number;
   waiting: number;
   tooLarge: number;
+  /** The watch's app (Gadgetbridge) installed on this phone: its package, or empty. */
+  app?: string;
+  /** When *Sync now* last asked it (ms; 0 never). */
+  asked?: number;
 }
 
 /** The last import from the phone's watch files, for the Settings section to show. */
@@ -158,6 +165,17 @@ export const forgetFolder = () => {
 /** Look at the folder now. */
 export const lookNow = () => {
   bridge()?.look();
+  refreshState();
+};
+// ── the watch's app (`decisions.md` 2026-11-20 (night), *formicaria sets up Gadgetbridge*) ──────
+
+/** Open Gadgetbridge, to pair the watch or change its settings. */
+export const openWatchApp = () => bridge()?.openApp?.();
+/** Gadgetbridge's page on F-Droid. */
+export const getWatchApp = () => bridge()?.getApp?.();
+/** Ask Gadgetbridge to sync the watch now; the folder is looked at again over the next minutes. */
+export const syncWatchApp = () => {
+  bridge()?.sync?.();
   refreshState();
 };
 export const folderState = () => {

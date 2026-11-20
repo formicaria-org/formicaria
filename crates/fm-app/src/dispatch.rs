@@ -389,7 +389,7 @@ impl App {
     /// Wake whoever waits for a change, though nothing changed: the server has something to say to
     /// every open tab (ask them to save what is typed, before an update or a restart).
     pub fn nudge(&self) {
-        self.nudged.fetch_add(1, Ordering::Relaxed);
+        self.nudged.fetch_add(1, Ordering::SeqCst);
         let _held = self.changed.0.lock().unwrap_or_else(|p| p.into_inner());
         self.changed.1.notify_all();
     }
@@ -397,13 +397,31 @@ impl App {
     /// **Wait until the vaults move past `since`**, or `timeout` passes, or a [`App::nudge`]; answers
     /// the generation then. What the server's change stream holds each open tab on: a parked thread.
     pub fn wait_changed(&self, since: u64, timeout: std::time::Duration) -> u64 {
+        self.wait_changed_or_nudged(since, self.nudges(), timeout)
+    }
+
+    /// How many [`App::nudge`]s there have been: the mark a waiter takes **before** it tells its
+    /// client anything, so a nudge landing between that and the wait is not lost.
+    pub fn nudges(&self) -> u64 {
+        self.nudged.load(Ordering::SeqCst)
+    }
+
+    /// [`App::wait_changed`], ending too as soon as the nudges are past `nudged` — taken by the
+    /// caller, not here. Taken on entry, a nudge between the caller's last word to its client and
+    /// the wait was missed and the client heard it only at the timeout (2026-11-20: an update's
+    /// *save first* reaching an open tab 25 s late, after the update had stopped waiting).
+    pub fn wait_changed_or_nudged(
+        &self,
+        since: u64,
+        nudged: u64,
+        timeout: std::time::Duration,
+    ) -> u64 {
         let deadline = std::time::Instant::now() + timeout;
-        let nudged = self.nudged.load(Ordering::Relaxed);
         let mut held = self.changed.0.lock().unwrap_or_else(|p| p.into_inner());
         loop {
             let now = self.generation();
             let left = deadline.saturating_duration_since(std::time::Instant::now());
-            if now > since || left.is_zero() || self.nudged.load(Ordering::Relaxed) != nudged {
+            if now > since || left.is_zero() || self.nudges() != nudged {
                 return now;
             }
             held = match self.changed.1.wait_timeout(held, left) {

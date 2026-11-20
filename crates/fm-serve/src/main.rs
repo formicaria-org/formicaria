@@ -1690,12 +1690,16 @@ fn changes_stream(conn: &mut dyn Conn, state: &AppState) -> std::io::Result<()> 
         b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n\
           X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
     )?;
+    // The nudge mark is taken before `SAVE_ASKED` is read (`save_everywhere` raises that, then
+    // nudges): a request arriving between this stream's last line and its next wait still wakes it.
+    let mut nudges = state.app.nudges();
     let mut g = state.app.generation();
     let mut asked = SAVE_ASKED.load(Ordering::SeqCst);
     conn.write_all(format!("data: {{\"generation\":{g}}}\n\n").as_bytes())?;
     conn.flush()?;
     loop {
-        let now = state.app.wait_changed(g, Duration::from_secs(25));
+        let now = state.app.wait_changed_or_nudged(g, nudges, Duration::from_secs(25));
+        nudges = state.app.nudges();
         let ask = SAVE_ASKED.load(Ordering::SeqCst);
         if ask != asked {
             asked = ask;

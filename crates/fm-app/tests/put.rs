@@ -117,6 +117,19 @@ fn a_put_wakes_whoever_waits_for_a_change() {
     assert_eq!(app.wait_changed(now, Duration::from_millis(50)), now);
 }
 
+/// A nudge that lands after the waiter took its mark but before it waits is not lost: the wait
+/// ends at once instead of at its timeout (the server's change stream, 2026-11-20).
+#[test]
+fn a_nudge_before_the_wait_is_not_lost() {
+    let (_h, _v, app) = app();
+    let since = app.generation();
+    let mark = app.nudges();
+    app.nudge();
+    let t = Instant::now();
+    assert_eq!(app.wait_changed_or_nudged(since, mark, Duration::from_secs(20)), since);
+    assert!(t.elapsed() < Duration::from_secs(1), "ended at once: {:?}", t.elapsed());
+}
+
 #[test]
 fn the_actions_table_lists_each_action_once_off_for_the_assistant() {
     let (_h, _v, app) = app();

@@ -21,7 +21,11 @@
     forgetFolder,
     lookNow,
     folderState,
+    openWatchApp,
+    getWatchApp,
+    syncWatchApp,
   } from './watchFiles.svelte';
+  import { clockText } from './appTime';
 
   let { phone = false }: { phone?: boolean } = $props();
   const folderNow = $derived(watchFiles.folder);
@@ -94,6 +98,56 @@
       <code>.fit</code> file to formicaria and it goes into Fitness, or let formicaria read the folder
       the watch's app exports to.
     </p>
+    <!-- **The watch's app, set up and asked from here** (`decisions.md` 2026-11-20 (night)). fm
+       still reads files only; the shell says whether Gadgetbridge is installed, opens it or its
+       F-Droid page, and sends its *Sync now*. Every switch named below is Gadgetbridge's own. -->
+    <div class="watch-app" role="group" aria-label="the watch's app">
+      {#if folderNow?.app}
+        <p>Gadgetbridge is on this phone.</p>
+        <div class="actions">
+          {#if folderNow.folder}
+            <button type="button" onclick={syncWatchApp}>Sync now</button>
+          {/if}
+          <button type="button" onclick={openWatchApp}>Open Gadgetbridge</button>
+        </div>
+        {#if folderNow.asked}
+          <p class="muted" aria-live="polite">
+            Asked Gadgetbridge to sync at {clockText(folderNow.asked)}. The folder is looked at
+            again over the next three minutes, and each time you come back to formicaria. If nothing
+            comes, check Gadgetbridge's switch in step 4 below.
+          </p>
+        {/if}
+      {:else}
+        <p>
+          Gadgetbridge is not on this phone. It is a free app that connects to many watches without
+          the watch maker's account, and writes the files formicaria reads.
+        </p>
+        <div class="actions">
+          <button type="button" onclick={getWatchApp}>Get Gadgetbridge</button>
+        </div>
+      {/if}
+      <details open={!folderNow?.folder}>
+        <summary>Set it up once</summary>
+        <ol>
+          <li>In Gadgetbridge, add your watch and let it pair.</li>
+          <li>
+            In Gadgetbridge's <strong>Settings → Automations → Auto export FIT tracks</strong>, turn
+            on <strong>Auto export enabled</strong> and choose a folder. Activities synced before this
+            is on are not exported.
+          </li>
+          <li>Here, choose that same folder{folderNow?.folder ? ' (done)' : ' (below)'}.</li>
+          <li>
+            For <strong>Sync now</strong>: in Gadgetbridge's
+            <strong>Settings → Developer options → Intent API</strong>, turn on
+            <strong>Allow activity sync trigger</strong>.
+          </li>
+        </ol>
+        <p class="muted">
+          formicaria never talks to the watch itself: Gadgetbridge does, and formicaria reads the
+          files it writes.
+        </p>
+      </details>
+    </div>
     {#if folderNow?.folder}
       <p>
         Reading <strong>{folderNow.folder}</strong>: new <code>.fit</code> files there are added each
@@ -307,8 +361,22 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     margin-top: var(--space-2);
+  }
+  .watch-app {
+    margin-top: var(--space-2);
+  }
+  .watch-app summary {
+    cursor: pointer;
+    margin-top: var(--space-2);
+  }
+  .watch-app ol {
+    margin: var(--space-2) 0 0;
+    padding-left: var(--space-4);
+    font-size: var(--text-sm);
+    line-height: 1.5;
   }
   .report {
     margin-top: var(--space-2);

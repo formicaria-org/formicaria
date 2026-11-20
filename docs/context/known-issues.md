@@ -46,6 +46,12 @@ to watch app*. Tested in Rust (`crates/fm-app/tests/import_fit.rs` I1, `fit_writ
 - **The folder is read one level of subfolders deep**, at most 5000 files a look; files taken are
   remembered by document id, size and time (the last 20 000) in the app's preferences — a file
   edited in place is taken again (and then known by its identity, so nothing is written twice).
+- **Gadgetbridge set up and asked from Settings** (`decisions.md` 2026-11-20 (night)): *Sync now*
+  is untried with a real Gadgetbridge and watch. It needs the person's switch in Gadgetbridge's
+  Intent API, and Gadgetbridge says nothing back when a request is refused, so the app can only say
+  *if nothing comes, check the switch*. Gadgetbridge's end-of-sync announcement is not heard (no
+  receiver, Play Protect): after *Sync now* the folder is looked at 30 s, 90 s and 3 min later, so
+  a sync longer than that waits for the next opening or return to the app.
 - **Steps are read from the body's lines with a small grammar** (`workout.rs`): `N x`, minutes /
   seconds / hours, km / m, reps, kg, `a-b bpm`, `m:ss/km` (or `/mi`, `/100 m`), `km/h`. Anything
   else is words on an open step. A strength step carries no FIT exercise category or name.
