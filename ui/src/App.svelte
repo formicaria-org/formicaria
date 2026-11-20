@@ -168,6 +168,12 @@
     type SharedText,
   } from './lib/share.svelte';
   import { fromBrought, fromShared, piecesMarkdown, type Piece } from './lib/piece';
+  import * as diary from './lib/diary';
+
+  // **The usage diary** (`lib/diary.ts`, 2026-11-20): the whole app opened (the phone's screen),
+  // how long it took, and errors the page did not catch.
+  diary.watch();
+  diary.pageOpened('app');
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane

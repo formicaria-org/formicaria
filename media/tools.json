@@ -49,9 +49,9 @@
         "probe_sha256": "2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd"
       },
       "win64": {
-        "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip",
-        "sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
-        "inner": "ffmpeg-9.0.2-essentials_build/bin/"
+        "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.1-essentials_build.zip",
+        "sha256": "b9bbbb3acece000cbeec994f856649354e52c773807841e78908374b24d658fd",
+        "inner": "ffmpeg-9.1-essentials_build/bin/"
       }
     }
   }

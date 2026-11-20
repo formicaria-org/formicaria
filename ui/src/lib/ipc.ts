@@ -1726,3 +1726,16 @@ export const mailSetup = (s: {
 export const mailConnect = (origin: string) => invoke<{ url: string }>('mail_connect', { origin });
 export const mailReadNow = () => invoke<MailStatus>('mail_read_now');
 export const mailDisconnect = () => invoke<MailStatus>('mail_disconnect');
+
+/** **The usage diary** (`fm_app::diary`, 2026-11-20): this device's, kept on it. */
+export interface DiaryStatus {
+  on: boolean;
+  bytes?: number;
+  days?: number;
+  since?: string | null;
+  keep_days?: number;
+}
+export const diaryStatus = () => invoke<DiaryStatus>('diary_status');
+export const diarySet = (on: boolean) => invoke<DiaryStatus>('diary_set', { on });
+export const diaryForget = () => invoke<DiaryStatus>('diary_forget');
+export const diaryNote = (events: unknown[]) => invoke<unknown>('diary_note', { events });

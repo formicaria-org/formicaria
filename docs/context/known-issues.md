@@ -4,6 +4,18 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## The usage diary: what it does not see yet (2026-11-20)
+
+- **macOS and Windows are not sampled**: memory and processor come from `/proc` (Linux, Android).
+  Starts, ends, commands, pages and errors are kept everywhere.
+- **The phone's pages are not in its memory figure**: Android's WebView draws pages in its own
+  sandboxed processes, which the app cannot read; the figure is the app's own process.
+- **A phone's diary is in the vault's history for good**: once committed, *Delete it* removes the
+  phone's copy, not the lines already synced (a line every five minutes the app is open, a few
+  hundred bytes each).
+- **A run's end on a phone is the next start's guess**: Android stops apps without a word, so every
+  phone run "ended without saying".
+
 ## Ad blocking on a computer: what the measurement did not settle (2026-11-19)
 
 uBlock Origin Lite was installed in two of the three measured starts (+1.2 %, +5.9 % memory against

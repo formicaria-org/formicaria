@@ -1081,6 +1081,7 @@ pub fn route(
                         // The successor is already waiting for this port to go quiet. Give the
                         // response time to be written and read, then leave — the swap happens in
                         // the other process, which is the only one that can do it safely.
+                        crate::usage::stop("updating");
                         std::thread::spawn(|| {
                             std::thread::sleep(std::time::Duration::from_millis(400));
                             std::process::exit(0);
@@ -1137,6 +1138,7 @@ pub fn route(
                         // moment the earlier version is up.
                         let rejected = Version::running().map(|v| v.to_string());
                         let _ = save(|v| v["rejected"] = serde_json::json!(rejected));
+                        crate::usage::stop("going back a version");
                         std::thread::spawn(|| {
                             std::thread::sleep(std::time::Duration::from_millis(400));
                             std::process::exit(0);

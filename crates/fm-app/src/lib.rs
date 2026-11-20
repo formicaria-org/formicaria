@@ -56,6 +56,7 @@ pub mod clip;
 pub mod clock;
 pub mod commands;
 pub mod cycle;
+pub mod diary;
 pub mod dispatch;
 pub mod dto;
 pub mod guidance;

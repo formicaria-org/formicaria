@@ -53,6 +53,9 @@
     clearTimeout(timer);
     timer = setTimeout(look, 250);
   }
+  // A look still waiting when this goes (the page left, a test torn down) is not taken: it read a
+  // selection from a document that was no longer there (2026-11-20, an error after a test ended).
+  $effect(() => () => clearTimeout(timer));
 
   const here = () => source();
   /** The note it goes to by default: the one looked at last, never the one it comes from. */

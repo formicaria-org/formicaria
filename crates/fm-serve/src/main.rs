@@ -33,6 +33,7 @@ mod remind;
 mod share;
 #[cfg(feature = "tls")]
 mod tls;
+mod usage;
 // Updating the app from inside the app — transport-shaped, like the agent routes, because an
 // updater is a property of *this* archive and not of a vault. Behind its own feature so the
 // std-only build this crate promises still compiles with `--no-default-features`.
@@ -310,6 +311,12 @@ fn main() {
     }
     let state = Arc::new(AppState::new(app, dist, origins, port.parse().unwrap_or(8765)));
     export_playlists(Arc::clone(&state));
+    // **The usage diary** (`usage.rs`, 2026-11-20): this start, how the last run ended, and a sample
+    // of each part every five minutes. Kept on this computer.
+    #[cfg(feature = "browser")]
+    usage::start(browser::dir());
+    #[cfg(not(feature = "browser"))]
+    usage::start(None);
 
     match &state.dist {
         // Told to read from disk, but there is nothing there.
@@ -929,6 +936,7 @@ fn spawn_watchdog(state: Arc<AppState>) {
     // 2026-10-13). With nothing waiting, this is the exit it always was.
     let leave = |state: &AppState| {
         if !state.remind.waiting() {
+            usage::stop("every page closed");
             std::process::exit(0);
         }
         if let Ok(mut g) = state.goodbye.lock() {

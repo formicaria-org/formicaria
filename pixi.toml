@@ -328,6 +328,9 @@ block-resources = "sh ci/block-resources.sh"
 privacy-coverage = "sh ci/privacy-coverage.sh"
 # Usability checks: formicaria's browser walked as different people use it (2026-11-17).
 usability-check = "python3 ci/usability-check.py"
+# **What the usage diary says** (`fm_app::diary`, 2026-11-20): this computer's and what phones carried
+# into the vaults. Reads only. `pixi run usage-report -- --days 7`.
+usage-report = "python3 ci/usage-report.py"
 browser-check = "python3 ci/browser-check.py"
 # Delete regenerable build output (debug targets, the phone's builds) in this checkout and the
 # sibling Myrme one; keeps target/release, which the running app is. `known-issues.md`, *The disk fills*.

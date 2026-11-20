@@ -15884,3 +15884,45 @@ entry, so the only window closed and the browser with it. The next start restore
    the notes, `window.close` never called.
 
 **The four questions.** `#ui`. Fixes a defect; widens nothing.
+
+## 2026-11-20 — the usage diary `#data` `#toolchain`
+
+The owner: *"Improve logging, we need to collect usage data from me on long run, to improve the app
+efficiency"*. Their choices: computer and phone together; efficiency, starts/stops/errors and
+features used; on by default for everyone, with a switch.
+
+Until now nothing measured formicaria over time: the server printed to an output nobody kept, the
+browser's error output went nowhere, and the evening before a "crash" had to be reconstructed from
+Firefox's session files.
+
+1. **One diary, in `fm-app`** (`diary.rs`), the same on every device: a JSON line per event, a file a
+   day in the settings folder, 90 days, at most 100 MB. **Kept on the device**; never sent. A phone's
+   new lines go hourly into the first vault (`.formicaria/usage/<device>-<month>.jsonl`, enrolled
+   with `seed_written`), so the notes' sync carries them to the computer: that vault's remote holds
+   them too (said in the manual and in Settings).
+2. **Counted where everything passes**: every command through `dispatch_as`, by its fixed name, with
+   its time; a slow one (over 1 s) on its own line. One `use` line per five minutes, not a line per
+   command.
+3. **Efficiency**: every five minutes (`FM_DIARY_EVERY` for checks) each part's PSS and share of a
+   processor from `/proc`: the server, formicaria's browser (by its program folder), the rest of what
+   the server started (assistant, model, media tools); on the phone the app's own process.
+   macOS and Windows: not sampled yet.
+4. **Starts and ends**: a marker while running; found at the next start, the last run `ended_unsaid`
+   (killed, crashed, power). Each of the server's own exits says why. formicaria's browser: its exit
+   code or signal (`usage::watch_browser`), its error output kept (`browser.log`, the previous run's
+   beside it), and from the kit its session time and why it quit (Firefox's `lastwindow`).
+5. **Never a person's things**: what pages, the kit and the add-on may say is a short list of kinds
+   and fields (`diary::from_pages`), names held to plain words, errors cleaned of quotes, addresses,
+   paths, emails and long numbers (in the page and again in Rust). A feature page is named only by a
+   feature's own key, never a group's, a view's or a note's.
+6. **Read with** `pixi run usage-report` (`ci/usage-report.py`): per device, memory and processor
+   (median, p95, most, by day), starts and ends, commands by use and time, slow ones, pages, gestures,
+   errors.
+7. **Checked**: `fm-app` tests (counting, off, delete, unsaid ends, pruning, cleaning, the pages'
+   short list, the phone's export), the UI's (`diary.test.ts`), `usability-check`'s *the usage diary*
+   (this run's start, commands, samples, the browser's start, pages, and no address or name in it),
+   `phone-media-check`'s *the phone keeps its usage diary*.
+
+**The four questions.** `#data`: a new per-device folder and a vault folder that syncs; no note
+changes. Widens what formicaria stores, on the device, about itself; nothing leaves it except a
+phone's lines through the person's own sync.

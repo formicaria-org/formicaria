@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 141 of them are below**, grouped by what they are for. If you add an arm to
+**All 145 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -41,6 +41,10 @@ dispatch no longer has fails too.)
 | `set_clock`      | `zone` (a name, an offset, or `""` for Automatic) | `Clock` | choose this device's zone (`config_dir()/formicaria/clock.json`); refused to a paired device |
 | `privacy`        | —                            | `Privacy`              | **this device's privacy switches** (2026-11-17, `config_dir()/formicaria/privacy.json`): `search`, `trackers`, `ads`, `cookies`, `clean_links`, `gpc`, `https_only`, `app_trackers`, `sites_off`, `fired`, `v`, and the `engines` to choose from |
 | `set_privacy`    | any of those switches; `site_off`/`site_on` (a site); `fire: true` | `Privacy` | change them (only what is given, each checked); refused to a paired device |
+| `diary_status`   | —                            | `{on, bytes, days, since, dir, keep_days}` | **this device's usage diary** (2026-11-20, `fm_app::diary`, `config_dir()/formicaria/diary/`): on or off, how much is kept; refused to a paired device |
+| `diary_set`      | `on`                         | the same               | the switch: off writes nothing more |
+| `diary_forget`   | —                            | the same               | *Delete it*: every line, and the browser's own output |
+| `diary_note`     | `events`: `[{kind, …}]`      | `{}`                   | what a page, the browser's kit or the add-on tells the diary, held to `diary::from_pages`'s kinds (`page`, `error`, `browser`, `act`) and fields; anything else dropped |
 
 ### Writing notes
 

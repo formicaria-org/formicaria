@@ -453,6 +453,34 @@ def settings_alone(ff: Path, work: Path) -> None:
     bc.stop(ff)
 
 
+def diary_kept(work: Path) -> None:
+    """**The usage diary kept this run** (`fm_app::diary`, 2026-11-20): the server's start, commands
+    counted by name, a sample of each part's memory, the browser's start and the pages opened — and
+    no web address and no note's title or text, though this run opened sites and wrote notes."""
+    who = "the usage diary"
+    time.sleep(16)  # one more turn of the sampler
+    lines = []
+    for f in sorted((work / "config" / "formicaria" / "diary").glob("*.jsonl")):
+        for l in f.read_text().splitlines():
+            try:
+                lines.append(json.loads(l))
+            except ValueError:
+                pass
+    kinds = {v.get("kind") for v in lines}
+    check(who, "this start is in it", "start" in kinds, str(sorted(kinds, key=str)))
+    used = {c for v in lines if v.get("kind") == "use" for c in v.get("commands", {})}
+    check(who, "commands are counted by name", len(used) >= 3, str(sorted(used))[:300])
+    parts = {p for v in lines if v.get("kind") == "sample" for p in v.get("parts", {})}
+    check(who, "each part's memory is sampled", {"server", "browser"} <= parts, str(sorted(parts)))
+    whats = {v.get("what") for v in lines if v.get("kind") == "browser"}
+    check(who, "formicaria's browser says its start", "started" in whats, str(sorted(whats, key=str)))
+    pages = {v.get("page") for v in lines if v.get("kind") == "page"}
+    check(who, "pages opened are named by their kind", bool(pages), str(sorted(pages, key=str)))
+    text = "\n".join(json.dumps(v) for v in lines)
+    leaks = [w for w in ("://", "wikipedia", "youtube", "Check Reader", "reader@example.org") if w in text]
+    check(who, "no address, name or note in it", not leaks, str(leaks))
+
+
 def look(ff: Path, work: Path) -> None:
     """**What a person sees, as pictures** (the owner, 2026-11-19: *"see it yourself"*): formicaria's
     browser on a video page, the whole window drawn to `work/look-*.png`, and where formicaria's own
@@ -822,6 +850,8 @@ def main() -> None:
     env = dict(os.environ, XDG_CONFIG_HOME=str(work / "config"), FM_UI_DIST="ui/dist",
                FM_VAULT=str(work / "vault"), FM_VAULTS=str(work / "vaults.json"), FM_OPEN="0",
                FM_AUTO_SHUTDOWN="0", FM_ADDR=f"127.0.0.1:{bc.PORT}",
+               # The usage diary's sample and counts every 15 s, not 5 min, so this run sees them.
+               FM_DIARY_EVERY="15",
                # The browser the server opens can be driven (and drawn nowhere), for the second day.
                MOZ_MARIONETTE="1", MOZ_REMOTE_ALLOW_SYSTEM_ACCESS="1", MOZ_HEADLESS="1")
     server = subprocess.Popen([str(ROOT / "target" / "debug" / "fm-serve")], cwd=ROOT, env=env,
@@ -866,6 +896,7 @@ def main() -> None:
                 where = [f"{f.lineno}" for f in traceback.extract_tb(e.__traceback__) if f.filename == __file__]
                 check("harness", "a persona ran to the end", False, f"{repr(e)[:300]} (lines {', '.join(where)})")
                 bc.stop(ff)
+        diary_kept(work)
     finally:
         server.terminate()
         if (work / "config" / "formicaria" / "tools" / "media").exists():

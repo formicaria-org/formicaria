@@ -1,5 +1,6 @@
 <script lang="ts">
   import PrivacySheet from './PrivacySheet.svelte';
+  import UsageDiarySection from './UsageDiarySection.svelte';
   import SubsonicSection from './SubsonicSection.svelte';
   import { phoneVpn } from './privacy.svelte';
   import { tabBar, barPosition, setBarPosition } from './shell.svelte';
@@ -1898,6 +1899,14 @@
       >
         <h3>Privacy</h3>
         <PrivacySheet computer={!isPhone()} vpn={phoneVpn()} />
+      </section>
+
+      <!-- The usage diary (2026-11-20): kept on this device, to make formicaria lighter. -->
+      <section
+        data-cat="privacy"
+        data-words="usage diary log logging data memory performance delete"
+      >
+        <UsageDiarySection phone={isPhone()} />
       </section>
 
       <!-- formicaria's own browser (2026-11-15): a computer only; the section hides itself where the

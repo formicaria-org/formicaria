@@ -118,6 +118,7 @@ pub fn run_in_background(state: Arc<crate::AppState>) {
             }
             // The last one has been said: nothing is left to stay for.
             if state.remind.resting.load(Ordering::Relaxed) && !state.remind.waiting() {
+                crate::usage::stop("its last reminder said");
                 std::process::exit(0);
             }
         }
@@ -155,6 +156,7 @@ pub fn route(
                 ));
             }
             let out = crate::write_response(stream, "200 OK", "text/plain", b"leaving");
+            crate::usage::stop("asked to leave by a newer copy");
             std::thread::spawn(|| {
                 std::thread::sleep(Duration::from_millis(150));
                 std::process::exit(0);

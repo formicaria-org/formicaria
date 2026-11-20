@@ -134,6 +134,29 @@ async function call(server: string, key: string, path: string, body: BodyInit, j
   return text ? JSON.parse(text) : null;
 }
 
+/** **The usage diary** (`fm_app::diary`, 2026-11-20): a person's gesture, counted by its name —
+ *  never the page, its address or what was brought. Fire and forget: the diary is never in the way. */
+const GESTURES = new Set([
+  'snip',
+  'shot-bring',
+  'save-page',
+  'keep',
+  'save-media',
+  'bring-selection',
+  'bring-piece',
+  'link-instead',
+  'ask-assistant',
+  'undo',
+  'open',
+]);
+export function countGesture(what: string) {
+  void config()
+    .then(({ server, key }) =>
+      call(server, key, 'diary_note', JSON.stringify({ events: [{ kind: 'act', what }] }), true),
+    )
+    .catch(() => {});
+}
+
 /** Keep the page in tab `tab`. */
 export async function keep(tab: number): Promise<Kept> {
   let server: string | undefined;
@@ -648,7 +671,9 @@ async function snip(
   tell: (done: number, total: number) => void = () => {},
 ): Promise<Reply> {
   // How far it is, for the page's bar (`snip.ts`'s `withProgress`): one step per file kept.
-  const total = blocks.filter((b) => (b.kind === 'image' && b.src) || (b.kind === 'picture' && b.rect)).length;
+  const total = blocks.filter(
+    (b) => (b.kind === 'image' && b.src) || (b.kind === 'picture' && b.rect),
+  ).length;
   let done = 0;
   if (total) tell(0, total);
   const asPicture = async () => {
@@ -952,6 +977,7 @@ omnibox.onInputEntered.addListener((text) => {
     ): void;
   }
 ).addListener((m, sender) => {
+  if (typeof m?.type === 'string' && GESTURES.has(m.type)) countGesture(m.type);
   const d = m as { type?: string; where?: Where; p?: Pending };
   const st = sender?.tab;
   const here = { url: st?.url ?? '', title: st?.title ?? '' };

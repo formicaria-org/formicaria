@@ -85,3 +85,21 @@ Nothing about you: no telemetry, no account. These features add contact, each on
 switch is on: the block lists are downloaded from their publishers (about weekly; uBlock Origin's
 quick fixes daily), the names of the sites you open go to the encrypted-lookup service you chose
 (Quad9 at first), and the media tools update themselves (see [Saving media](./media.md)).
+
+## The usage diary
+
+So that formicaria can be made faster and lighter, each device keeps a **usage diary**: what
+formicaria did there, never what you did with your things. It is on at first; **Settings →
+Privacy → Usage diary** turns it off, shows how much is kept, and *Delete it* removes every line.
+
+- **What it holds**: each part's memory and processor every five minutes (formicaria itself, its
+  browser, the assistant); each start and stop and how it ended (closed, crashed, killed); how long
+  commands and pages took; errors; which features you use, counted by name ("opened Food",
+  "saved media").
+- **What it never holds**: a note's text or title, a web address, a search, a mail, a name. Errors
+  have anything quoted, any address, path, email or long number taken out.
+- **Where it is**: on the computer, in formicaria's settings folder (`formicaria/diary/`, a file a
+  day, kept 90 days and at most 100 MB). A phone keeps its own, and every hour adds its new lines
+  to your first vault (`.formicaria/usage/`), so your notes' sync brings them to your computer —
+  and to wherever that vault is synced. Nothing is sent anywhere else.
+- **Reading it**: `pixi run usage-report` in formicaria's source folder summarises it.

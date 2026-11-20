@@ -462,6 +462,14 @@ CASE_JS = r"""
 # parts and a tracker's redirect, each opened as a person does (+, the address, Enter), then known
 # trackers and ads added to a real page; what the page view reported back (`fm-page-privacy`,
 # `fm-page`) read here.
+DIARY_JS = r"""
+(async () => {
+  const t = await window.__TAURI_INTERNALS__.invoke('fm', { cmd: 'diary_status', args: {} });
+  return typeof t === 'string' ? JSON.parse(t) : t;
+})()
+"""
+
+
 PRIVACY_JS = r"""
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -744,6 +752,11 @@ def main() -> None:
                   not tracker and ordinary, f"tracker answered: {tracker}; ordinary answered: {ordinary}; before: {before}")
             st = cdp.evaluate(VPN_JS % "false") or {}
             check("off, every lookup is answered again", not st.get("on") and resolves("app-measurement.com"), str(st)[:300])
+        # **The usage diary** (`fm_app::diary`, 2026-11-20): on by default, and this run in it — its
+        # start and its commands — read through the app as Settings reads it.
+        got = cdp.evaluate(DIARY_JS) or {}
+        say(f"usage diary: {json.dumps(got)[:300]}")
+        check("the phone keeps its usage diary", bool(got.get("on")) and (got.get("bytes") or 0) > 0, str(got)[:300])
         # **yt-dlp updates itself** (2026-11-18: it never had: a null class loader, then R8). A fault in
         # the app's code fails; GitHub refusing (60 unsigned requests an hour per address, this
         # computer's) or no network is said, not failed.

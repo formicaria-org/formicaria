@@ -74,6 +74,9 @@ pub const EXTENSION_ROUTES: &[&str] = &[
     // **A selected video or recording, kept** (the chooser by a selection, `decisions.md`
     // 2026-11-17, small hours): the same media tools as the Save media sheet, into a note.
     "/api/media_save",
+    // **The usage diary** (2026-11-20): the add-on's gestures counted by name (bring, snip, save
+    // media), held by `diary::from_pages` to a few fields; never a page's address.
+    "/api/diary_note",
 ];
 
 /// The origin of formicaria's own add-on in this browser (`moz-extension://<uuid>`), learnt the first
@@ -612,14 +615,19 @@ pub fn launch(url: &str, xpi: &[u8], server: &str) -> Result<(), String> {
     // prepared afterwards, for the start after that.
     crate::browser_kit::refresh_kit(&d);
     prepare(&d, xpi, server)?;
-    let url = start_address(&d.join("profile"), crate::browser_kit::running(&d), url);
+    let was_running = crate::browser_kit::running(&d);
+    let url = start_address(&d.join("profile"), was_running, url);
+    // **Its end and its error output in the usage diary** (`usage.rs`, 2026-11-20): a browser that
+    // closed by itself is told from one that crashed or was killed, and what it said on the way.
+    let output =
+        if was_running { std::process::Stdio::null() } else { crate::usage::browser_output() };
     let started = std::process::Command::new(firefox_bin(&d))
         .args(launch_args(&d.join("profile"), url))
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stderr(output)
         .spawn()
-        .map(|_| ())
+        .map(|child| crate::usage::watch_browser(child, was_running))
         .map_err(|e| e.to_string());
     // And the next one is prepared in the background, after the browser is up.
     crate::browser_kit::prepare_in_background(d);

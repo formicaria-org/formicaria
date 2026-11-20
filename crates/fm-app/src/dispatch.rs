@@ -21,7 +21,7 @@ use crate::commands;
 use crate::scope::Scope;
 use crate::vaults::{self, VaultConfig};
 use fm_core::{backup, git, vcs, ColdStart, MultiStore, Reindex, Scoped, Store};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -429,6 +429,19 @@ impl App {
         Ok(self.lock()?.configs())
     }
 
+    /// **A phone's usage diary, carried with the notes** (`diary.rs`, 2026-11-20): its new lines
+    /// written into the first vault (`.formicaria/usage/`) and enrolled in the store's write list, so
+    /// the next commit and sync take them to the person's computer. Nothing when the diary is off or
+    /// has nothing new.
+    pub fn diary_to_vault(&self) {
+        let Some(d) = crate::diary::get().filter(|d| d.is_on()) else { return };
+        let Ok(mut g) = self.lock() else { return };
+        let Some(cfg) = g.configs().into_iter().next() else { return };
+        if let Some(path) = d.export_to(&cfg.path) {
+            g.all.seed_written(&cfg.name, vec![path]);
+        }
+    }
+
     /// The vault guard, **recovering from a poisoned mutex rather than propagating it**.
     ///
     /// A `PoisonError` means some earlier call panicked while holding this guard. Propagating it
@@ -522,7 +535,17 @@ pub fn dispatch_as(
     // it guards is git's own state on disk, which a panicked command leaves no worse for this.
     let _history =
         takes_history(cmd).then(|| app.history.lock().unwrap_or_else(|p| p.into_inner()));
+    let began = std::time::Instant::now();
     let out = dispatch_inner(cmd, args, body, app, host, scope);
+    // **The usage diary** (`diary.rs`): every command counted by its name and timed, on every
+    // device and every transport, since all of them come through here. Not an unknown name (it
+    // could be anything), and not the pages' own notes to the diary.
+    if let Some(d) = crate::diary::get() {
+        let unknown = matches!(&out, Err(e) if e.starts_with("unknown command"));
+        if !unknown && cmd != "diary_note" {
+            d.command(cmd, began.elapsed(), out.is_ok());
+        }
+    }
     // **Only on success**, so a rejected write (a stale `base`, an unknown vault) does not
     // send every other client off to re-query for a change that never landed.
     if out.is_ok() && !READ_ONLY.contains(&cmd) {
@@ -749,6 +772,11 @@ fn takes_history(cmd: &str) -> bool {
 }
 
 const READ_ONLY: &[&str] = &[
+    // The usage diary (2026-11-20): a per-device folder, never a vault.
+    "diary_status",
+    "diary_set",
+    "diary_forget",
+    "diary_note",
     // The actions table (`actions.rs`): a constant.
     "actions",
     // The app's clock (2026-10-24): a read, and the one the UI and the assistant poll.
@@ -2274,6 +2302,41 @@ fn dispatch_inner(
         }
         // **This device's privacy switches** (2026-11-17): what the page views and the browser apply.
         "privacy" => json(crate::privacy::answer(&crate::privacy::load())),
+        // **The usage diary** (`diary.rs`, 2026-11-20): this device's, kept on it. A paired device
+        // may neither read nor change it.
+        "diary_status" | "diary_set" | "diary_forget" | "diary_note" if !scope.is_all() => {
+            Err("the usage diary is this device's".into())
+        }
+        "diary_status" => json(
+            crate::diary::get()
+                .map(|d| d.status())
+                .unwrap_or(json!({ "on": false, "kept": false })),
+        ),
+        "diary_set" => {
+            let d = crate::diary::get().ok_or("this program keeps no usage diary")?;
+            let on = args
+                .get("on")
+                .and_then(Value::as_bool)
+                .ok_or("diary_set needs on: true or false")?;
+            d.set_on(on);
+            json(d.status())
+        }
+        "diary_forget" => {
+            let d = crate::diary::get().ok_or("this program keeps no usage diary")?;
+            d.forget();
+            json(d.status())
+        }
+        // What the pages and formicaria's browser tell it, held to `diary::from_pages`'s short list.
+        "diary_note" => {
+            if let Some(d) = crate::diary::get() {
+                for (kind, fields) in
+                    crate::diary::from_pages(args.get("events").unwrap_or(&Value::Null))
+                {
+                    d.record(kind, fields);
+                }
+            }
+            json(json!({}))
+        }
         // Change them (only the fields given; `site_off`/`site_on`; `fire`). A paired device may not.
         "set_privacy" => {
             if !scope.is_all() {

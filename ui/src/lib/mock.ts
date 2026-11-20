@@ -902,7 +902,19 @@ export function setBrowserRunning(running: boolean, kitCurrent: boolean): void {
   mockBrowser = { ...mockBrowser, running, kit_current: kitCurrent };
 }
 
+let mockDiary: { on: boolean; lines: unknown[] } = { on: true, lines: [] };
+const diaryStatusNow = () => ({
+  on: mockDiary.on,
+  bytes: mockDiary.lines.length ? 2048 * mockDiary.lines.length : 0,
+  days: mockDiary.lines.length ? 1 : 0,
+  since: mockDiary.lines.length ? '2026-11-20' : null,
+  keep_days: 90,
+});
+/** For tests: what the pages told the diary. */
+export const diaryLines = () => [...mockDiary.lines];
+
 export function reset(): void {
+  mockDiary = { on: true, lines: [] };
   mockBrowser = { ...mockBrowser, running: false, kit_current: false };
   mockDeleted.length = 0;
   mockClockZone = '';
@@ -3048,6 +3060,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return mockMediaJobs.map((j) => ({ ...j })) as T;
     case 'media_cancel':
       return null as T;
+    // The usage diary (2026-11-20): this device's, a few lines in memory here.
+    case 'diary_status':
+      return diaryStatusNow() as T;
+    case 'diary_set':
+      mockDiary.on = !!args.on;
+      return diaryStatusNow() as T;
+    case 'diary_forget':
+      mockDiary.lines = [];
+      return diaryStatusNow() as T;
+    case 'diary_note':
+      if (mockDiary.on) mockDiary.lines.push(...((args.events as unknown[]) ?? []));
+      return {} as T;
     case 'privacy':
       return { ...mockPrivacy, sites_off: [...mockPrivacy.sites_off] } as T;
     case 'set_privacy': {

@@ -117,6 +117,7 @@ fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     // **Published before anything else runs.** From here the `fm` command can answer, so every
     // millisecond spent after this point is a millisecond the UI has data for.
     handle.manage(app_state.clone());
+    watch_usage(app_state.clone());
     // One line, and it is load-bearing: it is what `ci/android-smoke.sh` greps to prove the vaults
     // opened *before* the optional work — the ordering whose absence made the first open gray.
     // (On a user's own phone even this is invisible: the vendor's build suppresses our tag, which is why the
@@ -1350,6 +1351,35 @@ const WEB_LOG_SCRIPT: &str = r#"
 })();
 "#;
 
+/// **The phone's usage diary, as it runs** (`fm_app::diary`, 2026-11-20): every five minutes the
+/// commands' counts and this app's memory and processor (the pages' own processes are the system's,
+/// not readable here); every hour its new lines go into the first vault, to reach the person's
+/// computer with the notes' sync. Android stops a phone app without a word, so a run's end is the
+/// next start's `ended_unsaid`.
+fn watch_usage(app: Arc<App>) {
+    std::thread::spawn(move || {
+        let mut prev = std::collections::HashMap::new();
+        let mut turns = 0u32;
+        loop {
+            std::thread::sleep(fm_app::diary::every());
+            let Some(d) = fm_app::diary::get() else { return };
+            d.flush();
+            if d.is_on() {
+                let all = fm_app::diary::processes();
+                let me = std::process::id();
+                d.record(
+                    "sample",
+                    serde_json::json!({ "parts": fm_app::diary::sample(&[("app", vec![me])], &all, &mut prev) }),
+                );
+            }
+            turns += 1;
+            if turns % 12 == 1 {
+                app.diary_to_vault();
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // The internet's clock, for the clock check (2026-10-24): from answers the app gets anyway.
@@ -1388,6 +1418,12 @@ pub fn run() {
             // and after `configure_paths` — it reads from the config directory that sets up.
             // Cheap (one small file), so it stays on the critical path.
             fm_app::secrets::install_into_env();
+            // **The usage diary** (`fm_app::diary`, 2026-11-20): this start and how the last ended.
+            // A few small file writes; after `configure_paths`, which says where the diary lives.
+            if let Some(d) = fm_app::diary::init("phone") {
+                let version = app.package_info().version.to_string();
+                d.started(&version, serde_json::json!({ "os": std::env::consts::OS }));
+            }
             // Opening the vaults is the one slow thing left before the app can answer anything.
             //
             // **Nothing slow may be added above this line, and a failure here must not panic.**

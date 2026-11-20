@@ -31,6 +31,7 @@
   // it reads by commands, writes by commands, and re-reads when the server says something moved
   // (`listenChanges`). Opening a note opens it in a tab of its own (`openItem`).
   import { onMount } from 'svelte';
+  import * as diary from '../lib/diary';
   import Pane from '../lib/Pane.svelte';
   import { feedKey, newPane, type Feed, type Pane as PaneT } from '../lib/panes';
   import { loadFeed, groupsOf, statusesOf } from '../lib/feeds';
@@ -59,6 +60,12 @@
   // shows its own. Unknown, or the question failing, counts as not there.
   let windowHasSettings = $state(true);
   onMount(() => {
+    // **The usage diary** (`lib/diary.ts`): this page's kind and how long it took to open — a
+    // feature's own name, never a note's, a group's or a view's (those are the person's).
+    diary.watch();
+    diary.pageOpened(
+      featureOf(location.pathname)?.key ?? (route.kind === 'builtin' ? route.pane : route.kind),
+    );
     ipc.browserStatus().then(
       (st) => (windowHasSettings = !!(st.running && st.kit_current)),
       () => (windowHasSettings = false),
