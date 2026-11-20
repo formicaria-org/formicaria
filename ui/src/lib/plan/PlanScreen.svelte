@@ -130,6 +130,8 @@
     definition: 'Definition, not advice',
     described: 'Set out by its own body',
     own: 'Yours',
+    published: 'A published plan',
+    assembled: 'Assembled from research',
   };
   /// The question a card answers — one card is followed per question.
   const QUESTIONS: Record<string, string> = {

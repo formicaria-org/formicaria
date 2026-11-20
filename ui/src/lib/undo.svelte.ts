@@ -18,6 +18,7 @@
 // menu and the keys undo its typing, a change at a time, and go on to the stack once it has none.
 
 import {
+  acceptMatch,
   capture,
   createNotes,
   deleteNote,
@@ -277,6 +278,26 @@ export async function setPropertiesUndoable(
       await setProperties(id, props);
     },
   });
+}
+
+/** **A watch's session kept as the planned one it was** (`accept_match`), undoably: undo puts the
+ *  planned entry's values and text back and the imported entry back beside it. */
+export async function acceptMatchUndoable(planned: string, imported: string, label: string) {
+  let f = await acceptMatch(planned, imported);
+  record({
+    label,
+    undo: async () => {
+      const back = Object.fromEntries(Object.entries(f.previous).map(([k, v]) => [k, v ?? '']));
+      await setProperties(planned, back);
+      const n = await getNote(planned);
+      if (n && n.body !== f.body_before) await updateBody(planned, f.body_before, n.version);
+      await restoreNote(f.removed.vault, f.removed.file);
+    },
+    redo: async () => {
+      f = await acceptMatch(planned, imported);
+    },
+  });
+  return f;
 }
 
 /** Record a finished editing session on a note's text: undo puts the text back as it was before. */

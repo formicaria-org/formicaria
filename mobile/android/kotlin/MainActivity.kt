@@ -131,6 +131,14 @@ class MainActivity : TauriActivity() {
         try {
           // Read through the page as text, so a bound is kept: a phone video would not fit.
           if (size > MAX_SHARE) { synchronized(shared) { refused.add(Pair(name, "too large")) }; continue }
+          // **A watch's activity file** (`decisions.md` 2026-11-20, *The phone takes watch files*):
+          // a picture, or a `.fit` by name — anything else is refused before it is copied.
+          val type = contentResolver.getType(uri) ?: ""
+          val fit = name.lowercase().endsWith(".fit")
+          if (!type.startsWith("image/") && !fit) {
+            synchronized(shared) { refused.add(Pair(name, NOT_TAKEN)) }
+            continue
+          }
           val out = File(dir, "${System.nanoTime()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
           contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
           if (!out.isFile || out.length() > MAX_SHARE) {
@@ -139,7 +147,13 @@ class MainActivity : TauriActivity() {
             synchronized(shared) { refused.add(Pair(name, why)) }
             continue
           }
-          val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+          // …and by its signature: `.FIT` at bytes 8–11 of the header, as the reader checks it.
+          if (fit && !type.startsWith("image/") && !fitSigned(out)) {
+            out.delete()
+            synchronized(shared) { refused.add(Pair(name, NOT_TAKEN)) }
+            continue
+          }
+          val mime = if (fit && !type.startsWith("image/")) FIT_MIME else type.ifEmpty { "application/octet-stream" }
           synchronized(shared) { shared.add(Shared(out, name, mime)) }
         } catch (e: Exception) {
           // Most often the app that shared it gave no permission to read it.
@@ -148,6 +162,240 @@ class MainActivity : TauriActivity() {
       }
       runOnUiThread { wv?.evaluateJavascript("window.dispatchEvent(new Event('fm-share'))", null) }
     }.start()
+  }
+
+  /// The FIT header's signature, `.FIT`, at bytes 8–11.
+  private fun fitSigned(f: File): Boolean = try {
+    val head = ByteArray(12)
+    f.inputStream().use { it.read(head) } == 12 && String(head, 8, 4, Charsets.US_ASCII) == ".FIT"
+  } catch (e: Exception) { false }
+
+  // ── A watch's files: one folder the person grants, and workouts out ─────────────────────────────
+  //
+  // `decisions.md` 2026-11-20, *The phone takes watch files: the share menu, and one folder the
+  // person grants*. The folder is the one the watch's app (typically Gadgetbridge) exports activity
+  // files into. It is granted once through Android's folder picker, **read only**; the grant is kept
+  // per device (here, never in the vault). On opening and on coming back to the app it is listed
+  // **off the main thread**; a `.fit` not taken before (by document, size and time) is copied into
+  // the app's cache — unless its size or time changed between two looks a few seconds apart, when it
+  // is still being written and waits for the next time. The page asks for what was copied
+  // (`__fmWatch.pending`), imports it, and says which it has (`done`), as with a share.
+
+  private class WatchFile(val key: String, val name: String, val file: File)
+  private val watchFiles = mutableListOf<WatchFile>()
+  @Volatile private var watchLooking = false
+  @Volatile private var watchReadable = true
+  @Volatile private var watchWaiting = 0
+  @Volatile private var watchTooLarge = 0
+  private fun watchPrefs() = getSharedPreferences("watch", MODE_PRIVATE)
+
+  private val pickWatchFolder = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
+    if (uri != null) {
+      try {
+        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val old = watchPrefs().getString("tree", null)
+        if (old != null && old != uri.toString()) releaseWatchFolder(Uri.parse(old))
+        watchPrefs().edit().putString("tree", uri.toString()).putString("label", folderLabel(uri)).apply()
+        lookWatchFolder()
+      } catch (e: Exception) {
+        watchReadable = false
+      }
+    }
+    tellWatch()
+  }
+
+  private fun releaseWatchFolder(uri: Uri) {
+    try { contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) { }
+  }
+
+  private fun folderLabel(tree: Uri): String = try {
+    val doc = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree))
+    contentResolver.query(doc, arrayOf(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)
+      ?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "the folder"
+  } catch (e: Exception) { "the folder" }
+
+  private class Listed(val key: String, val id: String, val name: String, val size: Long)
+
+  /// The folder's `.fit` files, one level of subfolders deep; `null` when it cannot be read.
+  private fun listWatchFolder(tree: Uri): List<Listed>? = try {
+    val out = mutableListOf<Listed>()
+    fun walk(parent: String, depth: Int) {
+      val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent)
+      val cols = arrayOf(
+        android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+        android.provider.DocumentsContract.Document.COLUMN_SIZE,
+        android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+        android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+      )
+      val dirs = mutableListOf<String>()
+      contentResolver.query(children, cols, null, null, null)?.use { c ->
+        while (c.moveToNext() && out.size < MAX_WATCH_LISTED) {
+          val id = c.getString(0) ?: continue
+          val name = c.getString(1) ?: ""
+          val mime = c.getString(4) ?: ""
+          if (mime == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) { dirs.add(id); continue }
+          if (!name.lowercase().endsWith(".fit")) continue
+          val size = if (c.isNull(2)) -1L else c.getLong(2)
+          val time = if (c.isNull(3)) -1L else c.getLong(3)
+          out.add(Listed("$id|$size|$time", id, name, size))
+        }
+      } ?: throw IllegalStateException("no answer")
+      if (depth < 1) for (d in dirs) walk(d, depth + 1)
+    }
+    walk(android.provider.DocumentsContract.getTreeDocumentId(tree), 0)
+    out
+  } catch (e: Exception) { null }
+
+  /// List the granted folder and copy what is new into the cache — **off the main thread**.
+  private fun lookWatchFolder() {
+    val tree = watchPrefs().getString("tree", null) ?: return
+    if (watchLooking) return
+    watchLooking = true
+    Thread {
+      try {
+        val uri = Uri.parse(tree)
+        val granted = contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
+        val first = if (granted) listWatchFolder(uri) else null
+        watchReadable = first != null
+        if (first == null) return@Thread
+        val seen = watchPrefs().getStringSet("seen", emptySet())!!
+        val held = synchronized(watchFiles) { watchFiles.map { it.key }.toSet() }
+        val fresh = first.filter { it.key !in seen && it.key !in held }
+        if (fresh.isEmpty()) { watchWaiting = 0; return@Thread }
+        // A second look a few seconds later: a file still being written has another size or time.
+        Thread.sleep(WATCH_SETTLE_MS)
+        val again = (listWatchFolder(uri) ?: emptyList()).map { it.key }.toSet()
+        val settled = fresh.filter { it.key in again }
+        watchWaiting = fresh.size - settled.size
+        val dir = File(cacheDir, "watch").apply { mkdirs() }
+        var large = 0
+        for (f in settled) {
+          if (f.size > MAX_SHARE) { large++; continue }
+          val out = File(dir, "${System.nanoTime()}.fit")
+          try {
+            val doc = android.provider.DocumentsContract.buildDocumentUriUsingTree(uri, f.id)
+            contentResolver.openInputStream(doc)?.use { input -> out.outputStream().use { input.copyTo(it) } }
+            if (out.isFile && out.length() <= MAX_SHARE) {
+              synchronized(watchFiles) { watchFiles.add(WatchFile(f.key, f.name, out)) }
+            } else { out.delete(); large++ }
+          } catch (e: Exception) { out.delete() }
+        }
+        watchTooLarge = large
+      } finally {
+        watchLooking = false
+        tellWatch()
+      }
+    }.start()
+  }
+
+  private fun tellWatch() {
+    runOnUiThread { wv?.evaluateJavascript("window.dispatchEvent(new Event('fm-watch'))", null) }
+  }
+
+  /// The workout file the page asked to save, held while Android's *Save as* is open.
+  private var workoutToSave: ByteArray? = null
+  private val saveWorkout = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+    val bytes = workoutToSave
+    workoutToSave = null
+    var ok = false
+    if (uri != null && bytes != null) {
+      try { contentResolver.openOutputStream(uri)?.use { it.write(bytes) }; ok = true } catch (e: Exception) { }
+    }
+    val d = JSONObject().put("saved", ok).put("chosen", uri != null)
+    wv?.evaluateJavascript("window.dispatchEvent(new CustomEvent('fm-workout-saved',{detail:$d}))", null)
+  }
+
+  /// The page's side of the watch's files.
+  inner class WatchShell {
+    /// `{folder, readable, looking, held, waiting, tooLarge}`; `folder` is empty with no grant.
+    @JavascriptInterface
+    fun state(): String {
+      val p = watchPrefs()
+      return JSONObject()
+        .put("folder", if (p.getString("tree", null) != null) p.getString("label", "the folder") else "")
+        .put("readable", watchReadable)
+        .put("looking", watchLooking)
+        .put("held", synchronized(watchFiles) { watchFiles.size })
+        .put("waiting", watchWaiting)
+        .put("tooLarge", watchTooLarge)
+        .toString()
+    }
+
+    @JavascriptInterface
+    fun choose() { runOnUiThread { try { pickWatchFolder.launch(null) } catch (e: Exception) { } } }
+
+    /// Stop reading the folder: the grant is given back and nothing more is taken from it.
+    @JavascriptInterface
+    fun forget() {
+      val tree = watchPrefs().getString("tree", null)
+      if (tree != null) releaseWatchFolder(Uri.parse(tree))
+      watchPrefs().edit().remove("tree").remove("label").remove("seen").apply()
+      synchronized(watchFiles) { watchFiles.forEach { it.file.delete() }; watchFiles.clear() }
+      watchReadable = true; watchWaiting = 0; watchTooLarge = 0
+      tellWatch()
+    }
+
+    @JavascriptInterface
+    fun look() = lookWatchFolder()
+
+    @JavascriptInterface
+    fun pending(): String = synchronized(watchFiles) {
+      val a = JSONArray()
+      for (f in watchFiles) a.put(JSONObject().put("key", f.key).put("name", f.name))
+      a.toString()
+    }
+
+    @JavascriptInterface
+    fun read(key: String): String {
+      val f = synchronized(watchFiles) { watchFiles.firstOrNull { it.key == key } } ?: return ""
+      return Base64.encodeToString(f.file.readBytes(), Base64.NO_WRAP)
+    }
+
+    /// The page imported these (or the import refused them): never taken again.
+    @JavascriptInterface
+    fun done(keys: String) {
+      val list = try { JSONArray(keys) } catch (e: Exception) { return }
+      val taken = (0 until list.length()).map { list.optString(it) }.toSet()
+      synchronized(watchFiles) {
+        watchFiles.filter { it.key in taken }.forEach { it.file.delete() }
+        watchFiles.removeAll { it.key in taken }
+      }
+      val seen = watchPrefs().getStringSet("seen", emptySet())!!.toMutableSet()
+      seen.addAll(taken)
+      watchPrefs().edit().putStringSet("seen", seen.toList().takeLast(MAX_WATCH_SEEN).toSet()).apply()
+    }
+
+    /// **Send a workout to the watch's app** (S.7): Android's share sheet with the file, for the
+    /// person to pick their watch's app (Gadgetbridge installs a workout file it is given).
+    @JavascriptInterface
+    fun send(name: String, data: String) {
+      runOnUiThread {
+        try {
+          val dir = File(cacheDir, "workouts").apply { mkdirs() }
+          dir.listFiles()?.forEach { it.delete() }
+          val f = File(dir, name.replace(Regex("[^A-Za-z0-9._-]"), "_").ifEmpty { "workout.fit" })
+          f.writeBytes(Base64.decode(data, Base64.DEFAULT))
+          val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", f)
+          val send = Intent(Intent.ACTION_SEND).setType("application/octet-stream")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          send.clipData = android.content.ClipData.newRawUri(f.name, uri)
+          startActivity(Intent.createChooser(send, "Send to your watch app"))
+        } catch (e: Exception) { }
+      }
+    }
+
+    /// **Save a workout file** where the person chooses (Android's *Save as*).
+    @JavascriptInterface
+    fun save(name: String, data: String) {
+      runOnUiThread {
+        try {
+          workoutToSave = Base64.decode(data, Base64.DEFAULT)
+          saveWorkout.launch(name)
+        } catch (e: Exception) { workoutToSave = null }
+      }
+    }
   }
 
   @Suppress("DEPRECATION")
@@ -906,6 +1154,8 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(PlayerShell(), "__fmPlayer")
     // Save media's runner (yt-dlp inside the app). See `MediaShell`.
     webView.addJavascriptInterface(MediaShell(), "__fmMedia")
+    // A watch's files: the granted folder, and workouts out. See `WatchShell`.
+    webView.addJavascriptInterface(WatchShell(), "__fmWatch")
     // **Back goes back in the page first**, as in any browser: while a page item is shown and has
     // somewhere to go back to. Otherwise Back is the app's (wry's callback, registered before this
     // one, so this one is asked first).
@@ -965,6 +1215,8 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     wv?.let { ViewCompat.requestApplyInsets(it) }
+    // The watch's folder, on opening and on every return to the app (off the main thread).
+    lookWatchFolder()
   }
 
   companion object {
@@ -982,6 +1234,15 @@ class MainActivity : TauriActivity() {
 
     /// The most one shared file may be: it travels to the page as base64 text.
     private const val MAX_SHARE = 25L * 1024 * 1024
+    /// A shared file that is neither a picture nor a watch's activity file.
+    private const val NOT_TAKEN = "not a picture or a watch's activity file (.fit)"
+    /// How a `.fit` taken from the share menu is labelled for the page.
+    private const val FIT_MIME = "application/vnd.ant.fit"
+    /// The second look at the watch's folder, for files still being written.
+    private const val WATCH_SETTLE_MS = 3000L
+    /// The most files one look at the watch's folder lists, and how many it remembers as taken.
+    private const val MAX_WATCH_LISTED = 5000
+    private const val MAX_WATCH_SEEN = 20000
     /// The most of a page's HTML handed over to be saved (characters).
     private const val MAX_PAGE = 5_000_000
     /// The selection bar's *Bring into note*.

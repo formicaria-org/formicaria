@@ -40,7 +40,8 @@
   import { exercises } from './training/exercises';
   import * as trackers from './trackers.svelte';
   import { createNotesUndoable, deleteUndoable, setPropertiesUndoable, undo } from './undo.svelte';
-  import { addDays, clockOf, dayLabel, nowClock, today as todayNow } from './units';
+  import { addDays, clockOf, dayLabel, dayOf, nowClock, today as todayNow } from './units';
+  import { plannedCopies } from './training/coach';
   import type { Feed, Pane } from './panes';
   import type {
     DayTotals,
@@ -235,7 +236,7 @@
       def.add === 'health'
     )
       return;
-    if (def.span === 'week' && !dayOpen) return;
+    if ((def.span === 'week' || def.span === 'coach') && !dayOpen) return;
     const mine = ++asked;
     try {
       if (def.span === 'range') {
@@ -438,14 +439,20 @@
   }
 
   /// A planned entry happened: clearing the mark is what puts it in the day's totals.
+  /// **An entry of a plan keeps what was planned** (`planned_<key>`, written with the same step;
+  /// `training/coach.ts`): an entry with no `plan` link is ticked exactly as before.
   async function confirm(row: ObjectMeta) {
+    const on = dayOf(row.start) || selected;
     try {
       await setPropertiesUndoable(
         row.id,
         // Confirmed today, it was had now — unless it was planned for a time, which it keeps.
         {
+          ...plannedCopies(row),
           planned: '',
-          ...(selected === today && !clockOf(row.start) ? { start: `${today}T${nowClock()}` } : {}),
+          // A skipped session done after all is done.
+          ...(row.props.skipped !== undefined ? { skipped: '' } : {}),
+          ...(on === today && !clockOf(row.start) ? { start: `${today}T${nowClock()}` } : {}),
         },
         `confirmed “${row.title ?? 'an entry'}”`,
       );
@@ -531,7 +538,7 @@
     try {
       await setPropertiesUndoable(
         set.id,
-        { planned: '', work_g: reps * load_g },
+        { ...plannedCopies(set), planned: '', work_g: reps * load_g },
         `finished a set of ${set.title ?? 'an exercise'}`,
       );
     } catch (e) {
@@ -573,6 +580,7 @@
     void import('./food/MenuScreen.svelte');
     void import('./training/ExercisesScreen.svelte');
     void import('./training/WeekScreen.svelte');
+    void import('./training/CoachScreen.svelte');
   }
 </script>
 
@@ -655,6 +663,20 @@
       {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}
         <ExercisesScreen onadd={(card) => (workout = { set: null, preset: card })} />
       {/await}
+    {:else if def.span === 'coach' && !dayOpen}
+      {#await import('./training/CoachScreen.svelte') then { default: CoachScreen }}
+        <CoachScreen
+          {today}
+          signal={[feed, wrotes]}
+          {onsaved}
+          ondone={confirm}
+          onday={(d) => {
+            selected = d;
+            day = null;
+            dayOpen = true;
+          }}
+        />
+      {/await}
     {:else if def.span === 'week' && !dayOpen}
       {#await import('./training/WeekScreen.svelte') then { default: WeekScreen }}
         <WeekScreen
@@ -696,7 +718,7 @@
         {routines}
         today={selected}
         label={selected === today ? '' : dayLabel(selected)}
-        onback={def.span === 'week' ? () => (dayOpen = false) : undefined}
+        onback={def.span === 'week' || def.span === 'coach' ? () => (dayOpen = false) : undefined}
         ondone={confirm}
         cards={cardNames}
         onhow={(name) => (how = name)}

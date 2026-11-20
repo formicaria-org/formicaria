@@ -3006,7 +3006,7 @@ pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreE
 }
 
 /// What `delete` hands back: enough to put the note back exactly where it was (`restore_note`).
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct DeletedNote {
     pub id: String,
     pub vault: String,

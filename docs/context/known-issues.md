@@ -4,6 +4,72 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## Fitness → Coach: what is not verified or not built (2026-11-20)
+
+`crates/fm-app/src/coach.rs`, `ui/src/lib/training/Coach*.svelte`; Spec K steps K1–K4 and K7.
+
+- **Untried on a device.** The phone layout (the week's rows, the month grid of seven narrow
+  columns, the bar of four Fitness tabs) is tested only in jsdom; **dragging a session works only
+  with a mouse** (HTML drag and drop) — on a touch screen a session is moved with its date.
+- **A strength session is planned as one activity entry**, not one planned set per set (Spec K.3):
+  assembled plans carry no sets or loads to plan. Its sets are added on the day.
+- **Undoing a watch match** puts the values, the text and the imported entry back, but the planned
+  entry keeps the watch file in its `assets` list (the imported entry names it too). Redo is
+  refused if the planned entry was ticked in between.
+- **Matching** reads activities only (`counts_as` on the same day); a watch's strength *sets* are
+  not matched to planned sets (S.5's `exercise` rule). A session matched to nothing is listed only
+  when a day is asked for, so the Coach shows only the ambiguous ones.
+- **A skipped session stays `planned`** with `skipped: 1`, so the Week's day still offers to tick it.
+- **The register rows of the four plans rest on abstracts** (`sources-2026-10-11.md` §6, *The
+  Coach's plans*); no full paper was read. `check-references` has not been run on the new links.
+
+## The phone's watch files and workouts out: not tried on a device (2026-11-20)
+
+The share menu's `.fit`, the granted folder (`MainActivity.kt`'s `WatchShell`, wired by
+`ci/android-inject-service.sh`), `import_fit_files`, and `workout_fit` with *Save .fit file* / *Send
+to watch app*. Tested in Rust (`crates/fm-app/tests/import_fit.rs` I1, `fit_write_tests.rs` T18,
+`workout.rs`) and in jsdom with a fake shell (`ui/src/App.watchPhone.test.ts`) only.
+
+- **No device run.** Neither the share filter, nor the folder grant (`ACTION_OPEN_DOCUMENT_TREE`,
+  persisted read permission), nor the listing on resume, nor *Save as* / the share sheet has run on
+  a phone or an emulator. The device checklist of the coach plan's P2.6 is open: the grant survives a
+  reboot; a revoked grant is shown as *no longer readable*; a growing file waits; a folder on
+  removable storage; the Kotlin compiles (nothing in `pixi run ci` compiles it).
+- **E0, E1, E-cal not run** (coach plan §4.3): no real watch file has been read; no workout file
+  written here has been installed by Gadgetbridge or followed on a watch; whether a watch's
+  *calendar* can be filled without the maker's cloud is unknown — the app says *Workouts list, not
+  calendar*. GB's install handler wants a FIT whose header and `file_id` it accepts: ours is
+  type 5, manufacturer `development` (255), product 0, unverified against GB.
+- **Share is offered for `application/octet-stream`, `application/vnd.ant.fit` and
+  `application/fit`**, not `*/*`: an app that shares a `.fit` under another type will not list
+  formicaria. Any other octet-stream file is refused with a sentence after the name check.
+- **The folder is read one level of subfolders deep**, at most 5000 files a look; files taken are
+  remembered by document id, size and time (the last 20 000) in the app's preferences — a file
+  edited in place is taken again (and then known by its identity, so nothing is written twice).
+- **Steps are read from the body's lines with a small grammar** (`workout.rs`): `N x`, minutes /
+  seconds / hours, km / m, reps, kg, `a-b bpm`, `m:ss/km` (or `/mi`, `/100 m`), `km/h`. Anything
+  else is words on an open step. A strength step carries no FIT exercise category or name.
+
+## Watch files (FIT): what is not verified yet (2026-11-20)
+
+`fit_preview` / `import_fit` (`crates/fm-app/src/watch.rs`, decoder `crates/fm-core/src/fit.rs`) are
+tested on **synthetic files only**, written by the test-only writer `fit_synth.rs`.
+
+- **No real watch file has been read.** That `rustyfit` 0.11 decodes a real watch's `length` (swim),
+  `set` (strength) and `workout_rpe` as it decodes the synthetic ones is the coach plan's experiment
+  E0 — run locally on real files, never committed. T4b (a second decoder's numbers pinned as data)
+  is not written yet.
+- **The watch's estimates read are only the documented ones**: training effect (×10), anaerobic
+  effect (×10), calories. VO2max and recovery time are not in the public profile and are not read.
+- **`day` uses the watch's offset at the end of the activity.** A session crossing midnight on the
+  night a zone changes its clock *at* midnight would land an hour off; no such case is tested.
+- **A file with no `activity` message** (no watch offset) gets the app's clock's date and the
+  quality word `day_by_this_clock`.
+- **A merge proposal is a sentence in the report**, nothing more: there is no command to merge, and
+  a held-back file is proposed again on every run until it is removed from the folder.
+- **Multisport files** become one entry per session (keys `fit:…`, `fit:…:2`, …); untested beyond
+  one session.
+
 ## The usage diary: what it does not see yet (2026-11-20)
 
 - **macOS and Windows are not sampled**: memory and processor come from `/proc` (Linux, Android).

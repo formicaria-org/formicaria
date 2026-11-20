@@ -1298,6 +1298,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
 
 [[package]]
+name = "embedded-io"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1523,6 +1529,7 @@ dependencies = [
  "fm-core",
  "fm-model",
  "fm-query",
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -1555,6 +1562,7 @@ dependencies = [
 name = "fm-core"
 version = "0.0.0"
 dependencies = [
+ "embedded-io",
  "fm-model",
  "fm-query",
  "git2",
@@ -1564,6 +1572,7 @@ dependencies = [
  "lofty",
  "openssl-sys",
  "rusqlite",
+ "rustyfit",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -4599,6 +4608,15 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "rustyfit"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8eded73b8939d32c1cbf1c5e0aa7f99b4ce50dfb9b543f4ac537968e10a8a1d"
+dependencies = [
+ "embedded-io",
+]
 
 [[package]]
 name = "ryu"

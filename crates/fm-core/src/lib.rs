@@ -38,6 +38,10 @@ pub mod import;
 // A published calendar -> event records; converts too, and for the same reason sits beside `import`
 // rather than in the agent: the events half must work with the assistant off.
 pub mod events;
+// A watch's activity file (FIT), decoded: bytes in, records out (`decisions.md` 2026-11-20).
+pub mod fit;
+// A planned session as a FIT workout file for a watch (`decisions.md` 2026-11-20, the Coach's item 6).
+pub mod fit_write;
 // Event records -> notes: which to create, which a newer `SEQUENCE` moves, which are cancelled. Pure;
 // the caller owns the store.
 pub mod calendar;

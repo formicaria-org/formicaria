@@ -472,6 +472,49 @@ export interface LeftBehind {
   count: number;
 }
 
+/** What a folder of watch files (`.fit`) would become, or what an import of it did — one shape for
+ *  both (`fit_preview` / `import_fit`, `crates/fm-app/src/watch.rs`). */
+/** A planned session as a FIT workout file (`workout_fit`, `crates/fm-app/src/workout.rs`). */
+export interface WorkoutFile {
+  /** A file name to save it under (`2026-03-14-intervals-run.fit`). */
+  name: string;
+  /** The file, standard base64. */
+  data: string;
+  steps: number;
+  /** No step has a time, distance or count: each lasts until the lap key is pressed. */
+  open: boolean;
+  /** What was not sent, and why, in sentences. */
+  notes: string[];
+}
+
+export interface FitReport {
+  files: number;
+  activities: number;
+  sets: number;
+  /** Files imported before, left as they are. */
+  known: number;
+  /** The same file as an earlier import, with other contents: reported, never overwritten. */
+  otherVersions: { file: string; note: string; id: string; edited: boolean }[];
+  /** Looks like an entry already there: proposed, never merged. */
+  merges: { file: string; with: string; id?: string; day: string }[];
+  refused: { file: string; reason: string }[];
+  notActivities: string[];
+  items: {
+    file: string;
+    title: string;
+    day: string;
+    minutes: number;
+    distanceM?: number;
+    sets: number;
+  }[];
+  problem: string | null;
+  ok: boolean;
+  written: number;
+  recorded: boolean;
+  warnings: string[];
+  vault: string;
+}
+
 /** What importing a folder would involve — **and whether it can be**. The server owns `ok`
  *  and answers for the source *and* the destination together: two verdicts ANDed in the
  *  browser is the second opinion that makes a button enable and then fail. */
@@ -635,7 +678,8 @@ export interface TotalsDef {
   add: 'food' | 'workout' | 'body' | 'health' | 'song' | 'video';
   /** `plan` is the screen where a diet or a regime is chosen and followed; `diary` and `month` are
    *  the Health diary's (2026-10-22). */
-  span: 'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards' | 'diary' | 'library' | 'videos';
+  span:
+    'day' | 'range' | 'plan' | 'menu' | 'week' | 'cards' | 'diary' | 'library' | 'videos' | 'coach';
   metrics: Metric[];
   slots: Slot[];
 }
@@ -1232,13 +1276,21 @@ export interface PlanCheck {
 export type PlanFlag =
   'pregnant' | 'breastfeeding' | 'postmenopausal' | 'kidney' | 'diabetes_meds' | 'eating_disorder';
 /** What kind of thing a card is, which says how it is tracked (`decisions.md#ui`, 2026-10-16). */
-export type PlanKind = 'targets' | 'pattern' | 'timing' | 'amounts' | 'programme' | 'own';
+export type PlanKind = 'targets' | 'pattern' | 'timing' | 'amounts' | 'programme' | 'coach' | 'own';
 export interface PlanOption {
   id: string;
   group: 'food' | 'fitness';
   name: string;
   /** What kind of source it rests on. */
-  rests_on: 'guideline' | 'position' | 'review' | 'definition' | 'described' | 'own';
+  rests_on:
+    | 'guideline'
+    | 'position'
+    | 'review'
+    | 'definition'
+    | 'described'
+    | 'own'
+    | 'published'
+    | 'assembled';
   summary: string;
   sources: PlanSource[];
   needs: string[];
@@ -1260,6 +1312,87 @@ export interface PlanOption {
   not_for?: PlanFlag[];
   /** What changes for a person who has set a flag, and on whose word. */
   flag_notes?: { flag: PlanFlag; text: string }[];
+  // ── a Coach plan (`kind: 'coach'`; `plan.rs`) ──
+  goal?: string;
+  sports?: string[];
+  level_in?: string;
+  /** Its rules, each resting on one of `sources` (by index). */
+  rules?: { said: string; source: number }[];
+  /** Who it is not for, in plain words. */
+  not_for_words?: string[];
+  weeks?: CoachWeek[];
+}
+/** A week of a Coach plan (`plan.rs` `CoachWeek`). */
+export interface CoachWeek {
+  n: number;
+  note: string;
+  sessions: CoachSession[];
+}
+/** A session template: `numbers_from: 'source'` carries its source's figures, `'person'` none. */
+export interface CoachSession {
+  id: string;
+  day_hint: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+  sport: string;
+  type: string;
+  said: string;
+  steps: {
+    part: string;
+    said: string;
+    repeat?: number;
+    minutes?: number;
+    metres?: number;
+    target?: string;
+  }[];
+  numbers_from: 'source' | 'person';
+  minutes?: number;
+  metres?: number;
+}
+/** The Coach plan in force (`coach` → `followed`). */
+export interface CoachFollowed {
+  note: ObjectMeta;
+  plan?: PlanOption;
+  week: number;
+  goal: string;
+  event_date?: string;
+}
+export interface CoachDay {
+  day: string;
+  training: ObjectMeta[];
+  meals: ObjectMeta[];
+  meetings: ObjectMeta[];
+}
+export interface CoachAnswer {
+  followed: CoachFollowed[];
+  days: CoachDay[];
+}
+/** One sport in one week (`coach_progress`): measured facts only. */
+export interface CoachSportWeek {
+  sport: string;
+  planned: number;
+  done: number;
+  skipped: number;
+  planned_minutes: number;
+  done_minutes: number;
+  distance_m: number;
+}
+export interface CoachWeekProgress {
+  from: string;
+  to: string;
+  sports: CoachSportWeek[];
+}
+/** Imported sessions and the planned ones they may be (`match_planned`). */
+export interface CoachMatches {
+  proposals: { imported: ObjectMeta; planned: ObjectMeta }[];
+  unmatched: { imported: ObjectMeta; candidates: ObjectMeta[] }[];
+}
+/** What accepting a match changed, for undo (`accept_match`). */
+export interface CoachFolded {
+  planned: string;
+  vault: string;
+  previous: Record<string, string | null>;
+  body_before: string;
+  removed: { id: string; vault: string; file: string };
+  recorded: boolean;
 }
 export interface PlanExampleItem {
   type: 'activity' | 'session';

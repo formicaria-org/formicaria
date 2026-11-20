@@ -24,6 +24,7 @@
     inbox as bridgeInbox,
   } from './lib/web/bridge.svelte';
   import BringToast from './lib/BringToast.svelte';
+  import { importShared, isWatchFile, startWatchFolder } from './lib/watchFiles.svelte';
   import { watchForUpdates } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { appToday, clockText, setAppClock } from './lib/appTime';
@@ -1943,6 +1944,11 @@
   $effect(() => {
     const take = () => {
       const got = takeShared();
+      // **A watch's activity file** (`decisions.md` 2026-11-20, *The phone takes watch files*):
+      // straight into Fitness, never into a note — the same import as the computer's.
+      const watchOnes = got.files.filter(isWatchFile);
+      if (watchOnes.length) void importShared(watchOnes);
+      got.files = got.files.filter((f) => !isWatchFile(f));
       if (!got.files.length && !got.refused.length && !got.texts.length) return;
       shared = {
         files: [...(shared?.files ?? []), ...got.files],
@@ -1952,6 +1958,8 @@
     };
     take();
     window.addEventListener('fm-share', take);
+    // The folder the watch's app exports to, on the phone: what the shell found there, imported.
+    const stopWatch = startWatchFolder();
     // **What the phone's page screen brought in** (phase A): into the note it was opened from, or the
     // note in front, or a new note named after the page; through that note's own pane.
     const fromPages = () => {
@@ -1997,6 +2005,7 @@
     window.addEventListener('fm-bring-to-room', bring);
     return () => {
       window.removeEventListener('fm-share', take);
+      stopWatch();
       window.removeEventListener('fm-share', fromPages);
       window.removeEventListener('fm-bring-to-room', bring);
       document.removeEventListener('click', onLink, true);

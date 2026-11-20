@@ -83,6 +83,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | digest | v0.11.3 | MIT OR Apache-2.0 |
 | displaydoc | v0.2.6 | MIT OR Apache-2.0 |
 | either | v1.19.0 | MIT OR Apache-2.0 |
+| embedded-io | v0.7.1 | MIT OR Apache-2.0 |
 | encode_unicode | v1.0.0 | Apache-2.0 OR MIT |
 | equator | v0.4.2 | MIT |
 | equator-macro | v0.4.2 | MIT |
@@ -270,6 +271,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | rustls-pki-types | v1.15.0 | MIT OR Apache-2.0 |
 | rustls-webpki | v0.103.16 | ISC |
 | rustversion | v1.0.23 | MIT OR Apache-2.0 |
+| rustyfit | v0.11.2 | BSD-3-Clause |
 | ryu | v1.0.23 | Apache-2.0 OR BSL-1.0 |
 | safe_arch | v1.2.0 | Zlib OR Apache-2.0 OR MIT |
 | serde | v1.0.228 | MIT OR Apache-2.0 |

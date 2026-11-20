@@ -262,7 +262,8 @@ record says so rather than pretending, since the notes are on disk either way.
 
 **Host-bound.** Both commands take a server-side filesystem path, so both join `REMOTE_DENIED` for
 the reason already written there for `check_path` — `check_import` is a filesystem oracle over the
-whole machine. There is no folder picker, for the reason *A vault is created, not invented* already
+whole machine. There is no folder picker *(on the phone, one read-only folder for watch files since
+2026-11-20 — see* The phone takes watch files*)*, for the reason *A vault is created, not invented* already
 records; the source is a typed path validated server-side per keystroke, and **one** `ok` answers
 for the source and the destination together so the browser never holds a second opinion.
 
@@ -15926,3 +15927,120 @@ Firefox's session files.
 **The four questions.** `#data`: a new per-device folder and a vault folder that syncs; no note
 changes. Widens what formicaria stores, on the device, about itself; nothing leaves it except a
 phone's lines through the person's own sync.
+
+## 2026-11-20 — Watch data enters fm as files another app wrote `#data` `#seams`
+
+The owner: an open alternative to a watch maker's coaching tools, with a running watch's data brought
+into Fitness through Gadgetbridge (`training-coach-plan-2026-10-30.md`, Parts 3–4;
+`training-tools-research-2026-11-20.md`).
+
+1. **fm reads FIT files and nothing else from a watch.** On a computer, a folder the person names
+   (copied from the watch over USB, or Gadgetbridge's export folder synced across); later on the
+   phone, a folder the person grants (its own entry when built). **No Bluetooth, no watch maker's
+   account, no cloud reader.** Gadgetbridge is an outside app the person may use.
+2. **The original file is the truth**, never Gadgetbridge's summaries (it can replace a recorded
+   altitude and leaves swim lengths out). **Every number fm shows is written into the note**, since
+   the file may not travel with the notes.
+3. **Three layers, never mixed**: measured values; the watch's own estimates, kept under `watch_`
+   keys and shown as the watch's; and fm's own figures, each with its method and source.
+4. **An activity is one `log: workout` note** (the existing activity shape, plus distance, times,
+   heart rate, cadence and a lap, length or step table in its body). **A strength set the watch
+   recorded is one set note**, as a person's own set is; its reps are the watch's count and the
+   person's edit wins. **Swim heart rate is stored only as the watch's**, with the in-water
+   warning, and used by nothing (wrist optical HR in water: MAPE ~30 %, research §21.2).
+5. **Importing twice adds nothing; an edited note is never overwritten; a damaged file is refused
+   and named**; a near-duplicate is proposed for merging, never merged.
+
+**Settles** *"No phone sensor: that is a separate decision"* (`:11503`): a watch's files are read; no
+sensor is. **Reverses** `tools-plan-2026-10-11.md`'s "wearables left out" (banner added).
+**The four questions.** `#data` and `#seams`; extends the closed log shapes with new keys on
+`log: workout`, no new log kind; widens what ships (a FIT decoder, an import command, host-only).
+
+## 2026-11-20 — Reading and writing FIT: open crates, a provenance note `#toolchain`
+
+> **AMENDED 2026-11-20 (later)** — `rustyfit` reads as well as writes; see *FIT is read with rustyfit:
+> fitparser's time library is refused by the advisory gate* below.
+
+The owner's answer (2026-11-20) to the question the coach plan left open (D4): **`fitparser` (MIT)
+reads FIT files and `rustyfit` (BSD-3-Clause) writes workout files.** fm relies on the FIT Protocol
+License's §1 grant to use the protocol in software the licensee creates; §2(c), §2(d) and §2(f) were
+read and the residual legal question is accepted, not settled. A provenance note in the decoder's
+module and in `docs/src/dev/` names each crate, its version and that its message and field numbers
+come from the crate's generated profile. Message and field numbers may appear in code and tests.
+`chrono` enters with `fitparser`. Both licences are already in `deny.toml`'s allow list.
+**The four questions.** `#toolchain`; two dependencies; widens what ships.
+
+## 2026-11-20 — Fitness gets a Coach tab; the app still chooses no loads `#ui` `#data`
+
+The owner: *"a coach sub-view to fitness that suggests plans based on simple and scientifically backed
+knowledge … beyond general health … a starting point for a person that can then personalise them"*,
+coordinated with the Week, the Menu and the watch.
+
+1. **A fourth tab, Coach** (Week · Exercises · Regime · Coach), for a goal with a date or a season.
+   Regime keeps the health-level plans. A new `Span` value. **Extends** the three-views ruling
+   (*"a cohesive minimal set of views"*, `:10455-10474`) on the owner's word.
+2. **Coach plans are multi-week, and the person steps them forward** (the owner's answer,
+   2026-11-20). A plan is a run of weekly templates. A **published** plan carries its source's own
+   figures, shown as the source's; an **assembled** plan (fm's combination of sourced rules) carries
+   structure and rules and **no number of its own** — the person fills every minute, distance and
+   target. The Coach shows the next week's template beside what was done; the person presses
+   *Next week*. **`:10081` (*"the app still suggests no sets, reps or loads"*) stands**, with its
+   exception for sourced starting figures that name whose they are (`:10471-10474`). This answers
+   `outstanding.md`'s *"nothing steps a routine forward"* without the app choosing a load.
+3. **A new question, *train for a goal*,** and `kind: coach` in `plans.json` with `rests_on`
+   `published` or `assembled`; tests hold that every coach plan names its sources and that no
+   assembled session ships a number.
+4. **A planned entry links to its plan and keeps what was planned.** The Coach writes planned entries
+   (`log: workout`, `planned`, `start`, as today) with `plan`, `plan_week` and `session`; when one is
+   done its planned figures are kept as `planned_*` beside the done ones, so planned and done can be
+   compared. Matching an imported session to a planned one is a proposal, never automatic.
+5. **Training shows on the Coach's own calendar only** (the owner's answer, 2026-11-20): planned and
+   done training, the Menu's meals and the read-only meetings as layers. **The Agenda, the board and
+   `notes_base` are unchanged.**
+6. **fm is the one training calendar; the watch receives workouts.** A planned session can be saved
+   as a FIT workout file (and, on the phone, shared to Gadgetbridge, which installs workouts). No
+   write to any external calendar (`:8222` stands); the watch maker's cloud is not used. Whether a
+   watch's own calendar can be filled without it is an open experiment.
+7. **Proposals carry no training number.** They are about structure — move or skip a missed
+   session, repeat a week, re-test — and wait for the person.
+
+**Not yet:** fuelling proposals and the nutrition gate wait for the official text of the 2016 joint
+position on nutrition and athletic performance to be read at source; the phone's folder grant and
+the Gadgetbridge backup ZIP are their own entries when built.
+**The four questions.** `#ui` and `#data`; extends `Span`, `QUESTIONS` and `plans.json`'s kinds; new
+keys on `log: workout`; contradicts nothing standing except the three-views count, extended here.
+
+## 2026-11-20 (later) — FIT is read with rustyfit: fitparser's time library is refused by the advisory gate `#toolchain`
+
+Building the import, `fitparser` 0.12 brought `chrono`, which the advisory database now lists as
+unmaintained with no safe upgrade (RUSTSEC-2026-0543); `pixi run deny` refused it. Waiving the
+advisory would weaken the gate for one dependency. **`rustyfit` 0.11 (BSD-3-Clause), already chosen
+as the writer, reads too**: it decodes swim lengths, strength sets and `workout_rpe`, returns raw time
+counts (so no host-local conversion to work around) and brings only `embedded-io` (MIT or
+Apache-2.0). `chrono` is in neither lock file. Everything else in the entry it amends stands
+(§1 grant relied on, provenance note in `fm-core/src/fit.rs` and `docs/src/dev/fit-provenance.md`).
+**The four questions.** `#toolchain`; one dependency instead of two; narrows what ships.
+
+## 2026-11-20 (later) — The phone takes watch files: the share menu, and one folder the person grants `#ui` `#track-m` `#data`
+
+The owner, for this release: *"I expect the new release to have the ability to get data from the
+garmin as well as the coach."* The watch's companion app runs on the phone, so watch files must be
+taken there, not only typed as a path on a computer.
+
+1. **The share menu accepts `.fit` files** (checked by name and by the FIT signature, as pictures
+   are checked; anything else is refused with a sentence). They go to the same import as the
+   computer's (`import_fit`'s note shapes, keys, idempotency and refusals), never through `ingest`,
+   and make no asset note of their own beyond the kept file.
+2. **One folder, granted once, read-only, phone only** — typically the folder Gadgetbridge exports
+   activity files into. On opening and on returning to the app, new `*.fit` files there (by name,
+   size and time; a file still growing waits) are imported; listing happens off the main thread. A
+   folder whose permission was taken back is shown as *no longer readable*. The setting lives with
+   the watch-files section.
+3. **What it reverses.** *"There is no folder picker"* (`:265`, *A vault is created, not invented*)
+   — **on the phone, for this one folder, read-only.** The computer keeps the typed path. The share
+   menu's *"Pictures only … other files can follow if asked for"* (`:12545`) is extended to `.fit`
+   on the owner's word above.
+
+**Not verified on a device** until the owner's own check with a watch (the coach plan's E0).
+**The four questions.** `#ui` `#track-m` `#data`; reverses one standing line on the phone only (banner
+added there); widens what ships (an intent filter, a persisted folder permission).

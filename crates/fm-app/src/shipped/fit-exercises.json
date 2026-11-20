@@ -1,0 +1,29 @@
+{
+  "about": "A strength set the watch named, to the exercise card that comes with the app: the FIT exercise category and the exercise within it, by the names in rustyfit's generated profile, to a card's id in exercises.json. Names only. A set not here keeps the watch's own name, as text.",
+  "as_at": "2026-11-20",
+  "profile": "rustyfit 0.11.2 (FIT profile 21.221)",
+  "map": [
+    { "category": "bench_press", "name": "barbell_bench_press", "card": "army-bench-press" },
+    { "category": "bench_press", "name": "incline_barbell_bench_press", "card": "army-incline-bench" },
+    { "category": "squat", "name": "barbell_back_squat", "card": "army-back-squat" },
+    { "category": "squat", "name": "barbell_front_squat", "card": "army-front-squat" },
+    { "category": "squat", "name": "leg_press", "card": "army-leg-press" },
+    { "category": "deadlift", "name": "barbell_deadlift", "card": "army-deadlift" },
+    { "category": "deadlift", "name": "sumo_deadlift", "card": "army-sumo-deadlift" },
+    { "category": "deadlift", "name": "straight_leg_deadlift", "card": "army-straight-leg-deadlift-strength-training-circuit" },
+    { "category": "push_up", "name": "push_up", "card": "army-push-up" },
+    { "category": "pull_up", "name": "pull_up", "card": "army-pull-up-strength-training-circuit" },
+    { "category": "pull_up", "name": "lat_pulldown", "card": "army-lat-pull-down" },
+    { "category": "curl", "name": "barbell_biceps_curl", "card": "army-biceps-curl" },
+    { "category": "shoulder_press", "name": "barbell_push_press", "card": "army-overhead-push-press-strength-training-circuit" },
+    { "category": "row", "name": "barbell_row", "card": "army-bent-over-row-strength-training-circuit" },
+    { "category": "row", "name": "one_arm_bent_over_row", "card": "army-single-arm-bent-over-row" },
+    { "category": "row", "name": "seated_cable_row", "card": "army-seated-row" },
+    { "category": "leg_curl", "name": "leg_curl", "card": "army-leg-curl" },
+    { "category": "shrug", "name": "barbell_shrug", "card": "army-shrug" },
+    { "category": "shrug", "name": "barbell_upright_row", "card": "army-upright-row" },
+    { "category": "calf_raise", "name": "standing_calf_raise", "card": "nhs-calf-raises" },
+    { "category": "lunge", "name": "lunge", "card": "nhs-lunges" },
+    { "category": "sit_up", "name": "v_up", "card": "army-v-up" }
+  ]
+}

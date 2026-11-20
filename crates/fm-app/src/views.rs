@@ -196,6 +196,10 @@ pub enum Span {
     /// Every video at once, with its collections and a player (`decisions.md` 2026-11-17). Its rows
     /// come from `video_library`, asked for once.
     Videos,
+    /// **Fitness's fourth tab**: a plan followed for a goal, its weeks, its own calendar and progress
+    /// (`coach.rs`; `decisions.md` 2026-11-20, *Fitness gets a Coach tab*). It asks for its own data
+    /// (`coach`, `coach_progress`, `match_planned`) and writes only the training log's entries.
+    Coach,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -1014,6 +1018,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("training-week", include_str!("shipped/training-week.view")),
     ("training-exercises", include_str!("shipped/training-exercises.view")),
     ("training-plan", include_str!("shipped/training-plan.view")),
+    ("training-coach", include_str!("shipped/training-coach.view")),
     ("health-diary", include_str!("shipped/health-diary.view")),
     ("health-over-time", include_str!("shipped/health-over-time.view")),
     ("health-guidance", include_str!("shipped/health-guidance.view")),

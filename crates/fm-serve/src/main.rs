@@ -658,6 +658,10 @@ const REMOTE_DENIED: &[&str] = &[
     // directory's contents into a vault. Neither question is "which audience am I in".
     "/api/check_import",
     "/api/run_import",
+    // A watch's activity files (2026-11-20): the same two reasons — a path on this machine in,
+    // the shape of any folder out, and that folder's contents read into a vault.
+    "/api/fit_preview",
+    "/api/import_fit",
     // Moving a vault's folder: a host filesystem path in, the host's files moved — the
     // `check_import` reasons, and an irreversible-looking change made from a guest device.
     "/api/check_move_vault",

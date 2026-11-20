@@ -271,3 +271,42 @@ pub fn asset_batches(
     }
     Ok(out)
 }
+
+/// HMAC-SHA-256 (RFC 2104) of `msg` under `key`, as hex. A keyed fingerprint: unlike
+/// [`sha256_hex`], it cannot be reversed by trying every value of a small field without the key —
+/// which is what a watch's 32-bit serial number would otherwise allow (`fm_app::watch`, the coach
+/// plan's P1.2). Written here over `sha2` rather than adding a crate for twenty lines.
+pub fn hmac_sha256_hex(key: &[u8], msg: &[u8]) -> String {
+    const BLOCK: usize = 64;
+    let mut k = [0u8; BLOCK];
+    if key.len() > BLOCK {
+        k[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        k[..key.len()].copy_from_slice(key);
+    }
+    let mut inner = Sha256::new();
+    inner.update(k.map(|b| b ^ 0x36));
+    inner.update(msg);
+    let mut outer = Sha256::new();
+    outer.update(k.map(|b| b ^ 0x5c));
+    outer.update(inner.finalize());
+    hex(&outer.finalize())
+}
+
+#[cfg(test)]
+mod hmac_tests {
+    use super::hmac_sha256_hex;
+
+    /// RFC 4231, test cases 1 and 2.
+    #[test]
+    fn hmac_matches_the_rfc_vectors() {
+        assert_eq!(
+            hmac_sha256_hex(&[0x0b; 20], b"Hi There"),
+            "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+        );
+        assert_eq!(
+            hmac_sha256_hex(b"Jefe", b"what do ya want for nothing?"),
+            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+        );
+    }
+}

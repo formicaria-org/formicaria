@@ -67,7 +67,7 @@ pub const OLDER: i64 = 65;
 
 /// The questions plans answer, in the order they are shown and the first of them is the one the
 /// other screens read.
-const QUESTIONS: [&str; 13] = [
+const QUESTIONS: [&str; 14] = [
     "healthy",
     "nutrients",
     "amount",
@@ -80,6 +80,9 @@ const QUESTIONS: [&str; 13] = [
     "flexible",
     "vegan",
     "pregnancy",
+    // **Train for a goal** (`decisions.md` 2026-11-20, *Fitness gets a Coach tab*): the Coach's
+    // multi-week plans. Followed as a `program: coach` note, never measured by a check.
+    "goal",
     "own",
 ];
 
@@ -230,6 +233,82 @@ pub struct Plan {
     pub not_for: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flag_notes: Vec<FlagNote>,
+    // ── a Coach plan (`kind: coach`; the coach plan's Spec K.1) ──
+    /// What it trains for, in plain words: *a first run of half an hour*, *10 km to a half*.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub goal: String,
+    /// fm's one-word sports its sessions are of (`run`, `ride`, `swim`, `strength`…), the words an
+    /// imported activity carries (`shipped/fit-sports.json`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sports: Vec<String>,
+    /// Who it starts from, in plain words.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub level_in: String,
+    /// The plan's rules, each resting on one of its `sources` (by index).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<CoachRule>,
+    /// Who it is not for, in plain words — shown on its page. (`not_for` stays the flags under which
+    /// it is not offered, as for every plan.)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub not_for_words: Vec<String>,
+    /// The weeks, in order. **The app never steps from one to the next**: the person does.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub weeks: Vec<CoachWeek>,
+}
+
+/// One rule of a Coach plan, and the source it rests on (an index into the plan's `sources`).
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CoachRule {
+    pub said: String,
+    pub source: usize,
+}
+
+/// A week of a Coach plan: a note on what it is for, and its sessions.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CoachWeek {
+    pub n: u32,
+    #[serde(default)]
+    pub note: String,
+    pub sessions: Vec<CoachSession>,
+}
+
+/// A session template. **`numbers_from` says whose any number is**: `source` — the published
+/// plan's own figure, shown as its source's — or `person`, when every minute, distance and target
+/// is left blank for the person to fill (`decisions.md` 2026-11-20: an assembled plan carries no
+/// number of its own).
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CoachSession {
+    pub id: String,
+    /// The day of the week it is meant for, `mon` to `sun` — the plan's structure, movable.
+    pub day_hint: String,
+    pub sport: String,
+    /// `easy`, `long`, `intervals`, `strength`, `walk-run`, `race`…
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub said: String,
+    #[serde(default)]
+    pub steps: Vec<CoachStep>,
+    pub numbers_from: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minutes: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metres: Option<i64>,
+}
+
+/// One step of a session: a warm-up, the work, a recovery or a cool-down.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CoachStep {
+    pub part: String,
+    pub said: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minutes: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metres: Option<i64>,
+    /// A target the source gives, in its words (`rpe`, `hr_band`…): only with `numbers_from: source`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
 }
 
 /// A line of the "worth watching" set: a check, and the log it is measured from.
@@ -327,6 +406,11 @@ pub fn plan_library(store: &dyn Store, group: &str) -> Result<LibraryAnswer, Sto
         weeks: if group == "fitness" { lib.weeks.clone() } else { Vec::new() },
         hidden: hidden.into_iter().map(|p| p.id.clone()).collect(),
     })
+}
+
+/// A plan of the library by its id, if this version carries it.
+pub(crate) fn plan_by_id(id: &str) -> Option<&'static Plan> {
+    library().plans.iter().find(|p| p.id == id)
 }
 
 fn plan_named(id: &str) -> Result<&'static Plan, StoreError> {
@@ -1213,7 +1297,7 @@ mod tests {
     #[test]
     fn every_card_has_a_kind_a_question_and_only_known_flags() {
         let lib = library();
-        let kinds = ["targets", "pattern", "timing", "amounts", "programme", "own"];
+        let kinds = ["targets", "pattern", "timing", "amounts", "programme", "coach", "own"];
         for p in &lib.plans {
             assert!(kinds.contains(&p.kind.as_str()), "{}: kind '{}'", p.id, p.kind);
             assert!(
@@ -1252,6 +1336,91 @@ mod tests {
                 w.check.min.is_some() || w.check.max.is_some() || w.check.min_mg_per_kg.is_some()
             );
         }
+    }
+
+    /// **A Coach plan names its sources, says whose every number is, and an assembled one ships
+    /// none of its own** (`decisions.md` 2026-11-20, *Fitness gets a Coach tab*; Spec K.1).
+    #[test]
+    fn every_coach_plan_names_its_sources_and_an_assembled_one_ships_no_number() {
+        let coach: Vec<&Plan> = library().plans.iter().filter(|p| p.kind == "coach").collect();
+        assert!(coach.len() >= 4, "the four coach plans ship");
+        let has_digit = |s: &str| s.chars().any(|c| c.is_ascii_digit());
+        for p in &coach {
+            assert_eq!(p.group, "fitness", "{}", p.id);
+            assert_eq!(p.question, "goal", "{}: a coach plan answers 'train for a goal'", p.id);
+            assert!(["published", "assembled"].contains(&p.rests_on.as_str()), "{}", p.id);
+            assert!(!p.sources.is_empty(), "{} names no source", p.id);
+            for s in &p.sources {
+                assert!(s.url.starts_with("https://"), "{}: a source with no link: {}", p.id, s.by);
+            }
+            assert!(
+                !p.goal.is_empty() && !p.sports.is_empty() && !p.level_in.is_empty(),
+                "{}",
+                p.id
+            );
+            assert!(!p.not_for_words.is_empty(), "{} does not say who it is not for", p.id);
+            assert!(!p.caution.is_empty(), "{} has no caution", p.id);
+            assert!(p.checks.is_empty(), "{}: a coach plan is not measured by checks", p.id);
+            for r in &p.rules {
+                assert!(r.source < p.sources.len(), "{}: a rule rests on no listed source", p.id);
+            }
+            if p.rests_on == "assembled" {
+                assert!(!p.rules.is_empty(), "{}: an assembled plan is its sourced rules", p.id);
+            }
+            assert!(!p.weeks.is_empty(), "{}", p.id);
+            for (i, w) in p.weeks.iter().enumerate() {
+                assert_eq!(w.n as usize, i + 1, "{}: weeks are numbered in order", p.id);
+                assert!(!w.sessions.is_empty(), "{} week {}", p.id, w.n);
+                let mut ids = std::collections::BTreeSet::new();
+                for s in &w.sessions {
+                    let at = format!("{} week {} {}", p.id, w.n, s.id);
+                    assert!(ids.insert(&s.id), "{at}: listed twice");
+                    assert!(["source", "person"].contains(&s.numbers_from.as_str()), "{at}");
+                    assert!(
+                        ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+                            .contains(&s.day_hint.as_str()),
+                        "{at}: day_hint"
+                    );
+                    assert!(
+                        ["run", "ride", "swim", "walk", "row", "strength"]
+                            .contains(&s.sport.as_str()),
+                        "{at}: a sport an import can carry"
+                    );
+                    let numbers = s.minutes.is_some()
+                        || s.metres.is_some()
+                        || s.steps.iter().any(|t| {
+                            t.minutes.is_some()
+                                || t.metres.is_some()
+                                || t.repeat.is_some()
+                                || t.target.is_some()
+                        });
+                    if s.numbers_from == "person" {
+                        assert!(!numbers, "{at}: the person's numbers are blank, not shipped");
+                    }
+                    if p.rests_on == "assembled" {
+                        assert_eq!(s.numbers_from, "person", "{at}: no number of fm's own");
+                        assert!(!has_digit(&s.said), "{at}: a number in its words");
+                        for t in &s.steps {
+                            assert!(!has_digit(&t.said), "{at}: a number in a step's words");
+                        }
+                    }
+                    for t in &s.steps {
+                        assert!(
+                            ["warmup", "work", "recover", "cooldown"].contains(&t.part.as_str()),
+                            "{at}: step part {}",
+                            t.part
+                        );
+                    }
+                }
+            }
+        }
+        // The published plan is offered by name with a link, and carries none of its figures.
+        let nhs = plan_named("nhs-running-plan").unwrap();
+        assert_eq!(nhs.rests_on, "published");
+        assert!(!nhs.guides.is_empty() && nhs.guides[0].url.starts_with("https://www.nhs.uk/"));
+        assert!(nhs.weeks.iter().all(|w| w.sessions.iter().all(|s| s.numbers_from == "person")));
+        // Coach plans are not Regime's: no plan of another kind answers the Coach's question.
+        assert!(library().plans.iter().all(|p| (p.kind == "coach") == (p.question == "goal")));
     }
 
     #[test]

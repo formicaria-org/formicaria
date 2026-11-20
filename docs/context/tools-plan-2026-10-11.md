@@ -108,6 +108,9 @@ merge driver or the index. A decimal type is a wider change and should be argued
 **Left out on purpose:** barcodes and branded products (a ~3 GB table, or one network request per
 scan, which is a different decision), wearables, and any nutrition value recalled by a model.
 
+> **SUPERSEDED in part (wearables), 2026-11-20** — `decisions.md`, *Watch data enters fm as files
+> another app wrote*: a watch's FIT files are read; nothing talks to the watch.
+
 ## The front end comes first (owner, 2026-10-11)
 
 > *"It all depends on the usability of the front end, that's why I want to focus on the front end."*

@@ -316,8 +316,12 @@ fn every_shipped_view_parses_and_can_be_drawn() {
     // Over time and Guidance for health (2026-10-22): one to write in, one to look back, one of
     // cards. Their trackers are the person's own, so they name no metric. Songs for music
     // (2026-11-13): a library of entries, summing nothing, so it names no metric either. All videos
-    // for Videos (2026-11-17), the same.
-    assert_eq!(shipped.len(), 12);
+    // for Videos (2026-11-17), the same. Coach, Fitness's fourth (2026-11-20): a plan for a goal,
+    // its own calendar and progress.
+    assert_eq!(shipped.len(), 13);
+    let fitness: Vec<_> =
+        shipped.iter().filter(|v| v.group.as_deref() == Some("Fitness")).map(|v| &v.name).collect();
+    assert_eq!(fitness, ["Week", "Exercises", "Regime", "Coach"], "the four tabs, in this order");
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));

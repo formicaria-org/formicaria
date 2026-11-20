@@ -1,5 +1,6 @@
 import type { ClockAnswer } from './appTime';
 import type {
+  WorkoutFile,
   DemotedField,
   Recoverable,
   Config,
@@ -9,6 +10,7 @@ import type {
   CommitResult,
   EditEvent,
   GitAuth,
+  FitReport,
   ImportCheck,
   ImportReport,
   ImportRules,
@@ -49,6 +51,10 @@ import type {
   WebRecipe,
   Routine,
   PlanLibrary,
+  CoachAnswer,
+  CoachFolded,
+  CoachMatches,
+  CoachWeekProgress,
   PlanPreview,
   PlanProfile,
   PlanProgress,
@@ -1280,6 +1286,54 @@ export const runImport = (
   rules: ImportRules = {},
 ) => invoke<ImportReport>('run_import', { source, vault, name, path, stubs, ...rules });
 
+/** What a folder of watch files (`.fit`, or one file) would add to a vault's training log — new
+ *  activities and sets, files imported before, damaged files, possible duplicates. Reads the
+ *  folder; writes nothing. Host-only, like `checkImport`. */
+export const fitPreview = (path: string, vault = '') =>
+  invoke<FitReport>('fit_preview', { path, vault });
+
+/** Read a folder of watch files into a vault's training log, as one commit. A second run adds
+ *  nothing. Host-only; the folder is only read. */
+export const importFit = (path: string, vault = '') =>
+  invoke<FitReport>('import_fit', { path, vault });
+
+/** **Watch files the phone was handed** — shared to formicaria, or found in the folder the person
+ *  granted (`decisions.md` 2026-11-20, *The phone takes watch files*): each file goes up as a
+ *  chunked upload (the same slices `ingestFile` sends), then one `import_fit_files` reads them all
+ *  into the training log as one commit — the same notes as `importFit`, and no attachment note. */
+export async function importFitFiles(files: File[], vault = ''): Promise<FitReport> {
+  if (!isPhone() && !import.meta.env.PROD) {
+    return invoke<FitReport>('import_fit_files', {
+      files: files.map((f) => ({ session: '', name: f.name })),
+      vault,
+    });
+  }
+  const sent: { session: string; name: string }[] = [];
+  for (const file of files) {
+    const session = uploadId();
+    let seq = 0;
+    for (let at = 0; at < file.size || seq === 0; at += CHUNK) {
+      const slice = file.slice(at, Math.min(at + CHUNK, file.size));
+      if (isPhone()) {
+        const data = await base64Slice(slice);
+        await shellInvoke<string>('fm_ingest_chunk', { session, seq, vault, data });
+      } else {
+        const q = `session=${session}&seq=${seq}&vault=${encodeURIComponent(vault)}`;
+        const res = await fetch(`/api/ingest_chunk?${q}`, { method: 'POST', body: slice });
+        if (!res.ok) throw new Error((await res.text()) || res.statusText);
+      }
+      seq += 1;
+    }
+    sent.push({ session, name: file.name });
+  }
+  return invoke<FitReport>('import_fit_files', { files: sent, vault });
+}
+
+/** **A planned session as a workout file for a watch** (`decisions.md` 2026-11-20, the Coach's item
+ *  6): its name and bytes (base64), how many steps, whether they are all open (no numbers yet), and
+ *  sentences about what was not sent. Writes nothing. */
+export const workoutFit = (id: string) => invoke<WorkoutFile>('workout_fit', { id });
+
 /** Clone a collaborator's vault and register it. The identity is **required**, not a
  *  courtesy: a shared vault is exactly where committing as the placeholder would attribute
  *  everyone's work to one fake person. Validated before anything is fetched, so a typo
@@ -1630,6 +1684,18 @@ export const planProgress = (group: string, day: string, planned = false) =>
 /** The "worth watching" set of a group for the week holding `day`, with its four-week trend. */
 export const planWatch = (group: string, day: string) =>
   invoke<PlanWatch>('plan_watch', { group, day });
+/** Fitness → Coach (`coach.rs`): the Coach plan in force on `day` and its own calendar from `from`
+ *  to `to` — training, the Menu's planned meals and meetings, by day. Writes nothing. */
+export const coach = (day: string, from: string, to: string) =>
+  invoke<CoachAnswer>('coach', { day, from, to });
+/** Each of `weeks` weeks up to the one holding `day`: planned and done, per sport. Writes nothing. */
+export const coachProgress = (day: string, weeks = 8) =>
+  invoke<CoachWeekProgress[]>('coach_progress', { day, weeks });
+/** Imported watch sessions and the planned ones they may be (on `day`, or all). Writes nothing. */
+export const matchPlanned = (day = '') => invoke<CoachMatches>('match_planned', { day });
+/** The person said yes: fold an imported session into the planned one it was, as one step. */
+export const acceptMatch = (planned: string, imported: string) =>
+  invoke<CoachFolded>('accept_match', { planned, imported });
 /** Create several notes in one write. */
 export const createNotes = (notes: NoteDraft[], vault = '') =>
   invoke<ObjectMeta[]>('create_notes', { notes, vault });

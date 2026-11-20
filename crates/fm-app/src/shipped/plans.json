@@ -744,6 +744,2257 @@
       "guides": []
     },
     {
+      "id": "nhs-running-plan",
+      "group": "fitness",
+      "name": "The NHS's 9-week running plan",
+      "kind": "coach",
+      "question": "goal",
+      "rests_on": "published",
+      "relation": "Offered by name: the plan is the NHS's, on its own page. formicaria lays out its weeks and keeps what you did; the minutes are the NHS's, and you take them from there.",
+      "summary": "Nine weeks of three runs a week, with a rest day between runs, walking and running in turn and running for longer as the weeks go on — as the NHS sets it out. formicaria carries none of the plan's figures or words (the site's terms reserve all rights): open the NHS's page for each week's run and walk minutes and write them in.",
+      "goal": "Start running: from walking and running in turn to running without stopping",
+      "sports": [
+        "run"
+      ],
+      "level_in": "A beginner: the NHS writes it for any starting point",
+      "sources": [
+        {
+          "by": "NHS (Better Health)",
+          "title": "The NHS's 9-week running plan, its own page (read 2026-11-20; its text and figures are not carried)",
+          "url": "https://www.nhs.uk/better-health/get-active/get-running-with-couch-to-5k/couch-to-5k-running-plan/"
+        }
+      ],
+      "rules": [
+        {
+          "said": "Three runs a week, with a rest day between runs (the NHS's page).",
+          "source": 0
+        },
+        {
+          "said": "Nine weeks, walking and running in turn, running further and for longer as the weeks go on (the NHS's page).",
+          "source": 0
+        }
+      ],
+      "needs": [],
+      "checks": [],
+      "unmeasured": [
+        "Each run's minutes of running and walking are on the NHS's page, and you write them in: formicaria does not copy them."
+      ],
+      "caution": "Talk to a doctor before you start if you are worried about your health, and stop if something does not feel right — the advice on the NHS's page, in formicaria's words.",
+      "not_for_words": [
+        "Not to start before talking to a doctor if you are worried about your health (the NHS's page says so)."
+      ],
+      "guides": [
+        {
+          "label": "The NHS's 9-week running plan: each week's runs",
+          "by": "NHS (Better Health)",
+          "url": "https://www.nhs.uk/better-health/get-active/get-running-with-couch-to-5k/couch-to-5k-running-plan/",
+          "seen": "2026-11-20"
+        }
+      ],
+      "weeks": [
+        {
+          "n": 1,
+          "note": "Week 1 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "note": "Week 2 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "note": "Week 3 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 4,
+          "note": "Week 4 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 5,
+          "note": "Week 5 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 6,
+          "note": "Week 6 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 7,
+          "note": "Week 7 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 8,
+          "note": "Week 8 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 9,
+          "note": "Week 9 of the NHS's plan: open its page for this week's runs and write in their minutes.",
+          "sessions": [
+            {
+              "id": "run-1",
+              "day_hint": "mon",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-2",
+              "day_hint": "wed",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "run-3",
+              "day_hint": "fri",
+              "sport": "run",
+              "type": "walk-run",
+              "said": "This week's run: walking and running in turn, as the NHS's page sets it out",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "A warm-up walk, as the page says"
+                },
+                {
+                  "part": "work",
+                  "said": "Run and walk in turn: this week's minutes are on the NHS's page"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "A cool-down walk, as the page says"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ten-k-half",
+      "group": "fitness",
+      "name": "10 km to a half marathon, assembled from research",
+      "kind": "coach",
+      "question": "goal",
+      "rests_on": "assembled",
+      "relation": "Assembled by formicaria from the five rules below, each with its source; no study tested this plan as a whole. Which days, and how many build weeks, are the plan's convention.",
+      "summary": "Mostly easy running, one long run and one session of longer intervals a week, strength work twice a week, and a two-week taper before the event. It carries no number of its own: you write every session's minutes, distance and effort.",
+      "goal": "Run a 10 km or a half marathon on a date",
+      "sports": [
+        "run",
+        "strength"
+      ],
+      "level_in": "Someone who already runs regularly: it starts from your own running",
+      "sources": [
+        {
+          "by": "Haugen, Sandbakk, Seiler, Tønnessen",
+          "title": "The training characteristics of world-class distance runners, Sports Med Open 2022;8:46 (abstract read)",
+          "url": "https://doi.org/10.1186/s40798-022-00438-7"
+        },
+        {
+          "by": "Doherty et al.",
+          "title": "An evaluation of the training determinants of marathon performance: a meta-analysis with meta-regression, J Sci Med Sport 2020;23(2):182–8 (abstract read)",
+          "url": "https://doi.org/10.1016/j.jsams.2019.09.013"
+        },
+        {
+          "by": "Seiler et al.",
+          "title": "Adaptations to aerobic interval training: interactive effects of exercise intensity and total work duration, Scand J Med Sci Sports 2013;23(1):74–83 (abstract read)",
+          "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=21812820&retmode=text&rettype=abstract"
+        },
+        {
+          "by": "Blagrove, Howatson, Hayes",
+          "title": "Effects of strength training on the physiological determinants of middle- and long-distance running performance: a systematic review, Sports Med 2018;48(5):1117–49 (abstract read)",
+          "url": "https://doi.org/10.1007/s40279-017-0835-7"
+        },
+        {
+          "by": "Bosquet et al.",
+          "title": "Effects of tapering on performance: a meta-analysis, Med Sci Sports Exerc 2007;39(8):1358–65 (abstract read)",
+          "url": "https://doi.org/10.1249/mss.0b013e31806010e0"
+        }
+      ],
+      "rules": [
+        {
+          "said": "Most running is easy: world-class distance runners do 80 % or more of their running at low intensity (Haugen et al. 2022 — a review of elite practice, not a trial).",
+          "source": 0
+        },
+        {
+          "said": "A long run each week: in marathon runners, a longer longest run and more long runs went with faster finishing times (Doherty et al. 2020 — an association across studies, not proof; one a week is this plan's convention).",
+          "source": 1
+        },
+        {
+          "said": "One session of longer intervals at a hard effort you can hold to the end: in trained recreational cyclists, four intervals of 8 minutes raised fitness more than four of 4 or of 16 minutes over 7 weeks (Seiler et al. 2013 — one small randomised trial, in cyclists, with two interval sessions a week).",
+          "source": 2
+        },
+        {
+          "said": "Strength work two or three times a week: in distance runners it generally improved running economy, though not in every study (Blagrove et al. 2018, a systematic review).",
+          "source": 3
+        },
+        {
+          "said": "A two-week taper before the event: cut how much you run, and keep how hard and how often (Bosquet et al. 2007, a meta-analysis in competitive athletes: volume cut by 41–60 %).",
+          "source": 4
+        }
+      ],
+      "needs": [],
+      "checks": [],
+      "unmeasured": [
+        "Effort is yours to judge: formicaria sets no pace, heart rate or zone."
+      ],
+      "caution": "The rules come from studies of trained and elite athletes, and none was tested on this plan as a whole. Stop if something hurts or does not feel right.",
+      "not_for_words": [
+        "Someone new to running: the NHS's 9-week running plan starts from the beginning.",
+        "Anyone injured or unwell: the studies behind it were of healthy, trained runners, cyclists and athletes."
+      ],
+      "guides": [],
+      "weeks": [
+        {
+          "n": 1,
+          "note": "A build week. The number of build weeks and the days are this plan's convention: repeat a week, or move on when you choose.",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "note": "A build week. The number of build weeks and the days are this plan's convention: repeat a week, or move on when you choose.",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "note": "A build week. The number of build weeks and the days are this plan's convention: repeat a week, or move on when you choose.",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 4,
+          "note": "A build week. The number of build weeks and the days are this plan's convention: repeat a week, or move on when you choose.",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 5,
+          "note": "A build week. The number of build weeks and the days are this plan's convention: repeat a week, or move on when you choose.",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 6,
+          "note": "A build week. The number of build weeks and the days are this plan's convention: repeat a week, or move on when you choose.",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 7,
+          "note": "Taper: run less than in your build weeks and keep the effort and how often you train (Bosquet et al. 2007).",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "long",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "long",
+              "said": "The week's longest run, at an easy effort — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 8,
+          "note": "Taper: run less than in your build weeks and keep the effort and how often you train (Bosquet et al. 2007).",
+          "sessions": [
+            {
+              "id": "strength-a",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "intervals",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "intervals",
+              "said": "Longer intervals at a hard effort you can hold to the end of each — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Easy running"
+                },
+                {
+                  "part": "work",
+                  "said": "Hard intervals, as many and as long as you set"
+                },
+                {
+                  "part": "recover",
+                  "said": "Easy jogging or walking between them"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Easy running"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "easy",
+              "day_hint": "thu",
+              "sport": "run",
+              "type": "easy",
+              "said": "Easy running at a low effort — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Easy running, as long as you set"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "strength-b",
+              "day_hint": "fri",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work: heavy lifts, jumps or both, as you choose — shorter than in your build weeks, at the same effort",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "event",
+              "day_hint": "sun",
+              "sport": "run",
+              "type": "race",
+              "said": "Your event",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up as you have in training"
+                },
+                {
+                  "part": "work",
+                  "said": "The race"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "strength-for-sport",
+      "group": "fitness",
+      "name": "Stronger for sport, assembled from research",
+      "kind": "coach",
+      "question": "goal",
+      "rests_on": "assembled",
+      "relation": "Assembled by formicaria from ACSM's position stand and two meta-analyses. Regime's strength cards are about health; this is for a sport or a season.",
+      "summary": "Every major muscle group twice a week, one session heavier and one lighter, varied on purpose. The sessions carry no number of their own: you set the exercises, sets, repetitions and loads; ACSM's figures are in its rule below.",
+      "goal": "Get stronger for a sport or a season",
+      "sports": [
+        "strength"
+      ],
+      "level_in": "A healthy adult, from beginner to trained",
+      "sources": [
+        {
+          "by": "American College of Sports Medicine",
+          "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72 (read from a copy of the paper)",
+          "url": "https://doi.org/10.1249/MSS.0000000000003897"
+        },
+        {
+          "by": "Moesgaard et al.",
+          "title": "Effects of periodization on strength and muscle hypertrophy in volume-equated resistance training programs: a systematic review and meta-analysis, Sports Med 2022;52(7):1647–66 (abstract read)",
+          "url": "https://doi.org/10.1007/s40279-021-01636-1"
+        },
+        {
+          "by": "Lauersen, Bertelsen, Andersen",
+          "title": "The effectiveness of exercise interventions to prevent sports injuries: a systematic review and meta-analysis of randomised controlled trials, Br J Sports Med 2014;48(11):871–7 (abstract read)",
+          "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=24100287&retmode=text&rettype=abstract"
+        }
+      ],
+      "rules": [
+        {
+          "said": "Every major muscle group at least twice a week; for strength, about 80 % of one-repetition maximum for 2–3 sets (ACSM 2026's figures, for healthy adults — you set your own).",
+          "source": 0
+        },
+        {
+          "said": "Vary the work on purpose: with the same total volume, periodised training raised one-repetition maximum more than unvaried training, and varying it from session to session or week to week helped trained people more than steady steps (Moesgaard et al. 2022, a meta-analysis; muscle size did not differ).",
+          "source": 1
+        },
+        {
+          "said": "Why it is worth it: in randomised trials, strength training cut sports injuries to less than a third (Lauersen et al. 2014, relative risk 0.32) — a reason, not a promise.",
+          "source": 2
+        }
+      ],
+      "needs": [],
+      "checks": [],
+      "unmeasured": [
+        "How heavy and how hard are yours to set: formicaria suggests no load."
+      ],
+      "caution": "Written from studies of healthy adults. Stop if something hurts or does not feel right.",
+      "not_for_words": [
+        "Anyone with an injury or a condition that lifting may affect: ACSM's position stand is written for healthy adults."
+      ],
+      "guides": [],
+      "weeks": [
+        {
+          "n": 1,
+          "note": "The same two sessions each week, one heavier and one lighter; change what is in them as you get stronger. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "heavier",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Heavier session: fewer repetitions a set, heavier loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "lighter",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Lighter session: more repetitions a set, lighter loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "note": "The same two sessions each week, one heavier and one lighter; change what is in them as you get stronger. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "heavier",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Heavier session: fewer repetitions a set, heavier loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "lighter",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Lighter session: more repetitions a set, lighter loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "note": "The same two sessions each week, one heavier and one lighter; change what is in them as you get stronger. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "heavier",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Heavier session: fewer repetitions a set, heavier loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "lighter",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Lighter session: more repetitions a set, lighter loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 4,
+          "note": "The same two sessions each week, one heavier and one lighter; change what is in them as you get stronger. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "heavier",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Heavier session: fewer repetitions a set, heavier loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "lighter",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Lighter session: more repetitions a set, lighter loads, every major muscle group",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hybrid-week",
+      "group": "fitness",
+      "name": "Endurance and strength in one week, assembled",
+      "kind": "coach",
+      "question": "goal",
+      "rests_on": "assembled",
+      "relation": "Assembled by formicaria from two meta-analyses on doing both; the days and the sessions are the plan's convention.",
+      "summary": "Two strength sessions and two endurance sessions a week, kept apart or with the lifting first. It carries no number of its own: you write every session's time, distance, sets and loads.",
+      "goal": "Train endurance and strength together",
+      "sports": [
+        "run",
+        "ride",
+        "swim",
+        "strength"
+      ],
+      "level_in": "Someone who already trains one of the two and wants to add the other",
+      "sources": [
+        {
+          "by": "Schumann et al.",
+          "title": "Compatibility of concurrent aerobic and strength training for skeletal muscle size and function: an updated systematic review and meta-analysis, Sports Med 2022;52(3):601–12 (abstract read)",
+          "url": "https://doi.org/10.1007/s40279-021-01587-7"
+        },
+        {
+          "by": "Eddens, van Someren, Howatson",
+          "title": "The role of intra-session exercise sequence in the interference effect: a systematic review with meta-analysis, Sports Med 2018;48(1):177–88 (abstract read)",
+          "url": "https://doi.org/10.1007/s40279-017-0784-1"
+        }
+      ],
+      "rules": [
+        {
+          "said": "Keep endurance and strength sessions at least 3 hours apart: across 43 studies, gains in explosive strength were blunted more when both were done in one session than when they were at least 3 h apart, and maximal strength and muscle size were not affected (Schumann et al. 2022, a meta-analysis).",
+          "source": 0
+        },
+        {
+          "said": "When they share a session, lift first: strength before endurance gave larger gains in lower-body strength than the other order (Eddens et al. 2018, a meta-analysis of 10 studies).",
+          "source": 1
+        }
+      ],
+      "needs": [],
+      "checks": [],
+      "unmeasured": [
+        "Time, distance, sets and loads are yours to set: formicaria suggests none."
+      ],
+      "caution": "Written from studies of healthy adults. Stop if something hurts or does not feel right.",
+      "not_for_words": [
+        "Anyone with an injury or a condition: the studies were of healthy adults."
+      ],
+      "guides": [],
+      "weeks": [
+        {
+          "n": 1,
+          "note": "The same week again: change the sport, the days and every number as you choose. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "strength",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work, at least three hours from any endurance session that day",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "endurance",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "easy",
+              "said": "Endurance: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "together",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength-then-endurance",
+              "said": "Strength first, then endurance, in one session",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Strength: your exercises, sets and loads"
+                },
+                {
+                  "part": "work",
+                  "said": "Then endurance: your sport, time and effort"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "longer",
+              "day_hint": "sat",
+              "sport": "run",
+              "type": "long",
+              "said": "A longer endurance session: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "note": "The same week again: change the sport, the days and every number as you choose. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "strength",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work, at least three hours from any endurance session that day",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "endurance",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "easy",
+              "said": "Endurance: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "together",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength-then-endurance",
+              "said": "Strength first, then endurance, in one session",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Strength: your exercises, sets and loads"
+                },
+                {
+                  "part": "work",
+                  "said": "Then endurance: your sport, time and effort"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "longer",
+              "day_hint": "sat",
+              "sport": "run",
+              "type": "long",
+              "said": "A longer endurance session: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "note": "The same week again: change the sport, the days and every number as you choose. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "strength",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work, at least three hours from any endurance session that day",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "endurance",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "easy",
+              "said": "Endurance: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "together",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength-then-endurance",
+              "said": "Strength first, then endurance, in one session",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Strength: your exercises, sets and loads"
+                },
+                {
+                  "part": "work",
+                  "said": "Then endurance: your sport, time and effort"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "longer",
+              "day_hint": "sat",
+              "sport": "run",
+              "type": "long",
+              "said": "A longer endurance session: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        },
+        {
+          "n": 4,
+          "note": "The same week again: change the sport, the days and every number as you choose. The number of weeks is this plan's convention.",
+          "sessions": [
+            {
+              "id": "strength",
+              "day_hint": "mon",
+              "sport": "strength",
+              "type": "strength",
+              "said": "Strength work, at least three hours from any endurance session that day",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Your exercises, sets, repetitions and loads"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "endurance",
+              "day_hint": "tue",
+              "sport": "run",
+              "type": "easy",
+              "said": "Endurance: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "together",
+              "day_hint": "thu",
+              "sport": "strength",
+              "type": "strength-then-endurance",
+              "said": "Strength first, then endurance, in one session",
+              "steps": [
+                {
+                  "part": "warmup",
+                  "said": "Warm up"
+                },
+                {
+                  "part": "work",
+                  "said": "Strength: your exercises, sets and loads"
+                },
+                {
+                  "part": "work",
+                  "said": "Then endurance: your sport, time and effort"
+                },
+                {
+                  "part": "cooldown",
+                  "said": "Ease down"
+                }
+              ],
+              "numbers_from": "person"
+            },
+            {
+              "id": "longer",
+              "day_hint": "sat",
+              "sport": "run",
+              "type": "long",
+              "said": "A longer endurance session: run, ride or swim, as you choose",
+              "steps": [
+                {
+                  "part": "work",
+                  "said": "Your sport, time and effort"
+                }
+              ],
+              "numbers_from": "person"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "own-fitness",
       "group": "fitness",
       "name": "My own",

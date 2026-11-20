@@ -19,6 +19,8 @@ import type {
   Config,
   NoteDetail,
   ObjectMeta,
+  FitReport,
+  WorkoutFile,
   ImportCheck,
   ImportReport,
   PathCheck,
@@ -34,6 +36,7 @@ import type {
 } from './types';
 import * as tracker from './mockTracker';
 import * as plan from './mockPlan';
+import * as coachMock from './mockCoach';
 import { healthGuidance } from './health/mockGuidance';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
@@ -461,6 +464,9 @@ const gitVaults: Array<{
   { name: 'personal', remote: null, identity: null },
   { name: 'lab', remote: null, identity: null },
 ];
+
+/** Folders of watch files the mock has imported, so a second import adds nothing — as the real one. */
+const mockFitImported = new Set<string>();
 
 /** The vaults `list_vaults` reports. Mutable: `create_vault` appends, so the first-run
  *  screen's success path is developable without a backend. */
@@ -928,6 +934,7 @@ export function reset(): void {
   mockRecoverable = [];
   blobs.clear();
   mockAudioTags.clear();
+  mockFitImported.clear();
   acceptedProposals.clear();
   seq = FIXTURE_SEQ;
   recordRefused = false;
@@ -2197,6 +2204,128 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       };
       return check satisfies ImportCheck as T;
     }
+    case 'fit_preview':
+    case 'import_fit': {
+      // Stands in for `crates/fm-app/src/watch.rs` closely enough to develop the panel against: a
+      // path with "watch" in it holds two runs and a strength session, one with "broken" adds a
+      // damaged file. The server owns every verdict; this must never become a second opinion.
+      const path = String(args.path ?? '');
+      const watch = /watch/i.test(path);
+      const writing = cmd === 'import_fit';
+      const again = writing && mockFitImported.has(path);
+      const report: FitReport = {
+        files: watch ? (/broken/i.test(path) ? 4 : 3) : 0,
+        activities: watch && !again ? 3 : 0,
+        sets: watch && !again ? 6 : 0,
+        known: again ? 3 : 0,
+        otherVersions: [],
+        merges: [],
+        refused: /broken/i.test(path)
+          ? [
+              {
+                file: 'broken.fit',
+                reason:
+                  'its checksum does not match its contents. Delete this file in the folder and export the activity again, or copy it from the watch over USB.',
+              },
+            ]
+          : [],
+        notActivities: [],
+        items:
+          watch && !again
+            ? [
+                {
+                  file: 'run-1.fit',
+                  title: 'Running',
+                  day: '2026-03-14',
+                  minutes: 32,
+                  distanceM: 6000,
+                  sets: 0,
+                },
+                {
+                  file: 'run-2.fit',
+                  title: 'Running',
+                  day: '2026-03-16',
+                  minutes: 45,
+                  distanceM: 8200,
+                  sets: 0,
+                },
+                {
+                  file: 'gym.fit',
+                  title: 'Strength training',
+                  day: '2026-03-17',
+                  minutes: 40,
+                  sets: 6,
+                },
+              ]
+            : [],
+        problem: !path.trim()
+          ? 'Type the folder the watch files are in.'
+          : watch
+            ? null
+            : `There are no .fit files in ${path}.`,
+        ok: watch && !again,
+        written: writing && watch && !again ? 9 : 0,
+        recorded: writing && watch && !again,
+        warnings: [],
+        vault: String(args.vault ?? '') || (mockVaults[0]?.name ?? 'notes'),
+      };
+      if (writing && watch) mockFitImported.add(path);
+      if (writing && report.problem) throw new Error(report.problem);
+      return report satisfies FitReport as T;
+    }
+    case 'import_fit_files': {
+      // The phone's route (`dispatch.rs`): files the share menu or the granted folder gave. A name
+      // ending `.fit` is one run, imported once; anything else is refused, as the decoder would.
+      const files = (args.files ?? []) as { name: string }[];
+      const fresh = files.filter((f) => /\.fit$/i.test(f.name) && !mockFitImported.has(f.name));
+      const known = files.filter((f) => mockFitImported.has(f.name)).length;
+      for (const f of fresh) mockFitImported.add(f.name);
+      return {
+        files: files.length,
+        activities: fresh.length,
+        sets: 0,
+        known,
+        otherVersions: [],
+        merges: [],
+        refused: files
+          .filter((f) => !/\.fit$/i.test(f.name))
+          .map((f) => ({ file: f.name, reason: 'it is not a FIT file (no .FIT signature).' })),
+        notActivities: [],
+        items: fresh.map((f) => ({
+          file: f.name,
+          title: 'Running',
+          day: '2026-03-14',
+          minutes: 30,
+          distanceM: 5000,
+          sets: 0,
+        })),
+        problem: null,
+        ok: fresh.length > 0,
+        written: fresh.length,
+        recorded: fresh.length > 0,
+        warnings: [],
+        vault: String(args.vault ?? '') || (mockVaults[0]?.name ?? 'notes'),
+      } satisfies FitReport as T;
+    }
+    case 'workout_fit': {
+      // Stands in for `workout.rs`: a note whose body has a number is timed, one without is open.
+      const n = notes.find((x) => x.id === args.id);
+      if (!n || !n.props.planned)
+        throw new Error('Only a planned training session can be saved as a workout for a watch.');
+      const body = bodyOverrides.get(n.id) ?? '';
+      const open = !/\d/.test(body) && typeof n.props.minutes !== 'number';
+      return {
+        name: `${String(n.start ?? '').slice(0, 10)}-workout.fit`,
+        data: btoa('\x0e\x10mock.FIT'),
+        steps: Math.max(1, body.split('\n').filter((l) => l.startsWith('- ')).length),
+        open,
+        notes: open
+          ? [
+              'No step has a time, distance or count yet, so each lasts until you press the lap key.',
+            ]
+          : [],
+      } satisfies WorkoutFile as T;
+    }
     case 'run_import': {
       const report: ImportReport = {
         format: /obsidian/i.test(String(args.source ?? '')) ? 'obsidian' : 'logseq',
@@ -2832,6 +2961,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return plan.planProgress(
         notes,
         args as { group: string; day: string; planned?: boolean },
+      ) as T;
+    case 'coach':
+      return coachMock.coach(notes, args as { day: string; from: string; to: string }) as T;
+    case 'coach_progress':
+      return coachMock.coachProgress(notes, args as { day: string; weeks?: number }) as T;
+    case 'match_planned':
+      return coachMock.matchPlanned(notes, args as { day?: string }) as T;
+    case 'accept_match':
+      return coachMock.acceptMatch(
+        notes,
+        args as { planned: string; imported: string },
+        bodyOverrides,
       ) as T;
     case 'create_notes': {
       const drafts = (args.notes ?? []) as NoteDraft[];

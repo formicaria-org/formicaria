@@ -1,0 +1,33 @@
+{
+  "about": "Which entry of the training log a watch's activity file becomes: the FIT sport and sub-sport, by the names in rustyfit's generated profile, to the activity name, the kind it counts as, and fm's own one-word sport. Names only — no figure, no claim. A sub-sport row wins over the sport's own row; a sport not here becomes activity 'other'.",
+  "as_at": "2026-11-20",
+  "profile": "rustyfit 0.11.2 (FIT profile 21.221)",
+  "sports": [
+    { "fit_sport": "running", "activity": "Running", "counts_as": "aerobic", "sport": "run" },
+    { "fit_sport": "running", "fit_sub_sport": "treadmill", "activity": "Running", "counts_as": "aerobic", "sport": "run", "indoor": true },
+    { "fit_sport": "running", "fit_sub_sport": "indoor_running", "activity": "Running", "counts_as": "aerobic", "sport": "run", "indoor": true },
+    { "fit_sport": "running", "fit_sub_sport": "trail", "activity": "Running", "counts_as": "aerobic", "sport": "run" },
+    { "fit_sport": "running", "fit_sub_sport": "track", "activity": "Running", "counts_as": "aerobic", "sport": "run" },
+    { "fit_sport": "cycling", "activity": "Cycling", "counts_as": "aerobic", "sport": "ride" },
+    { "fit_sport": "cycling", "fit_sub_sport": "indoor_cycling", "activity": "Cycling", "counts_as": "aerobic", "sport": "ride", "indoor": true },
+    { "fit_sport": "cycling", "fit_sub_sport": "spin", "activity": "Cycling", "counts_as": "aerobic", "sport": "ride", "indoor": true },
+    { "fit_sport": "cycling", "fit_sub_sport": "virtual_activity", "activity": "Cycling", "counts_as": "aerobic", "sport": "ride", "indoor": true },
+    { "fit_sport": "e_biking", "activity": "Cycling", "counts_as": "aerobic", "sport": "ride" },
+    { "fit_sport": "swimming", "activity": "Swimming", "counts_as": "aerobic", "sport": "swim" },
+    { "fit_sport": "swimming", "fit_sub_sport": "lap_swimming", "activity": "Swimming", "counts_as": "aerobic", "sport": "swim", "indoor": true },
+    { "fit_sport": "swimming", "fit_sub_sport": "open_water", "activity": "Swimming", "counts_as": "aerobic", "sport": "swim" },
+    { "fit_sport": "walking", "activity": "Walking", "counts_as": "aerobic", "sport": "walk" },
+    { "fit_sport": "walking", "fit_sub_sport": "indoor_walking", "activity": "Walking", "counts_as": "aerobic", "sport": "walk", "indoor": true },
+    { "fit_sport": "hiking", "activity": "Hiking", "counts_as": "aerobic", "sport": "hike" },
+    { "fit_sport": "rowing", "activity": "Rowing", "counts_as": "aerobic", "sport": "row" },
+    { "fit_sport": "rowing", "fit_sub_sport": "indoor_rowing", "activity": "Rowing", "counts_as": "aerobic", "sport": "row", "indoor": true },
+    { "fit_sport": "fitness_equipment", "fit_sub_sport": "indoor_rowing", "activity": "Rowing", "counts_as": "aerobic", "sport": "row", "indoor": true },
+    { "fit_sport": "fitness_equipment", "fit_sub_sport": "elliptical", "activity": "Elliptical", "counts_as": "aerobic", "sport": "cardio", "indoor": true },
+    { "fit_sport": "fitness_equipment", "fit_sub_sport": "stair_climbing", "activity": "Stair climbing", "counts_as": "aerobic", "sport": "cardio", "indoor": true },
+    { "fit_sport": "training", "fit_sub_sport": "strength_training", "activity": "Strength training", "counts_as": "strength", "sport": "strength", "indoor": true },
+    { "fit_sport": "training", "fit_sub_sport": "cardio_training", "activity": "Cardio training", "counts_as": "aerobic", "sport": "cardio" },
+    { "fit_sport": "training", "fit_sub_sport": "yoga", "activity": "Yoga", "counts_as": "strength", "sport": "yoga" },
+    { "fit_sport": "training", "fit_sub_sport": "pilates", "activity": "Pilates", "counts_as": "strength", "sport": "pilates" },
+    { "fit_sport": "training", "fit_sub_sport": "flexibility_training", "activity": "Stretching", "counts_as": "flexibility", "sport": "flexibility" }
+  ]
+}

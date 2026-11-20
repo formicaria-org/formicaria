@@ -27,6 +27,14 @@ infer = "0.19"     # pure-Rust MIME sniff by magic bytes (never trust the extens
 # feature (compressed ID3v2 frames) stays on: 0.25 does not build without it, and the `flate2` it
 # brings is already in both builds through `fm-app`.
 lofty = "0.25"
+# **Reading a watch's activity file** (`fit.rs`; `decisions.md` 2026-11-20, *Reading and writing FIT:
+# open crates, a provenance note*). BSD-3-Clause, `no_std`, one dependency (`embedded-io`). The
+# decision's writer, used here to read as well: `fitparser`, named for reading, brings `chrono`,
+# which the advisory database lists as unmaintained (RUSTSEC-2026-0543), so `deny` refuses it.
+rustyfit = "0.11"
+# The writer's in-memory file (`fit_write.rs`): `rustyfit`'s encoder writes through this crate's
+# `Write + Seek`. Already in both builds as `rustyfit`'s one dependency; named here, nothing new.
+embedded-io = "0.7"
 
 # In-process git, for platforms that have no `git` binary to shell out to — Android has
 # none, and iOS forbids executing one at all. **Never on by default**: the desktop keeps

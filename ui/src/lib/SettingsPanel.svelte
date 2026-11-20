@@ -41,6 +41,7 @@
   import CalendarsSection from './CalendarsSection.svelte';
   import ClockSection from './ClockSection.svelte';
   import TrackersSection from './TrackersSection.svelte';
+  import WatchImport from './WatchImport.svelte';
   import RemindersSection from './RemindersSection.svelte';
   import MailSection from './MailSection.svelte';
   import BackupPanel from './BackupPanel.svelte';
@@ -1889,6 +1890,19 @@
           data-words="food meals calories nutrition diet training workout exercise tracker"
         >
           <TrackersSection />
+        </div>
+      {/if}
+      <!-- A watch's activity files (`decisions.md` 2026-11-20): on a computer, read from a folder
+           typed on **this computer**; on the phone, from the share menu and one folder the person
+           grants (*The phone takes watch files*). Never for a paired device (`fm-serve` refuses the
+           path commands to one: a host path is the host's). -->
+      {#if !isRemote()}
+        <div
+          class="cat"
+          data-cat="notes"
+          data-words="watch fit files garmin gadgetbridge import activity activities run ride swim strength usb fitness training folder share"
+        >
+          <WatchImport phone={isPhone()} />
         </div>
       {/if}
 

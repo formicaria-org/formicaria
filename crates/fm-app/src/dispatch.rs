@@ -864,6 +864,10 @@ const READ_ONLY: &[&str] = &[
     "plan_preview",
     "plan_progress",
     "plan_watch",
+    // The Coach (2026-11-20): its plan, calendar, progress and match proposals are read from notes.
+    "coach",
+    "coach_progress",
+    "match_planned",
     // The food list is not in any vault. Reading it moves no note, so none of these should tell
     // a connected client the vault changed.
     "food_search",
@@ -882,6 +886,8 @@ const READ_ONLY: &[&str] = &[
     // list it would bump the generation each time and tell every connected client the vault had
     // changed — the `paper_bibtex` lesson, on a faster trigger.
     "check_import",
+    // What a folder of watch files would become; reads the folder and the vault, writes nothing.
+    "fit_preview",
     // Asked per keystroke while a new folder is typed; it changes nothing.
     "check_move_vault",
     "config",
@@ -2542,6 +2548,43 @@ fn dispatch_inner(
             &resolve_path(&s("name"), &s("path"))?,
             import_options(args),
         )?),
+        // **A watch's activity files, read into the training log** (`decisions.md` 2026-11-20; the
+        // coach plan's Spec S, S1). Host-only, like the Logseq importer: both take a path on this
+        // machine (`fm-serve`'s `REMOTE_DENIED`). The preview writes nothing; the import writes one
+        // commit, and a second run of the same folder writes nothing at all.
+        "fit_preview" => json(fit_preview(app, scope, &s("path"), &s("vault"))?),
+        "import_fit" => json(import_fit(app, scope, &s("path"), &s("vault"))?),
+        // **The phone's watch files** (`decisions.md` 2026-11-20, *The phone takes watch files*):
+        // `files` is `[{session, name}]`, each a chunked upload (`ingest_chunk`) of one `.fit` the
+        // share menu or the granted folder gave the shell. The same import as `import_fit`, one
+        // commit, and no asset note. Not host-only: it reads nothing but the vault's own uploads.
+        "import_fit_files" => {
+            let files: Vec<(String, String)> = args
+                .get("files")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .map(|f| {
+                            let g = |k: &str| {
+                                f.get(k).and_then(Value::as_str).unwrap_or_default().to_string()
+                            };
+                            (g("session"), g("name"))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            json(import_fit_files(app, scope, &files, &s("vault"))?)
+        }
+        // **A planned session as a workout file for a watch** (`decisions.md` 2026-11-20, the
+        // Coach's item 6; the coach plan's S.7): the file's name and bytes (base64), for the page to
+        // save or, on the phone, hand to the watch's app. Writes nothing.
+        "workout_fit" => {
+            let id: fm_model::Id =
+                s("id").parse().map_err(|_| format!("invalid id: {}", s("id")))?;
+            let note = lock()?.store(scope).get(id).map_err(err)?;
+            let note = note.ok_or("That session is no longer in the vault.")?;
+            json(crate::workout::for_note(&note)?)
+        }
         // **Stop showing me this vault.** The fourth verb the vault list needed: three commands
         // brought a vault into being (`create_vault`, `clone_vault`, `restore_vault`) and none took
         // one away, so a vault the app had auto-created — the phone makes an empty default one on
@@ -2971,6 +3014,29 @@ fn dispatch_inner(
             let f = if planned { crate::plan::plan_outlook } else { crate::plan::plan_progress };
             json(f(&store, &s("group"), &s("day")).map_err(err)?)
         }
+        // ── Fitness → Coach (`coach.rs`; `decisions.md` 2026-11-20, *Fitness gets a Coach tab*) ──
+        // Reads: the plan in force and the Coach's own calendar (training, the Menu's meals,
+        // meetings), progress per week and sport, and which imported sessions fit a planned one.
+        // Putting a week on the calendar, *Next week*, moving and skipping are `create_notes` and
+        // `set_properties`; the one write here is accepting a match, recorded as one step.
+        "coach" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::coach::coach(&store, &s("day"), &s("from"), &s("to")).map_err(err)?)
+        }
+        "coach_progress" => {
+            let weeks = args.get("weeks").and_then(Value::as_i64).unwrap_or(8);
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::coach::coach_progress(&store, &s("day"), weeks).map_err(err)?)
+        }
+        "match_planned" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            let day = s("day");
+            json(crate::coach::match_planned(&store, Some(day.as_str())).map_err(err)?)
+        }
+        "accept_match" => json(accept_match(app, scope, &s("planned"), &s("imported"))?),
         // ── The food list (`packs.rs`) — carried in the app and unpacked outside every vault, so
         // none of these takes the vault lock.
         "food_search" => {
@@ -4395,6 +4461,208 @@ fn run_import(
     };
     record(&mut g, &now.name, &now.path, &mut report);
     Ok(report)
+}
+
+// ── a watch's activity files ─────────────────────────────────────────────────────────────────────
+
+/// The vault, and what its training log already holds — under the guard, briefly.
+fn fit_context(
+    app: &App,
+    scope: &Scope,
+    vault: &str,
+    zone: &fm_core::zone::Zone,
+) -> Result<(VaultConfig, crate::watch::Existing), String> {
+    let mut g = app.lock()?;
+    let cfg = g.config(scope, vault)?;
+    let st = g.store(scope);
+    let existing = crate::watch::existing(&st, &cfg.name, zone).map_err(err)?;
+    Ok((cfg, existing))
+}
+
+/// What importing a folder of watch files would write, what it refuses and what it would only
+/// propose. Reads the folder with the guard released (a typed path can be anything); writes nothing.
+fn fit_preview(
+    app: &App,
+    scope: &Scope,
+    path: &str,
+    vault: &str,
+) -> Result<crate::watch::FitReport, String> {
+    let zone = app_zone(app)?;
+    let (cfg, existing) = fit_context(app, scope, vault, &zone)?;
+    let source = crate::watch::scan(path);
+    // No salt yet means no earlier import here: any salt answers the preview the same.
+    let salt = match crate::watch::read_salt(&cfg.path) {
+        Some(s) => s,
+        None => crate::watch::new_salt()?,
+    };
+    let mut report = crate::watch::plan(&source, &salt, &zone, &existing).report;
+    report.vault = cfg.name;
+    Ok(report)
+}
+
+/// Import a folder of watch files: decode and keep the files' blobs with the guard released, then
+/// write the notes and record them as **one** commit. Nothing new → nothing written, no commit.
+fn import_fit(
+    app: &App,
+    scope: &Scope,
+    path: &str,
+    vault: &str,
+) -> Result<crate::watch::FitReport, String> {
+    let source = crate::watch::scan(path);
+    if let Some(problem) = &source.problem {
+        return Err(problem.clone());
+    }
+    import_fit_from(app, scope, vault, |_, salt, zone, existing| {
+        crate::watch::plan(&source, salt, zone, existing)
+    })
+}
+
+/// **The phone's route** (`decisions.md` 2026-11-20, *The phone takes watch files*): files shared to
+/// the app or found in the folder the person granted, uploaded as chunked sessions
+/// (`fm_core::chunked`) and imported here — the same notes, keys, refusals and single commit as
+/// [`import_fit`], and **never through `ingest`**, which would write an asset note for each file. The
+/// file itself is kept as the blob its entry names, as on a computer. Every session is discarded
+/// afterwards, imported or not: the shell still holds the file and sends it again if asked.
+fn import_fit_files(
+    app: &App,
+    scope: &Scope,
+    files: &[(String, String)],
+    vault: &str,
+) -> Result<crate::watch::FitReport, String> {
+    if files.is_empty() {
+        return Err("No watch file was sent.".into());
+    }
+    let cfg = app.lock()?.config(scope, vault)?;
+    let out = import_fit_from(app, scope, vault, |cfg, salt, zone, existing| {
+        let read = files
+            .iter()
+            .map(|(session, name)| crate::watch::InFile {
+                name: name.clone(),
+                order: name.clone(),
+                bytes: fm_core::chunked::assembled(&cfg.path, session)
+                    .map_err(|e| e.to_string())
+                    .and_then(|p| {
+                        let len = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                        if len as usize > fm_core::fit::MAX_BYTES {
+                            Err("it is larger than any watch's activity file".into())
+                        } else {
+                            std::fs::read(&p).map_err(|e| e.to_string())
+                        }
+                    }),
+            })
+            .collect();
+        crate::watch::plan_files(read, None, salt, zone, existing)
+    });
+    for (session, _) in files {
+        let _ = fm_core::chunked::discard(&cfg.path, session);
+    }
+    out
+}
+
+/// What both routes share once they know how to read their files: the salt, the plan, the blobs,
+/// then the notes and one commit under the guard.
+fn import_fit_from(
+    app: &App,
+    scope: &Scope,
+    vault: &str,
+    plan_with: impl FnOnce(
+        &VaultConfig,
+        &[u8],
+        &fm_core::zone::Zone,
+        &crate::watch::Existing,
+    ) -> crate::watch::Plan,
+) -> Result<crate::watch::FitReport, String> {
+    let zone = app_zone(app)?;
+    let (cfg, existing) = fit_context(app, scope, vault, &zone)?;
+    let (salt, fresh) = match crate::watch::read_salt(&cfg.path) {
+        Some(s) => (s, false),
+        None => (crate::watch::new_salt()?, true),
+    };
+    let plan = plan_with(&cfg, &salt, &zone, &existing);
+    let mut report = plan.report;
+    report.vault = cfg.name.clone();
+    if plan.planned.is_empty() {
+        return Ok(report);
+    }
+    // The files themselves, kept as blobs the notes name — content-addressed, so a second copy of
+    // the same bytes writes nothing, and safe without the guard.
+    let blobs = fm_core::blob::BlobStore::new(&cfg.path);
+    for p in &plan.planned {
+        if let Err(e) = blobs.put_bytes(&p.blob) {
+            report.warnings.push(format!("a watch file could not be kept beside its entry ({e})"));
+        }
+    }
+    let salt_path = if fresh { Some(crate::watch::write_salt(&cfg.path, &salt)?) } else { None };
+
+    let mut g = app.lock()?;
+    let now = g.config(scope, vault)?;
+    if now.path != cfg.path {
+        return Err(format!(
+            "'{}' moved while the files were read, so nothing was written to it.",
+            now.name
+        ));
+    }
+    {
+        let mut st = g.store(scope);
+        // **Re-asked under the guard**: another import of the same folder may have landed while
+        // this one read the files. A file whose key is now there is left out, not written twice.
+        let again = crate::watch::existing(&st, &now.name, &zone).map_err(err)?;
+        let planned: Vec<_> = plan
+            .planned
+            .into_iter()
+            .filter(|p| {
+                let key = p.notes[0].get(fm_core::import::SOURCE_KEY);
+                !matches!(key, fm_model::PropertyValue::Text(k) if again.by_key.contains_key(&k))
+            })
+            .collect();
+        crate::watch::write(&mut st, &now.name, planned, &mut report);
+    }
+    if report.written > 0 && vcs::available() {
+        let mut paths = g.all.written(&now.name);
+        paths.extend(salt_path);
+        let message = format!(
+            "import: {} activities and {} sets from a watch",
+            report.activities, report.sets
+        );
+        match vcs::commit_all(&now.path, &message, &paths) {
+            Ok(true) => {
+                g.all.clear_written(&now.name);
+                report.recorded = true;
+            }
+            Ok(false) => {}
+            Err(e) => report.warnings.push(format!(
+                "the entries are all in the vault, but they could not be recorded in one step ({e}) \
+                 — open Back up and record them there"
+            )),
+        }
+    }
+    Ok(report)
+}
+
+/// **A watch's session folded into the planned one it was** (Spec S.5), on the person's word: one
+/// note per session, and the change recorded as one step when the vault keeps a history.
+fn accept_match(
+    app: &App,
+    scope: &Scope,
+    planned: &str,
+    imported: &str,
+) -> Result<crate::coach::Folded, String> {
+    let mut g = app.lock()?;
+    let mut folded =
+        crate::coach::accept_match(&mut g.store(scope), planned, imported).map_err(err)?;
+    let cfg = g.config(scope, &folded.vault)?;
+    if vcs::available() {
+        let paths = g.all.written(&cfg.name);
+        if let Ok(true) = vcs::commit_all(
+            &cfg.path,
+            "coach: a watch's session kept as the planned one it was",
+            &paths,
+        ) {
+            g.all.clear_written(&cfg.name);
+            folded.recorded = true;
+        }
+    }
+    Ok(folded)
 }
 
 /// Import into a vault that does not exist yet — a fourth way one comes into being, beside

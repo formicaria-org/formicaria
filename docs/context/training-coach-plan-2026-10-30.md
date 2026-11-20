@@ -1,5 +1,11 @@
 # Open training coach — plan (2026-10-30)
 
+> **2026-11-20 — Part 3, the Coach view, is the owner's direction for all of this.** A Coach tab in
+> Fitness that offers sourced plans as starting points, turns them into dated sessions and meals that
+> coordinate with the Week, the Menu and the watch, and helps track and improve both plans. Read Part 3
+> (the design) and Part 4 (build-ready specs, experiments, draft decisions) first; the research behind
+> it is `training-tools-research-2026-11-20.md`.
+
 > **Owner's framing, 2026-10-30 — read before the reversals below.** *"Wearable and other sources of
 > notes are congruent with each other … we take data files into a note management, which is already
 > supported through assets, and we can visualize them and do things to them, all still in the scope
@@ -51,7 +57,7 @@ Each is a dated `decisions.md` entry answering `CLAUDE.md`'s four questions, wit
 | # | Entry | For | Reverses or extends | What it settles |
 |---|---|---|---|---|
 | D1 | *Watch data enters fm as files another app wrote* | P1 | **Reverses** `tools-plan-2026-10-11.md:108-109`. **Settles** `decisions.md:11488-11489` | fm reads FIT files only. No Bluetooth in fm, no cloud reader (R14, `decisions.md:9401`; CSP `crates/fm-serve/src/main.rs:1693`). GB is an optional outside tool that declares itself (`decisions.md:2460-2483`) |
-| D4 | *Reading FIT: licence, decoder, and what docs may say* | P1 | Extends the dependency policy (`deny.toml`; `ci/checks.sh:236-265`) | The FIT licence covers "documentation describing the FIT protocol" as well as code (LICENSE lines 4-7). §1 grants use "in any software created by Licensee"; §2(c) and §2(d) restrict making features available and modifiable derivatives. Legal status **UV**. D4 decides: (a) fitparser (MIT, profile generated from `Profile.xlsx`, `fitparser/src/profile/field_types.rs:4`) or a decoder written in fm, with a **provenance statement** of what it was written from; (b) whether tracked files may carry FIT message and field numbers; (c) whether to ask Garmin first. Until D4, no FIT numbers in tracked files and no code. fitparser also brings `chrono` |
+| D4 | *Reading FIT: licence, decoder, and what docs may say* — **answered 2026-11-20: open crates (fitparser reads, rustyfit writes), relying on the licence's §1 grant, with a provenance note; residual legal uncertainty accepted** | P1 | Extends the dependency policy (`deny.toml`; `ci/checks.sh:236-265`) | The FIT licence covers "documentation describing the FIT protocol" as well as code (LICENSE lines 4-7). §1 grants use "in any software created by Licensee"; §2(c) and §2(d) restrict making features available and modifiable derivatives. Legal status **UV**. D4 decides: (a) fitparser (MIT, profile generated from `Profile.xlsx`, `fitparser/src/profile/field_types.rs:4`) or a decoder written in fm, with a **provenance statement** of what it was written from; (b) whether tracked files may carry FIT message and field numbers; (c) whether to ask Garmin first. Until D4, no FIT numbers in tracked files and no code. fitparser also brings `chrono` |
 | D2 | *In load arithmetic a day with no data is unknown, not rest* | P3 | Extends "nothing logged, never zero" (`decisions.md:10009`; `crates/fm-query/src/days.rs:4-8`) | Covered = rest marked, or an activity present; from P7 also a monitoring file spans it. No blanket "the watch records everything" declaration. Coverage measured over 126 days for long load, 21 for short |
 | D3 | *The phone reads one folder the person grants* | P2 | **Reverses** "There is no folder picker" (`decisions.md:265`), phone only, read-only, one folder. Extends "Pictures only" (`decisions.md:12529-12530`) | Persistable grant in `MainActivity` via `ci/android-inject-service.sh`. Setting under Settings → *Connections* (`decisions.md:9054-9085`). Share menu accepts `.fit` and `.zip` only, checked by name and file magic in `takeShared`; anything else is refused with a sentence |
 | D-S | *Training formulas wait for their sources* | P3 | Applies `decisions.md:9563-9566`; **not** an exception to it | Lists the texts of research §5 that must be read and registered before any load number, any 42/7 chart, any threshold rule or any safety screen ships. Anything that cannot be sourced is dropped. If the owner wants a model chart anyway, that is a separate dated exception, written as such |
@@ -542,3 +548,535 @@ Freshness on day 1 = −10.959379 (shown the next day, as GC's default).
 6. Edwards 1993, if zonal load is wanted.
 7. The ACSM pre-participation text and its symptom list.
 8. A source on HR-based measures under beta-blockers and rhythm disorders.
+
+---
+
+# Part 3 — The Coach view: plans, calendars, the watch and food (2026-11-20)
+
+> **A proposal, not built, nothing decided.** It reorganises P1–P8 above around one screen and adds
+> what they lacked (plans that step forward, the calendar, food). Code references come from a
+> read-only map of the tree on 2026-11-20 (labelled as in Part 1, VC); re-check each before building.
+> Evidence references are to `training-tools-research-2026-11-20.md` (written **R§n**).
+
+## 3.1 The owner's direction
+
+*"A coach sub-view to fitness that suggests plans based on simple and scientifically backed
+knowledge … this time beyond general health. These plans are a starting point for a person that can
+then personalise them, like already possible now. These plans correspond to activities in calendars
+that should seamlessly coordinate with the current food and fitness calendars, also with a calendar
+aligned with Garmin. Ideally this allows checking relevant data during different activities, and
+helps track progress and improve the fitness and food plan."* (2026-11-20, spelling tidied.)
+
+Read as five things the Coach does: **offer** sourced plans → **personalise** them → **schedule**
+them as dated sessions and meals beside the Week, the Menu and the watch → **show** what matters
+during and after each activity → **track and improve** both plans by proposals.
+
+## 3.2 What already exists, and the gaps (VC, map of 2026-11-20)
+
+| Piece | Today | Gap for a coach |
+|---|---|---|
+| Plan library | `shipped/plans.json` (compiled in, `plan.rs:35`): 13 fitness and 11 food plans, each with `sources[]`, `checks[]` (10 kinds, `plan.rs:104-118`), `rests_on`, `not_for`, `examples[]` (a week, `kind: published\|assembled`) | All one-week, health-level plans (WHO, strength-health, 4×4…). No multi-week plan, no goal or event, no sport beyond counts_as |
+| Personalising | Following writes an ordinary note (`program`, `plan`, `question`, `p_<check>_min/max`; `PlanScreen.svelte:327-380`); bounds editable before following; a change is a new note so past weeks keep old bounds (`decisions.md:10013-10018`) | Reused as is |
+| Dated activities | A planned set, activity or meal is a `log` note with `planned: 1` and a future `start`; confirming clears `planned` **on the same note** (`TrackerPane.svelte:441-456, 530-541`) | **Nothing keeps what was planned once it is done**; no planned-vs-done comparison |
+| Routines | Head note `routine` + `weekdays`; `planRoutine` copies sets onto a day and **drops the routine word** (`TrackerPane.svelte:500-522`); "Use it as my week" (`example.ts:28-85`) | **"Nothing steps a routine forward"** (`outstanding.md:1268`); no link from a planned entry back to its plan |
+| Food | Menu: 1–28 days ahead of `log: food` notes with `planned: 1`; `plan_outlook` (`plan.rs:957`) holds them against the diet (`MenuScreen.svelte:64-144`) | No link to training; Fitness has no outlook |
+| Calendar | Agenda shows unfinished notes with `due` (`commands.rs:80-91`); `notes_base` keeps every `log` entry out (`thread.rs:209-217`); iCal read-only (`decisions.md:8210-8260`) | Planned training and meals never appear on any calendar |
+| Watch | Nothing (P1–P7 above, unbuilt) | Workouts out, files in |
+| Assistant | `apply_props` allow-list (`commands.rs:993-1020`), contract `(1, 10)` (`lib.rs:34`) | No training or food properties |
+
+Side finding to check: a *stopped* program note gets `due` with no `status` and may show on the
+Agenda as an overdue item (`log.rs:290-292` vs the `due`-only filter). Unverified.
+
+## 3.3 Design
+
+### A. One new tab: **Coach**, in Fitness
+
+Week · Exercises · Regime · **Coach**. Regime stays the health-level "what to follow" screen; Coach
+is for a goal with a date or a season. On the phone and the desktop alike it has four parts, top to
+bottom:
+
+1. **Today** — the session(s) planned today with their steps and targets, the fuelling note for the
+   day, and a *Done / Moved / Skipped* control. During a gym session it opens the existing Session
+   screen.
+2. **Calendar** — the coach's own week and month (§C).
+3. **Progress** — per sport (§E).
+4. **Plans** — the library (§B), the plan being followed, and pending proposals (§F).
+
+A tab of its own respects *"a graph is a view, not a header … never laid over another view"*
+(`decisions.md:9886-9888`): nothing is drawn over Week, Exercises, Regime, the board or the Agenda.
+
+### B. Plans: a library of starting points, multi-week, sourced
+
+Each Coach plan is a `plans.json` entry with the fields Regime plans have, plus:
+
+- `goal` (e.g. *first 5 km*, *half marathon*, *cycling base*, *sprint triathlon*, *stronger for
+  sport*), `sports[]`, `weeks` (length), `event` (whether a date anchors it), `levels` (entry
+  requirement stated in plain words: *"can run 20 minutes"*).
+- `weeks[]`: each week a list of **session templates** — sport, kind (*easy*, *long*, *intervals*,
+  *strength*, *mobility*…), duration or distance, steps (warm-up / work / recovery / cool-down) with
+  targets **relative to the person's anchor** (% of their CS, CSS, HRmax, or RIR for strength) —
+  and optional add-ons (injury-prevention blocks).
+- `progression {rule, source}` and `taper {…, source, population}`: how one week follows the last,
+  written as a rule the person can read (Liftosaur's idea, R§4.1), never hidden arithmetic.
+- Every number either names its source row or is labelled **convention** (the coach plan's rule).
+  `kind: published` (a programme reproduced under its licence) or `kind: assembled` (fm's own
+  combination of sourced rules — the shape `examples[]` already allows).
+
+**Candidate library** (each needs its register rows before it ships; R§ gives the evidence):
+
+| Plan | Kind | Basis (R§) | Open questions |
+|---|---|---|---|
+| First 5 km (walk-run) | published | NHS Couch to 5K, OGL v3, adapted and unbranded (R§3.2) | The attribution line; no outcome RCT |
+| 10 km / half marathon | assembled | Mostly easy (R§12, Haugen 2022, Muniz-Pumares 2025); one long run; one quality session (Seiler 2013 4×8); strength 2× (R§12); taper (Bosquet 2007) | Weekly progression is convention (the 10 % rule failed, Buist 2008) |
+| Marathon | assembled | As above, plus pacing below ~94 % CS (Smyth 2020), fuelling rehearsal (R§24), Vickers prediction | Same |
+| Faster 5–10 km | assembled | 4×4 (exists), 4×8, short intervals as contested (R§12) | — |
+| Cycling base (HR only) | assembled | Per-sport HR zones (Millet 2009), mostly easy, sprint intervals (Sloth 2013), heavy strength (R§23) | No power on this watch class (R§20.1) |
+| Swim fitness (CSS) | assembled | CSS test (Wakayoshi 1993; Dekerle 2005), pace zones vs CSS, RPE load (Wallace 2009), dryland (R§21.3) | Zone boundaries are convention |
+| Sprint / Olympic triathlon | assembled | The three above, per-sport anchors, no summed load (R§22) | No multisport mode on this watch class |
+| Stronger for sport | assembled | ACSM 2026; periodised beats none (Moesgaard 2022); RIR in fm's words (R§13, R§3.4) | No named programmes (R§23.3) |
+| Hybrid week (run + lift) | assembled | Schumann 2022: ≥ 3 h apart or lift first (R§13) | — |
+| Injury-prevention add-ons | published / assembled | Copenhagen adduction (Harøy 2019), Nordic hamstring (van Dyk 2019), ACL programme (Webster 2018), shoulder (Andersson 2017) (R§23) | Dose tables need the full texts |
+| Maintain in season / after a goal | assembled | Spiering 2021 minimal dose; detraining (Mujika 2000) | No athlete data |
+| Keep in shape (existing Regime) | — | Unchanged; Coach links to it | — |
+
+### C. Scheduling: a rolling horizon of linked planned entries
+
+- **Adopting** a Coach plan writes the program note as Regime does today, plus `event_date`,
+  `start_week` and the anchors in force (a CS, CSS or HRmax note, P4).
+- **The coach writes planned entries only a short horizon ahead** (proposed: the current and next
+  week, like the Menu's days ahead), not the whole plan. A missed week then changes what is written
+  next instead of leaving a stale calendar. Each planned entry is the existing shape (`log: workout`
+  + `planned: 1` + `start`) **plus three links**: `plan` (the program note), `plan_week`, `session`
+  (its template id). This closes the "routine word dropped" gap.
+- **Stepping forward is the person's act** (owner, 2026-11-20: C2 answered *no*). The Coach shows
+  the next week's template beside this week's — the source's own figures where the plan is published
+  (e.g. Couch to 5K's run/walk minutes), blanks where it is assembled — and the person writes or
+  adjusts every number before the week is put on the calendar. The ruling *"the app still suggests no
+  sets, reps or loads"* (`decisions.md:10081`) stands, with its existing exception for sourced
+  starting figures that name whose they are (`:10471-10474`). This answers `outstanding.md:1268`
+  without the app choosing a load.
+- **Keeping what was planned.** When a planned entry is confirmed, its planned values are kept in
+  `planned_*` keys (e.g. `planned_minutes`, `planned_distance_m`) before the done values are written,
+  so plan-vs-done can be shown. (A data rule; today the planned note simply becomes the done note.)
+- **Personalising** stays as now: any planned entry is a note — move it, change it, delete it.
+  The program's bounds are edited as in Regime. A changed plan is a new program note.
+
+**The Coach calendar** (its own view in the Coach tab, week and month):
+- planned and done **training** (by sport, colour-coded by kind, not by "risk");
+- planned **meals** from the Menu on the same days, and the day's fuelling note (§D);
+- **meetings** from the read-only iCal sync, drawn faintly, so sessions can be placed around them;
+- drag a session to another day = edit its `start`; the watch copy follows (§G).
+
+The **Agenda stays as it is** (owner, 2026-11-20: C4 answered *Coach calendar only*). It shows no
+`log` entries (`thread.rs:209-217`) and *"a view that worked is not decorated"* (`decisions.md:9883`)
+stands.
+
+### D. Food coupled to the plan
+
+The trigger table of R§24.3, computed in Rust from the planned sessions, body mass and the profile:
+daily carbohydrate band from planned hours; before-session and in-session fuelling for long
+sessions; loading before a race; protein after key sessions; fluids on hot days; rate cautions on
+weight. Output goes two ways, both as proposals:
+- a **fuelling note** on the day in Today and the Calendar;
+- optional **planned meals on the Menu** (the existing `log: food` + `planned: 1`), which the Menu's
+  outlook already holds against the diet followed.
+
+The **nutrition safety gate** (R§24.3) applies before anything: anyone flagged at risk
+(`eating_disorder` flag, which exists at `plan.rs:61-62`), pregnant, or under 18 gets no calorie,
+deficit, weight-target or weight-trend proposal — only fuelling adequacy and referral text. Watch
+calorie estimates are never an input (R§2.2).
+
+### E. During and after an activity
+
+- **During.** On the watch: the session is a FIT workout with its steps and absolute targets (HR in
+  bpm, pace in m/s, time, distance; strength steps with reps and weight) — R§15, P6. fm does not talk
+  to the watch during the activity (D1). On the phone: Today shows the steps; the gym uses the
+  existing Session screen.
+- **After.** The FIT file arrives (P1/P2), is matched to the planned entry by `start` day, sport and
+  `session` link (a proposal if ambiguous, never a silent merge), and the Today/Calendar entry shows
+  planned vs done: duration, distance, time in the planned target band, laps against steps. Per
+  sport, the per-sport honesty labels apply (R§25): swim HR invalid, no power on this watch class,
+  mixed-stroke distance unreliable, rep counts editable.
+
+**Progress**, per sport, each a measured fact or a named method (R§14.1, R§20.4, R§21.3):
+compliance (planned vs done), weekly volume and time in zones, anchors over time (CS, CSS, a
+strength estimate from logged sets ≤ 10 reps), best efforts, durability on long runs (Smyth 2022),
+the daily check-in trend, food against the diet (the existing outlook), and race prediction with its
+5–8 % band. **No single cross-sport fitness line** (R§22).
+
+### F. Improving the plans: proposals, never silent changes
+
+- **Rules in Rust**, each with a source, in fixed priority, the first that fires producing a proposal
+  with its reason (Domestique's pattern, R§4.1, without its ACWR-era thresholds): a missed week →
+  repeat or shorten the next week; repeated misses or beats of pace targets in quality sessions →
+  propose a pace change (Runna's documented rule, R§6.2, labelled convention); a check-in well off
+  the person's own baseline → easy day; ≥ 7 days off before an event → say so (Feely 2023); a stale
+  anchor → propose a re-test. *(Superseded in part by C2, 2026-11-20: the pace-change rule is dropped,
+  since it would propose a number.)*
+- **No proposal carries a new training number** (C2). Proposals are about structure: repeat this
+  week, move or drop a missed session, take the rest day, re-test an anchor. A number only ever
+  comes from the plan's source or from the person.
+- **Food proposals** follow §D.
+- **Myrme** words proposals and answers questions from a small fixed set of tools; every number in
+  its reply must trace to a Rust result (R§6.4–6.5). It never applies anything.
+
+### G. The watch calendar
+
+- **fm is the one calendar.** Each planned session within the horizon is written as a FIT workout
+  and offered to Gadgetbridge by the Android share intent (R§15: GB accepts `*/*` from other apps and
+  installs workouts). The watch then lists it under workouts and the person starts it there.
+- **"Today's workout" on the watch's own calendar** needs a FIT schedule file, which GB does not
+  handle; its "install unsupported files" setting or USB copying are untested (R§15). **Experiment
+  E-cal**, on a throwaway setup: does the watch honour a schedule file sent either way? Until it
+  passes, the Coach sends workouts only.
+- **Moving or deleting a session in fm** sends the new workout and asks the person to remove the
+  old one on the watch, or relies on the schedule file if E-cal passes. Garmin Connect, if the person
+  also uses it, overwrites the watch's calendar (Garmin manual, R§15); the Coach says so and does
+  not try to share the calendar with Connect.
+- **Considered, not proposed: going through Garmin Connect.** Unofficial Connect libraries (used by
+  open projects such as garmin_mcp, R§6.3) can create workouts and schedule them on the Connect
+  calendar, which then fills the watch's calendar. It would give "today's workout" at once, but it
+  needs the person's Garmin login through an unofficial, breakable flow and puts the plan on Garmin's
+  servers — against D1 (no cloud reader) and the open, local aim. Listed so the choice is on record.
+- **The watch-as-source work stays last** by the owner's ruling of 2026-11-16 (after the phone
+  browser and Windows/macOS). Phases C1–C3 below need no watch.
+
+## 3.4 Phases
+
+| Phase | Ships | Needs |
+|---|---|---|
+| **C1** | Coach tab: Plans library (first 3–4 plans: first 5 km, 10 km/half, stronger for sport, hybrid), adopt and personalise, the next week's template shown for the person to fill and put on the calendar, linked planned entries, Today, planned-vs-done kept | C-decisions 1–3, 5; register rows for each plan |
+| **C2** | Coach calendar: training + Menu meals + read-only meetings; drag to move | C4 (Agenda or not) |
+| **C3** | Food coupling: fuelling notes and optional Menu meals; the safety gate | C6, C7 |
+| **C4** | Progress: compliance, volume, zones, anchors (P4), check-in trend | C8, D7, D-S |
+| **C5** | Proposals about structure (repeat, move, rest, re-test) + Myrme wording | D9, C9 |
+| **C6** | Watch out: FIT workouts via GB (P6); E-cal | D4, D5 |
+| **C7** | Watch in: FIT import and matching (P1, P2, P7), swim lengths and strength sets read from the file | D1–D4, D3 |
+| **C8** | More plans: cycling, swim, triathlon, prevention add-ons, maintenance | Register rows; full texts (R§26) |
+
+C1–C5 are useful without a watch: plans step forward, show on a calendar beside meals, and are
+tracked from what the person logs.
+
+## 3.5 Decisions the owner writes first (in addition to D1–D10)
+
+| # | Entry | Extends or reverses |
+|---|---|---|
+| C1 | *Fitness gets a Coach tab* | Extends the closed `Span` set (`views.rs:170`) and the three-views ruling (`decisions.md:10455-10474`) |
+| C2 | *Coach plans are multi-week; the person steps them forward* — **answered 2026-11-20: the app does not step plans or choose loads** | Keeps `decisions.md:10081` and its exception (`:10471-10474`); answers `outstanding.md:1268` by showing the next week's template for the person to fill. Extends `plans.json` with `weeks[]` |
+| C3 | *A planned entry links to its plan, and keeps what was planned when done* | New data rule: `plan`, `plan_week`, `session`, `planned_*` keys |
+| C4 | *Where training shows on a calendar* — **answered 2026-11-20: the Coach calendar only** | Either the Coach calendar only (no reversal) or also the Agenda (reverses `decisions.md:9883`, `:9915` and the `notes_base` filter) |
+| C5 | *Plans for goals beyond health* | Extends the 13 `QUESTIONS` (`plan.rs:70-84`) with *train for an event / a goal*; `kind: assembled` as a plan, not only an example week |
+| C6 | *Fuelling proposals follow the training calendar* | New; R§24.3 triggers, each sourced; the 90 g/h default |
+| C7 | *The nutrition safety gate* | Extends the `eating_disorder` flag's effect; adds age and pregnancy; fixed referral texts |
+| C8 | *Sports and their anchors* | Intensity zones per sport need a published classification (`decisions.md:9720-9721`); per-sport zones; no summed load |
+| C9 | *Myrme's coaching tools* | Widens `apply_props` (`commands.rs:993-1020`) for `start`, `minutes`, `distance_m`, `planned`; contract bump from `(1, 10)` |
+| C10 | *fm is the one training calendar; the watch receives workouts* | Builds on D1/D5; no write to external calendars (the iCal ruling, `decisions.md:8222`, stands) |
+
+## 3.6 Risks
+
+| Risk | Answer |
+|---|---|
+| Assembled plans look authoritative | Each shows *assembled from …* with its sources and which numbers are convention |
+| Progression rules injure someone | Lower or hold only beyond the plan's rule; stop list (P5) shown with every plan; `not_for` |
+| Calendar clutter | Rolling horizon; meals and meetings optional layers |
+| Two calendars (fm and Connect) disagree | fm says it is the one; does not share with Connect |
+| Nutrition harms someone at risk | The gate runs before any food proposal |
+| Watch path never works | C1–C5 stand without it |
+| Scope | Each phase is its own proposal and decision, as P1–P8 |
+
+---
+
+# Part 4 — Build-ready specs: the watch → fm sync and the Coach (2026-11-20)
+
+> **Specs, not code.** Written so each phase can be built and checked without re-deciding anything,
+> once its decisions (§4.4) are written. Owner's answers of 2026-11-20 are built in: **D4** open
+> crates; **C2** the app does not step plans or choose loads; **C4** the Coach calendar only.
+> Evidence: `training-tools-research-2026-11-20.md` (R§n). Code facts from the 2026-11-20 map (VC);
+> re-check line numbers when building. Anything marked UV is settled by an experiment in §4.3 first.
+
+## 4.1 Spec S — the watch → fm sync
+
+### S.0 Principles
+
+1. **fm reads files another app wrote** (D1). No Bluetooth, no Garmin account, no cloud.
+2. **The original FIT is the truth; Gadgetbridge's own summaries are not.** GB may replace altitude
+   with elevation tiles and drops swim lengths (R§2.1, R§21.1). fm decodes the file itself.
+3. **Every number fm shows is in the note.** Blobs may not travel (`git_assets_max`), so a note
+   holds its totals, its lap / length / set table and the derived figures fixed at import with their
+   method (D6). The 1 Hz streams stay in the blob; anything that needs them later says *needs the
+   file* when the blob is absent.
+4. **Three layers per value** (R§2): measured, the watch's estimate (prefix `watch_`), fm's own.
+5. **Idempotent, never destructive.** Importing twice adds nothing; an edited note is never
+   overwritten; a bad file is refused and named (P1.2).
+
+### S.1 Sources, by phase
+
+| Phase | Source | What arrives | Trigger |
+|---|---|---|---|
+| **S1** (desktop) | A folder the person copied from the watch over USB, or GB's export folder synced to the computer | Activity FITs (run, bike, swim, strength, …) | `import_fit {path}`, typed path, host-only (`REMOTE_DENIED`, `fm-serve/src/main.rs:548`) |
+| **S2** (phone) | GB's automatic FIT export folder, granted once (D3) | Activity FITs, seconds after GB imports them (`AutoFitExporter`, P1 hop 2) | On app open and resume; share menu for one file |
+| **S3** (phone, later) | GB's ZIP backup (P7) | Monitoring, sleep, HRV, metrics FITs | Person shares or grants the ZIP's folder |
+| Not used | Android Health Connect (GB exports to it, R§2.1) | Summaries only, Google platform | — (listed so the choice is on record) |
+
+### S.2 Decoding (D4 answered)
+
+- **Crate:** `fitparser` (MIT; `deny.toml` allows MIT) for reading. It pulls in `chrono`, not in
+  `Cargo.lock` today — a new dependency entry under `#toolchain`. `rustyfit` (BSD-3, allowed) is the
+  fallback if fitparser lacks a message the specs need, and is the writer (S.7).
+- **Module:** `fm-core/src/fit.rs` — bytes in, typed records out; no `Store`, no network, no paths
+  (as P1.5). It returns: `file_id`, `session`, `lap`, `length`, `set`, `record` (streams),
+  `hrv`/`monitoring`/`sleep` (S3 only), unknown messages counted.
+- **Provenance note** in the module header and `docs/src/dev/`: which crate, which version, that
+  message and field numbers come from that crate's generated profile, and that fm relies on the FIT
+  licence's §1 grant (R§5.1, R§5 FIT SDK row; §2(f) noted).
+- **UV to settle in E0:** that fitparser decodes `length` (swim) and `set` (strength) messages from
+  this watch class's files, and `workout_rpe`.
+
+### S.3 What each file becomes
+
+**An activity FIT → one `log: workout` activity note** (the existing shape: `activity`, `minutes`,
+`effort`, `counts_as`; `decisions.md:10029-10033`), plus:
+
+| Key | Rule |
+|---|---|
+| `start`, `day` | P1.3 (UTC conversion; `day` from the watch's own local date, fixed at import) |
+| `sport`, `fit_sport`, `fit_sub_sport` | A shipped mapping table (names only, "as at" date) to fm's `activity` and `counts_as`; unknown → `activity: other` |
+| `minutes`, `timer_s`, `elapsed_s` | `minutes` whole, for existing cards (`plan.rs:663`) |
+| `distance_m`, `ascent_m`, `descent_m` | Measured; altitude labelled if absent |
+| `hr_avg_bpm`, `hr_max_bpm` | Measured — **except swims**, where they are stored as `watch_hr_avg_bpm` with the in-water warning and used by nothing (R§21.2) |
+| `cadence_avg` | If present |
+| `rpe` | From `workout_rpe` ÷ 10 if present; **wording is fm's own 0–10, not Borg** (R§3.4) |
+| `watch_*` | The watch's estimates if present: `watch_training_effect`, `watch_vo2max`, `watch_recovery_h`. Shown as the watch's, never mixed |
+| `source_fit`, `source_key`, `import_hash` | P1.2; `import_hash` over the fields fm wrote, so a later re-import sees an edit and leaves the note alone (the Logseq importer's rule) |
+| `quality` | Flags, each a word: `mixed_stroke`, `drill_typed`, `hr_wrist_water`, `gps_short`, `reps_watch` |
+
+**Body:** a table fm writes once — laps (time, distance, avg HR, pace) for runs and rides; lengths
+grouped into intervals (time, strokes, stroke type, pace per 100 m) for pool swims; steps vs laps
+when the activity followed a workout.
+
+**Per sport:**
+- **Pool swim:** distance from active `length` messages × `pool_length`; intervals = runs of active
+  lengths between idle ones; `strokes_per_length`, `stroke_rate`; SWOLF only within one pool length;
+  `quality: mixed_stroke` when an interval changes stroke type (R§21.2).
+- **Open water:** GPS distance labelled *not validated for this device*.
+- **Bike:** no power on this watch class; `cadence_avg` only with a sensor; `indoor: true` for Bike
+  Indoor so indoor and outdoor are never pooled (R§20.2).
+- **Strength:** **one `log: workout` set note per active `set` message** (the existing set shape:
+  `exercise`, `set`, `reps`, `load_g`, optional `region`; `WorkoutSheet.svelte:310-321`), sharing the
+  activity's `start`. FIT exercise category and name map to fm's exercise cards through a shipped
+  table; unmapped → the FIT name as text. `quality: reps_watch` on every set: reps are the watch's
+  count, editable, and **the note wins** (R§13, R§23.2).
+
+**S3 files → one `log: body` day note per date:** `resting_hr_bpm` (the watch's), `hrv_night_ms`
+(raw ÷ 128), `sleep_min`, sleep start and end, `covered: 1` (D2). Sleep stages stored as
+`watch_sleep_*` and shown as a trend only (R§2.2). Stress, Body Battery, SpO2: not imported.
+
+### S.4 Identity and duplicates (P1.2, kept)
+
+Salted HMAC over `file_id`; re-runs skip known keys; a same-sport activity within ±60 s with the
+same timer time is a **merge proposal**, never a silent merge; bad header, size or CRC → refused and
+named with the re-export sentence.
+
+### S.5 Matching to the plan (needs C3)
+
+After import, for each new activity or set group: find planned entries on the same `day` with the
+same `counts_as` (or `exercise` for sets). Exactly one → a proposal *"This was your planned …"*;
+on accept, the planned note takes the done values and keeps its planned ones as `planned_*`, and the
+imported note is folded into it (one note per session). Several or none → listed for the person.
+Never automatic.
+
+### S.6 Commands and code (five places each, `docs/src/dev/adding-features.md`)
+
+| Command | Where | Notes |
+|---|---|---|
+| `import_fit {path}` | `dispatch.rs` arm, host-only | S1; one commit per run |
+| `fit_preview {path}` | same | Lists what would be written, refusals, merge proposals; writes nothing |
+| `import_fit_chunks {session}` | phone (S2) | New chunk-session arm through `fm_core::chunked::assembled`; **no asset note** (P2.2) |
+| `match_planned {day}` | `fm-app` | S.5 proposals |
+| Phone folder listing | `MainActivity` via `ci/android-inject-service.sh`, off the UI thread | D3; name + size + mtime; a growing file waits |
+
+### S.7 Workouts out (P6, with D4 answered)
+
+- **Encoder:** `rustyfit` writes type-5 workout files from a planned session's steps (absolute
+  targets only: bpm, m/s, seconds, metres; pool length and stroke for swims; exercise, reps and
+  weight for strength). Its README's warning about the FIT licence is covered by D4's provenance note.
+- **Delivery:** Android `ACTION_SEND` with a `FileProvider` URI to GB's exported
+  `FileInstallerActivity` (accepts `*/*`, VC). GB installs workouts (VC, `GarminFitFileInstallHandler`).
+- **Calendar on the watch:** only if E-cal passes (a schedule file via GB's "install unsupported
+  files" setting or USB). Until then the Coach says *"on your watch under Workouts"*.
+- **Desktop:** *Save .fit file* for a USB copy.
+
+### S.8 Tests (all in pixi gates)
+
+Kept from P1.6: T2 (decoder never panics, seeded), T4 (synthetic fixtures), T4b (an independent
+decode pinned as numbers), T7 (idempotency, two versions, merge proposal, refusal, source folder
+untouched), T8 (time and days, two clocks), T10 (no network in `fit.rs`; no serial in clear), T11
+(temp vaults only), T12 (mock, reference, `REMOTE_DENIED`). **New:**
+
+| # | Test |
+|---|---|
+| T13 | Pool swim fixture: lengths → intervals, distance, stroke rate; a medley interval gets `mixed_stroke`; swim HR stored only as `watch_*` |
+| T14 | Strength fixture: N active sets → N set notes; rest sets ignored; unmapped exercise kept as text |
+| T15 | Edit wins: change `reps` on an imported set, re-import → unchanged, no commit |
+| T16 | Matching: one planned run that day → one proposal; accepting keeps `planned_minutes`; two candidates → no proposal |
+| T17 | Indoor and outdoor rides never in one best-effort list |
+| T18 | Encoder round trip: a workout written by rustyfit decodes back to the same steps; no `%` target |
+| T19 | Fixtures are synthetic or GC OpenData (CC0, R§5.2); a check fails if a fixture carries a real serial |
+
+### S.9 Exit criteria
+
+S1: a USB folder of runs, rides, swims and strength sessions imports once; a second import writes
+nothing; swims show intervals; strength shows editable sets; existing cards count the sessions.
+S2: a session GB auto-exports appears at the next resume and reaches the laptop after sync.
+S3: resting HR, nightly HRV and sleep times appear as day notes; coverage counts them.
+
+## 4.2 Spec K — the Coach
+
+### K.0 Principles (with the owner's answers)
+
+1. **The app offers, the person decides.** It never steps a plan forward or chooses a load (C2).
+2. **Every number comes from a source or the person** (`decisions.md:9571-9573`, `:10081`,
+   exception `:10471-10474` for sourced starting figures naming whose).
+3. **A tab of its own; the Agenda stays clean** (C4).
+4. **Planned and done are linked** (C3).
+5. **Nothing without the watch is blocked by the watch.**
+
+### K.1 Plan data (`plans.json`, `group: fitness`, new `kind: coach`)
+
+```text
+{ id, name, kind: "coach", goal, sports[], rests_on: "published" | "assembled",
+  sources[], not_for[], level_in: "<plain words>",
+  weeks: [ { n, note, sessions: [ { id, day_hint, sport, type, said,
+             steps: [ { part: warmup|work|recover|cooldown, repeat?, minutes?|metres?,
+                        target?: { kind: hr_band|pace_band|rpe|reps_in_reserve, from_source } } ],
+             numbers_from: "source" | "person" } ] } ],
+  addons: [plan id], fuelling: true|false, caution, flag_notes[] }
+```
+
+- **Published plans** carry the source's own figures (`numbers_from: "source"`), shown as the
+  source's (e.g. Couch to 5K week 1: 60 s run / 90 s walk, 20 min, 3×).
+- **Assembled plans** carry the structure and the sourced rules (*one long run*, *mostly easy*,
+  *strength twice*), with `numbers_from: "person"`: the minutes, distances and targets are blank
+  until the person fills them.
+- Targets are bands relative to the person's anchors (D7) and stay empty until an anchor exists.
+- **Tests** extend `plan.rs:1150-1255`: every coach plan names sources; every session's
+  `numbers_from` is set; no `assembled` session ships a number; `not_for` present.
+
+### K.2 Screens (new `Span::Coach`, `coach.view`, a `TrackerPane` branch, `CoachScreen.svelte`)
+
+- **Plans:** the library (filter by goal and sport), a plan's page (weeks at a glance, sources, who
+  it is not for, the stop list), **Follow** → the existing program-note write (`PlanScreen.svelte:
+  327-380`) plus `goal`, `event_date`, `week: 1`.
+- **This week / next week:** the current week's sessions as editable rows (day, sport, minutes or
+  distance, target); for the next week, the plan's template beside what the person did this week.
+  **"Put this week on my calendar"** writes the planned entries. Nothing is written until pressed.
+  **"Next week"** advances `week` on the program note — the person's act, never the app's.
+- **Today:** today's session(s) with steps; *Done* (opens the existing confirm / Session screen),
+  *Move* (date picker), *Skip*; the day's fuelling note (K.4); *Send to watch* (S.7) when available.
+- **Calendar:** week and month; planned and done training by sport; Menu meals as a layer; meetings
+  from the read-only iCal sync as a faint layer; drag = edit `start`. Its own view; nothing drawn
+  over Week, Exercises, Regime, the board or the Agenda.
+- **Progress:** compliance (planned vs done, per week and per sport), weekly volume and time per
+  sport, and — once D7/D-S allow — anchors over time and time in zones. No cross-sport line.
+
+### K.3 Data writes (needs C3)
+
+- A planned session = the existing `log: workout` + `planned: 1` + `start`, plus `plan`
+  (program note id), `plan_week`, `session` (template id). Strength sessions = one planned set note
+  per set, each with the same three links.
+- Steps live in the planned note's body in the closed grammar of P6 (`steps.rs`); a line it cannot
+  read is refused.
+- On *Done*, the planned values are copied to `planned_*` before the done values are written.
+- Commands: `coach_week_preview {plan, week}` (pure; returns the template and this week's done),
+  `coach_put_week {program, week, rows}` (writes planned entries through `create_notes`,
+  one commit, undoable), `coach_move {note, start}`. Five places each.
+
+### K.4 Food (C6, C7)
+
+- **Fuelling note per day,** computed in Rust from that day's planned sessions and the profile's
+  weight, from the AND/DC/ACSM 2016 bands and the session rules (R§24.3). Shown in Today and the
+  Calendar with its source. Optional **"Add to Menu"** writes planned `log: food` notes the Menu
+  already understands.
+- **The gate runs first:** the `eating_disorder` flag (`plan.rs:61-62`), pregnancy, or age < 18 →
+  no fuelling numbers tied to weight loss, no calorie or weight proposals; only adequacy wording and
+  referral text. Watch calories are never an input.
+- **Wait for:** the official AND/DC/ACSM text read at source (R§24.1).
+
+### K.5 Proposals (C2-compliant)
+
+Rules in Rust, fixed order, each with a source, each producing a proposal with its reason; **none
+carries a new training number**: a missed session → *move or skip*; a missed week → *repeat the
+week*; ≥ 7 days off before `event_date` → say so (Feely 2023); a stale anchor → *re-test*; two hard
+sessions planned on consecutive days → *say so* (the plan's own structure). Myrme words them later
+(C9), from a fixed tool set; every number in its text traces to a Rust result.
+
+### K.6 Build order
+
+| Step | Ships | Gates |
+|---|---|---|
+| K1 | `kind: coach` schema + tests; two published or near-published plans (first 5 km from Couch to 5K; strength for sport, assembled); register rows | C1, C5, register |
+| K2 | Coach tab: Plans, This/next week, Put on calendar, Today (no watch) | C1, C3 |
+| K3 | Coach calendar (training + Menu + meetings layers) | C4 (answered) |
+| K4 | Progress: compliance and volume | — |
+| K5 | Fuelling notes + gate | C6, C7, official text |
+| K6 | Send to watch (S.7) | D5, E1 |
+| K7 | Matching imports to plans (S.5) | S1, C3 |
+| K8 | Proposals + Myrme | D9, C9 |
+
+## 4.3 Experiments before code (owner runs them; throwaway setup; nothing private enters the repo)
+
+| # | Question | How | Decides |
+|---|---|---|---|
+| **E0** | What does GB auto-export for this watch class: indoor sessions, pool swims, strength? Does fitparser decode `length`, `set`, `workout_rpe` from them? | Record one short session of each kind; turn on GB's auto FIT export to a test folder; decode the files outside the repo | S.2, S.3 fields; whether S2 covers indoor and strength |
+| **E1** | Does a workout file written by another app reach the watch through GB's share target and run? | A synthetic workout made outside the repo (a few steps, absolute HR target) → share to GB → start it on the watch | S.7, K6 |
+| **E-cal** | Does the watch honour a FIT schedule file via GB's "install unsupported files", or via USB `GARMIN/NewFiles`? | A schedule file naming tomorrow and E1's workout; both routes | Whether "today's workout" is possible without Connect |
+| E2 | How long after a session does GB's export file appear, with the phone idle? | Note times | S2 wording |
+
+## 4.4 Draft decision entries (for the owner to approve, edit and write into `decisions.md`)
+
+Each in the house format, answering the four questions. Drafts only — `decisions.md` is not
+touched by this document.
+
+**D1 — *Watch data enters fm as files another app wrote* `#data`.** Subject: data, `#seams`.
+Reverses `tools-plan-2026-10-11.md:108-109` (wearables left out) and settles
+`decisions.md:11488-11489`. fm reads FIT files only: a typed path on the desktop, a granted folder or
+the share menu on the phone. No Bluetooth, no Garmin account, no cloud reader. Gadgetbridge is an
+optional outside tool. Widens what ships: yes (a decoder, a dependency).
+
+**D4 — *Reading and writing FIT* `#toolchain`.** Owner's answer 2026-11-20: `fitparser` (MIT) reads,
+`rustyfit` (BSD-3) writes; fm relies on the FIT licence's §1 grant to use the protocol in software
+it creates; a provenance note names crate, version and profile origin; the residual legal question
+is accepted. `chrono` enters with fitparser. Message and field numbers may appear in code and tests.
+
+**D3 — *The phone reads one folder the person grants* `#ui` `#track-m`.** Reverses "there is no
+folder picker" (`decisions.md:265`) on the phone only, read-only, one folder; the share menu accepts
+`.fit` and `.zip` by name and magic.
+
+**C1 — *Fitness gets a Coach tab* `#ui`.** Extends `Span` (`views.rs:170`) and the three-views
+ruling (`:10455-10474`) with a fourth tab for goals with a date or season; Regime keeps health-level
+plans. Nothing is drawn over other views.
+
+**C2 — *The app does not step plans forward or choose loads* `#data`.** Owner's answer 2026-11-20.
+Coach plans are multi-week templates; the person fills or adjusts every number and advances the
+week. `decisions.md:10081` stands with its exception (`:10471-10474`). Answers `outstanding.md:1268`.
+
+**C3 — *A planned entry links to its plan and keeps what was planned* `#data`.** New keys `plan`,
+`plan_week`, `session`, `planned_*` on `log` entries; set by the Coach and by matching; one note per
+session after matching.
+
+**C4 — *Training shows on the Coach calendar only* `#ui`.** Owner's answer 2026-11-20. The Agenda,
+the board and `notes_base` are unchanged.
+
+**C5 — *Plans for goals beyond health* `#data`.** Adds the question *train for a goal or event* to
+`QUESTIONS` (`plan.rs:70-84`) and `kind: coach` with `rests_on: published | assembled`; an assembled
+plan ships no number of its own.
+
+**C6 / C7 — *Fuelling follows the training calendar; the nutrition gate* `#data`.** Fuelling notes
+from sourced bands; the gate (eating-disorder flag, pregnancy, under 18) runs first; watch calories
+never an input.
+
+**C10 — *fm is the one training calendar; the watch receives workouts* `#seams`.** Workouts go out as
+FIT through Gadgetbridge; no write to any external calendar (`decisions.md:8222` stands); Garmin
+Connect is not used.
+
+Still open from Part 1: D2, D5, D6, D7, D8, D9, D10, D-S, C8, C9.

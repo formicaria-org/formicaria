@@ -443,7 +443,7 @@ card reads what you write here.
 
 ## Fitness
 
-Fitness has three tabs: **Week**, **Exercises** and **Regime**.
+Fitness has four tabs: **Week**, **Exercises**, **Regime** and **Coach**.
 
 ### Week
 
@@ -506,6 +506,112 @@ a card for its steps.
   here; open them to read.
 - **Add to today's session** starts the add sheet with that exercise. On a day, **How** beside an
   exercise opens its card.
+
+### Watch files
+
+A sports watch's activities can be brought in from its files — on a computer from a folder, on the
+phone by sharing a file or from one folder you choose (below). formicaria reads the
+`.fit` files the watch writes; it does not talk to the watch, use Bluetooth, or sign in to the
+watch maker's account, and nothing is sent anywhere.
+
+1. Copy the files to a folder on this computer — plug the watch in over USB and copy its activity
+   files, or use the folder another app (such as Gadgetbridge on a phone) exports them to, synced
+   across.
+2. In **Settings → Food & reminders**, under **Watch files (.fit)**, type that folder and press
+   **Check**. You see what would be added before anything is.
+3. Press **Import**. The folder is only read; nothing in it is changed, moved or deleted.
+
+What it reads, for each activity: the sport, when it started, the minutes, distance, climb, heart
+rate and cadence the watch measured, the effort you gave it on the watch (0–10), and a table of
+laps — or, for a pool swim, of intervals with their strokes and pace per 100 m. Each activity is
+one entry in your Week, counted like one you added yourself; its day is the day on the watch where
+you did it. The watch's own estimates (training effect, calories) are kept under names starting
+`watch_` and shown as the watch's. The file itself is kept beside the entry.
+
+- **Strength**: each set the watch counted becomes a set, like one you add by hand, named after the
+  exercise card that matches when there is one, else in the watch's words. The repetitions are
+  the watch's count and are often off by one or two: change them, and **what you write wins** — a
+  later import never changes an entry you edited.
+- **Swimming**: heart rate in water is the watch's reading from the wrist and is often wrong there.
+  It is kept as the watch's and nothing counts it.
+- **Importing again** adds only what is new. A file that looks like an activity already there — the
+  same sport, starting within a minute, for the same time — is shown as a possible duplicate and is
+  not added. A damaged file is refused and named: delete it, then export or copy it again.
+- Not read: sleep, resting heart rate, heart-rate variability and the rest of a day's monitoring.
+
+#### On the phone
+
+A watch's app usually runs on the phone — **Gadgetbridge**, for example, a free app that connects
+to many watches without the watch maker's account. formicaria takes its files two ways, and imports
+them exactly as a computer does: the same entries, nothing twice, damaged files refused and named.
+No attachment note is made; the file is kept beside its entry.
+
+- **Share.** In your files app, or in the watch's app, share a `.fit` file and pick **formicaria**.
+  It goes straight into Fitness, and a line at the bottom says what was added. Only a file whose name
+  ends `.fit` and whose header says it is a FIT file is taken; anything else is refused with a
+  sentence.
+- **One folder.** In **Settings → Food & reminders → Watch files (.fit)**, press **Choose the folder
+  your watch app exports to**, and pick it in Android's folder picker. In Gadgetbridge, turn on its
+  automatic export of activity files to the same folder. formicaria asks Android to **read** that one
+  folder only, and keeps the permission on this phone (not in your notes). Each time you open
+  formicaria or come back to it, new `.fit` files there are added; a file still being written is
+  left for next time. If Android takes the permission back, or the folder moves, the section says the
+  folder is **no longer readable** — choose it again. **Stop reading it** gives the permission back.
+
+### Coach
+
+**Coach** is for a goal with a date or a season — a first run, a 10 km or a half marathon, getting
+stronger for a sport, endurance and strength together. Regime stays the place for everyday health.
+
+- **Plans.** Each plan says what it is for, who it starts from, who it is **not** for, its caution,
+  its weeks at a glance and the sources each of its rules rests on, with links. Filter them by sport
+  or goal. Four come with the app:
+  - **The NHS's 9-week running plan** — a *published* plan, offered by its name: nine weeks of three
+    runs with a rest day between. Its run and walk minutes are on the NHS's own page, linked from
+    the plan; formicaria does not copy them, so you take each week's from there and write them in.
+  - **10 km to a half marathon**, **Stronger for sport** and **Endurance and strength in one week** —
+    *assembled* by formicaria from research rules (mostly easy running, a long run, longer
+    intervals, strength twice a week, a two-week taper; ACSM's figures for strength; keeping
+    endurance and strength apart or lifting first). Their sessions carry **no number of their own**:
+    you write every minute, distance and target.
+- **Follow** writes one note that names the plan, what you train for, the day of your event (if
+  there is one) and the week you are on. Following another plan, or **Stop following**, gives it a
+  last day, as in Regime. Both can be undone.
+- **This week** lists the week's sessions as rows — day, sport, minutes, kilometres, a target in your
+  words, and its steps — filled only where a published plan gives a figure, blank otherwise.
+  **Put this week on my calendar** adds them as planned entries of your training log, each linked to
+  the plan, its week and its session; it is one step to undo.
+- **Next week** shows the plan's next week beside what you did this week. **formicaria never moves a
+  plan on by itself**: press **Next week** when you choose, or repeat the week.
+- **Today** shows today's sessions with their steps: **Done**, **Move** (to another day) or
+  **Skip**. A strength day's sets open on **Today's sets**, as on the Week. When a session of a plan
+  is done, what was planned is kept beside what you did (`planned_minutes` and the like), so the two
+  can be compared.
+- **The calendar** is the Coach's own, by week or by month: your planned, done and skipped training.
+  Two layers can be turned on and off — the **meals** planned on the Menu, and your **meetings** from
+  the calendars you added, drawn faintly so sessions can be placed around them. Drag a planned
+  session to another day, or press it and choose a date. Nothing of this appears on the Agenda, the
+  board or the other Fitness tabs.
+- **Progress**, per sport and week: sessions done against planned, minutes done against planned,
+  and distance. Only what was measured — no training load, zones or score across sports.
+- **To your watch**: a planned session on **Today** (and, under **To the watch**, in **This week**)
+  can be saved as a workout file — **Save .fit file** — and, on the phone, handed to your watch's app
+  with **Send to watch app**: Android's share menu opens and you pick the app (Gadgetbridge installs a
+  workout file it is given on watches it supports). **formicaria never talks to the watch itself.**
+  The workout goes to the watch's **Workouts** list, **not its calendar**: start it from there. Its
+  steps come from the session's lines — write the numbers in them, such as
+  `Work: 4 x 800 m at 4:30/km` or `Recovery: 2 min under 130 bpm`: a time, a distance, repetitions,
+  a weight, a heart rate in bpm or a pace. A line with no number becomes a step that lasts until you
+  press the lap key, with the line's words on it — so a plan with no numbers yet still gives the
+  watch its warm-up, work and cool-down. A percentage (*75 % of maximum*) is never sent as a target,
+  because the watch would read it against its own settings; write bpm or a pace instead. This has
+  not yet been tried on every watch.
+- **From your watch**: after importing watch files, a session that fits exactly one planned session
+  that day (the same kind: endurance or strength) is offered — *“This was your planned …?”*. Say
+  **Yes, it was** and the two become one entry: the planned one takes the watch's figures, keeps
+  what was planned, and keeps the watch's file and lap table. Nothing happens unless you say yes, and
+  it can be undone. A session that could be more than one planned session is listed for you to sort
+  out on its day.
 
 ## Following a diet or a regime
 

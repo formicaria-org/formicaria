@@ -54,6 +54,8 @@ pub mod actions;
 pub mod ca_bundle;
 pub mod clip;
 pub mod clock;
+// Fitness → Coach: the plan followed for a goal, its calendar, progress, matching (2026-11-20).
+pub mod coach;
 pub mod commands;
 pub mod cycle;
 pub mod diary;
@@ -86,7 +88,11 @@ pub mod tutorials;
 pub mod vaultfile;
 pub mod vaults;
 pub mod views;
+// A watch's activity files, read into the training log (`decisions.md` 2026-11-20).
+pub mod watch;
+// A planned Coach session as a FIT workout file for a watch (`decisions.md` 2026-11-20).
 pub mod web_recipe;
+pub mod workout;
 // Encodings a shell needs on the way in — here rather than in the (workspace-excluded, untested)
 // mobile crate, so `cargo test --workspace` reaches them.
 pub mod wire;

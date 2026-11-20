@@ -2481,6 +2481,22 @@ if [ -n "$off" ]; then
     fail=1
 fi
 
+# **A watch's files are read, never fetched** (`decisions.md` 2026-11-20, *Watch data enters fm as
+# files another app wrote*; the coach plan's T10): no Bluetooth, no watch maker's account, no cloud.
+# The decoder takes bytes and the import takes a folder; a way to the network in either — a socket,
+# an HTTP client, even an address — is a different decision, not a change to make here. (That no
+# serial number reaches a note in clear is `crates/fm-app/tests/import_fit.rs`, T10.)
+echo "[check] the watch-file reader has no way to the network..."
+for f in crates/fm-core/src/fit.rs crates/fm-core/src/fit_write.rs crates/fm-app/src/watch.rs crates/fm-app/src/workout.rs; do
+    if [ ! -f "$f" ]; then
+        echo "  FAIL: $f is gone — move this check with it."
+        fail=1
+    elif grep -nE 'std::net|TcpStream|UdpSocket|\bureq\b|\breqwest\b|\bhyper\b|https?://' "$f"; then
+        echo "  FAIL: $f names the network above. fm reads watch files another app wrote."
+        fail=1
+    fi
+done
+
 echo "[check] the UI reads the app's clock, never the browser's (one app clock)..."
 # `decisions.md#data`, 2026-10-24, *one app clock*: what day or time it is, and which day a moment
 # falls on, are asked of `ui/src/lib/appTime.ts`, which holds the zone the server reports; day

@@ -88,7 +88,7 @@ const VIDEOS: TotalsDef = { log: 'video', add: 'video', span: 'videos', metrics:
 const VIDEOS_GROUP: ViewGroup = { name: 'Videos', views: ['All videos'] };
 const FITNESS_GROUP: ViewGroup = {
   name: 'Fitness',
-  views: ['Week', 'Exercises', 'Regime'],
+  views: ['Week', 'Exercises', 'Regime', 'Coach'],
 };
 
 const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
@@ -115,6 +115,7 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Week: { totals: { ...TRAINING, span: 'week' }, group: FITNESS_GROUP },
   Exercises: { totals: { ...TRAINING, span: 'cards' }, group: FITNESS_GROUP },
   Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },
+  Coach: { totals: { ...TRAINING, span: 'coach' }, group: FITNESS_GROUP },
   Diary: { totals: HEALTH, group: HEALTH_GROUP },
   'Over time': { totals: { ...HEALTH, span: 'range' }, group: HEALTH_GROUP },
   Guidance: { totals: { ...HEALTH, span: 'plan' }, group: HEALTH_GROUP },

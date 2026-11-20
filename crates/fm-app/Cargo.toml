@@ -35,6 +35,9 @@ time = { workspace = true }
 # To unpack the food list this crate carries (`packs.rs`; `decisions.md#toolchain`, 2026-10-11).
 # Already in the tree and in the binary through `fm-fetch`; pure Rust.
 flate2 = "1"
+# The per-vault random salt that keys a watch file's identity (`watch.rs`; the coach plan's P1.2), so a
+# 32-bit serial number never sits in a note as a reversible hash. Already in the tree (`fm-serve`).
+getrandom = "0.3"
 
 [dev-dependencies]
 fm-core = { workspace = true }

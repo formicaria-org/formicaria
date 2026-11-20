@@ -321,6 +321,30 @@ pub fn plan_base(logs: &[&str], keys: &[&str]) -> Filter {
     Filter::new().and(Predicate::Kind(vec![Kind::Note])).and(Predicate::Any(any))
 }
 
+/// What the Coach's own calendar reads in one pass (`decisions.md` 2026-11-20, *training shows on
+/// the Coach's own calendar only*): the training and food logs, the program notes, and the meetings
+/// the read-only calendar sync wrote (by their `ics_uid`, or the `meeting` tag). Here because the
+/// notes-only literal lives in this file alone; [`notes_base`] is untouched.
+pub fn coach_base() -> Filter {
+    let log = |kind: &str| Predicate::Prop {
+        key: LOG.into(),
+        op: fm_query::Op::Eq,
+        value: fm_model::PropertyValue::Text(kind.to_string()),
+    };
+    let exists = |key: &str| Predicate::Prop {
+        key: key.into(),
+        op: fm_query::Op::Exists,
+        value: fm_model::PropertyValue::Null,
+    };
+    Filter::new().and(Predicate::Kind(vec![Kind::Note])).and(Predicate::Any(vec![
+        log("workout"),
+        log("food"),
+        exists(crate::log::PROGRAM),
+        exists(fm_core::calendar::ICS_UID),
+        Predicate::TagsAll(vec![fm_core::calendar::MEETING_TAG.to_string()]),
+    ]))
+}
+
 /// The base filter for the Collaboration surface: notes that **are** proposals — the exact
 /// complement of the proposal exclusion in [`notes_base`].
 ///

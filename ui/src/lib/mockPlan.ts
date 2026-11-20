@@ -230,7 +230,64 @@ const ownFitness: PlanOption = {
   unmeasured: [],
   guides: [],
 };
-const PLANS = [who, energy, tre, ownFood, whoActivity, ownFitness];
+/** A Coach plan, as `plans.json` carries `hybrid-week`, cut to two weeks: no number of its own. */
+export const coachPlan: PlanOption = {
+  id: 'hybrid-week',
+  group: 'fitness',
+  name: 'Endurance and strength in one week, assembled',
+  rests_on: 'assembled',
+  kind: 'coach',
+  question: 'goal',
+  relation: 'Assembled from two meta-analyses.',
+  summary: 'Two strength sessions and two endurance sessions a week.',
+  goal: 'Train endurance and strength together',
+  sports: ['run', 'strength'],
+  level_in: 'Someone who already trains one of the two',
+  sources: [
+    {
+      by: 'Schumann et al.',
+      title: 'Sports Med 2022',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/34757594/',
+    },
+  ],
+  rules: [
+    {
+      said: 'Keep endurance and strength at least 3 hours apart (Schumann et al. 2022).',
+      source: 0,
+    },
+  ],
+  not_for_words: ['Anyone with an injury: the studies were of healthy adults.'],
+  caution: 'Stop if something hurts or does not feel right.',
+  needs: [],
+  checks: [],
+  unmeasured: [],
+  guides: [],
+  weeks: [1, 2].map((n) => ({
+    n,
+    note: 'The same week again.',
+    sessions: [
+      {
+        id: 'strength',
+        day_hint: 'mon' as const,
+        sport: 'strength',
+        type: 'strength',
+        said: 'Strength work',
+        steps: [{ part: 'work', said: 'Your exercises, sets and loads' }],
+        numbers_from: 'person' as const,
+      },
+      {
+        id: 'endurance',
+        day_hint: 'tue' as const,
+        sport: 'run',
+        type: 'easy',
+        said: 'Endurance: run, ride or swim',
+        steps: [{ part: 'work', said: 'Your sport, time and effort' }],
+        numbers_from: 'person' as const,
+      },
+    ],
+  })),
+};
+const PLANS = [who, energy, tre, ownFood, whoActivity, ownFitness, coachPlan];
 
 export function planLibrary(notes: ObjectMeta[], args: { group: string }): PlanLibrary {
   const flags = planProfile(notes).flags ?? [];
