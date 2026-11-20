@@ -380,6 +380,7 @@ fn fetch_media(
         &work.to_string_lossy(),
         Some(&ff.to_string_lossy()),
         &ask.url,
+        &ask.meta,
     );
     let mut c = Command::new(bin)
         .args(&args)

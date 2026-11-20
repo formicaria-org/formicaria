@@ -67,6 +67,8 @@
     probing = true;
     try {
       probe = await run.probe(c.url);
+      // A file whose address says nothing (a Bandcamp stream): the title the page gave it.
+      if (c.meta?.title) probe = { ...probe, title: c.meta.title };
       if (!probe.video && what === 'video') what = 'audio';
     } catch (e) {
       problem = e instanceof Error ? e.message : String(e);
@@ -114,6 +116,7 @@
         into,
         list: into === 'note' ? '' : target,
         note: into === 'note' ? (note?.id ?? '') : '',
+        ...(chosen.meta ? { meta: chosen.meta } : {}),
       });
       mine = [...mine, id];
       await poll();

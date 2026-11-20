@@ -14,8 +14,10 @@ front.
 The sheet lists what the page holds: its embedded players (YouTube, Vimeo, Dailymotion, SoundCloud,
 Bandcamp, podcast players…), its own videos and sounds, the media files and streams it fetched,
 and the page itself (which finds what is embedded in it). A player is listed as *audio* or *video*
-by what it plays. A Bandcamp player is saved from its track's or album's page, which is what the
-downloader reads; Spotify is not listed, since the downloader cannot read it. Choose one;
+by what it plays. On a Bandcamp page each track is listed by its title and saved as Bandcamp
+streams it to anyone (MP3, 128 kbps; a purchase's own download is better), with its title, artist
+and album; a Bandcamp player on another page is saved from its track's or album's page. Spotify is
+not listed, since the downloader cannot read it. Choose one;
 formicaria looks at it (its title, length, the heights it comes in), then:
 
 - **Keep:** *The video* (choose the height), *The sound, as the site serves it* (the best

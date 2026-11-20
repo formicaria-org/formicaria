@@ -10,6 +10,8 @@ export interface Candidate {
   kind: MediaKind;
   /** What the person reads: the player's site, the file's name, the page's title. */
   label: string;
+  /** What the page said it is, when its address says nothing (a Bandcamp track's stream). */
+  meta?: { title?: string; artist?: string; album?: string; source?: string };
 }
 
 const BANDCAMP_PLAYER = /^https?:\/\/bandcamp\.com\/EmbeddedPlayer\//;
@@ -146,6 +148,54 @@ export function playerOf(url: string): { site: string; url: string; sound?: bool
   return null;
 }
 
+/** **A Bandcamp page's own tracks** (2026-11-20): each streamable track's MP3 (128 kbps, the one
+ *  format Bandcamp streams to anyone, and the one yt-dlp's Bandcamp reader would fetch), with its
+ *  title, artist, album and page from the page's `data-tralbum`. Taken from the page because
+ *  Bandcamp answers the phone's yt-dlp with a challenge only a browser passes (found in the
+ *  emulator: *"attempting impersonation, but no impersonate target is available"*); the page was
+ *  loaded by the browser, which passed it. Empty when the page carries none. */
+export function bandcampTracks(doc: Document, base: string): Candidate[] {
+  const page = bandcampPage(doc, base);
+  const raw = doc.querySelector('[data-tralbum]')?.getAttribute('data-tralbum');
+  if (!page || !raw) return [];
+  let d: {
+    artist?: string;
+    item_type?: string;
+    current?: { title?: string };
+    trackinfo?: {
+      title?: string;
+      artist?: string | null;
+      title_link?: string | null;
+      file?: Record<string, string> | null;
+    }[];
+  };
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  const album = d.item_type === 'album' ? (d.current?.title ?? '') : '';
+  const out: Candidate[] = [];
+  for (const t of d.trackinfo ?? []) {
+    const url = abs(t.file?.['mp3-128'], base);
+    if (!url || !t.title) continue;
+    const own = t.title_link ? abs(t.title_link, page) : page;
+    out.push({
+      url,
+      kind: 'audio',
+      label: `Bandcamp audio: ${t.title}`,
+      meta: {
+        title: t.title,
+        artist: t.artist || d.artist || '',
+        album,
+        source: own && BANDCAMP_PAGE.test(own) ? own : page,
+      },
+    });
+    if (out.length >= 50) break;
+  }
+  return out;
+}
+
 /** A player found on `doc`, at the address yt-dlp reads; `null` when there is none it can read (a
  *  Bandcamp player whose page is nowhere on `doc`). */
 function readable(
@@ -169,6 +219,10 @@ export function findMedia(doc: Document, base: string, seen: string[] = []): Can
     out.push(c);
   };
   const title = doc.title?.trim();
+  // A Bandcamp page: its own tracks, first; its player (declared as `og:video`) is then not offered
+  // again, being the same sound at an address the phone cannot read.
+  const tracks = bandcampTracks(doc, base);
+  for (const t of tracks) add(t);
   for (const f of Array.from(doc.querySelectorAll('iframe[src], iframe[data-src], embed[src]'))) {
     const u = abs(f.getAttribute('src') || f.getAttribute('data-src'), base);
     const found = u && playerOf(u);
@@ -241,6 +295,7 @@ export function findMedia(doc: Document, base: string, seen: string[] = []): Can
     if (!u) continue;
     const found = playerOf(u);
     if (found) {
+      if (tracks.length && found.site === 'Bandcamp') continue;
       const p = readable(found, doc, base);
       if (p) add({ url: p.url, kind: 'player', label: `${p.site} ${what(p)}` });
       continue;

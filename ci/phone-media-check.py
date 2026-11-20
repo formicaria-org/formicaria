@@ -73,6 +73,12 @@ CASES = [
     # since 2005.
     ("YouTube: the video", "https://www.youtube.com/watch?v=jNQXAC9IVRw", "", 0, 1, "video", "Videos"),
     ("YouTube: only the sound, as MP3", "https://www.youtube.com/watch?v=jNQXAC9IVRw", "", 0, 1, "mp3", "Music"),
+    # **Bandcamp, from its own page** (the owner on 0.59, 2026-11-20: *"YoutubeDLException: ERROR:
+    # Unsupported URL: https://bandcamp.com…"*, and the sheet said there was a video): the page
+    # declares its sound player as `og:video`, at an address yt-dlp refuses; the sheet must offer
+    # "Bandcamp audio" at the page's own address. yt-dlp's own test track, a few seconds long.
+    ("Bandcamp: the track, as MP3", "https://youtube-dl.bandcamp.com/track/youtube-dl-test-song",
+     "Bandcamp audio", 0, 1, "mp3", "Music"),
 ]
 
 
@@ -291,13 +297,18 @@ def app_view() -> Cdp:
 def page_view(part: str) -> Cdp | None:
     """A page view's own web view (a web page formicaria draws), found by its address, through the same
     debugging socket as the app's (`app_view` forwards it)."""
+    seen: list[str] = []
     for _ in range(15):
         try:
             pages = json.load(urllib.request.urlopen("http://127.0.0.1:9333/json", timeout=5))
+            seen = [f"{p.get('type')} {p.get('url', '')[:80]}{'' if 'webSocketDebuggerUrl' in p else ' (attached)'}"
+                    for p in pages]
             page = next(p for p in pages if part in p.get("url", "") and "webSocketDebuggerUrl" in p)
             return Cdp(page["webSocketDebuggerUrl"])
         except Exception:  # noqa: BLE001 - not open yet
             time.sleep(2)
+    # Said, so a failure names what was there instead (2026-11-20: seen twice after a sixth page).
+    say(f"page view {part!r} not found; the debugger lists: {seen}")
     return None
 
 
@@ -385,6 +396,33 @@ FIRST_RUN_JS = r"""
 """
 
 # **Through the app's own screens.** Answers what it saw, for the checks below.
+# **A case's page closed once it is done**, as a person closes a tab: the app holds at most eight
+# panes (`MAX_PANES`, `ui/src/lib/panes.ts`) and refuses a ninth, which the privacy check's own pages
+# then were (2026-11-20, after the Bandcamp case made eight). Only a web page in front is closed —
+# the one ≡ offers *Save media* for — never one of the app's own views.
+CLOSE_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  await sleep(500);
+  const menu = document.querySelector('button.menu-btn[aria-label="formicaria\'s options"]');
+  if (!menu) return 'no ≡';
+  menu.click();
+  await sleep(500);
+  const page = [...document.querySelectorAll('[role=menuitem]')].some((b) => b.textContent.trim() === 'Save media');
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  if (document.querySelector('[role=menuitem]')) menu.click();
+  await sleep(300);
+  if (!page) return 'no page in front';
+  const x = document.querySelector('li.tab.on button.close');
+  if (!x) return 'no close button';
+  const said = x.getAttribute('aria-label');
+  x.click();
+  await sleep(800);
+  return said;
+})()
+"""
+
 CASE_JS = r"""
 (async () => {
   const [page, pick, nth, keep, into] = %s;
@@ -670,8 +708,17 @@ def main() -> None:
             if got is None:
                 continue
             say(f"{name}: {json.dumps(got)[:600]}")
+            try:
+                say(f"{name}: its page {cdp.evaluate(CLOSE_JS)}")
+            except RuntimeError as e:
+                say(f"{name}: its page could not be closed: {e}")
             check(f"{name}: the sheet lists all {least}+", (got.get("matching") or 0) >= least,
                   str(got.get("error") or got.get("listed")))
+            if "Bandcamp" in name:
+                # The page shows no video, and the sheet must not say there is one.
+                check(f"{name}: nothing on it is said to be a video",
+                      not any("video" in str(x).lower() for x in got.get("listed") or []),
+                      str(got.get("listed")))
             check(f"{name}: the sheet says it is saved in {into}", got.get("done") == "ok",
                   f"{got.get('done') or got.get('error')}; yt-dlp said: {got.get('raw')}; the sheet: {got.get('sheet', '')!r}")
             check(f"{name}: its note is in {into}, and it is the one chosen", (got.get("notes") or 0) >= 1,

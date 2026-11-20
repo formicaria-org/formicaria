@@ -941,7 +941,7 @@ fn fm_blocking(
                 .map_err(|e| format!("not a media request: {e}"))?;
         let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or_default();
         // No ffmpeg in the app (2026-11-17): the sound as AAC, a video as two runs to be joined.
-        return Ok(fm_app::media::phone_runs(ask.what, ask.quality, dir, &ask.url).to_string());
+        return Ok(fm_app::media::phone_runs(ask.what, ask.quality, dir, &ask.url, &ask.meta).to_string());
     }
     if cmd == "media_probe_read" {
         let info: serde_json::Value =

@@ -3041,6 +3041,13 @@ patterns accept (checked against 2026.10.26's extractors as text): TikTok `embed
 `embed/<id>`, Apple Podcasts `embed.` → `podcasts.apple.com`, Bandcamp's `EmbeddedPlayer` → the
 track's or album's page. Spotify is not listed (yt-dlp refuses it).
 
+- **On a Bandcamp page the tracks are saved from their stream** (`bandcampTracks`: the page's
+  `data-tralbum`, MP3 128 kbps, the title, artist, album and page passed to yt-dlp as literal
+  metadata, `fm_app::media::meta_args`): Bandcamp answered the phone's yt-dlp with a *Client
+  Challenge* that only impersonation (`curl_cffi`, not in the phone's yt-dlp) passes. No cover is
+  embedded (the stream carries none). Checked end to end in the emulator (`phone-media-check`'s
+  Bandcamp case); a Bandcamp player on another site still goes to yt-dlp's Bandcamp reader, which
+  may refuse the phone in the same way.
 - **A Bandcamp player on another site is offered only when its page is on that page**: the
   embed code's link inside the frame, or the page's `og:url`. A site that strips the link leaves the
   player out; reading the player page's `linkback` would need a request the computer has no route

@@ -152,3 +152,34 @@ it('a page declaring an HTML player as its video says "player", not "video"', ()
     label: 'Player: cdn.example',
   });
 });
+
+it('a Bandcamp page offers its tracks’ own MP3s, with the title, artist and page the page gives', () => {
+  const page = 'https://youtube-dl.bandcamp.com/track/youtube-dl-test-song';
+  const tralbum = {
+    artist: 'youtube-dl',
+    item_type: 'track',
+    current: { title: 'test song' },
+    trackinfo: [
+      {
+        title: 'test: song',
+        artist: null,
+        title_link: '/track/youtube-dl-test-song',
+        file: { 'mp3-128': 'https://t4.bcbits.com/stream/abc/mp3-128/1812978515?p=0&token=x' },
+      },
+      // Not streamable to anyone (no file): not offered.
+      { title: 'bonus', file: null },
+    ],
+  };
+  const attr = JSON.stringify(tralbum).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const d = doc(`${BANDCAMP_HEAD}<script data-tralbum="${attr}"></script>`);
+  const c = findMedia(d, page);
+  expect(c[0]).toEqual({
+    url: 'https://t4.bcbits.com/stream/abc/mp3-128/1812978515?p=0&token=x',
+    kind: 'audio',
+    label: 'Bandcamp audio: test: song',
+    meta: { title: 'test: song', artist: 'youtube-dl', album: '', source: page },
+  });
+  // The player (`og:video`) is the same sound at an address the phone cannot read: not again.
+  expect(c.filter((x) => x.label.startsWith('Bandcamp'))).toHaveLength(1);
+  expect(c.at(-1)?.kind).toBe('page');
+});

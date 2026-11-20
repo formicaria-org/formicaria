@@ -1591,6 +1591,15 @@ export interface MediaAsk {
   list?: string;
   note?: string;
   vault?: string;
+  /** What the page said the media is, for a file whose address says nothing (a Bandcamp track's
+   *  stream): its title, artist, album and own page (`fm_app::media::Meta`). */
+  meta?: MediaMeta;
+}
+export interface MediaMeta {
+  title?: string;
+  artist?: string;
+  album?: string;
+  source?: string;
 }
 export interface MediaJob {
   id: number;

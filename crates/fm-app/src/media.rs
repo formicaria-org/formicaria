@@ -61,6 +61,7 @@ pub fn ytdlp_args(
     dir: &str,
     ffmpeg: Option<&str>,
     url: &str,
+    meta: &Meta,
 ) -> Vec<String> {
     let mut a: Vec<String> = Vec::new();
     let mut push = |s: &str| a.push(s.to_string());
@@ -114,6 +115,9 @@ pub fn ytdlp_args(
         push("--ffmpeg-location");
         push(f);
     }
+    for s in meta_args(meta) {
+        push(&s);
+    }
     push("-o");
     push(&format!("{dir}/media.%(ext)s"));
     push("--");
@@ -126,7 +130,7 @@ pub fn ytdlp_args(
 /// its picture (H.264 in MP4) and its sound in two runs, which Android's `MediaMuxer` joins. Answers
 /// the runs and whether they are to be joined. Each run writes `<dir>/<name>.<ext>` and prints the
 /// same `FM…` lines as [`ytdlp_args`].
-pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str) -> Value {
+pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str, meta: &Meta) -> Value {
     let h = if quality == 0 { 1080 } else { quality };
     let run = |format: &str, name: &str| -> Vec<String> {
         let mut a: Vec<String> = vec!["-f".into(), format.into()];
@@ -150,10 +154,11 @@ pub fn phone_runs(what: What, quality: u32, dir: &str, url: &str) -> Value {
             "after_move:FMFILE %(filepath)s",
             "--print",
             "after_move:FMINFO %(.{title,uploader,channel,artist,creator,track,album,release_year,upload_date,duration,webpage_url,extractor_key,id,thumbnail})j",
-            "-o",
         ] {
             a.push(s.into());
         }
+        a.extend(meta_args(meta));
+        a.push("-o".into());
         a.push(format!("{dir}/{name}.%(ext)s"));
         a.push("--".into());
         a.push(url.into());
@@ -455,6 +460,48 @@ pub fn probe_summary(info: &Value) -> Value {
     })
 }
 
+/// **What the page said the media is** (2026-11-20, Bandcamp): its title, artist and album, for a
+/// file whose address says nothing — a Bandcamp track's stream, taken from the page because
+/// Bandcamp's own pages answer the phone's yt-dlp with a challenge it cannot pass. Empty: yt-dlp's
+/// own reading stands.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Meta {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub artist: String,
+    #[serde(default)]
+    pub album: String,
+    /// The media's own page (the track's), kept as the note's `source` instead of the file's
+    /// address, which expires.
+    #[serde(default)]
+    pub source: String,
+}
+
+/// [`Meta`] as yt-dlp's `--parse-metadata`, set before anything is written (the file's tags, the
+/// `FMINFO` line the note is made from). Each value is literal text: given its moment
+/// (`pre_process:`, so a title that begins `video:` is not taken for one), behind an empty template
+/// (so a one-word title is not taken for a field's name), with `%` and `:` escaped and a trailing
+/// backslash dropped (it would escape the separator).
+pub fn meta_args(meta: &Meta) -> Vec<String> {
+    let mut a = Vec::new();
+    for (field, value) in [
+        ("title", &meta.title),
+        ("artist", &meta.artist),
+        ("album", &meta.album),
+        ("webpage_url", &meta.source),
+    ] {
+        let v =
+            value.trim().trim_end_matches('\\').trim_end().replace('%', "%%").replace(':', "\\:");
+        if v.is_empty() {
+            continue;
+        }
+        a.push("--parse-metadata".into());
+        a.push(format!("pre_process:%(fm_none|)s{v}:%({field})s"));
+    }
+    a
+}
+
 /// **What the person asks for** (the Save media sheet's request, on every device).
 #[derive(Debug, Clone, Deserialize)]
 pub struct Ask {
@@ -480,6 +527,9 @@ pub struct Ask {
     /// The vault it goes in (empty: the first).
     #[serde(default)]
     pub vault: String,
+    /// What the page said the media is, when its address says nothing ([`Meta`]).
+    #[serde(default)]
+    pub meta: Meta,
 }
 
 /// A dispatch on this device's own behalf, its JSON answer.
@@ -751,14 +801,38 @@ mod tests {
 
     #[test]
     fn each_choice_asks_for_only_what_it_keeps() {
-        let a = ytdlp_args(What::Audio, 0, "v2", "/tmp/j", None, "https://v.example/w?v=1");
+        let a = ytdlp_args(
+            What::Audio,
+            0,
+            "v2",
+            "/tmp/j",
+            None,
+            "https://v.example/w?v=1",
+            &Meta::default(),
+        );
         let f = a.iter().position(|x| x == "-f").unwrap();
         assert!(a[f + 1].starts_with("ba"), "the sound alone, never the video");
         assert!(!a.contains(&"-x".to_string()), "as served: no conversion");
-        let m = ytdlp_args(What::Mp3, 0, "320", "/tmp/j", Some("/t/ff"), "https://v.example/w");
+        let m = ytdlp_args(
+            What::Mp3,
+            0,
+            "320",
+            "/tmp/j",
+            Some("/t/ff"),
+            "https://v.example/w",
+            &Meta::default(),
+        );
         assert!(m.windows(2).any(|w| w == ["--audio-quality", "320K"]));
         assert!(m.windows(2).any(|w| w == ["--ffmpeg-location", "/t/ff"]));
-        let v = ytdlp_args(What::Video, 720, "v2", "/tmp/j", None, "https://v.example/w");
+        let v = ytdlp_args(
+            What::Video,
+            720,
+            "v2",
+            "/tmp/j",
+            None,
+            "https://v.example/w",
+            &Meta::default(),
+        );
         assert!(v.iter().any(|x| x.contains("height<=720")));
         // The address last, after `--`, so an address can never be read as an option.
         assert_eq!(&v[v.len() - 2..], ["--", "https://v.example/w"]);
@@ -797,7 +871,7 @@ mod tests {
 
     #[test]
     fn the_phone_asks_for_nothing_ffmpeg_would_do() {
-        let p = phone_runs(What::Mp3, 0, "/c/1", "https://v.example/w");
+        let p = phone_runs(What::Mp3, 0, "/c/1", "https://v.example/w", &Meta::default());
         let run: Vec<String> = serde_json::from_value(p["runs"][0].clone()).unwrap();
         assert!(
             run.windows(2).any(|w| w[0] == "-f" && w[1].starts_with("ba[ext=mp3]")),
@@ -816,15 +890,15 @@ mod tests {
         }
         // **Every choice ends in "whatever there is"**: a site that labels nothing still gives a file.
         for w in [What::Mp3, What::Audio, What::Video] {
-            let f = phone_runs(w, 0, "/c/1", "https://v.example/w")["runs"][0][1]
+            let f = phone_runs(w, 0, "/c/1", "https://v.example/w", &Meta::default())["runs"][0][1]
                 .as_str()
                 .unwrap()
                 .to_string();
             assert!(f.ends_with("/b"), "{w:?}: {f}");
         }
-        let a = phone_runs(What::Audio, 0, "/c/1", "https://v.example/w");
+        let a = phone_runs(What::Audio, 0, "/c/1", "https://v.example/w", &Meta::default());
         assert!(a["runs"][0][1].as_str().unwrap().ends_with("/ba/b"), "as served: any kind");
-        let v = phone_runs(What::Video, 720, "/c/1", "https://v.example/w");
+        let v = phone_runs(What::Video, 720, "/c/1", "https://v.example/w", &Meta::default());
         assert_eq!(v["join"], true);
         assert!(
             v["runs"][0][1].as_str().unwrap().contains("bv*[ext=webm][height<=720]"),
@@ -975,5 +1049,33 @@ mod tests {
             playlist_with("", "01J0000000000000000000000D", "X"),
             "1. [X](note:01J0000000000000000000000D)\n"
         );
+    }
+
+    /// What the page said the media is, handed to yt-dlp as literal text before the address
+    /// (2026-11-20, Bandcamp's stream). Checked against yt-dlp 2026.10.26 by hand: a one-word title,
+    /// a title beginning `video:` and one holding `%` and `:` all come out as given.
+    #[test]
+    fn what_the_page_said_goes_to_yt_dlp_as_literal_text() {
+        let m = Meta { title: "Ants".into(), artist: "A: 100% \\".into(), ..Meta::default() };
+        assert_eq!(
+            meta_args(&m),
+            vec![
+                "--parse-metadata",
+                "pre_process:%(fm_none|)sAnts:%(title)s",
+                "--parse-metadata",
+                "pre_process:%(fm_none|)sA\\: 100%%:%(artist)s",
+            ]
+        );
+        assert!(meta_args(&Meta::default()).is_empty());
+        let before_address = |a: &[String]| {
+            a.iter().position(|s| s == "--parse-metadata").unwrap()
+                < a.iter().position(|s| s == "--").unwrap()
+        };
+        assert!(before_address(&ytdlp_args(What::Mp3, 0, "v2", "/t", None, "https://x", &m)));
+        let run: Vec<String> = serde_json::from_value(
+            phone_runs(What::Mp3, 0, "/c", "https://x", &m)["runs"][0].clone(),
+        )
+        .unwrap();
+        assert!(before_address(&run));
     }
 }
