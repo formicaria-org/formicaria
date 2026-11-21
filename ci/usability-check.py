@@ -718,6 +718,34 @@ def media_saver(ff: Path, work: Path) -> None:
                 with urllib.request.urlopen(f"{SERVER}/api/blob/{ref}", timeout=30) as r:
                     head = r.read(3)
                 check(who, f"{what_case}: the file kept is an MP3", head in (b"ID3",) or head[:1] == b"\xff", repr(head))
+        # **A saved song played, as a person plays it** (the owner, 2026-11-20: *"the music view is not
+        # playing when I click play … test both anyway"*): Music, *play* pressed the way a mouse
+        # presses it (a script's click carries no gesture, which autoplay rules may refuse), then what
+        # the player bar shows eight seconds later.
+        if os.environ.get("FM_WIKI_CASES", "all") in ("all", "play"):
+            close_tabs(m, "/f/media", "wikipedia.org", "wikimedia.org", "moz-extension:")
+            new_tab(m, f"{SERVER}/f/group/Music")
+            song = wait_for(m, "const b=[...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||'').startsWith('play ')); return b ? b.getAttribute('aria-label') : null", 30)
+            check(who, "a song saved here is in Music with its play button", bool(song),
+                  str(content(m, "return document.body.innerText.slice(0, 300)")))
+            if song:
+                try:
+                    el = m.cmd("WebDriver:FindElement", {"using": "css selector",
+                                                         "value": 'button[aria-label^="play "]'})["value"]
+                    m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+                    pressed = True
+                except RuntimeError as e:
+                    pressed = False
+                    check(who, "its play button can be pressed", False, str(e)[:300])
+                if pressed:
+                    time.sleep(8)
+                    st = content(m, """const p=document.querySelector('input[aria-label="position in the song"]');
+                        return {pos: p ? +p.value : null, pausing: !!document.querySelector('button[aria-label=pause]'),
+                                said: (document.body.innerText.match(/cannot be played[^\\n]*|could not[^\\n]*/)||[''])[0]}""")
+                    check(who, "it plays when play is pressed: the player offers pause, says no error",
+                          bool(st.get("pausing")) and not st.get("said"), str(st))
+                    check(who, "its position moves on while it plays", (st.get("pos") or 0) >= 2, str(st))
+                    content(m, "document.querySelector('button[aria-label=pause]')?.click()")
         # **A selection, brought in the way that fits it** (the ant's chooser by a selection): the
         # page's own markup for a formula and a recording, as the selection carries it.
         if os.environ.get("FM_WIKI_CASES", "all") in ("all", "selection"):

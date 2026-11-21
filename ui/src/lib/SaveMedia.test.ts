@@ -106,3 +106,47 @@ it('on the phone: the app’s own runner fetches, and the core files it as a son
     delete g.__fmMedia;
   }
 });
+
+// **Several tracks at once** (2026-11-20, a Bandcamp album): a page's own tracks are ticked, all of
+// them at once if wanted; one Save queues each, one after another, into one new playlist named after
+// the album, each carrying what the page said it is.
+it('ticks several tracks of an album and saves each, into one new playlist', async () => {
+  const track = (n: number) => ({
+    url: `https://t4.bcbits.com/stream/x/mp3-128/${n}`,
+    kind: 'audio' as const,
+    label: `Bandcamp audio: Track ${n}`,
+    meta: {
+      title: `Track ${n}`,
+      artist: 'Ant Band',
+      album: 'Night Walk',
+      source: `https://ant-band.bandcamp.com/track/track-${n}`,
+    },
+  });
+  render(SaveMedia, {
+    page: 'https://ant-band.bandcamp.com/album/night-walk',
+    candidates: [track(1), track(2), track(3)],
+  });
+  // Ticks, not one choice; nothing is looked up for them.
+  await fireEvent.click(await screen.findByRole('checkbox', { name: 'All tracks (3)' }));
+  await fireEvent.click(screen.getByRole('checkbox', { name: 'Bandcamp audio: Track 2' }));
+  expect(screen.getByText('2 tracks')).toBeTruthy();
+  expect((screen.getByRole('radio', { name: 'The video' }) as HTMLInputElement).disabled).toBe(
+    true,
+  );
+  await fireEvent.change(screen.getByRole('combobox', { name: 'playlist' }), {
+    target: { value: '+' },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save 2 tracks' }));
+  await waitFor(() => expect(mock.mockMediaAsks).toHaveLength(2), { timeout: 5000 });
+  const asks = mock.mockMediaAsks as { url: string; list: string; meta: { title: string } }[];
+  expect(asks.map((a) => a.meta.title)).toEqual(['Track 1', 'Track 3']);
+  // One playlist, made first and named after the album; both go into it.
+  expect(asks[0].list).toBeTruthy();
+  expect(asks[1].list).toBe(asks[0].list);
+  const made = (await mock.handle('get', { id: asks[0].list })) as {
+    title: string;
+    tags: string[];
+  };
+  expect(made.title).toBe('Night Walk');
+  expect(made.tags).toContain('playlist');
+});

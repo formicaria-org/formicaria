@@ -986,8 +986,11 @@ class MainActivity : TauriActivity() {
         val p = PlaybackService.player
         if (p != null) f(p)
         else {
-          PlaybackService.pending = { q -> listen(q); f(q) }
-          startService(Intent(this@MainActivity, PlaybackService::class.java))
+          val first = synchronized(PlaybackService.pending) {
+            PlaybackService.pending.add { q -> listen(q); f(q) }
+            PlaybackService.pending.size == 1
+          }
+          if (first) startService(Intent(this@MainActivity, PlaybackService::class.java))
         }
       }
     }

@@ -267,9 +267,30 @@ pub fn explain(stderr: &str) -> String {
     last.trim_start_matches("ERROR:").trim().to_string()
 }
 
-/// The text of a detail, if it has one.
+/// The text of a detail, if it has one — as words: markup a site left in it is taken out
+/// (Wikimedia's recordings came as `<div class="fn">"Ode to Joy"</div>`, 2026-11-20, and the song
+/// was named so, and its *play* button too), and its spaces run together.
 fn text(info: &Value, k: &str) -> Option<String> {
-    info.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()).map(String::from)
+    words(info.get(k).and_then(Value::as_str)?)
+}
+
+/// Text as words: markup taken out, spaces run together; `None` when nothing is left.
+fn words(raw: &str) -> Option<String> {
+    let mut out = String::with_capacity(raw.len());
+    let mut in_tag = false;
+    for c in raw.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' if in_tag => {
+                in_tag = false;
+                out.push(' ');
+            }
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    let words = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    Some(words).filter(|s| !s.is_empty())
 }
 
 /// A file name for the kept file: `Artist - Title.ext`, without characters a file system refuses.
@@ -320,9 +341,7 @@ fn source(props: &mut BTreeMap<String, Value>, info: &Value, media: &str, page: 
 /// `audio`, the details from the file's own tags first (read at ingest) and yt-dlp's after.
 pub fn song_draft(asset: &ObjectMeta, info: &Value, media: &str, page: &str) -> NoteDraft {
     let audio = asset.assets.first().cloned().unwrap_or_default();
-    let tag = |k: &str| {
-        asset.props.get(k).and_then(Value::as_str).map(str::to_string).filter(|s| !s.is_empty())
-    };
+    let tag = |k: &str| asset.props.get(k).and_then(Value::as_str).and_then(words);
     let title = tag("tag_title")
         .or_else(|| text(info, "track"))
         .or_else(|| text(info, "title"))
@@ -484,7 +503,16 @@ pub struct Meta {
 /// (so a one-word title is not taken for a field's name), with `%` and `:` escaped and a trailing
 /// backslash dropped (it would escape the separator).
 pub fn meta_args(meta: &Meta) -> Vec<String> {
-    let mut a = Vec::new();
+    // Markup a site leaves in its details (Wikimedia's `<div class="fn">"Ode to Joy"</div>`): the
+    // words inside it, before the file's tags are written. `--parse-metadata`, one value each — the
+    // phone hands yt-dlp an option with at most one value (`MediaRun.request`), so a three-part
+    // `--replace-in-metadata` put its pattern where the address goes (found in the emulator,
+    // 2026-11-21). A detail with no such markup does not match and is left as it is.
+    let mut a: Vec<String> = Vec::new();
+    for field in ["title", "track", "artist", "album"] {
+        a.push("--parse-metadata".into());
+        a.push(format!(r"{field}:^\s*<[^>]+>\s*(?P<{field}>[^<]+?)\s*</[^>]+>\s*$"));
+    }
     for (field, value) in [
         ("title", &meta.title),
         ("artist", &meta.artist),
@@ -1057,16 +1085,18 @@ mod tests {
     #[test]
     fn what_the_page_said_goes_to_yt_dlp_as_literal_text() {
         let m = Meta { title: "Ants".into(), artist: "A: 100% \\".into(), ..Meta::default() };
+        let a = meta_args(&m);
         assert_eq!(
-            meta_args(&m),
-            vec![
+            a[a.len() - 4..],
+            [
                 "--parse-metadata",
                 "pre_process:%(fm_none|)sAnts:%(title)s",
                 "--parse-metadata",
                 "pre_process:%(fm_none|)sA\\: 100%%:%(artist)s",
             ]
         );
-        assert!(meta_args(&Meta::default()).is_empty());
+        // Nothing said by the page: only the markup clean-up, no literal text.
+        assert!(!meta_args(&Meta::default()).iter().any(|x| x.contains("fm_none")));
         let before_address = |a: &[String]| {
             a.iter().position(|s| s == "--parse-metadata").unwrap()
                 < a.iter().position(|s| s == "--").unwrap()
@@ -1077,5 +1107,21 @@ mod tests {
         )
         .unwrap();
         assert!(before_address(&run));
+    }
+
+    /// Markup a site left in a detail is taken out of the song's name (Wikimedia's recordings,
+    /// 2026-11-20: `<div class="fn">"Ode to Joy"</div>`), from yt-dlp's details and the file's tags.
+    #[test]
+    fn a_song_is_named_in_words_not_markup() {
+        let info = json!({ "title": "<div class=\"fn\">\n\"Ode to Joy\"</div>", "artist": " <b>US  Navy</b> " });
+        assert_eq!(text(&info, "title").as_deref(), Some("\"Ode to Joy\""));
+        assert_eq!(text(&info, "artist").as_deref(), Some("US Navy"));
+        assert_eq!(text(&json!({ "title": "<br/>" }), "title"), None);
+        // …and before the file's tags are written, as yt-dlp options of one value each (the phone
+        // passes no other kind).
+        let a = meta_args(&Meta::default());
+        assert_eq!(a[0], "--parse-metadata");
+        assert_eq!(a[1], r"title:^\s*<[^>]+>\s*(?P<title>[^<]+?)\s*</[^>]+>\s*$");
+        assert!(a.chunks(2).all(|p| p[0].starts_with("--") && !p[1].starts_with('-')));
     }
 }

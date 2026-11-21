@@ -118,6 +118,8 @@ const freshPrivacy = () => ({
 });
 let mockPrivacy = freshPrivacy();
 let mockMediaJobs: import('./ipc').MediaJob[] = [];
+/** Every save asked of the stand-in, as asked (the tests read what each carried). */
+export const mockMediaAsks: Record<string, unknown>[] = [];
 let mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
 function mockClock() {
   const zone = mockClockZone || deviceZone();
@@ -926,6 +928,7 @@ export function reset(): void {
   mockClockZone = '';
   mockPrivacy = freshPrivacy();
   mockMediaJobs = [];
+  mockMediaAsks.length = 0;
   mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
   clearFaults();
   notes.length = 0;
@@ -3121,6 +3124,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'media_save': {
       // Done at once in the stand-in: the note it becomes, as the server writes it.
       const a = args as Record<string, unknown>;
+      mockMediaAsks.push({ ...a });
       const id = mockMediaJobs.length + 1;
       const into = String(a.into);
       let note: string | null = String(a.note ?? '') || null;

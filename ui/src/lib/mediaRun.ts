@@ -127,6 +127,51 @@ export async function jobs(): Promise<ipc.MediaJob[]> {
   return [...ended.values(), ...running];
 }
 
+/** The checked tracks not yet started, for the sheet to show. */
+let left = 0;
+let halted = false;
+export const waitingCount = () => left;
+/** Start none of the tracks still waiting (the one downloading goes on, or is cancelled alone). */
+export function stopEach(): void {
+  halted = true;
+}
+
+/** **Several tracks at once** (2026-11-20, a Bandcamp album): saved one after another, each started
+ *  when the one before has ended, so two never add themselves to one playlist together (its update
+ *  is refused on a stale version) and the phone runs one download at a time. It goes on after the
+ *  sheet is closed, while the app is open: on the phone a finished download is filed while the
+ *  jobs are read, which this does itself. `onstart` is told each job as it starts. */
+export async function saveEach(list: ipc.MediaAsk[], onstart: (id: number) => void): Promise<void> {
+  halted = false;
+  left = list.length;
+  try {
+    for (const ask of list) {
+      if (halted) break;
+      left--;
+      let id: number;
+      try {
+        ({ id } = await save(ask));
+      } catch {
+        continue;
+      }
+      onstart(id);
+      for (let missing = 0; missing < 10;) {
+        await wait(1000);
+        let j: ipc.MediaJob | undefined;
+        try {
+          j = (await jobs()).find((x) => x.id === id);
+        } catch {
+          continue;
+        }
+        if (!j) missing++;
+        else if (['done', 'failed', 'cancelled'].includes(j.state)) break;
+      }
+    }
+  } finally {
+    left = 0;
+  }
+}
+
 export function cancel(id: number): Promise<unknown> {
   const s = shell();
   if (!s) return ipc.mediaCancel(id);

@@ -25,6 +25,12 @@
   } = $props();
 
   let chosen = $state<Candidate | null>(null);
+  // **Several tracks at once** (2026-11-20, a Bandcamp album): a page's own tracks (the ones it
+  // names, `meta`) are ticked, two or more of them; everything else stays one choice.
+  const tracks = $derived(candidates.filter((c) => c.meta));
+  const several = $derived(tracks.length >= 2);
+  let picked = $state<string[]>([]);
+  let waiting = $state(0);
   let probe = $state<ipc.MediaProbe | null>(null);
   let probing = $state(false);
   let problem = $state('');
@@ -60,7 +66,41 @@
   });
   onDestroy(() => clearInterval(timer));
 
+  /** What the ticked tracks are, from the page: nothing to look up. */
+  function trackProbe(): ipc.MediaProbe | null {
+    const on = tracks.filter((t) => picked.includes(t.url));
+    if (!on.length) return null;
+    const m = on[0].meta ?? {};
+    return {
+      title: on.length === 1 ? (m.title ?? on[0].label) : `${on.length} tracks`,
+      uploader: m.artist || null,
+      duration: null,
+      site: m.album || null,
+      live: false,
+      video: false,
+      audio: true,
+      heights: [],
+    };
+  }
+
+  function tick(url: string, on: boolean) {
+    picked = on ? [...picked.filter((u) => u !== url), url] : picked.filter((u) => u !== url);
+    chosen = null;
+    problem = '';
+    probe = trackProbe();
+    if (what === 'video') what = 'mp3';
+  }
+
+  function tickAll(on: boolean) {
+    picked = on ? tracks.map((t) => t.url) : [];
+    chosen = null;
+    problem = '';
+    probe = trackProbe();
+    if (what === 'video') what = 'mp3';
+  }
+
   async function choose(c: Candidate) {
+    picked = [];
     chosen = c;
     probe = null;
     problem = '';
@@ -102,7 +142,58 @@
     }
   }
 
+  /** Save every ticked track, one after another, into one playlist (made first when new). */
+  async function saveTracks() {
+    problem = '';
+    const on = tracks.filter((t) => picked.includes(t.url));
+    let target = list;
+    try {
+      if (into !== 'note' && list === '+') {
+        const name = newList.trim() || on[0].meta?.album || '';
+        target = '';
+        if (name) {
+          const [made] = await ipc.createNotes([
+            {
+              title: name,
+              body: '',
+              tags: [into === 'music' ? 'playlist' : 'collection'],
+              props: {},
+            },
+          ]);
+          target = made.id;
+          list = made.id;
+          lists = [...lists, { id: made.id, title: name }];
+          newList = '';
+        }
+      }
+    } catch (e) {
+      problem = e instanceof Error ? e.message : String(e);
+      return;
+    }
+    const asks: ipc.MediaAsk[] = on.map((t) => ({
+      url: t.url,
+      page,
+      what,
+      quality: 0,
+      mp3,
+      into,
+      list: into === 'note' ? '' : target,
+      note: into === 'note' ? (note?.id ?? '') : '',
+      ...(t.meta ? { meta: t.meta } : {}),
+    }));
+    waiting = asks.length;
+    void run
+      .saveEach(asks, (id) => {
+        mine = [...mine, id];
+        waiting = run.waitingCount();
+        void poll();
+        if (!timer) timer = setInterval(() => void poll(), 1000);
+      })
+      .finally(() => (waiting = 0));
+  }
+
   async function save() {
+    if (picked.length) return saveTracks();
     if (!chosen) return;
     problem = '';
     const target = list === '+' ? (newList.trim() ? `new:${newList.trim()}` : '') : list;
@@ -156,15 +247,36 @@
   <fieldset>
     <legend>What to keep from</legend>
     <ul class="candidates">
-      {#each candidates as c (c.url)}
+      {#if several}
         <li>
           <label>
             <input
-              type="radio"
-              name="candidate"
-              checked={chosen?.url === c.url}
-              onchange={() => void choose(c)}
+              type="checkbox"
+              checked={picked.length === tracks.length}
+              onchange={(e) => tickAll(e.currentTarget.checked)}
             />
+            <span>All tracks ({tracks.length})</span>
+          </label>
+        </li>
+      {/if}
+      {#each candidates as c (c.url)}
+        <li>
+          <label>
+            {#if several && c.meta}
+              <input
+                type="checkbox"
+                name="track"
+                checked={picked.includes(c.url)}
+                onchange={(e) => tick(c.url, e.currentTarget.checked)}
+              />
+            {:else}
+              <input
+                type="radio"
+                name="candidate"
+                checked={chosen?.url === c.url}
+                onchange={() => void choose(c)}
+              />
+            {/if}
             <span>{c.label}</span>
           </label>
         </li>
@@ -251,16 +363,31 @@
         {#if list === '+'}
           <input
             aria-label="the new list's name"
-            placeholder={into === 'music' ? 'Playlist name' : 'Collection name'}
+            placeholder={picked.length
+              ? (tracks.find((t) => picked.includes(t.url))?.meta?.album ?? '') ||
+                (into === 'music' ? 'Playlist name' : 'Collection name')
+              : into === 'music'
+                ? 'Playlist name'
+                : 'Collection name'}
             bind:value={newList}
           />
         {/if}
       {/if}
     </fieldset>
 
-    <button type="button" class="primary" onclick={() => void save()} disabled={probe.live}
-      >Save</button
+    <button
+      type="button"
+      class="primary"
+      onclick={() => void save()}
+      disabled={probe.live || waiting > 0}
+      >{picked.length > 1 ? `Save ${picked.length} tracks` : 'Save'}</button
     >
+    {#if waiting > 0}
+      <p class="muted" aria-live="polite">
+        {waiting} more waiting: each starts when the one before has finished.
+        <button type="button" class="binding" onclick={() => run.stopEach()}>Start no more</button>
+      </p>
+    {/if}
   {/if}
 
   {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
@@ -269,7 +396,12 @@
     <ul class="jobs" aria-label="saving">
       {#each shown as j (j.id)}
         <li>
-          <span class="title">{j.title || chosen?.label || j.url}</span>
+          <span class="title"
+            >{j.title ||
+              candidates.find((c) => c.url === j.url)?.meta?.title ||
+              chosen?.label ||
+              j.url}</span
+          >
           <span class="state"
             >{j.state === 'done' ? `Saved in ${where(j)}` : STATE[j.state]}{j.error
               ? `: ${j.error}`

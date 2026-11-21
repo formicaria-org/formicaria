@@ -16,7 +16,10 @@ Bandcamp, podcast players…), its own videos and sounds, the media files and st
 and the page itself (which finds what is embedded in it). A player is listed as *audio* or *video*
 by what it plays. On a Bandcamp page each track is listed by its title and saved as Bandcamp
 streams it to anyone (MP3, 128 kbps; a purchase's own download is better), with its title, artist
-and album; a Bandcamp player on another page is saved from its track's or album's page. Spotify is
+and album; a Bandcamp player on another page is saved from its track's or album's page. When a page lists several tracks (an
+album), tick the ones you want, or **All tracks**: **Save** fetches them one after another, each a
+song of its own, into the playlist you choose — a new one is named after the album unless you name
+it. They go on if you close the sheet; **Start no more** leaves the ones not yet begun. Spotify is
 not listed, since the downloader cannot read it. Choose one;
 formicaria looks at it (its title, length, the heights it comes in), then:
 

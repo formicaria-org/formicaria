@@ -328,7 +328,9 @@ export function findMedia(doc: Document, base: string, seen: string[] = []): Can
       kind: 'player',
       label: `${site.site} ${what(site)}${title ? `: ${title.replace(/ - YouTube$/, '').slice(0, 80)}` : ''}`,
     });
-  else if (page)
+  // Not on a Bandcamp page whose tracks are listed: there the page itself is the address Bandcamp
+  // challenges the phone's yt-dlp on, and the tracks above are the same sound.
+  else if (page && !tracks.length)
     add({
       url: page,
       kind: 'page',

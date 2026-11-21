@@ -22,8 +22,9 @@ class PlaybackService : MediaSessionService() {
       .build()
     player = p
     session = MediaSession.Builder(this, p).build()
-    pending?.invoke(p)
-    pending = null
+    // Everything asked before the player existed, in the order asked.
+    val asked = synchronized(pending) { pending.toList().also { pending.clear() } }
+    asked.forEach { it(p) }
   }
 
   override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -43,8 +44,11 @@ class PlaybackService : MediaSessionService() {
 
   companion object {
     @Volatile var player: ExoPlayer? = null
-    /** What to do once the service has made its player. */
-    @Volatile var pending: ((ExoPlayer) -> Unit)? = null
+    /** What to do once the service has made its player, **every** call in order: pressing play
+     *  asks for the queue, then the modes, then the volume, before the service is up — held in one
+     *  slot, each replaced the one before, and the queue was never given (2026-11-20, found in the
+     *  emulator: the first play after a start played nothing). */
+    val pending = mutableListOf<(ExoPlayer) -> Unit>()
 
     fun item(path: String, title: String, artist: String, album: String, cover: String?): MediaItem {
       val md = MediaMetadata.Builder().setTitle(title).setArtist(artist).setAlbumTitle(album)

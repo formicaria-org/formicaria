@@ -181,5 +181,6 @@ it('a Bandcamp page offers its tracks’ own MP3s, with the title, artist and pa
   });
   // The player (`og:video`) is the same sound at an address the phone cannot read: not again.
   expect(c.filter((x) => x.label.startsWith('Bandcamp'))).toHaveLength(1);
-  expect(c.at(-1)?.kind).toBe('page');
+  // Nor the page itself: Bandcamp challenges the phone's yt-dlp there, and the tracks are the same.
+  expect(c.some((x) => x.kind === 'page')).toBe(false);
 });

@@ -79,7 +79,14 @@ CASES = [
     # "Bandcamp audio" at the page's own address. yt-dlp's own test track, a few seconds long.
     ("Bandcamp: the track, as MP3", "https://youtube-dl.bandcamp.com/track/youtube-dl-test-song",
      "Bandcamp audio", 0, 1, "mp3", "Music"),
+    # An album's page is the several-tracks case below (`MULTI_JS`): its tracks are ticked, not chosen.
 ]
+
+# **Several tracks of an album at once** (the owner, 2026-11-20: *"[Bandcamp:album] … attempting
+# impersonation"* on 0.60.1, then *"if more than one track is available I can select the ones I
+# want?"*): two ticked, one Save, both kept as MP3 in Music and in one new playlist named after the
+# album. yt-dlp's own test album.
+ALBUM = ("https://blazo.bandcamp.com/album/jazz-format-mixtape-vol-1", 2, "Jazz Format Mixtape vol.1")
 
 
 def say(msg: str) -> None:
@@ -396,6 +403,111 @@ FIRST_RUN_JS = r"""
 """
 
 # **Through the app's own screens.** Answers what it saw, for the checks below.
+MULTI_JS = r"""
+(async () => {
+  const [page, count] = %s;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  const inv = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke('fm', { cmd, args })
+    .then((t) => (typeof t === 'string' ? JSON.parse(t) : t));
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 60);
+  if (!plus) return { error: 'no +' };
+  plus.click();
+  const field = await until(() => document.querySelector('input[aria-label="a web address or a search"]'), 15);
+  if (!field) return { error: 'no address field after +' };
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, page);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(500);
+  field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await sleep(12000);
+  const menu = await until(() => document.querySelector('button.menu-btn[aria-label="formicaria\'s options"]'), 20);
+  if (!menu) return { error: 'no ≡' };
+  menu.click();
+  const item = await until(() => [...document.querySelectorAll('[role=menuitem]')]
+    .find((b) => b.textContent.trim() === 'Save media'), 10);
+  if (!item) return { error: 'no Save media in ≡' };
+  item.click();
+  const boxes = () => [...document.querySelectorAll('input[name=track]')];
+  await until(() => boxes().length >= count, 60);
+  const listed = boxes().map((i) => i.parentElement.textContent.trim());
+  if (listed.length < count) return { error: 'tracks to tick: ' + listed.length, sheet: document.body.innerText.slice(-400) };
+  for (const b of boxes().slice(0, count)) { b.click(); await sleep(300); }
+  const mp3 = [...document.querySelectorAll('input[name=what]')].find((i) => i.parentElement.textContent.includes('The sound as MP3'));
+  if (mp3) mp3.click();
+  await sleep(300);
+  const sel = document.querySelector('select[aria-label=playlist]');
+  if (!sel) return { error: 'no playlist choice', sheet: document.body.innerText.slice(-400) };
+  sel.value = '+';
+  sel.dispatchEvent(new Event('change', { bubbles: true }));
+  await sleep(500);
+  const before = new Set((await inv('music_library')).map((n) => n.id));
+  const listsBefore = new Set((await inv('music_playlists')).map((p) => p.id));
+  const save = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === `Save ${count} tracks`);
+  if (!save) return { error: 'no "Save N tracks"', buttons: [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).slice(-8) };
+  save.click();
+  const done = await until(() => {
+    const t = (document.querySelector('ul.jobs') || {}).innerText || '';
+    const bad = t.match(/Not saved[^\n]*/);
+    if (bad) return bad[0];
+    return (t.match(/Saved in Music/g) || []).length >= count ? 'ok' : null;
+  }, 900);
+  const doing = done ? '' : (document.querySelector('ul.jobs') || document.body).innerText.slice(-300);
+  const mine = (await inv('music_library')).filter((n) => !before.has(n.id));
+  const lists = (await inv('music_playlists')).filter((p) => !listsBefore.has(p.id));
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  return { listed: listed.slice(0, 4), done, doing, notes: mine.length, titles: mine.map((n) => n.title),
+           lists: lists.map((p) => ({ title: p.title, songs: (p.songs || []).length })) };
+})()
+"""
+
+# **A saved song played, as a person plays it** (the owner, 2026-11-20: *"the music view is not
+# playing when I click play, are the buttons attached and tested … with real world tests?"* — they
+# were not: only a stand-in player had been pressed). + → Music, *play* on a song saved above, then
+# what Android's own player (`PlaybackService`, ExoPlayer) says for eight seconds: playing, and how
+# far it got.
+PLAY_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  const seen = { events: 0, playing: false, time: 0, error: '' };
+  addEventListener('fm-player', (e) => {
+    const d = e.detail || {};
+    seen.events++;
+    if (d.playing) seen.playing = true;
+    seen.time = Math.max(seen.time, d.time || 0);
+    if (d.error) seen.error = d.error;
+  });
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 30);
+  if (!plus) return { error: 'no +' };
+  plus.click();
+  const music = await until(() => [...document.querySelectorAll('ul[aria-label=features] button')]
+    .find((b) => b.textContent.trim() === 'Music'), 15);
+  if (!music) return { error: 'no Music in the new tab',
+    features: [...document.querySelectorAll('ul[aria-label=features] button')].map((b) => b.textContent.trim()) };
+  music.click();
+  const play = await until(() => [...document.querySelectorAll('button')]
+    .find((b) => (b.getAttribute('aria-label') || '').startsWith('play ')), 30);
+  if (!play) return { error: 'no song to play in Music', text: document.body.innerText.slice(0, 300) };
+  const pressed = play.getAttribute('aria-label');
+  play.click();
+  await sleep(8000);
+  const said = (document.body.innerText.match(/cannot be played[^\n]*/) || [''])[0];
+  const bar = !!document.querySelector('[role=region][aria-label=player]');
+  try { window.__fmPlayer.stop(); } catch {}
+  return { pressed, bar, said, ...seen };
+})()
+"""
+
 # **A case's page closed once it is done**, as a person closes a tab: the app holds at most eight
 # panes (`MAX_PANES`, `ui/src/lib/panes.ts`) and refuses a ninth, which the privacy check's own pages
 # then were (2026-11-20, after the Bandcamp case made eight). Only a web page in front is closed —
@@ -642,7 +754,19 @@ def main() -> None:
         adb("shell", "pm", "clear", PKG, check_rc=False)
         adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity")
         cdp = app_view()
-        first = cdp.evaluate(FIRST_RUN_JS) or {}
+        # The page may reload under the script while it waits (its answer is then empty, 2026-11-21:
+        # every case after failed on the welcome screen): taken again, on the page as it is now.
+        first = {}
+        for attempt in range(3):
+            try:
+                first = cdp.evaluate(FIRST_RUN_JS) or {}
+            except RuntimeError as e:
+                first = {"text": str(e)[:300]}
+            if first.get("ok"):
+                break
+            say(f"the first start, try {attempt + 1}: {json.dumps(first)[:200]}; again")
+            time.sleep(3)
+            cdp = app_view()
         say(f"the first start: {json.dumps(first)[:200]}")
         check("a new person gets past the first start to the app", bool(first.get("ok")), str(first.get("text")))
         say(f"memory after the first start: {app_memory()}")
@@ -707,6 +831,17 @@ def main() -> None:
                     break
             if got is None:
                 continue
+            # **A refusal from the site, once** (2026-11-21: YouTube's video servers answered 403 in
+            # two runs of four, the same build passing between): the case is tried once more. A
+            # breakage that lasts fails the second time as well.
+            if "changed how it serves media" in str(got.get("done") or ""):
+                say(f"{name}: the site refused ({got.get('done')}); once more")
+                try:
+                    cdp.evaluate(CLOSE_JS)
+                    time.sleep(10)
+                    got = cdp.evaluate(CASE_JS % json.dumps([page, pick, nth, keep, into])) or {}
+                except RuntimeError as e:
+                    got = {"error": str(e)[:300]}
             say(f"{name}: {json.dumps(got)[:600]}")
             try:
                 say(f"{name}: its page {cdp.evaluate(CLOSE_JS)}")
@@ -741,6 +876,26 @@ def main() -> None:
                     kinds = probe.stdout.split()
                     check(f"{name}: it has its picture and its sound", "video" in kinds and "audio" in kinds,
                           f"streams: {kinds or probe.stderr.strip()[:200]}")
+        if not only or any("Bandcamp" in k or "several" in k for k in only):
+            name = "Bandcamp: two tracks of an album, ticked"
+            got = cdp.evaluate(MULTI_JS % json.dumps(list(ALBUM[:2]))) or {}
+            say(f"{name}: {json.dumps(got)[:900]}")
+            check(f"{name}: both are saved in Music", got.get("done") == "ok" and got.get("notes") == ALBUM[1],
+                  f"{got.get('error') or got.get('done')}; notes {got.get('notes')}; {got.get('doing', '')!r}")
+            check(f"{name}: both are in one new playlist named after the album",
+                  got.get("lists") == [{"title": ALBUM[2], "songs": ALBUM[1]}], str(got.get("lists")))
+            try:
+                say(f"{name}: its page {cdp.evaluate(CLOSE_JS)}")
+            except RuntimeError as e:
+                say(f"{name}: its page could not be closed: {e}")
+        if not only or any("play" in k for k in only):
+            got = cdp.evaluate(PLAY_JS) or {}
+            say(f"playing a saved song: {json.dumps(got)[:900]}")
+            check("a song saved here plays when its play is pressed (Android's player says so)",
+                  bool(got.get("playing")) and not got.get("error") and not got.get("said"),
+                  f"{got.get('error') or got.get('said') or got}")
+            check("its position moves on while it plays", (got.get("time") or 0) >= 2,
+                  f"reached {got.get('time')} s; {got.get('events')} reports from the player")
         # **The roller** (`roller.ts`): the open items on an arc; a roll with the finger brings the
         # next one to the front.
         if not only or "roller" in only:
