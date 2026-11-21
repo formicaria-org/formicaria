@@ -3034,6 +3034,24 @@ environment; build from a `git worktree` with this checkout's environment instea
   of it has been tried on a phone; a large upload goes through the chunked path, untested with
   audio on a device.
 
+## Music from notes, and sound and video kept out of git (2026-11-21)
+
+`decisions.md` 2026-11-21 (later). `music_notes` / `songs_from_note` (`dispatch.rs`, `music.rs`),
+`fm_core::blob::{media_kind, travels}`.
+
+- **A note's audio is added to a playlist per note, from Music**, not per track from inside the note:
+  once added, its tracks are songs, each with its own ⋯.
+- **Kind is read off a file's first 16 bytes.** A WebM holding only sound counts as video (both stay
+  out of git by default, so it only matters with exactly one of the two switches on). A format not in
+  the list counts as neither and follows the size limit like a photo.
+- **`music_notes` reads every note's body** on each Music load (one pass, like `music::library`), and
+  opens the first bytes of each embedded file. Not measured by `tests/perf.rs` yet.
+- **A song's file stays on the device it was saved on** unless the vault lets sound travel in git;
+  the other device lists the song and says its file is not here. Restic keeps it (a backup, not a
+  sync).
+- **Not tried on a phone**: *In your notes* and *Into the note* making a song are tested in Rust and
+  jsdom (`tests/media_into_note.rs`, `App.music.test.ts`), not yet in `phone-media-check`.
+
 ## Save media: players yt-dlp reads only at another address (2026-11-20)
 
 `ui/src/lib/web/media.ts`'s `PLAYERS`: each player's address is mapped to the one yt-dlp's own

@@ -48,6 +48,7 @@
   import {
     config as fetchConfig,
     setGitAssetsMax,
+    setGitMedia,
     checkMoveVault,
     moveVault,
     setSupervision,
@@ -107,6 +108,16 @@
     assetError = null;
     try {
       setVaults(await setGitAssetsMax(vault, raw.trim()));
+    } catch (e) {
+      assetError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Whether sound and video travel too (2026-11-21): written into the vault's `vault.json`. */
+  async function setMedia(vault: string, sound: boolean, video: boolean) {
+    assetError = null;
+    try {
+      setVaults(await setGitMedia(vault, sound, video));
     } catch (e) {
       assetError = e instanceof Error ? e.message : String(e);
     }
@@ -1018,11 +1029,37 @@
         aria-label={`largest attachment to send for ${labelFor(v.name)}`}
       />
     </label>
+    {#if v.git_assets_max}
+      <!-- **Music and videos apart** (2026-11-21): heavy, many, and in permanent history once
+           sent. Off unless the person says so; the snapshot keeps them either way. -->
+      <label class="line assets-kind">
+        <input
+          type="checkbox"
+          checked={!!v.git_sound}
+          onchange={(e) => setMedia(v.name, e.currentTarget.checked, !!v.git_video)}
+        />
+        <span>Music and recordings travel with the notes too</span>
+      </label>
+      <label class="line assets-kind">
+        <input
+          type="checkbox"
+          checked={!!v.git_video}
+          onchange={(e) => setMedia(v.name, !!v.git_sound, e.currentTarget.checked)}
+        />
+        <span>Videos travel with the notes too</span>
+      </label>
+    {/if}
     <p class="muted small">
       {#if v.git_assets_max}
-        Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed with your notes.
-        Anything larger stays on this device — git history is permanent, so a large file committed once
-        is in every clone forever.
+        Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed with your notes{v.git_sound &&
+        v.git_video
+          ? ''
+          : v.git_sound
+            ? ', except videos'
+            : v.git_video
+              ? ', except music and recordings'
+              : ', except music, recordings and videos'}. Anything larger stays on this device — git
+        history is permanent, so a large file committed once is in every clone forever.
       {:else}
         Empty means <strong>notes only</strong> — the default. Attachments stay in the vault and
         travel only via restic. The most you can send this way is

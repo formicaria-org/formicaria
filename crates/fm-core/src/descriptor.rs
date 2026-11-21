@@ -74,6 +74,14 @@ pub struct Descriptor {
     /// Written as a number of bytes or a human string (`"2MB"`), because this is a file people
     /// edit by hand.
     pub git_assets_max: Option<u64>,
+    /// **Sound and video travel only if the vault says so**, whatever their size (the owner,
+    /// 2026-11-21: *"a dedicated filter for not syncing all the heavy music part … Restic is there to
+    /// keep everything"*). Off by default: under `git_assets_max` a photo travels and a song or a
+    /// clip does not, until these say otherwise. Here for the same reason as the size: they decide
+    /// what enters shared, permanent history. Which file is which is read off its first bytes
+    /// ([`crate::blob::media_kind`]).
+    pub git_sound: bool,
+    pub git_video: bool,
 
     /// **Hard guardrails on a proposal's size** (see [`crate::proposal`]). Here, not in per-device
     /// Settings, for the same reason as `git_assets_max`: a proposal enters shared history, so the
@@ -463,6 +471,21 @@ impl Descriptor {
             }
         };
 
+        // Sound and video: a yes or a no, nothing else (a value that is neither is an error, as a
+        // malformed size is — it would let media in that the person believes is kept out).
+        let flag = |key: &str| -> Result<bool, StoreError> {
+            match v.get(key) {
+                None | Some(serde_json::Value::Null) => Ok(false),
+                Some(serde_json::Value::Bool(b)) => Ok(*b),
+                Some(_) => Err(StoreError::Parse(format!(
+                    "{}: `{key}` must be true or false",
+                    path.display()
+                ))),
+            }
+        };
+        let git_sound = flag("git_sound")?;
+        let git_video = flag("git_video")?;
+
         // Proposal guardrails — the vault's blast-radius policy. A nested object, so the keys read
         // as one concern; any missing key keeps its conservative default, and a present-but-
         // unparseable value is an error (silently ignoring it would apply a limit the user believes
@@ -574,6 +597,8 @@ impl Descriptor {
             description: field("description"),
             notes,
             git_assets_max,
+            git_sound,
+            git_video,
             proposal_limits,
             supervision,
             notes_time_zone: field("notes_time_zone"),
@@ -684,6 +709,43 @@ impl Descriptor {
         m.insert("collect".into(), serde_json::Value::Bool(sup.collect));
         m.insert("publish".into(), serde_json::Value::Bool(sup.publish));
         obj.insert("supervision".into(), serde_json::Value::Object(m));
+        let mut text =
+            serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
+        text.push('\n');
+        std::fs::write(&path, text).map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
+    }
+
+    /// Whether sound and video travel with this vault's notes ([`Descriptor::git_sound`]). The same
+    /// narrow rewrite as [`set_git_assets_max`](Self::set_git_assets_max): only these keys change,
+    /// unknown keys are kept, a `false` is written as no key at all.
+    pub fn set_git_media(root: &Path, sound: bool, video: bool) -> Result<(), StoreError> {
+        let path = root.join("vault.json");
+        let mut v: serde_json::Value = match std::fs::read_to_string(&path) {
+            Ok(t) => serde_json::from_str(&t).map_err(|e| {
+                StoreError::Parse(format!("{} is not valid JSON: {e}", path.display()))
+            })?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::Value::Object(serde_json::Map::new())
+            }
+            Err(e) => return Err(StoreError::Io(format!("{}: {e}", path.display()))),
+        };
+        let Some(obj) = v.as_object_mut() else {
+            return Err(StoreError::Parse(format!("{}: not a JSON object", path.display())));
+        };
+        for (key, on) in [("git_sound", sound), ("git_video", video)] {
+            if on {
+                obj.insert(key.into(), serde_json::Value::Bool(true));
+            } else {
+                obj.remove(key);
+            }
+        }
+        if obj.is_empty() {
+            if path.exists() {
+                std::fs::remove_file(&path)
+                    .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))?;
+            }
+            return Ok(());
+        }
         let mut text =
             serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
         text.push('\n');

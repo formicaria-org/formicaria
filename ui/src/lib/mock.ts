@@ -118,6 +118,8 @@ const freshPrivacy = () => ({
 });
 let mockPrivacy = freshPrivacy();
 let mockMediaJobs: import('./ipc').MediaJob[] = [];
+/** Files the stand-in treats as sound (the server reads a file's first bytes; the mock is told). */
+export const mockSoundRefs = new Set<string>();
 /** Every save asked of the stand-in, as asked (the tests read what each carried). */
 export const mockMediaAsks: Record<string, unknown>[] = [];
 let mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
@@ -482,6 +484,8 @@ let mockVaults: Array<{
   name: string;
   path: string;
   git_assets_max: number | null;
+  git_sound?: boolean;
+  git_video?: boolean;
   supervision: { collect: boolean; publish: boolean };
   restic_repo: string | null;
   label: string | null;
@@ -928,6 +932,7 @@ export function reset(): void {
   mockClockZone = '';
   mockPrivacy = freshPrivacy();
   mockMediaJobs = [];
+  mockSoundRefs.clear();
   mockMediaAsks.length = 0;
   mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
   clearFaults();
@@ -2137,6 +2142,17 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       }));
       return vaults as T;
     }
+    case 'set_git_media': {
+      const target = String(args.vault ?? '');
+      const v = mockVaults.find((x) => x.name === target) ?? mockVaults[0];
+      v.git_sound = args.sound === true;
+      v.git_video = args.video === true;
+      return mockVaults.map((x, i) => ({
+        ...x,
+        default: i === 0,
+        restic_repo: mockRestic[x.name] ?? null,
+      })) as T;
+    }
     case 'check_path': {
       // Mirrors the real policy closely enough to develop the form against, and no
       // further: the server owns `ok`, and this file must never become a second opinion.
@@ -2679,6 +2695,55 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
             m[1].toUpperCase(),
           ),
         })) as T;
+    case 'music_notes':
+    case 'songs_from_note': {
+      // As `music::embedded_files` and the server's sound check: `![alt](asset:sha256-…)` embeds
+      // whose file the stand-in was told is sound, songs excluded.
+      const byAudio = new Map(
+        notes
+          .filter((n) => n.props.log === 'music' && typeof n.props.audio === 'string')
+          .map((n) => [n.props.audio as string, n.id]),
+      );
+      const found = notes
+        .filter((n) => n.props.log !== 'music')
+        .map((n) => ({
+          id: n.id,
+          title: n.title ?? '',
+          vault: n.vault,
+          tracks: [
+            ...(noteDetail(n.id)?.body ?? '').matchAll(
+              /!\[([^\]]*)\]\(asset:sha256-([0-9a-f]{64})\)/g,
+            ),
+          ]
+            .map((m) => ({ reference: `sha256:${m[2]}`, title: m[1].trim() }))
+            .filter((t) => mockSoundRefs.has(t.reference))
+            .map((t) => ({ ...t, song: byAudio.get(t.reference) ?? null })),
+        }))
+        .filter((n) => n.tracks.length);
+      if (cmd === 'music_notes') return found as T;
+      const n = found.find((x) => x.id === String(args.note ?? '').toUpperCase());
+      if (!n) throw new Error('that note holds no audio');
+      const ids: string[] = [];
+      for (const t of n.tracks) {
+        if (t.song) {
+          ids.push(t.song);
+          continue;
+        }
+        const [made] = (await handle('create_notes', {
+          notes: [
+            {
+              title: t.title || n.title,
+              body: `From [${n.title}](note:${n.id}).\n`,
+              tags: [],
+              start: '',
+              props: { log: 'music', audio: t.reference, album: n.title },
+            },
+          ],
+        })) as { id: string }[];
+        ids.push(made.id);
+      }
+      return ids as T;
+    }
     case 'music_library':
       return notes
         .filter((n) => n.props.log === 'music')

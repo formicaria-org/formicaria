@@ -97,13 +97,23 @@ and edit it like any note — the list's order is the order it plays in — but 
 
 Undo (**↶**) takes back any change to a playlist.
 
+### Audio in your notes
+
+A note can hold audio of its own — a recording, or tracks saved with Save media *into the note*. A
+track saved into a note is also a song in your library, and the note keeps it as an attachment: one
+file, two places to find it. Notes that hold audio are listed under the playlists as **In your
+notes**: **Play** plays a note's tracks as they are, and **Add to playlist…** makes them songs — the
+same files, nothing copied — then asks which playlist, as for any song. So a playlist can take songs
+from anywhere: Music, a saved page, a note.
+
 ## Where your songs are kept
 
 A song's file is kept in your notebook like any picture or PDF you attach, so it is in your
 [backups](./backup.md) with everything else.
 
 **Song files are not sent with your notes** to your other devices, unless the file is under your
-notebook's *Send attachments under* limit (see [Backup](./backup.md)). The songs' notes do travel, so
+notebook's *Send attachments under* limit **and** *Music and recordings travel with the notes too* is
+ticked — off unless you tick it (see [Backup](./backup.md)). The songs' notes do travel, so
 another device lists your songs; add the files there too to play them.
 
 A file is copied when you add it: songs you also keep in a music folder take their space twice.

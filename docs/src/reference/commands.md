@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 153 of them are below**, grouped by what they are for. If you add an arm to
+**All 156 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -118,6 +118,9 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `set_git_remote` | `vault`, `url`, `name`, `email` | —                   | sets the vault's `origin`, and its git identity when `name`/`email` are non-empty (asked only of a vault git has never met); blank URL refused |
 | `set_identity`   | `vault`, `name`, `email`     | —                      | the git identity alone, for a vault that already has a remote |
 | `set_git_assets_max` | `vault`, `max`           | `VaultInfo[]`          | the size ceiling on attachments a push may carry. Above it, media stays local and only the notes travel |
+| `music_notes`    | —                            | `AudioNote[]`          | notes holding sound files (songs excepted): `{id, title, vault, tracks:[{reference, title, song}]}`; a file counts as sound by its first bytes, and `song` is the song with the same file, if any |
+| `songs_from_note`| `note`                       | `string[]`             | a note's sound files as songs, made once (the same file, the note named in the song's text, its title as album): the songs' ids in the note's order |
+| `set_git_media`  | `vault`, `sound`, `video`    | `VaultInfo[]`          | whether sound and video travel too, under that ceiling (`vault.json`'s `git_sound`, `git_video`; off by default). Told apart by a file's first bytes |
 | `unrecorded`     | —                            | `Unrecorded[]`         | per vault, the notes on disk that git does not have — **split by kind**, with a bounded sample. The count alone was not a diagnosis: 146 could mean 146 notes existing nowhere else, or 146 something was needlessly rewriting |
 | `record_unrecorded` | `vault`                   | `{recorded}`           | commit exactly those |
 | `duplicates` / `prune_duplicates` | `vault` (prune only) | `DuplicateFamily[]` / `{pruned}` | prune **refuses** while any copy is still unrecorded, and always keeps the oldest of each family. Deleting an untracked note is unrecoverable; a tracked one is a `git checkout` away, so the order is forced rather than warned about |

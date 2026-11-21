@@ -73,3 +73,29 @@ it('hands the queue to the native player and mirrors what it says', async () => 
   p.stop();
   expect(calls.at(-1)?.[0]).toBe('stop');
 });
+
+// **A player that lost its songs is given them again** (2026-11-21, found in the emulator): when
+// Android stops the service, or the player is cleared behind the page, it says it holds none; the
+// next play hands the queue over again instead of asking for a song that is not there.
+it('hands the queue over again when the native player says it holds none', async () => {
+  const p = await import('./player.svelte');
+  const list = [track('aaaaaaaa', 'One'), track('bbbbbbbb', 'Two')];
+  p.playList(list, 0);
+  await vi.waitFor(() => expect(calls.filter(([n]) => n === 'setQueue').length).toBe(1));
+  window.dispatchEvent(
+    new CustomEvent('fm-player', {
+      detail: { index: 0, playing: false, time: 0, length: 0, error: '', count: 0 },
+    }),
+  );
+  p.playList(list, 1);
+  await vi.waitFor(() => expect(calls.filter(([n]) => n === 'setQueue').length).toBe(2));
+  expect(calls.filter(([n]) => n === 'jump')).toEqual([]);
+  // While it holds them, a press is a jump, as before.
+  window.dispatchEvent(
+    new CustomEvent('fm-player', {
+      detail: { index: 1, playing: true, time: 1, length: 200, error: '', count: 2 },
+    }),
+  );
+  p.playList(list, 0);
+  expect(calls.at(-1)?.[0]).toBe('jump');
+});

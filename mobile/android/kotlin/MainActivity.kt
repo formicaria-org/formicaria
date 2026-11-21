@@ -1035,6 +1035,9 @@ class MainActivity : TauriActivity() {
     val d = JSONObject().put("index", p.currentMediaItemIndex).put("playing", p.isPlaying)
       .put("time", p.currentPosition / 1000.0).put("length", if (p.duration > 0) p.duration / 1000.0 else 0.0)
       .put("ended", p.playbackState == Player.STATE_ENDED).put("error", p.playerError?.message ?: "")
+      // How many songs it holds: none after Android stopped the service or the player was cleared,
+      // and the page then hands the queue over again rather than asking for a song that is not there.
+      .put("count", p.mediaItemCount)
     wv?.evaluateJavascript("window.dispatchEvent(new CustomEvent('fm-player',{detail:$d}))", null)
   }
   private fun listen(p: androidx.media3.exoplayer.ExoPlayer) {

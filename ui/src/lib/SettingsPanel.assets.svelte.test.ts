@@ -80,4 +80,27 @@ describe('SettingsPanel — how large an attachment may travel in git', () => {
     expect((await screen.findAllByText(/notes only/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText(/100MB per file/)).length).toBeGreaterThan(0);
   });
+
+  // **Music and videos apart** (2026-11-21: *"a dedicated filter for not syncing all the heavy
+  // music part … user decides"*). Under the size limit, sound and video stay out until said
+  // otherwise; the sentence under the field says what is left out.
+  it('keeps music and videos out under the limit until the person lets them in', async () => {
+    await mock.handle('set_git_media', { vault: 'lab', sound: false, video: false });
+    const { container } = panel();
+    await screen.findAllByText(/Send attachments under/);
+    const music = screen.getAllByLabelText(
+      'Music and recordings travel with the notes too',
+    ) as HTMLInputElement[];
+    expect(music.length).toBe(1);
+    expect(music[0].checked).toBe(false);
+    expect(container.textContent).toMatch(
+      /pushed with your notes, except music, recordings and videos/,
+    );
+    await fireEvent.click(music[0]);
+    const vaults = await mock.handle<VaultInfo[]>('list_vaults', {});
+    const lab = vaults.find((v) => v.name === 'lab');
+    expect(lab?.git_sound).toBe(true);
+    expect(lab?.git_video).toBe(false);
+    await screen.findAllByText(/except videos/);
+  });
 });

@@ -4,7 +4,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
-import { clearFaults, reset, setAudioTags } from './lib/mock';
+import { clearFaults, handle, mockSoundRefs, reset, setAudioTags } from './lib/mock';
 import * as nav from './lib/nav.svelte';
 import { clear as clearUndo } from './lib/undo.svelte';
 import * as trackers from './lib/trackers.svelte';
@@ -423,4 +423,54 @@ test('the queue is kept on this device and comes back paused', async () => {
     expect(within(deck).getByText('now playing: Kept')).toBeTruthy();
     expect(within(deck).getByRole('button', { name: 'play' })).toBeTruthy();
   });
+});
+
+// **Audio in a note plays, and goes into a playlist** (2026-11-21: an album saved *Into the note*
+// played nowhere; *"create a playlist by taking songs from anywhere"*). Music lists the note under
+// *In your notes*: Play queues its tracks as they are; Add to playlist makes them songs (the same
+// files) and the usual sheet asks where.
+test('a note holding audio plays from Music and its tracks go into a playlist', async () => {
+  const ref = `sha256:${'ab'.repeat(32)}`;
+  mockSoundRefs.add(ref);
+  await handle('create_notes', {
+    notes: [
+      {
+        title: 'Night Walk',
+        body: `An album.\n\n![First light](asset:sha256-${'ab'.repeat(32)})\n`,
+        props: {},
+      },
+    ],
+  });
+  render(App);
+  await openMusic();
+  await fireEvent.click(screen.getByRole('tab', { name: 'Playlists' }));
+  const notes = await screen.findByRole('list', { name: 'notes with audio' });
+  await fireEvent.click(within(notes).getByRole('button', { name: 'play Night Walk' }));
+  expect(player.queue().map((t) => [t.title, t.audio])).toEqual([['First light', ref]]);
+
+  await fireEvent.click(
+    within(notes).getByRole('button', { name: 'add Night Walk to a playlist' }),
+  );
+  const sheet = await screen.findByRole('dialog', { name: 'Night Walk' });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Add to playlist…' }));
+  await fireEvent.input(within(sheet).getByLabelText('name of the new playlist'), {
+    target: { value: 'From notes' },
+  });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Make it' }));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Night Walk' })).toBeNull());
+  await fireEvent.click(await screen.findByRole('button', { name: 'playlist From notes' }));
+  const songsOf = await screen.findByRole('list', { name: 'songs of From notes' });
+  await waitFor(() =>
+    expect(
+      within(songsOf)
+        .getAllByRole('listitem')
+        .map((li) => li.querySelector('.title')?.textContent),
+    ).toEqual(['First light']),
+  );
+  // A song now, with the same file: in the library once.
+  const songs = (await handle('music_library', {})) as {
+    title: string;
+    props: { audio: string };
+  }[];
+  expect(songs.map((s) => [s.title, s.props.audio])).toEqual([['First light', ref]]);
 });

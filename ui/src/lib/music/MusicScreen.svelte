@@ -17,7 +17,16 @@
   // **Only the song rows in view are drawn**, so a library of thousands scrolls as lightly as one
   // of ten. Every row is the same height, which is what makes that exact.
   import Icon from '../Icon.svelte';
-  import { assetUrl, musicLibrary, musicPlaylists, type Playlist } from '../ipc';
+  import {
+    assetUrl,
+    musicLibrary,
+    musicNotes,
+    musicPlaylists,
+    songsFromNote,
+    type AudioNote,
+    type Playlist,
+  } from '../ipc';
+  import { tick } from 'svelte';
   import * as nav from '../nav.svelte';
   import type { ObjectMeta } from '../types';
   import Deck from './Deck.svelte';
@@ -42,6 +51,8 @@
 
   let songs = $state<ObjectMeta[] | null>(null);
   let lists = $state<Playlist[]>([]);
+  /** Notes with audio in them, not songs (2026-11-21): played as they are, added as songs. */
+  let audioNotes = $state<AudioNote[]>([]);
   let failed = $state('');
   let q = $state('');
   let tab = $state<Tab>('songs');
@@ -51,11 +62,12 @@
   let asked = 0;
   function load() {
     const n = ++asked;
-    Promise.all([musicLibrary(), musicPlaylists()])
-      .then(([s, p]) => {
+    Promise.all([musicLibrary(), musicPlaylists(), musicNotes().catch(() => [])])
+      .then(([s, p, a]) => {
         if (n !== asked) return;
         songs = s;
         lists = p;
+        audioNotes = a;
         failed = '';
       })
       .catch((e) => n === asked && (failed = String(e)));
@@ -283,6 +295,34 @@
 
   // ── new playlists from the Playlists tab ─────────────────────────────────────────────────────
   let naming = $state<'empty' | 'queue' | null>(null);
+  /** A note's tracks for the player, as they are: the song where there is one, else the file. */
+  const noteTracks = (a: AudioNote): player.Track[] =>
+    a.tracks.map((t, i) => ({
+      id: t.song ?? `${a.id}:${i}`,
+      title: t.title || a.title || 'Untitled',
+      artist: '',
+      album: a.title,
+      audio: t.reference,
+      cover: null,
+      duration: null,
+    }));
+  /** **Add a note's audio to a playlist** (2026-11-21: *"create a playlist by taking songs from
+   *  anywhere"*): its tracks become songs (once, the same file), then the usual sheet asks where. */
+  async function addNote(a: AudioNote) {
+    try {
+      const ids = await songsFromNote(a.id);
+      const [s, p, n] = await Promise.all([musicLibrary(), musicPlaylists(), musicNotes()]);
+      songs = s;
+      lists = p;
+      audioNotes = n;
+      await tick();
+      const list = ids.map((id) => byId.get(id.toUpperCase())).filter((r): r is Row => !!r);
+      more(a.title || 'Untitled', list);
+    } catch (e) {
+      say(String(e instanceof Error ? e.message : e));
+    }
+  }
+
   async function makeNew() {
     const fromQueue = naming === 'queue';
     const list: pl.Entry[] = fromQueue
@@ -716,6 +756,39 @@
               {/each}
             </ul>
           {/if}
+          {#if audioNotes.length}
+            <!-- **In your notes** (2026-11-21): a note holding audio plays as it is, and its tracks
+                 go into a playlist as songs — the same files, nothing copied. -->
+            <h3 class="sub">In your notes</h3>
+            <ul class="list short" aria-label="notes with audio">
+              {#each audioNotes as a (a.id)}
+                <li class="note-audio">
+                  <span class="cover none small" aria-hidden="true"
+                    ><Icon name="pen" size={16} /></span
+                  >
+                  <span class="name">
+                    <span class="title">{a.title || 'Untitled'}</span>
+                    <span class="by"
+                      >{a.tracks.length} {a.tracks.length === 1 ? 'track' : 'tracks'}</span
+                    >
+                  </span>
+                  <button
+                    type="button"
+                    class="ghost"
+                    aria-label={`play ${a.title || 'Untitled'}`}
+                    onclick={() => player.playList(noteTracks(a), 0)}
+                    ><Icon name="play" size={14} /> Play</button
+                  >
+                  <button
+                    type="button"
+                    class="ghost"
+                    aria-label={`add ${a.title || 'Untitled'} to a playlist`}
+                    onclick={() => void addNote(a)}>Add to playlist…</button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
       {/if}
     </div>
@@ -935,6 +1008,23 @@
     flex-wrap: wrap;
     font-size: var(--text-sm);
     color: var(--text-muted);
+  }
+  .sub {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    margin: var(--space-3) 0 var(--space-1);
+    font-weight: 600;
+  }
+  .note-audio {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .note-audio .name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
   .list {
     list-style: none;

@@ -423,6 +423,9 @@ export interface VaultInfo {
    *  Lives in the vault's own `vault.json`, not in this browser, because it decides what enters
    *  shared permanent history. */
   git_assets_max: number | null;
+  /** Whether sound and video travel too, under that limit (off by default, 2026-11-21). */
+  git_sound?: boolean;
+  git_video?: boolean;
   /** What may be done with this vault's review record. Two independent answers, never one flag:
    *  agreeing to record something locally is not agreeing to publish it. */
   supervision: { collect: boolean; publish: boolean };

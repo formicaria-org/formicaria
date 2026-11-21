@@ -508,6 +508,66 @@ PLAY_JS = r"""
 })()
 """
 
+# **A note holding audio, played and put in a playlist, through Music** (the owner, 2026-11-21: an
+# album saved *Into the note* played nowhere; *"create a playlist by taking songs from anywhere"*). A
+# song saved above has its file put into an ordinary note (set up through the app's own command);
+# then, as a person: + → Music → Playlists → *In your notes* → Play, and Add to playlist → a new one.
+NOTE_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  const inv = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke('fm', { cmd, args })
+    .then((t) => (typeof t === 'string' ? JSON.parse(t) : t));
+  const song = (await inv('music_library'))[0];
+  const ref = song && song.props.audio;
+  if (!ref) return { error: 'no song saved above to take a file from' };
+  await inv('create_notes', { notes: [{ title: 'A note with a recording', props: {},
+    body: `Heard today.\n\n![A recording](asset:${ref.replace('sha256:', 'sha256-')})\n` }] });
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  const seen = { playing: false, time: 0, error: '' };
+  addEventListener('fm-player', (e) => {
+    const d = e.detail || {};
+    if (d.playing) seen.playing = true;
+    seen.time = Math.max(seen.time, d.time || 0);
+    if (d.error) seen.error = d.error;
+  });
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 30);
+  if (!plus) return { error: 'no +' };
+  plus.click();
+  const music = await until(() => [...document.querySelectorAll('ul[aria-label=features] button')]
+    .find((b) => b.textContent.trim() === 'Music'), 15);
+  if (!music) return { error: 'no Music in the new tab' };
+  music.click();
+  const tab = await until(() => [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent.trim() === 'Playlists'), 30);
+  if (!tab) return { error: 'no Playlists tab' };
+  tab.click();
+  const list = await until(() => document.querySelector('ul[aria-label="notes with audio"]'), 30);
+  if (!list) return { error: 'no "In your notes"', text: document.body.innerText.slice(0, 400) };
+  const play = list.querySelector('button[aria-label="play A note with a recording"]');
+  if (!play) return { error: 'the note is not listed', listed: list.innerText.slice(0, 300) };
+  play.click();
+  await sleep(8000);
+  try { window.__fmPlayer.stop(); } catch {}
+  const add = list.querySelector('button[aria-label="add A note with a recording to a playlist"]');
+  add.click();
+  const sheet = await until(() => document.querySelector('[role=dialog][aria-label="A note with a recording"]'), 15);
+  if (!sheet) return { ...seen, error: 'no sheet after Add to playlist' };
+  [...sheet.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add to playlist…')?.click();
+  const name = await until(() => sheet.querySelector('input[aria-label="name of the new playlist"]'), 10);
+  if (!name) return { ...seen, error: 'no name field' };
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(name, 'Heard in notes');
+  name.dispatchEvent(new Event('input', { bubbles: true }));
+  [...sheet.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Make it')?.click();
+  await sleep(3000);
+  const lists = (await inv('music_playlists')).filter((p) => p.title === 'Heard in notes');
+  return { ...seen, lists: lists.map((p) => p.songs.length) };
+})()
+"""
+
 # **A case's page closed once it is done**, as a person closes a tab: the app holds at most eight
 # panes (`MAX_PANES`, `ui/src/lib/panes.ts`) and refuses a ninth, which the privacy check's own pages
 # then were (2026-11-20, after the Bandcamp case made eight). Only a web page in front is closed —
@@ -888,14 +948,6 @@ def main() -> None:
                 say(f"{name}: its page {cdp.evaluate(CLOSE_JS)}")
             except RuntimeError as e:
                 say(f"{name}: its page could not be closed: {e}")
-        if not only or any("play" in k for k in only):
-            got = cdp.evaluate(PLAY_JS) or {}
-            say(f"playing a saved song: {json.dumps(got)[:900]}")
-            check("a song saved here plays when its play is pressed (Android's player says so)",
-                  bool(got.get("playing")) and not got.get("error") and not got.get("said"),
-                  f"{got.get('error') or got.get('said') or got}")
-            check("its position moves on while it plays", (got.get("time") or 0) >= 2,
-                  f"reached {got.get('time')} s; {got.get('events')} reports from the player")
         # **The roller** (`roller.ts`): the open items on an arc; a roll with the finger brings the
         # next one to the front.
         if not only or "roller" in only:
@@ -954,6 +1006,21 @@ def main() -> None:
                   not tracker and ordinary, f"tracker answered: {tracker}; ordinary answered: {ordinary}; before: {before}")
             st = cdp.evaluate(VPN_JS % "false") or {}
             check("off, every lookup is answered again", not st.get("on") and resolves("app-measurement.com"), str(st)[:300])
+        # After the protections: Music in front would leave their test page paused (2026-11-21).
+        if not only or any("play" in k or "note" in k for k in only):
+            got = cdp.evaluate(NOTE_JS) or {}
+            say(f"a note holding audio: {json.dumps(got)[:900]}")
+            check("a note's recording plays from Music (Android's player says so)",
+                  bool(got.get("playing")) and not got.get("error"), f"{got.get('error') or got}")
+            check("its recording goes into a new playlist as a song", got.get("lists") == [1], str(got))
+        if not only or any("play" in k for k in only):
+            got = cdp.evaluate(PLAY_JS) or {}
+            say(f"playing a saved song: {json.dumps(got)[:900]}")
+            check("a song saved here plays when its play is pressed (Android's player says so)",
+                  bool(got.get("playing")) and not got.get("error") and not got.get("said"),
+                  f"{got.get('error') or got.get('said') or got}")
+            check("its position moves on while it plays", (got.get("time") or 0) >= 2,
+                  f"reached {got.get('time')} s; {got.get('events')} reports from the player")
         # **The usage diary** (`fm_app::diary`, 2026-11-20): on by default, and this run in it — its
         # start and its commands — read through the app as Settings reads it.
         got = cdp.evaluate(DIARY_JS) or {}

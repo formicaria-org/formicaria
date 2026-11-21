@@ -26,6 +26,9 @@ pushed with the notes, so a screenshot in a note arrives with the note on your o
 machine. It is off by default, and it is set per vault rather than per computer,
 because git history is permanent: a large file committed once is in every clone
 forever. Use it for small things and leave the heavy ones to the snapshot tier.
+Under that limit, **music, recordings and videos still stay out** unless you tick *Music and
+recordings travel with the notes too* or *Videos travel with the notes too* beside it — each file is
+recognised by what it is, not by its name. The snapshot keeps them either way.
 
 **There is a ceiling: 100MB per file, and the app will not go past it.** formicaria
 does not use [git-lfs](https://git-lfs.com), so an attachment that travels in git is

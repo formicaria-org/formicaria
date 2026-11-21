@@ -187,7 +187,8 @@ fn io_err(e: io::Error) -> StoreError {
 /// the index, which is backend-specific — and the number that explains a stuck push is how much
 /// the rule selects.
 pub fn eligible_assets(vault: &std::path::Path) -> Result<(u32, u64), crate::StoreError> {
-    let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
+    let desc = crate::descriptor::Descriptor::read(vault)?;
+    let Some(max) = desc.git_assets_max else {
         return Ok((0, 0));
     };
     let max = crate::descriptor::effective_git_assets_max(max);
@@ -195,7 +196,7 @@ pub fn eligible_assets(vault: &std::path::Path) -> Result<(u32, u64), crate::Sto
     let mut bytes = 0u64;
     for p in BlobStore::new(vault).blob_paths() {
         if let Ok(m) = std::fs::metadata(&p) {
-            if m.len() <= max && m.len() > 0 {
+            if travels(&desc, &p, m.len(), max) {
                 count += 1;
                 bytes += m.len();
             }
@@ -244,15 +245,17 @@ pub fn asset_batches(
     vault: &std::path::Path,
     budget: u64,
 ) -> Result<Vec<AssetBatch>, crate::StoreError> {
-    let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
+    let desc = crate::descriptor::Descriptor::read(vault)?;
+    let Some(max) = desc.git_assets_max else {
         return Ok(Vec::new());
     };
     let max = crate::descriptor::effective_git_assets_max(max);
     let mut sizes: Vec<u64> = BlobStore::new(vault)
         .blob_paths()
         .into_iter()
-        .filter_map(|p| std::fs::metadata(&p).ok().map(|m| m.len()))
-        .filter(|&n| n > 0 && n <= max)
+        .filter_map(|p| std::fs::metadata(&p).ok().map(|m| (m.len(), p)))
+        .filter(|(n, p)| travels(&desc, p, *n, max))
+        .map(|(n, _)| n)
         .collect();
     sizes.sort_unstable();
 
@@ -270,6 +273,67 @@ pub fn asset_batches(
         }
     }
     Ok(out)
+}
+
+/// What a stored file is, read off its first bytes: the one thing a blob's name (its hash) cannot
+/// say. Used to keep sound and video out of git unless the vault lets them in
+/// ([`crate::descriptor::Descriptor::git_sound`]), and to find the audio a note holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaKind {
+    Sound,
+    Video,
+    Other,
+}
+
+/// [`MediaKind`] of a file's first bytes. MP3 (ID3, or an MPEG/ADTS frame), Ogg, FLAC, WAV, AIFF,
+/// AMR, CAF and an M4A/M4B box are sound; any other MP4/QuickTime box and Matroska/WebM are video
+/// (a WebM holding only sound counts as video: both are heavy, and both stay out by default).
+pub fn media_kind_of(head: &[u8]) -> MediaKind {
+    let at = |i: usize, s: &[u8]| head.len() >= i + s.len() && &head[i..i + s.len()] == s;
+    if at(0, b"ID3") || at(0, b"OggS") || at(0, b"fLaC") || at(0, b"#!AMR") || at(0, b"caff") {
+        return MediaKind::Sound;
+    }
+    if (at(0, b"RIFF") && at(8, b"WAVE")) || (at(0, b"FORM") && (at(8, b"AIFF") || at(8, b"AIFC")))
+    {
+        return MediaKind::Sound;
+    }
+    if head.len() >= 2 && head[0] == 0xFF && head[1] & 0xE0 == 0xE0 {
+        return MediaKind::Sound; // an MPEG audio or ADTS (AAC) frame
+    }
+    if at(4, b"ftyp") {
+        return if at(8, b"M4A ") || at(8, b"M4B ") || at(8, b"M4P ") || at(8, b"F4A ") {
+            MediaKind::Sound
+        } else {
+            MediaKind::Video
+        };
+    }
+    if at(0, &[0x1A, 0x45, 0xDF, 0xA3]) || (at(0, b"RIFF") && at(8, b"AVI ")) {
+        return MediaKind::Video;
+    }
+    MediaKind::Other
+}
+
+/// [`media_kind_of`] a file on disk (its first 16 bytes); `Other` when it cannot be read.
+pub fn media_kind(path: &Path) -> MediaKind {
+    use std::io::Read;
+    let mut head = [0u8; 16];
+    let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
+    media_kind_of(&head[..n])
+}
+
+/// **The one rule for which attachment travels with a vault's notes**: not empty, at or under the
+/// size limit, and — for sound and video — only where the vault lets them. Every caller that picks
+/// files for git (the commit, the count of what is waiting, the staged batches) asks this, so they
+/// cannot come to disagree.
+pub fn travels(desc: &crate::descriptor::Descriptor, path: &Path, len: u64, max: u64) -> bool {
+    if len == 0 || len > max {
+        return false;
+    }
+    match media_kind(path) {
+        MediaKind::Sound => desc.git_sound,
+        MediaKind::Video => desc.git_video,
+        MediaKind::Other => true,
+    }
 }
 
 /// HMAC-SHA-256 (RFC 2104) of `msg` under `key`, as hex. A keyed fingerprint: unlike
@@ -295,7 +359,7 @@ pub fn hmac_sha256_hex(key: &[u8], msg: &[u8]) -> String {
 
 #[cfg(test)]
 mod hmac_tests {
-    use super::hmac_sha256_hex;
+    use super::*;
 
     /// RFC 4231, test cases 1 and 2.
     #[test]
@@ -308,5 +372,53 @@ mod hmac_tests {
             hmac_sha256_hex(b"Jefe", b"what do ya want for nothing?"),
             "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
         );
+    }
+
+    /// **Sound and video stay out of git unless the vault lets them in** (2026-11-21), whatever their
+    /// size, and every picker of files for git agrees: the commit's selection, the count of what is
+    /// waiting, and the staged batches.
+    #[test]
+    fn sound_and_video_travel_only_where_the_vault_says() {
+        let v = tempfile::tempdir().unwrap();
+        std::fs::write(v.path().join("vault.json"), r#"{"git_assets_max":"50MB"}"#).unwrap();
+        let store = BlobStore::new(v.path());
+        store.put_bytes(b"ID3\x04\x00\x00 a song").unwrap();
+        store.put_bytes(b"\x1a\x45\xdf\xa3 a clip, as WebM").unwrap();
+        store.put_bytes(b"\x89PNG\r\n\x1a\n a picture").unwrap();
+        let picked = |v: &std::path::Path| crate::git::blobs_within_capped(v, None).unwrap().len();
+        assert_eq!(picked(v.path()), 1, "the picture alone");
+        assert_eq!(eligible_assets(v.path()).unwrap().0, 1);
+        assert_eq!(
+            asset_batches(v.path(), u64::MAX).unwrap().iter().map(|b| b.count).sum::<u32>(),
+            1
+        );
+
+        crate::descriptor::Descriptor::set_git_media(v.path(), true, false).unwrap();
+        assert_eq!(picked(v.path()), 2, "and the song, once sound may travel");
+        assert_eq!(eligible_assets(v.path()).unwrap().0, 2);
+        let d = crate::descriptor::Descriptor::read(v.path()).unwrap();
+        assert!(d.git_sound && !d.git_video);
+        assert_eq!(d.git_assets_max, Some(50_000_000), "the size limit is kept");
+
+        crate::descriptor::Descriptor::set_git_media(v.path(), false, false).unwrap();
+        let text = std::fs::read_to_string(v.path().join("vault.json")).unwrap();
+        assert!(!text.contains("git_sound") && text.contains("git_assets_max"), "{text}");
+    }
+
+    #[test]
+    fn a_file_is_known_by_its_first_bytes() {
+        use super::MediaKind::*;
+        assert_eq!(media_kind_of(b"ID3\x04"), Sound);
+        assert_eq!(media_kind_of(&[0xFF, 0xFB, 0x90]), Sound); // an MPEG frame
+        assert_eq!(media_kind_of(&[0xFF, 0xF1, 0x50]), Sound); // ADTS AAC
+        assert_eq!(media_kind_of(b"OggS\x00"), Sound);
+        assert_eq!(media_kind_of(b"fLaC"), Sound);
+        assert_eq!(media_kind_of(b"RIFF\x00\x00\x00\x00WAVE"), Sound);
+        assert_eq!(media_kind_of(b"\x00\x00\x00\x20ftypM4A "), Sound);
+        assert_eq!(media_kind_of(b"\x00\x00\x00\x20ftypisom"), Video);
+        assert_eq!(media_kind_of(&[0x1A, 0x45, 0xDF, 0xA3, 0x01]), Video);
+        assert_eq!(media_kind_of(b"\x89PNG\r\n\x1a\n"), Other);
+        assert_eq!(media_kind_of(b"%PDF-1.7"), Other);
+        assert_eq!(media_kind_of(b""), Other);
     }
 }

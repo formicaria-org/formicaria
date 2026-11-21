@@ -144,6 +144,12 @@ interface Native {
 const native = (): Native | undefined => (globalThis as { __fmPlayer?: Native }).__fmPlayer;
 /** The queue the native player holds (its songs' references), to know when it must be told again. */
 let handed = '';
+/** How many songs the native player last said it holds: none once Android stopped its service or it
+ *  was cleared behind the page (2026-11-21, found in the emulator: play then asked it for a song it no
+ *  longer had, and nothing played). `-1` until it has said. */
+let nativeCount = -1;
+/** Whether the native player still holds what the page handed it. */
+const stillHeld = () => handed === queueKey() && nativeCount !== 0;
 const queueKey = () => state.queue.map((t) => t.audio).join('|');
 
 /** Give the native player the queue, from `i` at `seconds`. */
@@ -174,6 +180,7 @@ async function handOver(i: number, play: boolean, seconds = 0) {
   n.modes(state.shuffle, state.repeat);
   n.volume(state.muted ? 0 : state.volume);
   handed = key;
+  nativeCount = items.length;
 }
 /** The queue changed while the native player plays: it is told again, where it is. */
 function resync() {
@@ -189,8 +196,10 @@ if (typeof window !== 'undefined')
         time: number;
         length: number;
         error: string;
+        count?: number;
       }>
     ).detail;
+    if (d && typeof d.count === 'number') nativeCount = d.count;
     if (!d || !handed) return;
     if (d.index >= 0 && d.index < state.queue.length && d.index !== state.at) {
       state.at = d.index;
@@ -304,7 +313,7 @@ function go(i: number, play: boolean) {
     state.failed = '';
     // As asked, until the native player says otherwise (its events follow within half a second).
     state.playing = play;
-    if (handed === queueKey()) {
+    if (stillHeld()) {
       native()!.jump(i);
       if (!play) native()!.pause();
     } else void handOver(i, play);
@@ -386,7 +395,7 @@ export function toggle() {
   if (!t) return;
   if (native()) {
     state.failed = '';
-    if (handed !== queueKey()) void handOver(state.at, true, state.time);
+    if (!stillHeld()) void handOver(state.at, true, state.time);
     else if (state.playing) native()!.pause();
     else native()!.play();
     return;
@@ -418,14 +427,14 @@ export function halt() {
 }
 
 export function next() {
-  if (native() && handed === queueKey()) return native()!.next();
+  if (native() && stillHeld()) return native()!.next();
   const n = following();
   if (n !== null) go(n, true);
 }
 
 /** Back to the start of the song; to the one before when already near its start, as players do. */
 export function previous() {
-  if (native() && handed === queueKey()) return native()!.previous();
+  if (native() && stillHeld()) return native()!.previous();
   const p = preceding();
   if (state.time > 3 || p === null) seek(0);
   else go(p, true);

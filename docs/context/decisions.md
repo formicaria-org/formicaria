@@ -16106,3 +16106,35 @@ every formicaria page, Settings included (`Feature.svelte` has carried it since 
 notes with +.
 **The four questions.** `#ui` `#toolchain`; extends two standing entries, reverses none; widens what
 ships (one more request from the kit to its own server, a bar in the window).
+
+## 2026-11-21 (later) — Audio in a note is music too; a playlist takes songs from anywhere; sound and video stay out of git unless the vault says `#data` `#ui` `#vault` `#git`
+
+The owner, after an album saved *Into the note* showed in the note and nowhere in the player: *"isn't a
+playlist a note with attachments? … what is the underlying difference?"*, then *"both"* (songs made on
+saving, and any note's audio playable); *"can I later easily create a playlist by taking songs from
+anywhere? It is a requirement of the music view"*; and *"a dedicated filter for not syncing all the
+heavy music part (user decides) in github. Restic is there to keep everything eventually."*
+
+1. **A track saved into a note is also a song** (or a video in Videos): `media::keep`'s *Into the
+   note* makes the song and embeds the same file in the note. One stored file, two references. The
+   phone and the computer share this step.
+2. **Notes with audio are listed in Music**, under *In your notes* (`music_notes`): a note's embedded
+   files that are *sound*, read off each file's first bytes (`fm_core::blob::media_kind`), songs
+   excluded. *Play* queues them as they are. *Add to playlist* makes them songs first
+   (`songs_from_note`: once, the same file, the note named in the song's text and its title as the
+   album), then the ordinary sheet. A playlist still links only songs (`music::playlists`, unchanged).
+3. **Requirement of the Music view: a playlist can take songs from anywhere**: Music's songs, albums,
+   artists and queue; Save media; a note's audio. A change that narrows this is a reversal and needs
+   its own entry.
+4. **Sound and video travel in git only where the vault says** (`vault.json`'s `git_sound`,
+   `git_video`, off by default), under `git_assets_max`. Settings → Vaults & backup has the two
+   switches. **One rule picks files for git** (`fm_core::blob::travels`): the commit, the count of
+   what is waiting, and the staged batches all ask it. **Extends** *Which attachments travel is a
+   per-vault size limit* (it decides what enters shared, permanent history, so it is the vault's,
+   not a device's). Lowering it, as before, does not untrack what already travelled.
+
+**Not done:** a per-track *Add to playlist* inside a note's own view. It is from Music, per note, and
+a note's tracks become songs, each with its own ⋯, once added. A song saved on the phone still has its
+file only on that device unless the switch above lets it travel; restic keeps it, but that is a
+backup, not a sync. **The four questions.** `#data` `#ui` `#vault` `#git`; extends three entries,
+reverses none; widens what ships (two read/write commands, two `vault.json` keys).

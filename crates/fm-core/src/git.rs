@@ -797,7 +797,8 @@ pub(crate) fn blobs_within_capped(
     vault: &Path,
     cap: Option<u64>,
 ) -> Result<Vec<String>, StoreError> {
-    let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
+    let desc = crate::descriptor::Descriptor::read(vault)?;
+    let Some(max) = desc.git_assets_max else {
         return Ok(Vec::new());
     };
     let max = crate::descriptor::effective_git_assets_max(max);
@@ -807,7 +808,11 @@ pub(crate) fn blobs_within_capped(
     let mut out: Vec<String> = store
         .blob_paths()
         .into_iter()
-        .filter(|p| std::fs::metadata(p).map(|m| m.len() <= max && m.len() > 0).unwrap_or(false))
+        .filter(|p| {
+            std::fs::metadata(p)
+                .map(|m| crate::blob::travels(&desc, p, m.len(), max))
+                .unwrap_or(false)
+        })
         .filter_map(|p| relative(vault, &p))
         .collect();
     out.sort();

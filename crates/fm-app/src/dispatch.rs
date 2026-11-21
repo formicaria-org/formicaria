@@ -863,6 +863,7 @@ const READ_ONLY: &[&str] = &[
     "log_recent",
     "music_library",
     "music_playlists",
+    "music_notes",
     // Videos (2026-11-17): reads, like Music's.
     "video_library",
     "video_collections",
@@ -2475,6 +2476,18 @@ fn dispatch_inner(
             let g = lock()?;
             json(scoped_infos(&g, scope))
         }
+        // **Whether sound and video travel with this vault's notes** (2026-11-21), under the size
+        // limit above; off by default. In the vault's own `vault.json`, like the limit.
+        "set_git_media" => {
+            let vault = s("vault");
+            let sound = args.get("sound").and_then(Value::as_bool).unwrap_or(false);
+            let video = args.get("video").and_then(Value::as_bool).unwrap_or(false);
+            let path = lock()?.config(scope, &vault)?.path;
+            fm_core::descriptor::Descriptor::set_git_media(&path, sound, video)
+                .map_err(|e| e.to_string())?;
+            let g = lock()?;
+            json(scoped_infos(&g, scope))
+        }
         // What would happen if we created a vault here — the form asks on every keystroke.
         "check_path" => {
             let path = resolve_path(&s("name"), &s("path"))?;
@@ -2953,6 +2966,57 @@ fn dispatch_inner(
         // (`decisions.md#ui`, 2026-11-13, *a sixth group, Music*).
         "music_library" => json(crate::music::library(&lock()?.store(scope)).map_err(err)?),
         "music_playlists" => json(crate::music::playlists(&lock()?.store(scope)).map_err(err)?),
+        // **Notes with audio in them** (2026-11-21): their embedded files that are sound, read off
+        // each file's first bytes, so Music can play a note and add it to a playlist.
+        "music_notes" => {
+            let mut g = lock()?;
+            let all = crate::music::embedded_files(&g.store(scope)).map_err(err)?;
+            json(sound_only(&g, scope, all))
+        }
+        // **A note's audio as songs** (2026-11-21): each embedded sound file with no song yet gets
+        // one — the same file, the note named as where it came from — in the note's own vault.
+        // Answers the songs' ids in the note's order, so a playlist can take them.
+        "songs_from_note" => {
+            let mut g = lock()?;
+            let all = crate::music::embedded_files(&g.store(scope)).map_err(err)?;
+            let want = s("note").to_ascii_uppercase();
+            let Some(note) = sound_only(&g, scope, all).into_iter().find(|n| n.id == want) else {
+                return Err("that note holds no audio".into());
+            };
+            let drafts: Vec<crate::log::NoteDraft> = note
+                .tracks
+                .iter()
+                .filter(|t| t.song.is_none())
+                .map(|t| crate::log::NoteDraft {
+                    title: if t.title.is_empty() { note.title.clone() } else { t.title.clone() },
+                    body: format!(
+                        "From [{}](note:{}).\n",
+                        note.title.replace(['[', ']'], ""),
+                        note.id
+                    ),
+                    props: [
+                        ("log".to_string(), Value::String(crate::music::MUSIC.into())),
+                        ("audio".to_string(), Value::String(t.reference.clone())),
+                        ("album".to_string(), Value::String(note.title.clone())),
+                    ]
+                    .into_iter()
+                    .collect(),
+                    ..Default::default()
+                })
+                .collect();
+            let made = if drafts.is_empty() {
+                Vec::new()
+            } else {
+                crate::log::create_notes(&mut g.store(scope), &note.vault, &drafts).map_err(err)?
+            };
+            let mut fresh = made.into_iter().map(|m| m.id);
+            let ids: Vec<String> = note
+                .tracks
+                .iter()
+                .filter_map(|t| t.song.clone().or_else(|| fresh.next()))
+                .collect();
+            json(ids)
+        }
         "video_library" => json(crate::video::library(&lock()?.store(scope)).map_err(err)?),
         "video_collections" => json(crate::video::collections(&lock()?.store(scope)).map_err(err)?),
         "log_recipes" => {
@@ -3655,6 +3719,10 @@ struct VaultInfo {
     /// what enters **shared, permanent history**: a per-device value would let the loosest
     /// machine choose for every collaborator, and a pushed commit cannot be un-pushed.
     git_assets_max: Option<u64>,
+    /// Whether sound and video travel too, under that limit (`vault.json`'s `git_sound`,
+    /// `git_video`); off by default.
+    git_sound: bool,
+    git_video: bool,
     /// **What to show instead of `name`** — the repository this vault is a clone of, when it has a
     /// remote: `…/formicarium-vault.git` → `formicarium-vault`. `None` for a vault with no remote,
     /// which keeps its local name.
@@ -5437,6 +5505,26 @@ fn refusal(c: &PathCheck, name: &str) -> String {
 /// and email besides. Each was written correctly in isolation; nothing checked the sum, which is
 /// what a duplicated two-line filter buys you. One function now, so the next arm that returns a
 /// vault list cannot quietly not have it.
+/// The notes' embedded files that are **sound**, read off each file's first bytes; a note left with
+/// none is dropped. A file that cannot be found here (not on this device) is left out.
+fn sound_only(
+    g: &Vaults,
+    scope: &Scope,
+    notes: Vec<crate::music::AudioNote>,
+) -> Vec<crate::music::AudioNote> {
+    notes
+        .into_iter()
+        .filter_map(|mut n| {
+            n.tracks.retain(|t| {
+                g.find_blob(scope, &t.reference, false)
+                    .map(|p| fm_core::blob::media_kind(&p) == fm_core::blob::MediaKind::Sound)
+                    .unwrap_or(false)
+            });
+            (!n.tracks.is_empty()).then_some(n)
+        })
+        .collect()
+}
+
 fn scoped_infos(g: &Vaults, scope: &Scope) -> Vec<VaultInfo> {
     let mine: Vec<VaultConfig> =
         g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
@@ -5491,6 +5579,8 @@ fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
             // malformed file is loudly an error; the vault *list* must not fail to render because
             // one vault has a typo in a setting.
             git_assets_max: desc.get(i).and_then(|d| d.as_ref().and_then(|d| d.git_assets_max)),
+            git_sound: desc.get(i).and_then(|d| d.as_ref().map(|d| d.git_sound)).unwrap_or(false),
+            git_video: desc.get(i).and_then(|d| d.as_ref().map(|d| d.git_video)).unwrap_or(false),
             supervision: {
                 let sup =
                     desc.get(i).and_then(|d| d.as_ref().map(|d| d.supervision)).unwrap_or_default();

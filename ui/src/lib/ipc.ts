@@ -896,6 +896,9 @@ export const assetUrl = (reference: string, kind: 'full' | 'thumb' = 'full') => 
 /// guess what was actually stored — the backend normalises the size and it comes back formatted.
 export const setGitAssetsMax = (vault: string, max: string) =>
   invoke<VaultInfo[]>('set_git_assets_max', { vault, max });
+/** Whether sound and video travel with this vault's notes, under its size limit. */
+export const setGitMedia = (vault: string, sound: boolean, video: boolean) =>
+  invoke<VaultInfo[]>('set_git_media', { vault, sound, video });
 
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
@@ -1564,6 +1567,22 @@ export interface Playlist {
 }
 /** Every playlist, by title. */
 export const musicPlaylists = () => invoke<Playlist[]>('music_playlists');
+/** **Audio in notes** (2026-11-21): a note's embedded sound files, each with the song that has the
+ *  same file, if one does (`music::AudioNote`). */
+export interface NoteTrack {
+  reference: string;
+  title: string;
+  song: string | null;
+}
+export interface AudioNote {
+  id: string;
+  title: string;
+  vault: string;
+  tracks: NoteTrack[];
+}
+export const musicNotes = () => invoke<AudioNote[]>('music_notes');
+/** A note's audio as songs (made once, the same file): their ids, in the note's order. */
+export const songsFromNote = (note: string) => invoke<string[]>('songs_from_note', { note });
 /** **Every video** (`log: video`, 2026-11-17) and the collections that link them. */
 export const videoLibrary = () => invoke<ObjectMeta[]>('video_library');
 export const videoCollections = () => invoke<Playlist[]>('video_collections');

@@ -35,6 +35,81 @@ pub fn library(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
         .collect())
 }
 
+/// **Audio a note holds** (the owner, 2026-11-21: *"isn't a playlist a note with attachments?"* —
+/// an album saved into a note played nowhere): a note's embedded files, in order, with the song
+/// that already has each file, if one does. Which of them are *sound* is the caller's to say (it
+/// knows where the files are), so this stays a pass over the notes.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct NoteTrack {
+    /// `sha256:…`.
+    pub reference: String,
+    /// The embed's own words (`![these](asset:…)`); empty when it has none.
+    pub title: String,
+    /// The song note with this same file, if there is one.
+    pub song: Option<String>,
+}
+
+/// A note with audio in it, other than a song: what Music lists under *In your notes*.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct AudioNote {
+    pub id: String,
+    pub title: String,
+    pub vault: String,
+    pub tracks: Vec<NoteTrack>,
+}
+
+/// Every note's embedded files (`![…](asset:sha256-…)`), songs excluded, each matched to the song
+/// that has the same file. Not yet sorted out by kind: see [`AudioNote`].
+pub fn embedded_files(store: &dyn Store) -> Result<Vec<AudioNote>, StoreError> {
+    let songs: std::collections::HashMap<String, String> = library(store)?
+        .into_iter()
+        .filter_map(|s| match s.props.get("audio") {
+            Some(serde_json::Value::String(a)) => Some((a.clone(), s.id.clone())),
+            _ => None,
+        })
+        .collect();
+    let q = Query { filter: notes_base(), sort: vec![SortKey::asc("title")], ..Default::default() };
+    Ok(store
+        .query(&q)?
+        .rows
+        .iter()
+        .filter(|o| o.get(LOG) != PropertyValue::Text(MUSIC.into()))
+        .filter_map(|o| {
+            let tracks: Vec<NoteTrack> = embeds(&o.body)
+                .into_iter()
+                .map(|(reference, title)| NoteTrack {
+                    song: songs.get(&reference).cloned(),
+                    reference,
+                    title,
+                })
+                .collect();
+            (!tracks.is_empty()).then(|| AudioNote {
+                id: o.id.to_string(),
+                title: o.title.clone().unwrap_or_default(),
+                vault: o.vault.clone(),
+                tracks,
+            })
+        })
+        .collect())
+}
+
+/// The embedded files of a body, in order: `![alt](asset:sha256-HEX)` → (`sha256:HEX`, `alt`).
+pub(crate) fn embeds(body: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut rest = body;
+    while let Some(at) = rest.find("](asset:sha256-") {
+        let alt =
+            rest[..at].rsplit("![").next().filter(|_| rest[..at].contains("![")).unwrap_or("");
+        let tail = &rest[at + "](asset:sha256-".len()..];
+        let hex: String = tail.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+        if hex.len() == 64 {
+            out.push((format!("sha256:{}", hex.to_ascii_lowercase()), alt.trim().to_string()));
+        }
+        rest = &tail[hex.len()..];
+    }
+    out
+}
+
 /// The tag that makes a note a playlist.
 pub const PLAYLIST: &str = "playlist";
 

@@ -646,14 +646,22 @@ fn file_it(
     };
     let (id, title) = match ask.into {
         Into::Note => {
+            // **Also a song (or a video), the same file** (the owner, 2026-11-21: an album saved into
+            // a note showed in the note and nowhere in the player). The player reads songs; the note
+            // keeps its attachment, and both point at the one stored file.
+            let draft = if ask.what == What::Video {
+                video_draft(asset, info, &ask.url, &ask.page)
+            } else {
+                song_draft(asset, info, &ask.url, &ask.page)
+            };
+            let (_, title) = made(draft)?;
             let r =
                 asset.assets.first().cloned().unwrap_or_default().replacen("sha256:", "sha256-", 1);
-            let name = info["title"].as_str().unwrap_or("media");
             call(
                 app,
                 host,
                 "put",
-                json!({ "to": { "note": ask.note }, "md": format!("![{}](asset:{r})\n", label(name)) }),
+                json!({ "to": { "note": ask.note }, "md": format!("![{}](asset:{r})\n", label(&title)) }),
             )?;
             return Ok(ask.note.clone());
         }
