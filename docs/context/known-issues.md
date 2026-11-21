@@ -3034,6 +3034,18 @@ environment; build from a `git worktree` with this checkout's environment instea
   of it has been tried on a phone; a large upload goes through the chunked path, untested with
   audio on a device.
 
+## Music on the phone: songs saved before 0.60.7 in Ogg (2026-11-21)
+
+- **A song kept *as the site serves it* in Ogg Vorbis on a phone before 0.60.7 may not play**: its tags
+  were written with `lofty`, which rewrote the comment header to an exact 32 × 255 bytes ended by a page
+  of one empty segment, and Android's player refuses it ("expected header type 5"). `fm_audio::write_tags`
+  now writes only MP3 and M4A. Such a song is skipped (the player goes on to the next) rather than
+  stopping everything; saving it again gives a good copy. The computer was not affected (its tags are
+  written by ffmpeg).
+- **The music player is gone through on both devices** by `ci/music-tour.js` (`usability-check`'s
+  *someone listening to a playlist*, `phone-media-check`'s *music:* checks): songs one after another and
+  every button of the deck.
+
 ## The release checks can fail on noise (2026-11-21)
 
 - **`browser-check`'s memory budget (+10 %)** failed twice on one day with formicaria's browser steady
@@ -3042,8 +3054,12 @@ environment; build from a `git worktree` with this checkout's environment instea
   timings.
 - **Its "toolbar is bare" check** failed once with the kit unchanged and passed on the rerun: the
   stylesheet may not be applied yet when it looks.
-- **`usability-check`'s test server** stopped once while setting its browser up; it now writes
-  `server.log` in its work folder, so the next time says why.
+- **`usability-check`'s browser setup** has twice come back *not installed* with no error. The second
+  time the server stayed up, and `server.log` holds only its two start lines, so the setup ended
+  quietly. A rerun passed (134 of 134). **The cause is not known.** It is not a race on `busy`, which
+  `start_setup` sets before its thread starts, and not a failed request, since `post` raises. So the
+  server answered *not busy, not installed, no error*: `setup()` may return `Ok` without installing.
+  The check now prints the whole status, phase included, so the next time can be read.
 
 ## Unused attachments, and Save media's queue across restarts (2026-11-21)
 

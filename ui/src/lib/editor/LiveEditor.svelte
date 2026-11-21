@@ -245,7 +245,10 @@
      size, with code in the fixed-width face. */
   .editor :global(.cm-scroller) {
     font-family: var(--font-sans);
-    font-size: var(--text-base);
+    /* `--text-md`, the reading view's (`app.css` `.read`): it was `--text-base`, a pixel smaller, so
+       the text shrank and its column narrowed when a click opened the editor (found measuring
+       reading width, 2026-11-21). */
+    font-size: var(--text-md);
     line-height: var(--lh-md);
     overflow: auto;
   }

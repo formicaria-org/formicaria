@@ -465,6 +465,145 @@ def storage_cleanup(ff: Path, work: Path) -> None:
     bc.stop(ff)
 
 
+READ_MEASURE_JS = r"""
+const read = document.querySelector('.read');
+const p = read && read.querySelector('p');
+const pane = document.querySelector('article.panel');
+if (!p || !pane) return null;
+const probe = document.createElement('span');
+probe.style.cssText = 'display:inline-block;width:1ch;visibility:hidden;position:absolute';
+p.appendChild(probe);
+const ch = probe.getBoundingClientRect().width;
+probe.remove();
+const pr = p.getBoundingClientRect();
+const t = read.querySelector(':scope > table');
+const tr = t ? t.getBoundingClientRect() : null;
+return {
+  chars: Math.round(pr.width / ch), text: Math.round(pr.width), pane: pane.clientWidth,
+  table: tr ? Math.round(tr.width) : 0, tableMid: tr ? Math.round(tr.left + tr.width / 2) : 0,
+  textMid: Math.round(pr.left + pr.width / 2), window: innerWidth,
+};
+"""
+
+
+def reading_width(ff: Path, work: Path) -> None:
+    """**Reading width** (the owner, 2026-11-21: a note on a laptop read *"super short in width"*).
+    On a 1920 × 1080 window: the text runs about 75 characters by default; Settings → Look → Reading
+    width, chosen in its own tab, changes the open note at once; ＋ → Full width widens one note; a
+    wide table grows past the text, centred; the editor keeps the width the note reads at."""
+    who = "someone reading on a wide laptop screen"
+    words = " ".join(["The quick brown fox jumps over the lazy dog, then naps."] * 30)
+    head = "| " + " | ".join(f"Column number {i}" for i in range(14)) + " |"
+    rule = "|" + "---|" * 14
+    row = "| " + " | ".join(f"value {i}" for i in range(14)) + " |"
+    made = bc.post("/api/create_notes", {"notes": [{"title": "Wide reading", "body": f"{words}\n\n{head}\n{rule}\n{row}\n", "props": {}}]})
+    nid = made[0]["id"]
+    m = launch(ff, work / "profile-width", f"{SERVER}/f/note/{nid}")
+    try:
+        m.cmd("WebDriver:SetWindowRect", {"width": 1920, "height": 1080})
+        time.sleep(6)
+        got = wait_for(m, READ_MEASURE_JS, 20) or {}
+        check(who, "by default a line holds about 75 characters (it was about 61)",
+              70 <= (got.get("chars") or 0) <= 80, str(got))
+        check(who, "a wide table grows past the text, up to the note, centred on the text",
+              got.get("table", 0) > got.get("text", 0) + 50 and got.get("table", 0) <= got.get("pane", 0)
+              and abs(got.get("tableMid", 0) - got.get("textMid", 0)) <= 2, str(got))
+        def val(r):  # Marionette answers some commands bare, some under "value"
+            return r.get("value", r) if isinstance(r, dict) else r
+        note_win = val(m.cmd("WebDriver:GetWindowHandle"))
+        win = val(m.cmd("WebDriver:NewWindow", {"type": "tab"}))
+        m.cmd("WebDriver:SwitchToWindow", {"handle": win["handle"] if isinstance(win, dict) else win})
+        m.cmd("WebDriver:Navigate", {"url": f"{SERVER}/f/settings"})
+        picked = wait_for(m, """const l = document.querySelector('[aria-label="reading width"]');
+                                const w = l && [...l.querySelectorAll('label')].find((x) => x.querySelector('.k')?.textContent.trim() === 'Wide');
+                                if (w) w.querySelector('input').click(); return !!w;""", 25)
+        check(who, "Settings → Look has Reading width", bool(picked))
+        m.cmd("WebDriver:SwitchToWindow", {"handle": note_win})
+        wide = wait_for(m, f"const r = (() => {{ {READ_MEASURE_JS} }})(); return r && r.chars >= 90 ? r : null;", 10) or {}
+        check(who, "Wide, chosen in the Settings tab, reaches the open note at once: about 100 characters",
+              92 <= (wide.get("chars") or 0) <= 108, str(wide))
+        content(m, "document.querySelector('button[aria-label=\"note options\"]').click(); return true;")
+        content(m, """const b = [...document.querySelectorAll('button.opt')].find((x) => x.textContent.trim() === 'Full width');
+                      if (b) b.click(); return !!b;""", 600)
+        full = wait_for(m, f"const r = (() => {{ {READ_MEASURE_JS} }})(); return r && r.text >= r.pane - 80 ? r : null;", 10) or {}
+        check(who, "＋ → Full width gives this note the whole width", bool(full), str(full))
+        content(m, "document.querySelector('button[aria-label=\"note options\"]').click(); return true;")
+        content(m, """const b = [...document.querySelectorAll('button.opt')].find((x) => x.textContent.trim() === 'Readable width');
+                      if (b) b.click(); return !!b;""", 600)
+        back = wait_for(m, f"const r = (() => {{ {READ_MEASURE_JS} }})(); return r && r.chars <= 108 ? r : null;", 10) or {}
+        check(who, "Readable width puts it back to the setting", 92 <= (back.get("chars") or 0) <= 108, str(back))
+        reading = back.get("text", 0)
+        content(m, "document.querySelector('.read p').click(); return true;", 300)
+        ed = wait_for(m, """const c = document.querySelector('.cm-content');
+                            if (!c) return null; const s = getComputedStyle(c);
+                            return c.getBoundingClientRect().width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);""", 10)
+        check(who, "being written, the text keeps the width it reads at", bool(ed) and abs(ed - reading) <= 24,
+              f"editor {ed} vs reading {reading}")
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001 - the browser gone takes the connection with it
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
+def tone(seconds: int, hz: int) -> bytes:
+    """A plain WAV of a tone, `seconds` long: a song every browser plays, made here, no download."""
+    import io
+    import math
+    import struct
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * hz * i / 8000)))
+                               for i in range(8000 * seconds)))
+    return buf.getvalue()
+
+
+def music_player(ff: Path, work: Path) -> None:
+    """**The music player, every button, and songs one after another** (the owner, 2026-11-21). Three
+    20-second tones as songs in a playlist; Play pressed as a mouse presses it; then `ci/music-tour.js`
+    goes through the deck as a person does and says what each button did."""
+    who = "someone listening to a playlist"
+    ids = []
+    for name, hz in [("Tone A", 330), ("Tone B", 440), ("Tone C", 550)]:
+        req = urllib.request.Request(f"{SERVER}/api/ingest?name={name.replace(' ', '-').lower()}.wav&vault=",
+                                     data=tone(20, hz), method="POST",
+                                     headers={"Content-Type": "application/octet-stream"})
+        ref = json.load(urllib.request.urlopen(req, timeout=30))["assets"][0]
+        made = bc.post("/api/create_notes", {"notes": [{"title": name, "props": {"log": "music", "audio": ref, "duration_s": 20}}]})
+        ids.append(made[0]["id"])
+    body = "".join(f"{i + 1}. [{t}](note:{n})\n" for i, (t, n) in enumerate(zip(["Tone A", "Tone B", "Tone C"], ids)))
+    bc.post("/api/create_notes", {"notes": [{"title": "Three tones", "tags": ["playlist"], "body": body, "props": {}}]})
+    m = launch(ff, work / "profile-music", f"{SERVER}/f/group/Music")
+    try:
+        time.sleep(6)
+        content(m, """const t = [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent.trim() === 'Playlists');
+                      if (t) t.click(); return !!t;""")
+        opened = wait_for(m, """const b = document.querySelector('button[aria-label="playlist Three tones"]');
+                                if (b) b.click(); return !!b;""", 20)
+        check(who, "the playlist is in Music", bool(opened))
+        time.sleep(2)
+        el = m.cmd("WebDriver:FindElement", {"using": "xpath", "value": "//button[normalize-space()='Play']"})["value"]
+        m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+        m.cmd("WebDriver:SetTimeouts", {"script": 600000})
+        m.s.settimeout(660)  # the tour takes minutes; the connection's own 30 s would give up first
+        tour = (ROOT / "ci" / "music-tour.js").read_text()
+        r = m.cmd("WebDriver:ExecuteScript", {"args": [["Tone A", "Tone B", "Tone C"]],
+                                              "script": f"return ({tour})(arguments[0]);"})
+        got = r["value"] if isinstance(r, dict) else r
+        m.s.settimeout(30)
+        for name, st in (got or {}).get("steps", {}).items():
+            check(who, name, st.get("ok"), st.get("said", ""))
+        if not (got or {}).get("steps"):
+            check(who, "the player could be gone through", False, str(got)[:300])
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001 - the browser gone takes the connection with it
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
 PRIVACY_PORT = 8794
 
 
@@ -1072,7 +1211,7 @@ def main() -> None:
                 break
             time.sleep(1)
         if s.get("error") or not s.get("installed"):
-            bc.fail(f"setup: {s.get('error')}")
+            bc.fail(f"setup: {s.get('error')} (the whole status: {json.dumps(s)[:400]})")
         ff = work / "config" / "formicaria" / "browser" / "firefox"
         # The media tools, kept between runs (yt-dlp and ffmpeg, ~150 MB): checked against the pins
         # by the server as on any computer; only not downloaded each time.
@@ -1088,6 +1227,8 @@ def main() -> None:
             "privacy": lambda: privacy_minded(ff, work),
             "settings": lambda: settings_alone(ff, work),
             "storage": lambda: storage_cleanup(ff, work),
+            "music": lambda: music_player(ff, work),
+            "width": lambda: reading_width(ff, work),
             "look": lambda: look(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),

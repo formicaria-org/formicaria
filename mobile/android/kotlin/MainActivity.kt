@@ -1009,11 +1009,16 @@ class MainActivity : TauriActivity() {
       p.playWhenReady = play
       listen(p)
     }
-    @JavascriptInterface fun play() = withPlayer { it.play() }
+    // A player left in its error state plays nothing until it is prepared again.
+    @JavascriptInterface fun play() = withPlayer { if (it.playerError != null) it.prepare(); it.play() }
     @JavascriptInterface fun pause() = withPlayer { it.pause() }
     @JavascriptInterface fun next() = withPlayer { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
     @JavascriptInterface fun previous() = withPlayer { it.seekToPrevious() }
-    @JavascriptInterface fun jump(index: Int) = withPlayer { it.seekTo(index, 0); it.play() }
+    @JavascriptInterface fun jump(index: Int) = withPlayer {
+      it.seekTo(index, 0)
+      if (it.playerError != null) it.prepare()
+      it.play()
+    }
     @JavascriptInterface fun seek(seconds: Double) = withPlayer { it.seekTo((seconds * 1000).toLong()) }
     @JavascriptInterface fun volume(v: Double) = withPlayer { it.volume = v.toFloat().coerceIn(0f, 1f) }
     @JavascriptInterface fun modes(shuffle: Boolean, repeat: String) = withPlayer {

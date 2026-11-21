@@ -5,6 +5,7 @@
   import SubsonicSection from './SubsonicSection.svelte';
   import { phoneVpn } from './privacy.svelte';
   import { tabBar, barPosition, setBarPosition } from './shell.svelte';
+  import { WIDTHS, readingWidth, setReadingWidth, type ReadingWidth } from './readingWidth.svelte';
   import BrowserSection from './BrowserSection.svelte';
   // Settings: what this installation is *actually* configured as.
   //
@@ -1403,6 +1404,39 @@
                 Move it to the {barPosition() === 'bottom' ? 'top' : 'bottom'}
               </button>
             </li>
+          </ul>
+        </section>
+      {/if}
+
+      {#if !isPhone()}
+        <!-- **Reading width** (`decisions.md` 2026-11-21; `reading-width-research-2026-11-21.md`):
+             named steps, as iA Writer and Bear offer them. Not on a phone, where a note is the
+             screen's width. -->
+        <section
+          data-cat="look"
+          data-words="width wide narrow line length text column readable full"
+        >
+          <h3>Reading width</h3>
+          <ManualLink page="user/appearance.html" section="reading-width" />
+          <p class="muted">
+            How wide a note's text runs. Stored in this browser. One note can use the full width
+            from its <strong>＋</strong> → <strong>Full width</strong>.
+          </p>
+          <ul class="caps" aria-label="reading width">
+            {#each WIDTHS as w (w.value)}
+              <li>
+                <label class="choice">
+                  <input
+                    type="radio"
+                    name="reading-width"
+                    checked={readingWidth() === w.value}
+                    onchange={() => setReadingWidth(w.value as ReadingWidth)}
+                  />
+                  <span class="k">{w.label}</span>
+                  <span class="muted">{w.why}</span>
+                </label>
+              </li>
+            {/each}
           </ul>
         </section>
       {/if}

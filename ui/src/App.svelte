@@ -27,6 +27,7 @@
   import { importShared, isWatchFile, startWatchFolder } from './lib/watchFiles.svelte';
   import { resumeQueue as resumeMediaQueue } from './lib/mediaRun';
   import { toast } from './lib/web/bridge.svelte';
+  import { touched as touchedLibrary } from './lib/libraryChanged.svelte';
   import { watchForUpdates, update as startUpdate } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { appToday, clockText, setAppClock } from './lib/appTime';
@@ -1589,7 +1590,10 @@
     // the phone, the browser's add-on, a put) moves the generation, and this tab re-reads straight
     // away instead of at its next beat. The beat stays for edits made outside formicaria.
     const stopChanges = ipc.listenChanges((g) => {
-      if (g > generation) void beat();
+      if (g > generation) {
+        void beat();
+        touchedLibrary();
+      }
     });
     if (!import.meta.env.PROD) return stopChanges;
 

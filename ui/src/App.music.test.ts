@@ -9,6 +9,7 @@ import * as nav from './lib/nav.svelte';
 import { clear as clearUndo } from './lib/undo.svelte';
 import * as trackers from './lib/trackers.svelte';
 import * as player from './lib/music/player.svelte';
+import { touched } from './lib/libraryChanged.svelte';
 
 const store = new Map<string, string>([['fm-trackers', '1']]);
 beforeEach(() => {
@@ -473,4 +474,26 @@ test('a note holding audio plays from Music and its tracks go into a playlist', 
     props: { audio: string };
   }[];
   expect(songs.map((s) => [s.title, s.props.audio])).toEqual([['First light', ref]]);
+});
+
+// **A playlist made elsewhere shows in an open Music** (2026-11-21: an album's playlist made by Save
+// media while Music was open never appeared — Music reloaded only when its own feed changed).
+test('a playlist written elsewhere shows in Music already open', async () => {
+  render(App);
+  await openMusic();
+  await fireEvent.click(screen.getByRole('tab', { name: 'Playlists' }));
+  await screen.findByText(/No playlists yet/);
+  await handle('create_notes', {
+    notes: [{ title: 'Made elsewhere', tags: ['playlist'], body: '', props: {} }],
+  });
+  // Chosen again, the tab reads again.
+  await fireEvent.click(screen.getByRole('tab', { name: 'Songs' }));
+  await fireEvent.click(screen.getByRole('tab', { name: 'Playlists' }));
+  expect(await screen.findByRole('button', { name: 'playlist Made elsewhere' })).toBeTruthy();
+  // And the library's signal alone loads it again, the tab untouched.
+  await handle('create_notes', {
+    notes: [{ title: 'Made later', tags: ['playlist'], body: '', props: {} }],
+  });
+  touched();
+  expect(await screen.findByRole('button', { name: 'playlist Made later' })).toBeTruthy();
 });

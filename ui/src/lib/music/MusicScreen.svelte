@@ -27,6 +27,7 @@
     type Playlist,
   } from '../ipc';
   import { tick } from 'svelte';
+  import { library, touched } from '../libraryChanged.svelte';
   import * as nav from '../nav.svelte';
   import type { ObjectMeta } from '../types';
   import Deck from './Deck.svelte';
@@ -74,6 +75,7 @@
   }
   $effect(() => {
     void signal;
+    void library.n;
     load();
   });
   /** After a playlist edit made here: ask again. */
@@ -207,6 +209,8 @@
   function choose(t: Tab) {
     tab = t;
     open = null;
+    // A tab chosen is read again: what was written elsewhere meanwhile shows (2026-11-21).
+    load();
   }
 
   // ── playing ──────────────────────────────────────────────────────────────────────────────────
@@ -311,6 +315,7 @@
   async function addNote(a: AudioNote) {
     try {
       const ids = await songsFromNote(a.id);
+      touched();
       const [s, p, n] = await Promise.all([musicLibrary(), musicPlaylists(), musicNotes()]);
       songs = s;
       lists = p;

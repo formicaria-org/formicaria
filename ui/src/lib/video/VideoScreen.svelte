@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { library } from '../libraryChanged.svelte';
   import { untrack } from 'svelte';
   // **Videos** (`decisions.md` 2026-11-17, *media from any site*; the owner: *"organizable in
   // collections? Just like songs"*): every video note (`log: video`), its collections (notes tagged
@@ -37,6 +38,7 @@
 
   $effect(() => {
     void signal;
+    void library.n;
     void videoLibrary()
       .then((v) => (videos = v))
       .catch((e) => (problem = String(e)));

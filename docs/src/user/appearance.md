@@ -15,6 +15,26 @@ travels with your notes.
 Answering any of them creates a theme called *My appearance* in your vault and switches to it. There
 is no save button: the change is written as you make it.
 
+## Reading width
+
+How wide a note's text runs on a computer, set in **Settings → Look → Reading width**:
+
+| Choice | Characters a line |
+|---|---|
+| Narrow | about 60 |
+| **Comfortable** (the default) | about 75 |
+| Wide | about 100 |
+| Full | the note's whole width |
+
+The text stays centred, with the same width when you read a note and when you write in it. Tables and
+blocks of code are allowed wider than the text, up to the note's width, and scroll sideways past
+that. To give **one note** the full width, open its **＋** and choose **Full width**. **Readable width**
+puts it back. Both choices are kept in this browser, so a phone and a paired tablet keep their own
+(a phone has no setting: there a note is the screen's width).
+
+Making the text bigger with **Ctrl +** (**⌘ +** on a Mac) enlarges the letters and the column together,
+so the number of characters a line stays the same.
+
 ## Starting from a suggestion
 
 Under **Start from a suggestion** are four ready-made themes. **Use** copies one into your vault as a

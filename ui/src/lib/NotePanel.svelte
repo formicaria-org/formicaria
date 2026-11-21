@@ -78,6 +78,8 @@
   import { startRecording, type Recording } from './record';
   import { DICTATION_SECS, hear } from './dictation';
   import { isRemote } from './remote';
+  import { isPhone } from './platform';
+  import { measureFor, fullWidth, setFullWidth } from './readingWidth.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -310,6 +312,22 @@
   // The pane's root, so a global key (Ctrl+S) can tell whether *this* pane in the
   // trail is the one being typed in.
   let paneEl = $state<HTMLElement | undefined>(undefined);
+  /// **How wide the text reads** (`readingWidth.svelte.ts`): the person's step, or this note's Full
+  /// width. The measure counts the text alone; the column adds its padding on both sides.
+  const readMax = $derived.by(() => {
+    const m = measureFor(id);
+    return m === 'none' ? 'none' : `calc(${m} + 2 * var(--space-5))`;
+  });
+  /// The pane's own width, for what may be wider than the text (a table, a block of code): it
+  /// grows past the column up to the pane, never past it (`.read :global(table)`).
+  let paneW = $state(0);
+  $effect(() => {
+    const el = paneEl;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => (paneW = el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
 
   // The **version** of the body this pane last saw — a hash, not the `updated` stamp — sent
   // back with every write so the server can refuse a save based on a body that has since
@@ -2783,7 +2801,15 @@
      flush its own, and the one that does not have any returns immediately. -->
 <svelte:document onvisibilitychange={onPageHidden} />
 
-<article class="panel" class:wide class:solo class:board-full={boardFull} bind:this={paneEl}>
+<article
+  class="panel"
+  class:wide
+  class:solo
+  class:board-full={boardFull}
+  bind:this={paneEl}
+  style:--read-max={readMax}
+  style:--pane-w={paneW ? `${paneW}px` : null}
+>
   {#if boardFull}
     <!-- The only chrome in full-screen: a small floating exit. Back button does the same. -->
     <button
@@ -2925,6 +2951,20 @@
                   }}
                 >
                   {isBoard || !wide ? 'Full screen' : 'Exit full screen'}
+                </button>
+              {/if}
+              {#if !isBoard && !isPhone()}
+                <!-- **Full width, this note only** (Notion's switch; `readingWidth.svelte.ts`). Not on a
+                     phone, where the note is already the screen's width. -->
+                <button
+                  class="opt"
+                  aria-pressed={fullWidth(id)}
+                  onclick={() => {
+                    optionsOpen = false;
+                    setFullWidth(id, !fullWidth(id));
+                  }}
+                >
+                  {fullWidth(id) ? 'Readable width' : 'Full width'}
                 </button>
               {/if}
               {#if isPaper && clipboardAvailable}
@@ -5150,10 +5190,11 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  /* Reading column capped at the measure and centered in wide/page mode. */
+  /* Reading column capped at the person's reading width (`--read-max`, set on the pane from
+     `readingWidth.svelte.ts`: the text's measure plus this padding) and centred. */
   .read {
     width: 100%;
-    max-width: var(--measure);
+    max-width: var(--read-max, calc(var(--measure) + 2 * var(--space-5)));
     margin: 0 auto;
     padding: var(--space-4) var(--space-5) var(--space-6);
     box-sizing: border-box;
@@ -5184,5 +5225,27 @@
   .new-shelf {
     flex: 1 1 8rem;
     min-width: 0;
+  }
+  /* **What may be wider than the text grows past the column, up to the pane** (Notion's full-width
+     tables; the research's fifth convention): a table or a block of code is as wide as it needs,
+     at least the text's width, at most the pane's, centred on the text, and scrolls sideways past
+     that. A narrow one sits where it always did, flush with the text. */
+  .read > :global(table),
+  .read > :global(pre) {
+    display: block;
+    overflow-x: auto;
+    box-sizing: border-box;
+    width: max-content;
+    min-width: 100%;
+    max-width: calc(var(--pane-w, 100%) - 2 * var(--space-5));
+    margin-left: 50%;
+    translate: -50% 0;
+  }
+  /* Being written, the text keeps the width it reads at: no jump when a click opens the editor. */
+  .editor-wrap :global(.cm-content) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--read-max, none);
+    margin-inline: auto;
   }
 </style>

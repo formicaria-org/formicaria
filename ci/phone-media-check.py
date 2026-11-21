@@ -636,6 +636,56 @@ COUNT_JS = r"""
 })()
 """
 
+# **The music player, every button, songs one after another** (the owner, 2026-11-21): three songs
+# saved above, at least half a minute each, put in a playlist; Music → Playlists → it → Play, as a person
+# does; then `ci/music-tour.js`, the same walk formicaria's browser gets in `usability-check`.
+MUSIC_SETUP_JS = r"""
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  const inv = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke('fm', { cmd, args })
+    .then((t) => (typeof t === 'string' ? JSON.parse(t) : t));
+  const lib = await inv('music_library');
+  const long = lib.filter((n) => (n.props.duration_s || 0) >= 30);
+  const three = (long.length >= 3 ? long : lib).slice(0, 3);
+  if (three.length < 3) return { error: `only ${three.length} songs saved above` };
+  const body = three.map((n, i) => `${i + 1}. [${n.title}](note:${n.id})`).join('\n') + '\n';
+  await inv('create_notes', { notes: [{ title: 'Three songs', tags: ['playlist'], body, props: {} }] });
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 30);
+  if (!plus) return { error: 'no +' };
+  plus.click();
+  const music = await until(() => [...document.querySelectorAll('ul[aria-label=features] button')].find((b) => b.textContent.trim() === 'Music'), 15);
+  if (!music) return { error: 'no Music' };
+  music.click();
+  // **Within the Music screen just opened** (2026-11-21): an earlier case leaves another Music open,
+  // and every list has its own Play — the first in the page played that one's songs instead.
+  const box = () => [...document.querySelectorAll('.music-box')].filter((b) => b.offsetParent !== null).pop();
+  const tab = await until(() => box() && [...box().querySelectorAll('[role=tab]')].find((b) => b.textContent.trim() === 'Playlists'), 30);
+  if (!tab) return { error: 'no Playlists tab' };
+  tab.click();
+  const list = await until(() => box() && box().querySelector('button[aria-label="playlist Three songs"]'), 30);
+  if (!list) return { error: 'the playlist is not listed' };
+  list.click();
+  // Its own Play, once it is drawn: right after the press the Playlists tab is still on screen, with
+  // *In your notes* and its Play buttons, which play a note's recording instead (2026-11-21).
+  const play = await until(() => box() && box().querySelector('ul[aria-label="songs of Three songs"]')
+    && box().querySelector('.bulk button.go'), 15);
+  if (!play) return { error: 'no Play in the playlist' };
+  const rows = box().querySelectorAll('li').length;
+  const lists = document.querySelectorAll('button[aria-label="playlist Three songs"]').length;
+  const disabled = play.disabled;
+  play.click();
+  await sleep(3000);
+  const deckNow = [...document.querySelectorAll('section[aria-label="music player"] .sr')].map((e) => e.textContent.trim());
+  return { titles: three.map((n) => n.title), seen: { rows, lists, disabled, deckNow, boxes: document.querySelectorAll('.music-box').length } };
+})()
+"""
+
 # **A case's page closed once it is done**, as a person closes a tab: the app holds at most eight
 # panes (`MAX_PANES`, `ui/src/lib/panes.ts`) and refuses a ninth, which the privacy check's own pages
 # then were (2026-11-20, after the Bandcamp case made eight). Only a web page in front is closed —
@@ -1098,6 +1148,20 @@ def main() -> None:
                   f"{got.get('error') or got.get('said') or got}")
             check("its position moves on while it plays", (got.get("time") or 0) >= 2,
                   f"reached {got.get('time')} s; {got.get('events')} reports from the player")
+        # Last of the music: it leaves a playlist open on the Music screen.
+        if not only or "music" in only:
+            setup = cdp.evaluate(MUSIC_SETUP_JS) or {}
+            say(f"the music player: {json.dumps(setup)[:400]}")
+            if setup.get("titles"):
+                tour = (ROOT / "ci" / "music-tour.js").read_text()
+                got = cdp.evaluate(f"({tour})({json.dumps(setup['titles'])})") or {}
+                for step, st in (got.get("steps") or {}).items():
+                    check(f"music: {step}", st.get("ok"), st.get("said", ""))
+                if not got.get("steps"):
+                    check("music: the player could be gone through", False, str(got)[:300])
+                cdp.evaluate("try { window.__fmPlayer.stop(); } catch (e) {} true")
+            else:
+                check("music: a playlist of three songs plays", False, str(setup)[:300])
         # **The usage diary** (`fm_app::diary`, 2026-11-20): on by default, and this run in it — its
         # start and its commands — read through the app as Settings reads it.
         got = cdp.evaluate(DIARY_JS) or {}

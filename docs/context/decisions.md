@@ -16177,3 +16177,27 @@ song's note held the rest, *"do all three and release when done"*.
 
 **The four questions.** `#vault` `#ui` `#data`; amends one entry (banner), extends two; widens what
 ships (three commands, a held folder per vault, a key on the device for the queue).
+
+## 2026-11-21 (evening) — Reading width: four named steps, a per-note Full width, wide tables break out `#ui`
+
+**Asked:** the owner, on a laptop: a note read *"super short in width"*. They asked for research on
+what other apps and the usability literature do, then *"go with your recommendation"*. The research
+is in `reading-width-research-2026-11-21.md`.
+
+**Ruled:**
+1. **Settings → Look → Reading width**: Narrow 60 · **Comfortable 75 (default)** · Wide 100 · Full,
+   in characters of **text** (`--measure` no longer includes the column's padding; it was 68ch with
+   the padding, ≈ 61ch of text). Computer only; kept in the browser (`fm-reading-width`), like the
+   theme and the bar's place, and carried to every open tab by the `storage` event.
+2. **A note's ＋ → Full width / Readable width**, this note only, kept on the device
+   (`fm-full-width`, the newest 500 ids). A layout choice is not the note's content: no file is
+   rewritten, and a phone does not inherit a laptop's choice.
+3. **A table or block of code that is a direct child of the text** may grow past the column, up to
+   the pane, centred on it. It is never narrower than the text, and scrolls past the pane.
+4. **The editor keeps the reading width**: before this it ran the full pane while the reading view
+   was capped, so the text jumped when a click opened it.
+5. No new shortcut (Obsidian's Ctrl/Cmd+Shift+E is Firefox's Network monitor). Ctrl +/− keeps the
+   characters a line, since the measure is in `ch`.
+
+**The four questions.** `#ui`; permitted (extends *Look*, already "this browser" for theme and bar);
+widens what ships only by two device keys. Supersedes nothing.

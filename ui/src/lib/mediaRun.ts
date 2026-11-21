@@ -3,6 +3,7 @@
 // `MediaRun.kt`) and the core says what to ask and files the finished file (`fm_app::media::keep`),
 // the same as the computer's. The sheet (`SaveMedia.svelte`) asks only this.
 import * as ipc from './ipc';
+import { touched } from './libraryChanged.svelte';
 
 interface Shell {
   workDir(): string;
@@ -111,7 +112,10 @@ export async function jobs(): Promise<ipc.MediaJob[]> {
       }
       void ipc
         .mediaKeep(ask, j.file, info, `media-${j.id}`)
-        .then((r) => ended.set(id, { ...base, state: 'done', progress: 1, note: r.note }))
+        .then((r) => {
+          ended.set(id, { ...base, state: 'done', progress: 1, note: r.note });
+          touched();
+        })
         .catch((e) => ended.set(id, { ...base, state: 'failed', error: String(e) }))
         .finally(() => s.forget(j.id));
     } else if (j.state === 'failed') {
@@ -232,7 +236,10 @@ export async function saveEach(list: ipc.MediaAsk[], onstart: (id: number) => vo
               continue;
             }
             if (!j) missing++;
-            else if (['done', 'failed', 'cancelled'].includes(j.state)) break;
+            else if (['done', 'failed', 'cancelled'].includes(j.state)) {
+              touched();
+              break;
+            }
           }
         }
       }

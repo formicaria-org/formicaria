@@ -139,8 +139,16 @@ pub struct Tags {
 
 /// **Write the tags into `path`** (an MP3 or an M4A), before it is stored: a stored file is never
 /// rewritten (its name is its hash).
+///
+/// **Any other kind is left exactly as it came** (2026-11-21, found in the emulator): an Ogg Vorbis
+/// file's comment header was rewritten to an exact 32 × 255 bytes ended by a page holding one empty
+/// segment — legal, but Android's player then read garbage where the setup header is ("expected
+/// header type 5"), refused the song, and stopped. The note carries the title and artist anyway.
 pub fn write_tags(path: &Path, t: &Tags) -> Result<(), String> {
     let mut file = lofty::read_from_path(path).map_err(|e| e.to_string())?;
+    if !matches!(file.file_type(), lofty::file::FileType::Mpeg | lofty::file::FileType::Mp4) {
+        return Ok(());
+    }
     let kind = file.primary_tag_type();
     if file.tag(kind).is_none() {
         file.insert_tag(Tag::new(kind));
@@ -248,5 +256,25 @@ mod tests {
         assert!(to_mp3(&bad, &d.path().join("x.mp3"), "v2")
             .unwrap_err()
             .contains("cannot be read"));
+    }
+
+    /// An Ogg (or any kind but MP3 and M4A) is left byte for byte as it came: rewriting its comment
+    /// header broke it for Android's player (2026-11-21).
+    #[test]
+    fn an_ogg_file_is_left_as_it_came() {
+        let d = tempfile::tempdir().unwrap();
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tone.ogg");
+        let p = d.path().join("tone.ogg");
+        std::fs::copy(&src, &p).unwrap();
+        write_tags(
+            &p,
+            &Tags {
+                title: Some("BWV 565".into()),
+                cover: Some(vec![0x89, b'P', b'N', b'G']),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), std::fs::read(&src).unwrap());
     }
 }

@@ -65,7 +65,7 @@ Eleven, by what a person comes to do. *Italic* = new or moved.
 
 | Category | What it holds | From |
 |---|---|---|
-| **Look** | Theme, accent, text size, font, theme files; layout (one view/tiled), columns; *the bar's place (phone)* | Look |
+| **Look** | Theme, accent, text size, font, theme files; **reading width** (Narrow 60 · Comfortable 75 · Wide 100 · Full; computer only — `reading-width-research-2026-11-21.md`); layout (one view/tiled), columns; *the bar's place (phone)* | Look |
 | **Notes & vaults** | Vaults (create, move, remove, add back), *the vault new notes go into*, *which vaults to show*, *your name and email* (once, used by every vault), *the vault list's place* | Vaults & backup, toolbar, About |
 | **Backup & sync** | *Backs up by itself*, where notes are copied to (remote, token), snapshots (restic repo, password), *which attachments travel* (size, music, videos), *Back up now / Get changes / Take a snapshot* | Vaults & backup, Back up menu |
 | **Storage** | *Space used per vault*, unused attachments (look, remove, put back) | Vaults & backup |

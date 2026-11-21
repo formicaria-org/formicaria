@@ -8,6 +8,7 @@
   import { onDestroy, onMount } from 'svelte';
   import * as ipc from './ipc';
   import * as run from './mediaRun';
+  import { touched as touchedLibrary } from './libraryChanged.svelte';
   import type { Candidate } from './web/media';
 
   let {
@@ -154,7 +155,9 @@
 
   async function poll() {
     try {
+      const before = new Set(jobs.filter((j) => j.state === 'done').map((j) => j.id));
       jobs = await run.jobs();
+      if (jobs.some((j) => j.state === 'done' && !before.has(j.id))) touchedLibrary();
     } catch {
       /* asked again in a second */
     }

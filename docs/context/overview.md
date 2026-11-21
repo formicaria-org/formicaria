@@ -21,10 +21,10 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | The **phone / Android** build (mobile shell, jniLibs) | `mobile-design.md`; `decisions.md#track-m`; `fdroid-distribution-plan-2026-10-30.md` |
 | The **study assistant / agent** (`fm-agent*`, models, first enable, per-OS support) | **its own repo since 2026-10-18: github.com/formicaria-org/myrme** (code, plan, contract, evals), pinned by tag; [its router](../../../myrme/docs/context/overview.md) and [release table](../../../myrme/docs/context/releases.md) in a sibling checkout · **`decisions.md#agent`** — every ruling to then, with "read before" guards on `unavailable()`, `SystemMonitor::sample`, `die_with_supervisor`, the launch path and `models.toml`'s runtime keys · `model-selection-research-2026-07-24-grounded.md` (choosing a model) · `agent-simplification-plan-2026-10-09.md` · `phone-image-to-text-alternatives-2026-10-10.md` · `tools-plan-2026-10-11.md` · `groups-plan-2026-10-12.md` · `sources-2026-10-11.md` · *(superseded by its own delivery: `archive/ai-agents-plan-superseded-2026-09-02.md`)* |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
-| **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
+| **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices can run; corrects `outstanding.md` §2.4. Field survey: `transcription-specialists-survey-2026-08-31.md`. Neither picks |
 | **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
 | **Music** | `music-plan-2026-11-13.md` (M1–M5 first) |
-| **Settings** | `settings-plan-2026-11-21.md` |
+| **Settings**; how wide a note reads | `settings-plan-2026-11-21.md` · `reading-width-research-2026-11-21.md` |
 | **Where code lives; the size budget** (adding a crate, module, phone feature) | `structure.md` |
 | **Making formicaria leaner** | `lean-plan-2026-11-18.md` |
 | **Stronger privacy** | `privacy-plan-2026-11-19.md` · `privacy-baseline-2026-11.md` |

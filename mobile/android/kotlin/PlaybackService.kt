@@ -21,6 +21,21 @@ class PlaybackService : MediaSessionService() {
       .setHandleAudioBecomingNoisy(true)
       .build()
     player = p
+    // **One song the player cannot read does not stop the rest** (2026-11-21, found in the
+    // emulator: a malformed Ogg left the player in its error state, and nothing played again until
+    // the app restarted). The next song is played; at the end of the list it is made ready for the
+    // next press instead.
+    p.addListener(object : Player.Listener {
+      override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+        if (p.hasNextMediaItem()) {
+          p.seekToNextMediaItem()
+          p.prepare()
+          p.play()
+        } else {
+          p.prepare()
+        }
+      }
+    })
     session = MediaSession.Builder(this, p).build()
     // Everything asked before the player existed, in the order asked.
     val asked = synchronized(pending) { pending.toList().also { pending.clear() } }
