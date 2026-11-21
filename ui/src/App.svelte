@@ -25,7 +25,7 @@
   } from './lib/web/bridge.svelte';
   import BringToast from './lib/BringToast.svelte';
   import { importShared, isWatchFile, startWatchFolder } from './lib/watchFiles.svelte';
-  import { watchForUpdates } from './lib/updater.svelte';
+  import { watchForUpdates, update as startUpdate } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { appToday, clockText, setAppClock } from './lib/appTime';
   import { clock as readClock } from './lib/ipc';
@@ -2180,6 +2180,13 @@
     // **A study room or a catalogue by its address** (workspace-design §11, D1–D2): what a tab of
     // the collection opens. `&tab` marks one opened from a tab: the tabs are then the list of what is
     // open, so the app keeps few windows of its own and lets the oldest go.
+    // **`#update`**: formicaria's browser's own bar was pressed (`formicaria.cfg`, `offerUpdate`) —
+    // the one press, done here where open notes are saved first.
+    if (location.hash === '#update') {
+      history.replaceState(history.state, '', location.pathname + location.search);
+      void startUpdate();
+      return;
+    }
     const v = /^#view=([^&]+)(&tab)?$/.exec(location.hash);
     const m = /^#note=([0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26})(&tab)?$/.exec(location.hash);
     if (!m && !v) return;

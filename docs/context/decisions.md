@@ -16076,3 +16076,33 @@ Checked against Gadgetbridge's source at `93d4d79` (2026-11-19): `IntentApiRecei
 watch.** **The four questions.** `#track-m` `#data`; extends *The phone takes watch files* without
 reversing anything, and keeps *Play Protect's verdict cleared* (no receiver, no permission); widens
 what ships (a `<queries>` entry naming one app, a broadcast sent when the person asks).
+
+## 2026-11-21 — The notes open beside a restored Settings; the browser's own bar offers an update `#ui` `#toolchain`
+
+**Found on a laptop:** every start showed Settings alone, and closing it ended formicaria. Two standing
+rules met. First, the start rule (`formicaria.cfg`, `keepToOurTabs`) opened the notes only if *no* tab
+on formicaria's address came back, and a restored `/f/settings` is one. Second, the watchdog
+(`main.rs`, `spawn_watchdog`) ends the program 8 s after every page has said goodbye, as decided. A
+session that once ended on Settings alone was a trap from then on, and the update line, drawn in the
+notes, was never seen. The owner: *"other people will have this issue: we need to provide seamless
+ways to update in these cases"*; asked whether updates should install by themselves, the owner kept
+the one-press rule.
+
+1. **The notes open whenever no restored tab is the notes.** Settings, Privacy, Save media and the
+   new tab are formicaria's pages, not the notes (`notesTab`). The watchdog is unchanged: closing the
+   last page still closes the program.
+2. **The browser's own bar offers an update, above every tab** (`offerUpdate`). It asks the server
+   the same question the notes' line asks (`/api/update_status`), at start and every quarter of an
+   hour, and shows only where this copy can install it (`can_install`). *Update* brings a tab of the
+   notes forward and starts the one press there (`#update`, read by `Feature.svelte` and
+   `App.svelte`), so open notes are saved first. *Later* waits three days for that version, as the
+   notes' line does. **Extends** *an update is one press, and the app offers it where people are*
+   (2026-10-29); nothing installs unasked.
+3. **Tested where it happens:** `usability-check`'s *left on Settings* (fails without item 1) and
+   *update bar* cases, in formicaria's browser.
+
+**Copies already out (to 0.60.3)** keep their old start rule. Their way out is the update line on
+every formicaria page, Settings included (`Feature.svelte` has carried it since 0.50), or opening the
+notes with +.
+**The four questions.** `#ui` `#toolchain`; extends two standing entries, reverses none; widens what
+ships (one more request from the kit to its own server, a bar in the window).

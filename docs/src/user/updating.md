@@ -2,8 +2,10 @@
 
 ## From 0.5.2 on, formicaria updates itself
 
-**formicaria says when a newer version is out**, in a line at the top of the window: press
-**Update** and it does the rest. (Before 0.22.0 this was only in **Settings → About & updates**, in
+**formicaria says when a newer version is out**, in a line at the top of every formicaria page:
+press **Update** and it does the rest. On a computer, formicaria's browser also shows it in its own
+bar, above whatever tab is in front — Settings, or a web page — and that **Update** brings your notes
+forward and updates from there; **Later** waits three days. (Before 0.22.0 this was only in **Settings → About & updates**, in
 three presses.) formicaria asks GitHub every hour, while it runs and when it starts, and **Check now** in Settings asks straight away;
 nothing about you, this computer or your notes is sent.
 

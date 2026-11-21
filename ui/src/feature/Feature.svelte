@@ -2,12 +2,24 @@
   import { toggledTheme } from '../lib/start';
   import UpdateBanner from '../lib/UpdateBanner.svelte';
   import BrowserRestartBanner from '../lib/BrowserRestartBanner.svelte';
-  import { watchForUpdates } from '../lib/updater.svelte';
+  import { watchForUpdates, update as startUpdate } from '../lib/updater.svelte';
   import { untrack as untrackUpdates } from 'svelte';
   // **A newer version is offered on every page** (the owner on 0.49/0.50: *"impossible for me to
   // upgrade from within, all options disappeared"*). The check and the banner lived in the old
   // whole-app page, which formicaria's browser no longer shows; each feature page watches now.
   $effect(() => untrackUpdates(watchForUpdates));
+  // **`#update`**: the browser's own bar was pressed (`formicaria.cfg`, `offerUpdate`, 2026-11-21) —
+  // the one press, done here where open notes are saved first; on load, or on a tab already open.
+  $effect(() => {
+    const take = () => {
+      if (location.hash !== '#update') return;
+      history.replaceState(history.state, '', location.pathname + location.search);
+      void untrackUpdates(startUpdate);
+    };
+    take();
+    window.addEventListener('hashchange', take);
+    return () => window.removeEventListener('hashchange', take);
+  });
   import SaveMedia from '../lib/SaveMedia.svelte';
   import type { Candidate } from '../lib/web/media';
   /** What the add-on found on the page (`#` + JSON: the page and its media). */

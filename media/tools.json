@@ -43,10 +43,10 @@
         "probe_sha256": "6ef2df5f575042923a28537ab37adf936f28bf3e7b85de23a1447ed447ec1dbd"
       },
       "mac-x86_64": {
-        "url": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1789931006_9.0.2/ffmpeg.zip",
-        "sha256": "7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4",
-        "probe_url": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1789931006_9.0.2/ffprobe.zip",
-        "probe_sha256": "2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd"
+        "url": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1795212433_9.1/ffmpeg.zip",
+        "sha256": "35b3d82cccc2c1d644d49d15f5e57eb913a08ef68f798042c90eecec62c51f1e",
+        "probe_url": "https://ffmpeg.martin-riedl.de/download/macos/amd64/1795212433_9.1/ffprobe.zip",
+        "probe_sha256": "41ca7b7cba7992e33f1da3f1bf54db8ec103a4d387b1bfac3162062e8b1074ad"
       },
       "win64": {
         "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.1-essentials_build.zip",

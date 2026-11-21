@@ -294,6 +294,130 @@ def opening_on_a_second_day(ff: Path) -> None:
         bc.stop(ff)
 
 
+def left_on_settings(ff: Path) -> None:
+    """**A session that ended on Settings alone** (2026-11-21, on a laptop: every start showed
+    Settings alone, the notes never opened, and closing Settings closed the last tab, which ends the
+    program). Left so, opened again: the notes must open beside it, and closing Settings must leave
+    them open."""
+    who = "someone whose last session ended on Settings alone"
+    is_notes = lambda u: "/f/group/" in u or u.rstrip("/") == SERVER  # noqa: E731
+    settings = f"{SERVER}/f/settings"
+
+    def quit_browser(m) -> None:
+        try:
+            m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+        except Exception:  # noqa: BLE001 - the connection goes with the browser
+            pass
+        for _ in range(60):
+            if not bc.procs_under(ff):
+                break
+            time.sleep(0.5)
+        bc.stop(ff)
+
+    bc.post("/api/browser_open")
+    m = bc.Marionette()
+    m.cmd("WebDriver:NewSession", {"capabilities": {}})
+    for _ in range(80):
+        if tabs_now(m):
+            break
+        time.sleep(0.25)
+    # After the start's own look (four seconds in), so it cannot add a tab to the one being set up.
+    time.sleep(6)
+    chrome(m, """for (const t of [...gBrowser.tabs]) if (t !== gBrowser.selectedTab) gBrowser.removeTab(t);
+                 return true;""")
+    goto(m, settings, 3)
+    left = tabs_now(m)
+    check(who, "set up: one tab, Settings", left == [settings], f"tabs: {left}")
+    quit_browser(m)
+
+    bc.post("/api/browser_open")
+    m = bc.Marionette()
+    m.cmd("WebDriver:NewSession", {"capabilities": {}})
+    seen: list = []
+    for _ in range(60):  # the startup script looks four seconds after the session came back
+        seen = tabs_now(m)
+        if any(is_notes(u) for u in seen):
+            break
+        time.sleep(0.25)
+    check(who, "the next start opens the notes beside the Settings it left",
+          any(is_notes(u) for u in seen) and settings in seen, f"tabs: {seen}")
+    # Settings closed as a person closes a tab.
+    chrome(m, f"""const t = [...gBrowser.tabs].find((x) => x.linkedBrowser.currentURI.spec === {json.dumps(settings)});
+                  if (t) gBrowser.removeTab(t); return !!t;""")
+    time.sleep(2)
+    after = tabs_now(m) if bc.procs_under(ff) else []
+    check(who, "closing Settings leaves the notes open, and the program with them",
+          any(is_notes(u) for u in after) and settings not in after, f"tabs: {after}")
+    quit_browser(m)
+
+
+def update_bar(ff: Path) -> None:
+    """**A newer formicaria, offered above every tab** (2026-11-21: a person on Settings alone never
+    saw the notes' update line). The browser's own bar, handed what the server says when a newer
+    version can be installed here: it shows over a web page or Settings, *Update* brings a tab of the
+    notes forward and starts the one press there, *Later* puts it away for that version."""
+    who = "someone on a page that is not the notes, with an update out"
+    bc.post("/api/browser_open")
+    m = bc.Marionette()
+    m.cmd("WebDriver:NewSession", {"capabilities": {}})
+    for _ in range(80):
+        if tabs_now(m):
+            break
+        time.sleep(0.25)
+    goto(m, f"{SERVER}/f/settings", 3)
+    offer = {"available": "v99.0.0", "current": "v0.60.3", "can_install": True}
+    probe = """
+      const box = window.gNotificationBox;
+      const n = box && box.getNotificationWithValue('formicaria-update');
+      if (!n) return null;
+      const all = [...n.querySelectorAll('button'), ...(n.shadowRoot ? n.shadowRoot.querySelectorAll('button') : [])];
+      return { text: (n.messageText && n.messageText.textContent) || n.getAttribute('message') || n.textContent || '',
+               buttons: all.map(b => (b.label || b.textContent || '').trim()).filter(Boolean) };"""
+    chrome(m, "Services.prefs.clearUserPref('formicaria.update.later'); "
+              f"return window.formicariaUpdateShow({json.dumps(offer)}).then(() => true)")
+    bar = chrome(m, probe)
+    check(who, "the browser's bar offers it over Settings", bool(bar) and "v99.0.0" in json.dumps(bar), str(bar))
+    check(who, "with Update and Later", bool(bar) and {"Update", "Later"} <= set(bar.get("buttons", [])), str(bar))
+    # Update, pressed as a person presses it: the notes come forward and take the one press.
+    pressed = chrome(m, """
+      const n = window.gNotificationBox.getNotificationWithValue('formicaria-update');
+      const all = [...n.querySelectorAll('button'), ...(n.shadowRoot ? n.shadowRoot.querySelectorAll('button') : [])];
+      const b = all.find(x => (x.label || x.textContent || '').trim() === 'Update');
+      if (!b) return 'no Update button';
+      b.click(); return 'pressed';""")
+    shown = ""
+    for _ in range(40):
+        shown = chrome(m, "return window.gBrowser.selectedBrowser.currentURI.spec")
+        if "/f/group/" in shown and "#update" not in shown:
+            break
+        time.sleep(0.25)
+    check(who, "Update brings the notes forward, and the page takes the press",
+          pressed == "pressed" and "/f/group/" in shown and "#update" not in shown, f"{pressed}; shown {shown}")
+    # Later: away for that version.
+    chrome(m, f"return window.formicariaUpdateShow({json.dumps(offer)}).then(() => true)")
+    later = chrome(m, """
+      const n = window.gNotificationBox.getNotificationWithValue('formicaria-update');
+      if (!n) return 'no bar';
+      const all = [...n.querySelectorAll('button'), ...(n.shadowRoot ? n.shadowRoot.querySelectorAll('button') : [])];
+      const b = all.find(x => (x.label || x.textContent || '').trim() === 'Later');
+      if (!b) return 'no Later button';
+      b.click(); return 'pressed';""")
+    time.sleep(1)
+    chrome(m, f"return window.formicariaUpdateShow({json.dumps(offer)}).then(() => true)")
+    again = chrome(m, probe)
+    check(who, "Later puts it away for that version", later == "pressed" and not again, f"{later}; {again}")
+    chrome(m, "Services.prefs.clearUserPref('formicaria.update.later'); return true")
+    try:
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception:  # noqa: BLE001 - the connection goes with the browser
+        pass
+    for _ in range(60):
+        if not bc.procs_under(ff):
+            break
+        time.sleep(0.5)
+    bc.stop(ff)
+
+
 PRIVACY_PORT = 8794
 
 
@@ -429,8 +553,12 @@ def settings_alone(ff: Path, work: Path) -> None:
         time.sleep(2)
 
     try:
-        # One tab, as restored: any other the start opened is closed first.
-        chrome(m, """for (const t of [...gBrowser.tabs]) if (t !== gBrowser.selectedTab) gBrowser.removeTab(t);
+        # One tab, Settings: any other the start opened is closed first — the notes too, which the
+        # start now opens beside a Settings that came back alone (`left_on_settings`, 2026-11-21).
+        chrome(m, """const keep = [...gBrowser.tabs].find((t) => t.linkedBrowser.currentURI.spec.includes('/f/settings'))
+                       || gBrowser.selectedTab;
+                     gBrowser.selectedTab = keep;
+                     for (const t of [...gBrowser.tabs]) if (t !== keep) gBrowser.removeTab(t);
                      return true;""")
         shown = wait_for(m, "return !!document.querySelector('[role=dialog], .panel')", 20)
         check(who, "Settings shows on its own page", bool(shown))
@@ -904,7 +1032,10 @@ def main() -> None:
             shutil.copytree(TOOLS_CACHE, tools, dirs_exist_ok=True)
         personas = {
             "returning": lambda: returning_user(ff, work), "new": lambda: new_person(ff, work),
-            "second-day": lambda: opening_on_a_second_day(ff), "updated": lambda: after_an_update(ff),
+            "second-day": lambda: opening_on_a_second_day(ff),
+            "left-on-settings": lambda: left_on_settings(ff),
+            "update-bar": lambda: update_bar(ff),
+            "updated": lambda: after_an_update(ff),
             "privacy": lambda: privacy_minded(ff, work),
             "settings": lambda: settings_alone(ff, work),
             "look": lambda: look(ff, work),
