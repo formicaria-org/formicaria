@@ -3,11 +3,25 @@
   import UpdateBanner from '../lib/UpdateBanner.svelte';
   import BrowserRestartBanner from '../lib/BrowserRestartBanner.svelte';
   import { watchForUpdates, update as startUpdate } from '../lib/updater.svelte';
+  import { resumeQueue as resumeMediaQueue } from '../lib/mediaRun';
   import { untrack as untrackUpdates } from 'svelte';
   // **A newer version is offered on every page** (the owner on 0.49/0.50: *"impossible for me to
   // upgrade from within, all options disappeared"*). The check and the banner lived in the old
   // whole-app page, which formicaria's browser no longer shows; each feature page watches now.
   $effect(() => untrackUpdates(watchForUpdates));
+  // **Save media's queue, carried on** (2026-11-21): tracks a closed tab had not finished; one tab
+  // only (`mediaRun.resumeQueue` claims the queue).
+  $effect(() => {
+    const carryOn = () => void resumeMediaQueue();
+    carryOn();
+    const onVisible = () => document.visibilityState === 'visible' && carryOn();
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(carryOn, 10000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(timer);
+    };
+  });
   // **`#update`**: the browser's own bar was pressed (`formicaria.cfg`, `offerUpdate`, 2026-11-21) —
   // the one press, done here where open notes are saved first; on load, or on a tab already open.
   $effect(() => {

@@ -130,46 +130,131 @@ export async function jobs(): Promise<ipc.MediaJob[]> {
 /** The checked tracks not yet started, for the sheet to show. */
 let left = 0;
 let halted = false;
+let running = false;
 export const waitingCount = () => left;
 /** Start none of the tracks still waiting (the one downloading goes on, or is cancelled alone). */
 export function stopEach(): void {
   halted = true;
+  keep([]);
 }
 
-/** **Several tracks at once** (2026-11-20, a Bandcamp album): saved one after another, each started
- *  when the one before has ended, so two never add themselves to one playlist together (its update
- *  is refused on a stale version) and the phone runs one download at a time. It goes on after the
- *  sheet is closed, while the app is open: on the phone a finished download is filed while the
- *  jobs are read, which this does itself. `onstart` is told each job as it starts. */
-export async function saveEach(list: ipc.MediaAsk[], onstart: (id: number) => void): Promise<void> {
-  halted = false;
-  left = list.length;
+/** **The tracks not yet filed, kept on this device** (2026-11-21: an album saved on a phone that
+ *  went to the background kept its first track only — the queue lived in the page, which Android
+ *  paused and then closed). Each is taken off once it has ended; the next start carries on. */
+const QUEUE_KEY = 'fm-media-queue';
+/** Which tab carries a queue on (a computer may have several open): its mark, renewed each few
+ *  seconds; another tab leaves the queue alone while it is fresh. */
+const OWNER_KEY = 'fm-media-queue-owner';
+const me = Math.random().toString(36).slice(2);
+function keep(list: ipc.MediaAsk[]) {
   try {
-    for (const ask of list) {
-      if (halted) break;
-      left--;
-      let id: number;
-      try {
-        ({ id } = await save(ask));
-      } catch {
-        continue;
-      }
-      onstart(id);
-      for (let missing = 0; missing < 10;) {
-        await wait(1000);
-        let j: ipc.MediaJob | undefined;
+    if (list.length) localStorage.setItem(QUEUE_KEY, JSON.stringify(list));
+    else localStorage.removeItem(QUEUE_KEY);
+  } catch {
+    /* a device that keeps nothing carries nothing over */
+  }
+}
+function kept(): ipc.MediaAsk[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function claim(): boolean {
+  try {
+    const o = JSON.parse(localStorage.getItem(OWNER_KEY) ?? 'null') as {
+      id: string;
+      at: number;
+    } | null;
+    if (o && o.id !== me && Date.now() - o.at < 15000) return false;
+    localStorage.setItem(OWNER_KEY, JSON.stringify({ id: me, at: Date.now() }));
+    return true;
+  } catch {
+    return true;
+  }
+}
+function release() {
+  try {
+    const o = JSON.parse(localStorage.getItem(OWNER_KEY) ?? 'null') as { id: string } | null;
+    if (o?.id === me) localStorage.removeItem(OWNER_KEY);
+  } catch {
+    /* nothing to give back */
+  }
+}
+
+/** **Several tracks at once** (2026-11-21, a Bandcamp album): saved one after another, each started
+ *  when the one before has ended, so two never add themselves to one playlist together (its update
+ *  is refused on a stale version) and the phone runs one download at a time. Kept on the device
+ *  until each has ended, so a paused or closed app carries on at its next start (`resumeQueue`); a
+ *  track whose song is already in the library (by its page) is not saved twice. `onstart` is told
+ *  each job as it starts. */
+export async function saveEach(list: ipc.MediaAsk[], onstart: (id: number) => void): Promise<void> {
+  if (running) return;
+  running = true;
+  halted = false;
+  let rest = [...list];
+  keep(rest);
+  left = rest.length;
+  const beat = setInterval(claim, 5000);
+  claim();
+  try {
+    let have = new Set<string>();
+    try {
+      have = new Set(
+        (await ipc.musicLibrary())
+          .map((n) => n.props.source)
+          .filter((x): x is string => typeof x === 'string'),
+      );
+    } catch {
+      /* no library to ask: everything is saved */
+    }
+    while (rest.length && !halted) {
+      const ask = rest[0];
+      left = rest.length - 1;
+      const page = ask.meta?.source;
+      if (!(page && have.has(page))) {
+        let id: number | null = null;
         try {
-          j = (await jobs()).find((x) => x.id === id);
+          ({ id } = await save(ask));
         } catch {
-          continue;
+          id = null;
         }
-        if (!j) missing++;
-        else if (['done', 'failed', 'cancelled'].includes(j.state)) break;
+        if (id !== null) {
+          onstart(id);
+          for (let missing = 0; missing < 10;) {
+            await wait(1000);
+            let j: ipc.MediaJob | undefined;
+            try {
+              j = (await jobs()).find((x) => x.id === id);
+            } catch {
+              continue;
+            }
+            if (!j) missing++;
+            else if (['done', 'failed', 'cancelled'].includes(j.state)) break;
+          }
+        }
       }
+      rest = rest.slice(1);
+      keep(halted ? [] : rest);
     }
   } finally {
+    clearInterval(beat);
+    release();
+    running = false;
     left = 0;
   }
+}
+
+/** **Carry on with a queue left by a paused or closed app** (at start, and on coming back to the
+ *  page). Only one tab does; answers how many tracks it carries on with (0: none, or another tab). */
+export function resumeQueue(): number {
+  if (running) return 0;
+  const list = kept();
+  if (!list.length || !claim()) return 0;
+  void saveEach(list, () => {});
+  return list.length;
 }
 
 export function cancel(id: number): Promise<unknown> {

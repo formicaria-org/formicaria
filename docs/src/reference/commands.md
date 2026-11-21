@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 156 of them are below**, grouped by what they are for. If you add an arm to
+**All 159 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -120,6 +120,9 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `set_git_assets_max` | `vault`, `max`           | `VaultInfo[]`          | the size ceiling on attachments a push may carry. Above it, media stays local and only the notes travel |
 | `music_notes`    | —                            | `AudioNote[]`          | notes holding sound files (songs excepted): `{id, title, vault, tracks:[{reference, title, song}]}`; a file counts as sound by its first bytes, and `song` is the song with the same file, if any |
 | `songs_from_note`| `note`                       | `string[]`             | a note's sound files as songs, made once (the same file, the note named in the song's text, its title as album): the songs' ids in the note's order |
+| `storage_unused` | `vault`                      | `StorageReport`        | attachments no note uses: `{nothing, attachment_only, held}` — nothing points at the first; only their own attachment entry at the second; `held` is what was put aside (30 days). A note in the Deleted list (30 days) still counts as using its files |
+| `storage_remove` | `vault`, `hashes`            | `{files, bytes}`       | puts those aside, if still unused: held in `.fm-held/` for 30 days, their attachment entries to the Deleted list. Not from a paired device |
+| `storage_restore`| `vault`, `hashes`            | `{files}`              | puts held files back where they were. Not from a paired device |
 | `set_git_media`  | `vault`, `sound`, `video`    | `VaultInfo[]`          | whether sound and video travel too, under that ceiling (`vault.json`'s `git_sound`, `git_video`; off by default). Told apart by a file's first bytes |
 | `unrecorded`     | —                            | `Unrecorded[]`         | per vault, the notes on disk that git does not have — **split by kind**, with a bounded sample. The count alone was not a diagnosis: 146 could mean 146 notes existing nowhere else, or 146 something was needlessly rewriting |
 | `record_unrecorded` | `vault`                   | `{recorded}`           | commit exactly those |

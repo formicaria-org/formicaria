@@ -25,6 +25,8 @@
   } from './lib/web/bridge.svelte';
   import BringToast from './lib/BringToast.svelte';
   import { importShared, isWatchFile, startWatchFolder } from './lib/watchFiles.svelte';
+  import { resumeQueue as resumeMediaQueue } from './lib/mediaRun';
+  import { toast } from './lib/web/bridge.svelte';
   import { watchForUpdates, update as startUpdate } from './lib/updater.svelte';
   import { sync as syncReminders } from './lib/reminders.svelte';
   import { appToday, clockText, setAppClock } from './lib/appTime';
@@ -1960,6 +1962,21 @@
     window.addEventListener('fm-share', take);
     // The folder the watch's app exports to, on the phone: what the shell found there, imported.
     const stopWatch = startWatchFolder();
+    // **Save media's queue, carried on** (2026-11-21): tracks a paused or closed app had not
+    // finished, at start and on coming back to the page.
+    const carryOn = () => {
+      const n = resumeMediaQueue();
+      if (n)
+        toast.now = {
+          text: `Carrying on with ${n} ${n === 1 ? 'track' : 'tracks'} from Save media.`,
+        };
+    };
+    carryOn();
+    const onVisible = () => document.visibilityState === 'visible' && carryOn();
+    document.addEventListener('visibilitychange', onVisible);
+    // Asked again while a queue waits: the mark of an app stopped a moment ago holds it for a few
+    // seconds (found in the emulator, 2026-11-21: a start right after a stop gave up for good).
+    const carryTimer = setInterval(carryOn, 10000);
     // **What the phone's page screen brought in** (phase A): into the note it was opened from, or the
     // note in front, or a new note named after the page; through that note's own pane.
     const fromPages = () => {
@@ -2006,6 +2023,8 @@
     return () => {
       window.removeEventListener('fm-share', take);
       stopWatch();
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(carryTimer);
       window.removeEventListener('fm-share', fromPages);
       window.removeEventListener('fm-bring-to-room', bring);
       document.removeEventListener('click', onLink, true);

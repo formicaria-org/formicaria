@@ -552,6 +552,11 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/media_jobs",
     "/api/media_cancel",
     "/api/media_tools",
+    // **Puts this machine's files aside, or back** (unused attachments, 2026-11-21): the host's to
+    // decide, not a guest's.
+    "/api/storage_unused",
+    "/api/storage_remove",
+    "/api/storage_restore",
     // Subsonic's switch and password: this machine's to give.
     "/api/subsonic",
     "/api/subsonic_set",

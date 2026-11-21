@@ -120,6 +120,9 @@ let mockPrivacy = freshPrivacy();
 let mockMediaJobs: import('./ipc').MediaJob[] = [];
 /** Files the stand-in treats as sound (the server reads a file's first bytes; the mock is told). */
 export const mockSoundRefs = new Set<string>();
+/** The stand-in's blobs per vault, as `storage.rs` would find them on disk (tests fill it). */
+export const mockBlobs: Record<string, { hash: string; size: number; kind: string }[]> = {};
+const mockHeld: Record<string, { hash: string; size: number; kind: string; at: number }[]> = {};
 /** Every save asked of the stand-in, as asked (the tests read what each carried). */
 export const mockMediaAsks: Record<string, unknown>[] = [];
 let mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
@@ -933,6 +936,8 @@ export function reset(): void {
   mockPrivacy = freshPrivacy();
   mockMediaJobs = [];
   mockSoundRefs.clear();
+  for (const k of Object.keys(mockBlobs)) delete mockBlobs[k];
+  for (const k of Object.keys(mockHeld)) delete mockHeld[k];
   mockMediaAsks.length = 0;
   mockSubsonic = { on: false, user: 'formicaria', password: '', shared: false };
   clearFaults();
@@ -2142,6 +2147,55 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       }));
       return vaults as T;
     }
+    case 'storage_unused':
+    case 'storage_remove':
+    case 'storage_restore': {
+      // As `storage.rs`: a file is used when a note other than its own attachment entry names it.
+      const vault = String(args.vault ?? '');
+      const blobs = (mockBlobs[vault] ??= []);
+      const held = (mockHeld[vault] ??= []);
+      if (cmd === 'storage_restore') {
+        const want = new Set((args.hashes as string[]) ?? []);
+        const back = held.filter((h) => want.has(h.hash));
+        mockHeld[vault] = held.filter((h) => !want.has(h.hash));
+        blobs.push(...back.map(({ hash, size, kind }) => ({ hash, size, kind })));
+        return { files: back.length } as T;
+      }
+      const text = (n: ObjectMeta) =>
+        JSON.stringify(n.props) + (noteDetail(n.id)?.body ?? '') + n.assets.join(' ');
+      const inVault = notes.filter((n) => n.vault === vault);
+      const users = inVault
+        .filter((n) => n.type !== 'asset')
+        .map(text)
+        .join('\n');
+      const report = { nothing: [] as unknown[], attachment_only: [] as unknown[] };
+      for (const b of blobs) {
+        if (users.includes(b.hash)) continue;
+        const entries = inVault.filter(
+          (n) => n.type === 'asset' && n.assets.some((a) => a.includes(b.hash)),
+        );
+        const u = { ...b, name: entries[0]?.title ?? '', entries: entries.map((e) => e.id) };
+        (entries.length ? report.attachment_only : report.nothing).push(u);
+      }
+      if (cmd === 'storage_unused') return { ...report, held } as T;
+      const want = new Set((args.hashes as string[]) ?? []);
+      const out = [...report.nothing, ...report.attachment_only] as {
+        hash: string;
+        size: number;
+        kind: string;
+        entries: string[];
+      }[];
+      let files = 0;
+      let bytes = 0;
+      for (const u of out.filter((x) => want.has(x.hash))) {
+        mockBlobs[vault] = mockBlobs[vault].filter((b) => b.hash !== u.hash);
+        held.push({ hash: u.hash, size: u.size, kind: u.kind, at: Math.floor(Date.now() / 1000) });
+        for (const id of u.entries) await handle('delete', { id });
+        files++;
+        bytes += u.size;
+      }
+      return { files, bytes } as T;
+    }
     case 'set_git_media': {
       const target = String(args.vault ?? '');
       const v = mockVaults.find((x) => x.name === target) ?? mockVaults[0];
@@ -2705,7 +2759,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           .map((n) => [n.props.audio as string, n.id]),
       );
       const found = notes
-        .filter((n) => n.props.log !== 'music')
         .map((n) => ({
           id: n.id,
           title: n.title ?? '',
@@ -2717,6 +2770,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           ]
             .map((m) => ({ reference: `sha256:${m[2]}`, title: m[1].trim() }))
             .filter((t) => mockSoundRefs.has(t.reference))
+            // A song's own file is the song: only its other tracks are listed.
+            .filter((t) => !(n.props.log === 'music' && n.props.audio === t.reference))
             .map((t) => ({ ...t, song: byAudio.get(t.reference) ?? null })),
         }))
         .filter((n) => n.tracks.length);

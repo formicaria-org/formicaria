@@ -306,6 +306,11 @@ impl App {
             if swept > 0 {
                 eprintln!("note: swept {swept} abandoned upload(s) in '{}'", cfg.name);
             }
+            // Removed attachments that have waited their 30 days (`storage.rs`) go for good.
+            let gone = crate::storage::purge(&cfg.path);
+            if gone > 0 {
+                eprintln!("note: {gone} removed attachment(s) in '{}' went for good", cfg.name);
+            }
         }
         // **A shelf is a `shelf:` tag** (`shelf::migrate`, 2026-10-24): a note still carrying the
         // old property is rewritten first, so the tutorials' check below sees today's form.
@@ -2478,6 +2483,47 @@ fn dispatch_inner(
         }
         // **Whether sound and video travel with this vault's notes** (2026-11-21), under the size
         // limit above; off by default. In the vault's own `vault.json`, like the limit.
+        // **Unused attachments** (2026-11-21, `storage.rs`): what no note uses, the held ones, and
+        // putting them aside or back. The Deleted list is read from history first, unlocked.
+        "storage_unused" | "storage_remove" => {
+            let cfg = lock()?.config(scope, &s("vault"))?;
+            let deleted: Vec<String> = vcs::deleted_notes(&cfg.path, 30)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|d| d.file)
+                .collect();
+            let mut g = lock()?;
+            if cmd == "storage_unused" {
+                json(
+                    crate::storage::report(&g.store(scope), &cfg.name, &cfg.path, &deleted)
+                        .map_err(err)?,
+                )
+            } else {
+                let hashes: Vec<String> = args
+                    .get("hashes")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    .unwrap_or_default();
+                let (files, bytes) = crate::storage::remove(
+                    &mut g.store(scope),
+                    &cfg.name,
+                    &cfg.path,
+                    &deleted,
+                    &hashes,
+                )
+                .map_err(err)?;
+                json(serde_json::json!({ "files": files, "bytes": bytes }))
+            }
+        }
+        "storage_restore" => {
+            let cfg = lock()?.config(scope, &s("vault"))?;
+            let hashes: Vec<String> = args
+                .get("hashes")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            json(serde_json::json!({ "files": crate::storage::restore(&cfg.path, &hashes) }))
+        }
         "set_git_media" => {
             let vault = s("vault");
             let sound = args.get("sound").and_then(Value::as_bool).unwrap_or(false);

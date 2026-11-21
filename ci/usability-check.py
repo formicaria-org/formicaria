@@ -418,6 +418,53 @@ def update_bar(ff: Path) -> None:
     bc.stop(ff)
 
 
+def storage_cleanup(ff: Path, work: Path) -> None:
+    """**Unused attachments, put aside and put back** (the owner, 2026-11-21: *"a broad clean up option
+    in settings to allow the user to remove assets that nobody is using"*). A file whose only
+    reference is its own attachment entry: found in Settings → Vaults & backup, ticked, removed from
+    the vault's files, then put back."""
+    who = "someone freeing the space of files no note uses"
+    data = b"ID3\x04\x00\x00 a track nobody keeps" + bytes(4000)
+    req = urllib.request.Request(f"{SERVER}/api/ingest?name=old-track.mp3&vault=", data=data, method="POST",
+                                 headers={"Content-Type": "application/octet-stream"})
+    asset = json.load(urllib.request.urlopen(req, timeout=30))
+    h = asset["assets"][0].split(":", 1)[1]
+    blob = work / "vault" / "blobs" / "sha256" / h[:2] / h[2:4] / h
+    held = work / "vault" / ".fm-held" / h
+    check(who, "set up: the file is in the vault", blob.exists(), str(blob))
+    m = launch(ff, work / "profile-storage", f"{SERVER}/f/settings")
+    try:
+        time.sleep(6)
+        content(m, """const n = document.querySelector('nav[aria-label="settings categories"]');
+                      const b = n && [...n.querySelectorAll('button, a')].find((e) => e.textContent.trim() === 'Vaults & backup');
+                      if (b) b.click(); return !!b;""")
+        group = wait_for(m, "return !!document.querySelector('[aria-label^=\"unused attachments in \"]')", 20)
+        check(who, "Vaults & backup has the unused attachments", bool(group))
+        content(m, """const b = [...document.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Look for attachments no note uses…');
+                      if (b) b.click(); return !!b;""")
+        row = wait_for(m, """const l = [...document.querySelectorAll('.storage-list label')].find((e) => e.textContent.includes('old-track.mp3'));
+                             return l ? { ticked: l.querySelector('input').checked } : null;""", 20)
+        check(who, "it is listed, kept only by its attachment entry, not ticked for the person",
+              bool(row) and row.get("ticked") is False, str(row))
+        content(m, """const l = [...document.querySelectorAll('.storage-list label')].find((e) => e.textContent.includes('old-track.mp3'));
+                      l.querySelector('input').click();
+                      setTimeout(() => [...document.querySelectorAll('button')].find((e) => e.textContent.trim().startsWith('Remove selected'))?.click(), 300);
+                      return true;""")
+        section = "(document.querySelector('[aria-label^=\"unused attachments in \"]') || {}).innerText || ''"
+        said = wait_for(m, f"return /Put aside 1 file/.test({section})", 20)
+        shown = content(m, "const g = document.querySelector('[aria-label^=\"unused attachments in \"]'); return g ? g.innerText.slice(0, 400) : 'no section: ' + location.href")
+        check(who, "Remove selected puts it aside: out of the vault's files, held", bool(said) and not blob.exists() and held.exists(),
+              f"said {said}; in blobs {blob.exists()}; held {held.exists()}; the section: {shown!r}")
+        content(m, """[...document.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Put them back')?.click(); return true;""")
+        back = wait_for(m, f"return /Put back 1 file/.test({section})", 20)
+        check(who, "Put them back returns it", bool(back) and blob.exists() and not held.exists(),
+              f"said {back}; in blobs {blob.exists()}")
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001 - the browser gone takes the connection with it
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
 PRIVACY_PORT = 8794
 
 
@@ -1010,8 +1057,10 @@ def main() -> None:
                FM_DIARY_EVERY="15",
                # The browser the server opens can be driven (and drawn nowhere), for the second day.
                MOZ_MARIONETTE="1", MOZ_REMOTE_ALLOW_SYSTEM_ACCESS="1", MOZ_HEADLESS="1")
+    # Its words kept (2026-11-21: it stopped once while setting its browser up, and nothing said why).
+    server_log = open(work / "server.log", "w")
     server = subprocess.Popen([str(ROOT / "target" / "debug" / "fm-serve")], cwd=ROOT, env=env,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                              stdout=server_log, stderr=subprocess.STDOUT)
     try:
         bc.wait_until_up()
         bc.post("/api/set_identity", {"name": "Check Reader", "email": "reader@example.org"})
@@ -1038,6 +1087,7 @@ def main() -> None:
             "updated": lambda: after_an_update(ff),
             "privacy": lambda: privacy_minded(ff, work),
             "settings": lambda: settings_alone(ff, work),
+            "storage": lambda: storage_cleanup(ff, work),
             "look": lambda: look(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),

@@ -23,9 +23,10 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
 | **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
-| **Music** | `music-plan-2026-11-13.md` (rulings M1–M5 first) |
+| **Music** | `music-plan-2026-11-13.md` (M1–M5 first) |
+| **Settings** | `settings-plan-2026-11-21.md` |
 | **Where code lives; the size budget** (adding a crate, module, phone feature) | `structure.md` |
-| **Making formicaria leaner** | `lean-plan-2026-11-18.md` (steps, measured before and after) |
+| **Making formicaria leaner** | `lean-plan-2026-11-18.md` |
 | **Stronger privacy** | `privacy-plan-2026-11-19.md` · `privacy-baseline-2026-11.md` |
 | **Privacy, blocking, saving media from sites** | `web-media-privacy-plan-2026-11-17.md` · `phone-blocking-2026-11-17.md` (the engine's cost) |
 | **Own browser**, workspace, sources | `browser-plan-2026-11-15.md` · `web-browsing-research-2026-11-15.md` · `workspace-design-2026-11-15.md` · `data-sources-research-2026-11-15.md` |
@@ -39,7 +40,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **formicaria on an iPhone / iOS** — before answering "can we", before spending a macOS CI minute | `ios-plan-2026-09-02.md` — **no longer a survey**: the app boots and syncs on a Simulator, and `## Distribution` carries the chosen route (an unsigned `.ipa` each user signs with their own free Apple ID). Also the standing constraints (no Mac, **still no iPhone**, private repo), the CI ladder with its kill criteria, and why the cheapest answer is already shipped (the LAN share listener) · `decisions.md#track-m` for the rulings it forced |
 | **An earlier decision's receipts** — dated, superseded, kept for the *why* | `plan.md` · `collaboration-design.md` · `agent-review-2026-07-22.md` · `forward-plan-review-2026-07-22.md` · `agent-backed-apps-runtime-2026-07-22.md` · `model-benchmarks-2026-07-22.md` · `model-selection-research-2026-07-22.md`. **Each opens with a dated banner; where one disagrees with the code, the code wins.** Reachable on purpose (2026-09-05) |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the queue) · `nutrient-data-audit-2026-10-29.md` · `food-values-plan-2026-10-30.md` (built 2026-10-31) · `food-search-ranks-2026-10-31.md` |
-| **Fitness — a regime, an exercise, a research claim, maps** (`ui/src/lib/training/`, `ui/src/lib/plan/`, `shipped/plans.json`) | `sources-2026-10-11.md` §6 (nothing ships unnamed) · `outstanding.md` §2.26 · `training-coach-plan-2026-10-30.md` · research: `research-sport-labs-2026-10-18.md`, `exercise-tips-research-2026-10-18.md`, `training-tools-research-2026-11-20.md`, `maps-gps-research-2026-11-21.md` |
+| **Fitness — a regime, an exercise, a claim, maps** (`ui/src/lib/training/`, `ui/src/lib/plan/`, `shipped/plans.json`) | `sources-2026-10-11.md` §6 (nothing ships unnamed) · `outstanding.md` §2.26 · `training-coach-plan-2026-10-30.md` · research: `research-sport-labs-2026-10-18.md`, `exercise-tips-research-2026-10-18.md`, `training-tools-research-2026-11-20.md`, `maps-gps-research-2026-11-21.md` |
 | **Phone smoothness, the vault lock, what a refresh repaints** | `gui-smoothness-plan-2026-10-18.md` |
 | **A topic doc with a findings table** — `papers-plan.md` (B1–B6), `ios-plan-2026-09-02.md` (A1–A2, G1–G5) | Those tables are **issue sources**, and a finding in one belongs in `known-issues.md` **as well**. Learned the hard way (2026-09-04): B4 and B5 were real, open defects that sat in a survey document for weeks because the router pointed nowhere near them. If you add a findings table anywhere, copy its live rows here |
 

@@ -150,3 +150,19 @@ it('ticks several tracks of an album and saves each, into one new playlist', asy
   expect(made.title).toBe('Night Walk');
   expect(made.tags).toContain('playlist');
 });
+
+// **Not into a song** (2026-11-21: an album saved into the note went into a song's note): when the
+// note looked at last is a song (or a playlist), *The note* is not offered.
+it('does not offer a song note as the note to save into', async () => {
+  const [song] = (await mock.handle('create_notes', {
+    notes: [{ title: 'Intro', body: '', props: { log: 'music', audio: 'sha256:00' } }],
+  })) as { id: string }[];
+  render(SaveMedia, {
+    page: 'https://news.example/ants',
+    candidates: [candidates[0]],
+    note: { id: song.id, title: 'Intro' },
+  });
+  await screen.findByText('Leafcutters at night');
+  await waitFor(() => expect(screen.queryByRole('radio', { name: /The note/ })).toBeNull());
+  expect(screen.getByRole('radio', { name: 'Music' })).toBeTruthy();
+});

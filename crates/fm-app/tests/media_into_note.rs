@@ -121,3 +121,26 @@ fn a_notes_audio_is_listed_and_becomes_songs_once() {
     assert_eq!(again, ids);
     assert_eq!(call(&app, "music_library", json!({})).as_array().unwrap().len(), 1);
 }
+
+/// **A song note holding more tracks than its own** (2026-11-21: tracks saved into the note landed
+/// in a song's note): its other tracks are listed, its own file is not listed again.
+#[test]
+fn a_song_notes_extra_tracks_are_listed() {
+    let (_h, vault, app) = app();
+    let blobs = fm_core::blob::BlobStore::new(vault.path());
+    let own = blobs.put_bytes(b"ID3\x04\x00\x00 its own track").unwrap();
+    let extra = blobs.put_bytes(b"ID3\x04\x00\x00 another track").unwrap();
+    let hex = |h: &str| h.trim_start_matches("sha256:").to_string();
+    let (own_hex, extra_hex) = (hex(&own.hash), hex(&extra.hash));
+    let body = format!("![Intro](asset:sha256-{own_hex})\n\n![Second](asset:sha256-{extra_hex})\n");
+    call(
+        &app,
+        "create_notes",
+        json!({ "notes": [{ "title": "Intro", "body": body,
+                            "props": { "log": "music", "audio": format!("sha256:{own_hex}") } }] }),
+    );
+    let listed = call(&app, "music_notes", json!({}));
+    let tracks = listed[0]["tracks"].as_array().unwrap();
+    assert_eq!(tracks.len(), 1, "{listed:?}");
+    assert_eq!(tracks[0]["title"], "Second");
+}

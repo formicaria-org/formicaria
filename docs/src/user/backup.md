@@ -216,6 +216,23 @@ re-fetch rather than having to guess. (`manifest.json` adds bit-rot detection on
 top of that, but only the `fm manifest` command writes it; the app never does, so
 don't count on it being current.)
 
+## Unused attachments
+
+Deleting a note leaves its attachments in the vault, so that bringing the note back brings them
+back. To free the space, open **Settings → Vaults & backup** and, under a vault, **Look for
+attachments no note uses…**:
+
+- **Used by no note** — nothing points at these at all. They are ticked.
+- **Kept only by their attachment entry** — every file you add has an attachment entry of its own;
+  these have nothing else, either because the note that used them is gone or because you keep the
+  file on its own (a PDF in the Library). Tick the ones to remove.
+
+A note still in the **Deleted** list keeps its files until it leaves that list (30 days).
+**Remove selected** puts the files aside for **30 days** — **Put them back** returns them — and then
+they go for good; their attachment entries go to the Deleted list. Your snapshot keeps everything it
+already holds, either way. A file that went to git (only if you let attachments travel there) stays
+in git's history.
+
 ## Integrity
 
 `fm verify` reports problems like a note with unparseable frontmatter or a

@@ -896,6 +896,25 @@ export const assetUrl = (reference: string, kind: 'full' | 'thumb' = 'full') => 
 /// guess what was actually stored — the backend normalises the size and it comes back formatted.
 export const setGitAssetsMax = (vault: string, max: string) =>
   invoke<VaultInfo[]>('set_git_assets_max', { vault, max });
+/** **Unused attachments** (2026-11-21, `storage.rs`): files no note uses, apart from those only
+ *  their own attachment entry keeps, and what was put aside (held 30 days). */
+export interface UnusedFile {
+  hash: string;
+  size: number;
+  kind: 'sound' | 'video' | 'picture' | 'document';
+  name: string;
+  entries: string[];
+}
+export interface StorageReport {
+  nothing: UnusedFile[];
+  attachment_only: UnusedFile[];
+  held: { hash: string; size: number; at: number }[];
+}
+export const storageUnused = (vault: string) => invoke<StorageReport>('storage_unused', { vault });
+export const storageRemove = (vault: string, hashes: string[]) =>
+  invoke<{ files: number; bytes: number }>('storage_remove', { vault, hashes });
+export const storageRestore = (vault: string, hashes: string[]) =>
+  invoke<{ files: number }>('storage_restore', { vault, hashes });
 /** Whether sound and video travel with this vault's notes, under its size limit. */
 export const setGitMedia = (vault: string, sound: boolean, video: boolean) =>
   invoke<VaultInfo[]>('set_git_media', { vault, sound, video });

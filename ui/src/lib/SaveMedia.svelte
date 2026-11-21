@@ -57,6 +57,28 @@
   const shown = $derived(jobs.filter((j) => mine.includes(j.id)));
   const active = $derived(shown.some((j) => !['done', 'failed', 'cancelled'].includes(j.state)));
 
+  /** **Not into a song or a playlist** (2026-11-21: an album saved *into the note* went into a
+   *  song's note, and Music played only its first track): those notes are Music's own, and a track
+   *  goes to Music, or into a playlist from the list below. */
+  let noteIsMusic = $state(false);
+  $effect(() => {
+    const id = note?.id;
+    noteIsMusic = false;
+    if (!id) return;
+    void ipc
+      .getNote(id)
+      .then((n) => {
+        const props = (n as { props?: Record<string, unknown> } | null)?.props ?? {};
+        const tags = (n as { tags?: string[] } | null)?.tags ?? [];
+        noteIsMusic =
+          props.log === 'music' ||
+          props.log === 'video' ||
+          tags.some((t) => /^(playlist|collection)$/i.test(t));
+        if (noteIsMusic && into === 'note') into = what === 'video' ? 'videos' : 'music';
+      })
+      .catch(() => {});
+  });
+
   onMount(() => {
     void run
       .tools()
@@ -346,7 +368,7 @@
           disabled={what !== 'video'}
         /> Videos</label
       >
-      {#if note}
+      {#if note && !noteIsMusic}
         <label
           ><input type="radio" name="into" value="note" bind:group={into} /> The note “{note.title ||
             'Untitled'}”</label

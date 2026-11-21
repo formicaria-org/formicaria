@@ -69,14 +69,31 @@ pub fn embedded_files(store: &dyn Store) -> Result<Vec<AudioNote>, StoreError> {
         })
         .collect();
     let q = Query { filter: notes_base(), sort: vec![SortKey::asc("title")], ..Default::default() };
-    Ok(store
-        .query(&q)?
-        .rows
+    // Songs are logged entries, which `notes_base` leaves out: asked for apart.
+    let songs_q =
+        Query { filter: log_base(MUSIC), sort: vec![SortKey::asc("title")], ..Default::default() };
+    let mut rows = store.query(&q)?.rows;
+    rows.extend(
+        store
+            .query(&songs_q)?
+            .rows
+            .into_iter()
+            .filter(|o| o.get(LOG) == PropertyValue::Text(MUSIC.into())),
+    );
+    Ok(rows
         .iter()
-        .filter(|o| o.get(LOG) != PropertyValue::Text(MUSIC.into()))
         .filter_map(|o| {
+            // **A song note holding more tracks than its own** (2026-11-21: tracks saved *into the
+            // note* landed in a song's note; Music played only its `audio`): the others are tracks
+            // too. Its own file is the song's and is not listed again.
+            let own = match o.get("audio") {
+                PropertyValue::Text(a) => Some(a),
+                _ => None,
+            }
+            .filter(|_| o.get(LOG) == PropertyValue::Text(MUSIC.into()));
             let tracks: Vec<NoteTrack> = embeds(&o.body)
                 .into_iter()
+                .filter(|(reference, _)| own.as_deref() != Some(reference.as_str()))
                 .map(|(reference, title)| NoteTrack {
                     song: songs.get(&reference).cloned(),
                     reference,

@@ -11031,6 +11031,10 @@ Back up menu.
 
 ## 2026-10-15 (later) — Vaults & backup is a category of its own, and nothing in it is an action `#ui` `#vault`
 
+> **AMENDED 2026-11-21 (later still)** — one action is allowed here, on the owner's word: looking for
+> and putting aside **unused attachments**, per vault (*Unused attachments, put aside for 30 days*,
+> below). Everything else in the category stays a setting.
+
 Amends the entry above, the same day. The owner, on the first version: *"But backup settings is
 still there, we should clearly structure all these common settings under a dedicated panel in
 settings and remove doubles."* Two doubles remained: the Back up menu still had a way into
@@ -16138,3 +16142,38 @@ a note's tracks become songs, each with its own ⋯, once added. A song saved on
 file only on that device unless the switch above lets it travel; restic keeps it, but that is a
 backup, not a sync. **The four questions.** `#data` `#ui` `#vault` `#git`; extends three entries,
 reverses none; widens what ships (two read/write commands, two `vault.json` keys).
+
+## 2026-11-21 (later still) — Unused attachments, put aside for 30 days; Save media's queue survives the app; a song note's other tracks are music `#vault` `#ui` `#data`
+
+The owner: *"I want to delete a note but all the assets that are not used by any other note are still
+there, how can I delete them too?"*, then *"a broad clean up option in settings to allow the user to
+remove assets that nobody is using"*; after an album saved on a phone kept its first track only, and a
+song's note held the rest, *"do all three and release when done"*.
+
+1. **Unused attachments, in Settings → Vaults & backup, per vault** (`storage.rs`; `storage_unused`,
+   `storage_remove`, `storage_restore`).
+   - **Amends** *nothing in it is an action* (banner added).
+   - Every attachment has its own asset note, so two lists: files **nothing** points at (ticked), and
+     files **only their own attachment entry** keeps (the person ticks; it may be a file kept on
+     purpose).
+   - "Points at" is any `sha256:`/`sha256-` reference in a note: its text, its properties, its
+     `assets`. A note in the **Deleted list** (30 days of history) still counts, so bringing it back
+     brings its files.
+   - Removed files are **held** in `<vault>/.fm-held/` (never staged: `commit_all` stages only the
+     app's own files) for **30 days**, can be **put back**, and are purged at open after that. Their
+     attachment entries go to the Deleted list.
+   - Not from a paired device (`REMOTE_DENIED`). A file that already travelled in git stays in its
+     history.
+2. **Save media's queue survives a paused or closed app** (`mediaRun.ts`).
+   - The tracks not yet filed are kept on the device and taken off one by one. The next start, or
+     coming back to the page, carries on with them (*"Carrying on with N tracks from Save media"*).
+   - A track whose song is already in the library (by its page, `source`) is not saved again. One
+     tab carries a queue on (a renewed mark).
+   - Found in the emulator: an app stopped half way through four tracks delivers all four, once
+     each (`phone-media-check`'s *resume* case).
+3. **A song note holding more tracks than its own** lists them under *In your notes* (its own file is
+   the song's). *Into the note* is not offered when the note looked at last is a song, a video, a
+   playlist or a collection.
+
+**The four questions.** `#vault` `#ui` `#data`; amends one entry (banner), extends two; widens what
+ships (three commands, a held folder per vault, a key on the device for the queue).

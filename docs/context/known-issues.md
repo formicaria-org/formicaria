@@ -3034,6 +3034,31 @@ environment; build from a `git worktree` with this checkout's environment instea
   of it has been tried on a phone; a large upload goes through the chunked path, untested with
   audio on a device.
 
+## The release checks can fail on noise (2026-11-21)
+
+- **`browser-check`'s memory budget (+10 %)** failed twice on one day with formicaria's browser steady
+  (783–842 MB) and the unmodified reference swinging (717–785 MB): three runs each are too few. A rerun
+  passed both times. Worth more runs, or the minimum of several, as `decisions.md` already rules for
+  timings.
+- **Its "toolbar is bare" check** failed once with the kit unchanged and passed on the rerun: the
+  stylesheet may not be applied yet when it looks.
+- **`usability-check`'s test server** stopped once while setting its browser up; it now writes
+  `server.log` in its work folder, so the next time says why.
+
+## Unused attachments, and Save media's queue across restarts (2026-11-21)
+
+`storage.rs` (`storage_unused` / `_remove` / `_restore`), `mediaRun.ts` (`saveEach`, `resumeQueue`).
+
+- **The Deleted list counts 30 days of history.** A note deleted longer ago no longer keeps its files,
+  though *Restore from history* could still bring the note back; its files would then be gone after
+  their 30 held days, and the snapshot is the way back.
+- **Thumbnails (`derived/`) of a removed file stay** until the vault rebuilds them; they are small.
+- **A track is kept in the queue until it ends.** Killed just after it was filed but before it was
+  taken off, it is checked against the library by its page (`source`) and not saved again — a track
+  without a page (not from a Bandcamp page) could then be saved twice.
+- **The queue resumes only while formicaria is open.** A phone that never reopens the app keeps the
+  rest waiting; nothing runs in the background without the page.
+
 ## Music from notes, and sound and video kept out of git (2026-11-21)
 
 `decisions.md` 2026-11-21 (later). `music_notes` / `songs_from_note` (`dispatch.rs`, `music.rs`),

@@ -9,7 +9,7 @@
 // in: quiet below the warning line, explicit between there and the ceiling, and refused above it.
 // A limit that is merely accepted in silence is how someone discovers the wall from `git push`.
 
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import * as mock from './mock';
 import SettingsPanel from './SettingsPanel.svelte';
@@ -102,5 +102,28 @@ describe('SettingsPanel — how large an attachment may travel in git', () => {
     expect(lab?.git_sound).toBe(true);
     expect(lab?.git_video).toBe(false);
     await screen.findAllByText(/except videos/);
+  });
+
+  // **Unused attachments** (2026-11-21: *"a broad clean up option in settings to allow the user to
+  // remove assets that nobody is using"*): looked for, put aside for 30 days, put back.
+  it('finds a file no note uses, puts it aside, and puts it back', async () => {
+    mock.mockBlobs['lab'] = [{ hash: 'ab'.repeat(32), size: 3_000_000, kind: 'sound' }];
+    const { container } = panel();
+    await screen.findAllByText(/Send attachments under/);
+    const groups = [
+      container.querySelector('[aria-label="unused attachments in lab-notes"]') as HTMLElement,
+    ];
+    expect(groups[0]).toBeTruthy();
+    await fireEvent.click(within(groups[0]).getByText('Look for attachments no note uses…'));
+    const box = (await within(groups[0]).findByLabelText(
+      /a sound · sound · 3.0 MB/,
+    )) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await fireEvent.click(within(groups[0]).getByText(/Remove selected \(1, 3.0 MB\)/));
+    expect(await within(groups[0]).findByText(/Put aside 1 file \(3.0 MB\)/)).toBeTruthy();
+    expect(mock.mockBlobs['lab']).toEqual([]);
+    await fireEvent.click(within(groups[0]).getByText('Put them back'));
+    expect(await within(groups[0]).findByText(/Put back 1 file/)).toBeTruthy();
+    expect(mock.mockBlobs['lab'].map((b) => b.hash)).toEqual(['ab'.repeat(32)]);
   });
 });

@@ -436,7 +436,15 @@ MULTI_JS = r"""
   await until(() => boxes().length >= count, 60);
   const listed = boxes().map((i) => i.parentElement.textContent.trim());
   if (listed.length < count) return { error: 'tracks to tick: ' + listed.length, sheet: document.body.innerText.slice(-400) };
-  for (const b of boxes().slice(0, count)) { b.click(); await sleep(300); }
+  if (count === 'all') {
+    const all = [...document.querySelectorAll('input[type=checkbox]')].find((i) => /All tracks/.test(i.parentElement.textContent));
+    if (!all) return { error: 'no All tracks', listed };
+    all.click();
+    await sleep(500);
+  } else {
+    for (const b of boxes().slice(0, count)) { b.click(); await sleep(300); }
+  }
+  const want = count === 'all' ? boxes().length : count;
   const mp3 = [...document.querySelectorAll('input[name=what]')].find((i) => i.parentElement.textContent.includes('The sound as MP3'));
   if (mp3) mp3.click();
   await sleep(300);
@@ -447,20 +455,23 @@ MULTI_JS = r"""
   await sleep(500);
   const before = new Set((await inv('music_library')).map((n) => n.id));
   const listsBefore = new Set((await inv('music_playlists')).map((p) => p.id));
-  const save = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === `Save ${count} tracks`);
+  const save = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === `Save ${want} tracks`);
   if (!save) return { error: 'no "Save N tracks"', buttons: [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).slice(-8) };
   save.click();
   const done = await until(() => {
     const t = (document.querySelector('ul.jobs') || {}).innerText || '';
     const bad = t.match(/Not saved[^\n]*/);
     if (bad) return bad[0];
-    return (t.match(/Saved in Music/g) || []).length >= count ? 'ok' : null;
-  }, 900);
-  const doing = done ? '' : (document.querySelector('ul.jobs') || document.body).innerText.slice(-300);
+    return (t.match(/Saved in Music/g) || []).length >= want ? 'ok' : null;
+  }, count === 'all' ? 2400 : 900);
+  const doing = done ? '' : (document.querySelector('ul.jobs') || document.body).innerText.slice(-1500);
+  const jobsText = (document.querySelector('ul.jobs') || {}).innerText || '';
   const mine = (await inv('music_library')).filter((n) => !before.has(n.id));
   const lists = (await inv('music_playlists')).filter((p) => !listsBefore.has(p.id));
   document.querySelector('button[aria-label="close save media"]')?.click();
-  return { listed: listed.slice(0, 4), done, doing, notes: mine.length, titles: mine.map((n) => n.title),
+  return { listed: listed.slice(0, 4), want, done, doing, notes: mine.length, titles: mine.map((n) => n.title).slice(0, 30),
+           albums: [...new Set(mine.map((n) => n.props.album || '(none)'))],
+           saved: (jobsText.match(/Saved in Music/g) || []).length, failed: (jobsText.match(/Not saved[^\n]*/g) || []).slice(0, 5),
            lists: lists.map((p) => ({ title: p.title, songs: (p.songs || []).length })) };
 })()
 """
@@ -565,6 +576,63 @@ NOTE_JS = r"""
   await sleep(3000);
   const lists = (await inv('music_playlists')).filter((p) => p.title === 'Heard in notes');
   return { ...seen, lists: lists.map((p) => p.songs.length) };
+})()
+"""
+
+# **An album keeps saving through a closed app** (2026-11-21: an album saved on a phone that went to
+# the background kept its first track only). Four tracks ticked and saved; once the first is in, the
+# app is stopped as Android stops one, and started again: all four must arrive, once each.
+START_ALBUM_JS = r"""
+(async () => {
+  const [page, count, from] = %s;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 60);
+  if (!plus) return { error: 'no +' };
+  plus.click();
+  const field = await until(() => document.querySelector('input[aria-label="a web address or a search"]'), 15);
+  if (!field) return { error: 'no address field' };
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, page);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(500);
+  field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await sleep(12000);
+  const menu = await until(() => document.querySelector('button.menu-btn[aria-label="formicaria\'s options"]'), 20);
+  if (!menu) return { error: 'no ≡' };
+  menu.click();
+  const item = await until(() => [...document.querySelectorAll('[role=menuitem]')].find((b) => b.textContent.trim() === 'Save media'), 10);
+  if (!item) return { error: 'no Save media' };
+  item.click();
+  const boxes = () => [...document.querySelectorAll('input[name=track]')];
+  await until(() => boxes().length >= from + count, 60);
+  for (const b of boxes().slice(from, from + count)) { b.click(); await sleep(300); }
+  const mp3 = [...document.querySelectorAll('input[name=what]')].find((i) => i.parentElement.textContent.includes('The sound as MP3'));
+  if (mp3) mp3.click();
+  await sleep(300);
+  const sel = document.querySelector('select[aria-label=playlist]');
+  sel.value = '+';
+  sel.dispatchEvent(new Event('change', { bubbles: true }));
+  await sleep(500);
+  const save = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === `Save ${count} tracks`);
+  if (!save) return { error: 'no "Save N tracks"' };
+  save.click();
+  return { started: true };
+})()
+"""
+COUNT_JS = r"""
+(async () => {
+  const inv = (cmd, args = {}) => window.__TAURI_INTERNALS__.invoke('fm', { cmd, args })
+    .then((t) => (typeof t === 'string' ? JSON.parse(t) : t));
+  const lib = await inv('music_library');
+  const lists = await inv('music_playlists');
+  return { songs: lib.length, titles: lib.map((n) => n.title),
+           lists: lists.map((p) => ({ title: p.title, songs: (p.songs || []).length })),
+           queue: (() => { try { return JSON.parse(localStorage.getItem('fm-media-queue') || '[]').length; } catch { return -1; } })() };
 })()
 """
 
@@ -936,6 +1004,15 @@ def main() -> None:
                     kinds = probe.stdout.split()
                     check(f"{name}: it has its picture and its sound", "video" in kinds and "audio" in kinds,
                           f"streams: {kinds or probe.stderr.strip()[:200]}")
+        if "album-all" in only:
+            name = "Bandcamp: a whole album, All tracks"
+            got = cdp.evaluate(MULTI_JS % json.dumps([ALBUM[0], "all"])) or {}
+            say(f"{name}: {json.dumps(got)[:3000]}")
+            check(f"{name}: every track is saved in Music", got.get("done") == "ok" and got.get("notes") == got.get("want"),
+                  f"{got.get('error') or got.get('done')}; notes {got.get('notes')} of {got.get('want')}; failed {got.get('failed')}")
+            check(f"{name}: all are in one playlist named after the album",
+                  got.get("lists") == [{"title": ALBUM[2], "songs": got.get("want")}], str(got.get("lists")))
+            check(f"{name}: each is filed under the album", got.get("albums") == [ALBUM[2]], str(got.get("albums")))
         if not only or any("Bandcamp" in k or "several" in k for k in only):
             name = "Bandcamp: two tracks of an album, ticked"
             got = cdp.evaluate(MULTI_JS % json.dumps(list(ALBUM[:2]))) or {}
@@ -1041,6 +1118,42 @@ def main() -> None:
             say(f"yt-dlp not updated, not the app's fault: {refused[-1].split('not updated:')[-1].strip()[:200]}")
         check("the phone's yt-dlp can update itself (no fault in the app's code)", not broken,
               broken[-1].split("not updated:")[-1].strip()[:300] if broken else "")
+        if not only or "resume" in only:
+            name = "Bandcamp: an album, the app stopped half way"
+            base = (cdp.evaluate(COUNT_JS) or {})
+            got = cdp.evaluate(START_ALBUM_JS % json.dumps([ALBUM[0], 4, 10])) or {}
+            say(f"{name}: started {json.dumps(got)}; before {base.get('songs')} songs")
+            first = None
+            for _ in range(120):
+                now = cdp.evaluate(COUNT_JS) or {}
+                if (now.get("songs") or 0) > (base.get("songs") or 0):
+                    first = now
+                    break
+                time.sleep(2)
+            say(f"{name}: the first in: {json.dumps(first)[:400]}")
+            # Stopped as Android stops an app it needs the memory of, and opened again.
+            adb("shell", "am", "force-stop", PKG, check_rc=False)
+            time.sleep(3)
+            adb("shell", "am", "start", "-n", f"{PKG}/.MainActivity", check_rc=False)
+            cdp = app_view()
+            after = {}
+            for _ in range(300):
+                try:
+                    after = cdp.evaluate(COUNT_JS) or {}
+                except RuntimeError:
+                    time.sleep(2)
+                    cdp = app_view()
+                    continue
+                if (after.get("songs") or 0) >= (base.get("songs") or 0) + 4 and after.get("queue") == 0:
+                    break
+                time.sleep(2)
+            say(f"{name}: after the restart: {json.dumps(after)[:900]}")
+            added = (after.get("songs") or 0) - (base.get("songs") or 0)
+            check(f"{name}: all four tracks arrive after the restart", bool(first) and added >= 4,
+                  f"first {bool(first)}; added {added}; queue left {after.get('queue')}")
+            check(f"{name}: each once", added == 4, f"added {added}: {after.get('titles')}")
+            fresh = [l for l in after.get("lists") or [] if l["title"] == ALBUM[2] and l["songs"] == 4]
+            check(f"{name}: all four in one playlist", bool(fresh), str(after.get("lists")))
     except Exception as e:  # noqa: BLE001 - said as a failure
         check("the check ran to the end", False, f"{repr(e)[:400]}; logcat: {phone_log()}")
     finally:

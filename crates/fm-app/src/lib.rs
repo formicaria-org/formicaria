@@ -82,6 +82,7 @@ pub mod video;
 pub mod secrets;
 pub mod shelf;
 pub mod source;
+pub mod storage;
 pub mod themes;
 pub mod thread;
 pub mod tutorials;

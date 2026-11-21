@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { storage } from './storageState.svelte';
   import PrivacySheet from './PrivacySheet.svelte';
   import UsageDiarySection from './UsageDiarySection.svelte';
   import SubsonicSection from './SubsonicSection.svelte';
@@ -49,6 +50,9 @@
     config as fetchConfig,
     setGitAssetsMax,
     setGitMedia,
+    storageUnused,
+    storageRemove,
+    storageRestore,
     checkMoveVault,
     moveVault,
     setSupervision,
@@ -110,6 +114,63 @@
       setVaults(await setGitAssetsMax(vault, raw.trim()));
     } catch (e) {
       assetError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // **Unused attachments, per vault** (2026-11-21, `storage.rs`): looked for on request, put aside
+  // for 30 days, put back on request. What nothing uses is ticked; what only its own attachment
+  // entry keeps is the person's to tick (it may be a file kept on purpose).
+  const unused = storage.unused;
+  const unusedPicked = storage.picked;
+  const storageSaid = storage.said;
+  const mb = (n: number) =>
+    n >= 1_000_000_000
+      ? `${(n / 1_000_000_000).toFixed(1)} GB`
+      : n >= 1_000_000
+        ? `${(n / 1_000_000).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(n / 1000))} kB`;
+  async function lookUnused(vault: string) {
+    storage.busy = true;
+    try {
+      const r = await storageUnused(vault);
+      unused[vault] = r;
+      unusedPicked[vault] = r.nothing.map((u) => u.hash);
+      storageSaid[vault] = '';
+    } catch (e) {
+      storageSaid[vault] = e instanceof Error ? e.message : String(e);
+    } finally {
+      storage.busy = false;
+    }
+  }
+  async function removePicked(vault: string) {
+    const hashes = unusedPicked[vault] ?? [];
+    if (!hashes.length) return;
+    storage.busy = true;
+    try {
+      const r = await storageRemove(vault, hashes);
+      storageSaid[vault] =
+        `Put aside ${r.files} ${r.files === 1 ? 'file' : 'files'} (${mb(r.bytes)}). They are kept 30 days, then go for good.`;
+      await lookUnused(vault);
+      storageSaid[vault] =
+        `Put aside ${r.files} ${r.files === 1 ? 'file' : 'files'} (${mb(r.bytes)}). They are kept 30 days, then go for good.`;
+    } catch (e) {
+      storageSaid[vault] = e instanceof Error ? e.message : String(e);
+    } finally {
+      storage.busy = false;
+    }
+  }
+  async function putBack(vault: string) {
+    const hashes = (unused[vault]?.held ?? []).map((h) => h.hash);
+    storage.busy = true;
+    try {
+      const r = await storageRestore(vault, hashes);
+      await lookUnused(vault);
+      storageSaid[vault] =
+        `Put back ${r.files} ${r.files === 1 ? 'file' : 'files'}. Their attachment entries can be brought back from the Deleted list.`;
+    } catch (e) {
+      storageSaid[vault] = e instanceof Error ? e.message : String(e);
+    } finally {
+      storage.busy = false;
     }
   }
 
@@ -1049,6 +1110,68 @@
         <span>Videos travel with the notes too</span>
       </label>
     {/if}
+    <!-- **Unused attachments** (2026-11-21): the one action in this category, on the owner's word
+         (`decisions.md` 2026-11-21 (later still)). -->
+    <div class="storage" role="group" aria-label={`unused attachments in ${labelFor(v.name)}`}>
+      {#if !unused[v.name]}
+        <button class="link" disabled={storage.busy} onclick={() => void lookUnused(v.name)}
+          >Look for attachments no note uses…</button
+        >
+      {:else}
+        {@const r = unused[v.name]}
+        {@const all = [...r.nothing, ...r.attachment_only]}
+        {@const chosen = all.filter((u) => (unusedPicked[v.name] ?? []).includes(u.hash))}
+        {#if !all.length}
+          <p class="muted small">Every attachment in this vault is used by a note.</p>
+        {/if}
+        {#each [{ list: r.nothing, head: 'Used by no note' }, { list: r.attachment_only, head: 'Kept only by their attachment entry — the note that used them is gone, or the file is kept on its own' }] as group (group.head)}
+          {#if group.list.length}
+            <p class="small storage-head">
+              {group.head} ({group.list.length}, {mb(group.list.reduce((n, u) => n + u.size, 0))})
+            </p>
+            <ul class="storage-list">
+              {#each group.list as u (u.hash)}
+                <li>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={(unusedPicked[v.name] ?? []).includes(u.hash)}
+                      onchange={(e) =>
+                        (unusedPicked[v.name] = e.currentTarget.checked
+                          ? [...(unusedPicked[v.name] ?? []), u.hash]
+                          : (unusedPicked[v.name] ?? []).filter((h) => h !== u.hash))}
+                    />
+                    <span>{u.name || `a ${u.kind}`} · {u.kind} · {mb(u.size)}</span>
+                  </label>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        {/each}
+        {#if all.length}
+          <button
+            class="danger"
+            disabled={storage.busy || !chosen.length}
+            onclick={() => void removePicked(v.name)}
+            >Remove selected ({chosen.length}, {mb(chosen.reduce((n, u) => n + u.size, 0))})</button
+          >
+          <p class="muted small">
+            Removed files are kept 30 days in the vault, then go for good; your snapshot keeps them
+            either way. A note in the Deleted list keeps its files until it leaves that list.
+          </p>
+        {/if}
+        {#if r.held.length}
+          <p class="small">
+            Put aside, kept until they go: {r.held.length}
+            {r.held.length === 1 ? 'file' : 'files'} ({mb(r.held.reduce((n, h) => n + h.size, 0))}).
+            <button class="link" disabled={storage.busy} onclick={() => void putBack(v.name)}
+              >Put them back</button
+            >
+          </p>
+        {/if}
+      {/if}
+      {#if storageSaid[v.name]}<p class="small" aria-live="polite">{storageSaid[v.name]}</p>{/if}
+    </div>
     <p class="muted small">
       {#if v.git_assets_max}
         Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed with your notes{v.git_sound &&
@@ -3161,6 +3284,26 @@
     background: var(--accent);
     border-color: var(--accent);
     color: var(--accent-contrast);
+  }
+  .storage {
+    margin-top: var(--space-2);
+  }
+  .storage-head {
+    margin: var(--space-2) 0 var(--space-1);
+    font-weight: 600;
+  }
+  .storage-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-2);
+    max-height: 16rem;
+    overflow: auto;
+  }
+  .storage-list label {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    overflow-wrap: anywhere;
   }
   .panel :global(section button.danger) {
     border-color: var(--danger-bg);
