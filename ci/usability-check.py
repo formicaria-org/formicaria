@@ -840,6 +840,301 @@ def look(ff: Path, work: Path) -> None:
     bc.stop(ff)
 
 
+VISIBLE_JS = r"""
+const seen = (e) => { const r = e.getBoundingClientRect(); const st = getComputedStyle(e);
+  return r.width > 0 && r.height > 0 && st.visibility !== 'hidden' && r.bottom > 0 && r.top < innerHeight; };
+const name = (e) => (e.getAttribute('aria-label') || e.textContent || e.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+return {
+  url: location.pathname, title: document.title,
+  controls: [...document.querySelectorAll('button, a[href], [role=tab], [role=menuitem], input, select')]
+    .filter(seen).map((e) => `${e.tagName.toLowerCase()}${e.getAttribute('role') ? '[' + e.getAttribute('role') + ']' : ''}: ${name(e)}${e.title && e.title !== name(e) ? ' (title: ' + e.title + ')' : ''}`),
+  headings: [...document.querySelectorAll('h1, h2, h3')].filter(seen).map(name),
+};
+"""
+
+
+def first_hour_pictures(ff: Path, work: Path) -> None:
+    """**The first hour, as pictures** (the owner, 2026-11-22: *"do the audit first"*): formicaria's
+    browser at 1440 × 900 on the screens a new person meets, each drawn to `work/audit-*.png` with the
+    controls a person can see listed in `work/audit-*.json`. Run on its own: `FM_USABILITY_ONLY=audit`.
+    Invented notes only."""
+    who = "the first hour, pictures"
+    bc.post("/api/create_notes", {"notes": [
+        {"title": "Reading list", "tags": ["reading"], "body": "- The ant colony as a superorganism\n- Trails and pheromones\n", "props": {}},
+        {"title": "Field notes, week 3", "body": "## Tuesday\n\nThe colony moved two metres east. **Why?** See [[Reading list]].\n", "props": {}},
+        {"title": "Write the methods section", "body": "", "props": {"due": "2026-11-28", "status": "todo"}},
+        {"title": "Order the new nest", "body": "", "props": {"due": "2026-11-25", "status": "doing"}},
+    ]})
+    made = bc.post("/api/create_notes", {"notes": [{"title": "Meeting with the lab", "body": "Agenda:\n\n1. Results\n2. Next steps\n", "props": {}}]})
+    nid = made[0]["id"]
+    m = launch(ff, work / "profile-audit", f"{SERVER}/f/group/Library",
+               'user_pref("browser.window.width", 1440);\nuser_pref("browser.window.height", 900);\n')
+    def shot(name: str) -> None:
+        time.sleep(2)
+        try:
+            (work / f"audit-{name}.json").write_text(json.dumps(content(m, VISIBLE_JS), indent=1))
+        except Exception as e:  # noqa: BLE001
+            (work / f"audit-{name}.json").write_text(json.dumps({"error": repr(e)}))
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        try:
+            png = m.cmd("WebDriver:TakeScreenshot", {"full": False, "hash": False})["value"]
+            (work / f"audit-{name}.png").write_bytes(base64.b64decode(png))
+        finally:
+            m.cmd("Marionette:SetContext", {"value": "content"})
+    def key(*keys: str) -> None:
+        down = [{"type": "keyDown", "value": k} for k in keys]
+        up = [{"type": "keyUp", "value": k} for k in reversed(keys)]
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions": down + up}]})
+        m.cmd("WebDriver:ReleaseActions")
+    try:
+        m.cmd("WebDriver:SetWindowRect", {"width": 1440, "height": 900})
+        time.sleep(8)
+        shot("01-home")
+        (work / "audit-preview.json").write_text(json.dumps(content(m, """
+          return [...document.querySelectorAll('.post .preview, .preview')].slice(0, 4).map((p) => {
+            const st = getComputedStyle(p); const r = p.getBoundingClientRect();
+            return { text: p.textContent.slice(0, 120), h: Math.round(r.height), top: Math.round(r.top),
+              display: st.display, maxH: st.maxHeight, overflow: st.overflow, color: st.color, mask: st.maskImage,
+              ws: st.whiteSpace, lh: st.lineHeight, fs: st.fontSize, scrollH: p.scrollHeight, scrollTop: p.scrollTop,
+              cls: p.className, parent: getComputedStyle(p.parentElement).display + ' ' + getComputedStyle(p.parentElement).flexDirection };
+          });"""), indent=1))
+        (work / "audit-preview-top.json").write_text(json.dumps(content(m, """
+          const p = document.querySelector('.post .preview'); if (!p) return null;
+          const r = p.getBoundingClientRect();
+          const at = (y) => { const e = document.elementFromPoint(r.left + 15, y); return e ? e.tagName + '.' + e.className + ' ' + (e.textContent || '').slice(0, 30) : null; };
+          return { line1: at(r.top + 6), line2: at(r.top + 25), line3: at(r.bottom - 6), rect: [r.left, r.top, r.width, r.height] };""")))
+        content(m, "const s = document.createElement('style'); s.textContent = '.post .preview { mask-image: none !important; }'; document.head.appendChild(s); return true;")
+        shot("01b-no-mask")
+        goto(m, f"{SERVER}/f/new", 4); shot("02-new-tab")
+        goto(m, f"{SERVER}/f/note/{nid}", 5); shot("03-note")
+        content(m, "document.querySelector('button[aria-label=\"note options\"]')?.click(); return true;")
+        shot("04-note-options")
+        key("\ue00c")  # Escape
+        content(m, "document.querySelector('.read p, .read li')?.click(); return true;")
+        shot("05-note-editing")
+        key("\ue00c")
+        goto(m, f"{SERVER}/f/group/Library", 5)
+        key("\ue009", "k"); shot("06-ctrl-k")  # Control+K
+        key("\ue00c")
+        key("/"); shot("07-slash-search")
+        key("\ue00c")
+        for path, name in [("/f/group/Notes", "08-notes"), ("/f/group/Tasks", "09-tasks"), ("/f/agenda", "10-agenda"),
+                           ("/f/settings", "11-settings"), ("/f/privacy", "12-privacy")]:
+            goto(m, f"{SERVER}{path}", 5)
+            shot(name)
+        check(who, "the pictures were drawn", (work / "audit-01-home.png").exists())
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
+AUDIT_JS = r"""
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const seen = (e) => { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+const byText = (re, sel = 'button, a, [role=menuitem], [role=tab], summary') =>
+  [...document.querySelectorAll(sel)].filter(seen).find((e) => re.test((e.textContent || e.getAttribute('aria-label') || '').trim()));
+const until = async (f, secs = 6) => { for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); } return null; };
+const task = arguments[0];
+const out = { task, ok: false, clicks: 0, said: '' };
+const click = async (e) => { if (!e) return false; e.click(); out.clicks++; await sleep(700); return true; };
+const key = (k, o = {}) => (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...o }));
+try {
+  if (task === 'search-visible') {
+    const f = [...document.querySelectorAll('input')].filter(seen).find((i) => i.type === 'search' || /search|find/i.test(i.placeholder + (i.getAttribute('aria-label') || '')));
+    out.ok = !!f; out.said = f ? (f.placeholder || f.getAttribute('aria-label')) : 'no search field on the screen';
+  } else if (task === 'own-view') {
+    const b = byText(/new view|add view|create view|\+ view|new board|new table/i);
+    out.ok = !!b; out.said = b ? b.textContent.trim() : 'no control to make a view';
+  } else if (task === 'history') {
+    await click(document.querySelector('button[aria-label="note options"]'));
+    const b = byText(/history|versions?|earlier/i, 'button.opt');
+    out.ok = !!b; out.said = b ? b.textContent.trim() : 'note options: ' + [...document.querySelectorAll('button.opt')].map((e) => e.textContent.trim()).join(', ');
+    document.querySelector('button[aria-label="close options"]')?.click();
+  } else if (task === 'link-suggest') {
+    document.querySelector('.read p, .read li')?.click(); out.clicks++;
+    const ed = await until(() => document.querySelector('.cm-content'));
+    if (!ed) { out.said = 'no editor'; return out; }
+    ed.focus();
+    document.execCommand('insertText', false, ' [[Rea');
+    const pop = await until(() => [...document.querySelectorAll('[role=listbox], .slash-menu')].find(seen), 3);
+    out.ok = !!pop; out.said = pop ? pop.textContent.trim().slice(0, 80) : 'typing [[ offers nothing';
+  } else if (task === 'delete-undo') {
+    await click(document.querySelector('button[aria-label="note options"]'));
+    await click(byText(/^Delete$/, 'button.opt'));
+    await click(byText(/^(Delete|Yes, delete|Delete it)$/));
+    const toast = await until(() => [...document.querySelectorAll('[role=status], [role=alert], .toast')].find((e) => /undo/i.test(e.textContent)), 4);
+    out.ok = !!toast; out.said = toast ? toast.textContent.trim().slice(0, 80) : 'after delete: ' + location.pathname + ' — no Undo offered';
+  }
+} catch (e) { out.said = 'error: ' + e; }
+return out;
+"""
+
+
+def first_hour_basics(ff: Path, work: Path) -> None:
+    """**What a computer had lost, back** (`ui-audit-2026-11-22.md`, U1): search from the Notes page;
+    Ctrl+K and `/` as real key presses, opening formicaria's search and not the browser's own; a note
+    deleted in its tab, offered back with Undo on the tab in front, and Ctrl+Z; Escape closing a
+    note's Options; Recently deleted in the chooser; tab titles that name the page."""
+    who = "someone in their first hour"
+    made = bc.post("/api/create_notes", {"notes": [
+        {"title": "Harvester ants", "body": "They store seeds.\n", "props": {}},
+        {"title": "A note to throw away", "body": "Nothing much.\n", "props": {}}]})
+    keep, drop = made[0]["id"], made[1]["id"]
+    m = launch(ff, work / "profile-basics", f"{SERVER}/f/group/Library",
+               'user_pref("browser.window.width", 1440);\nuser_pref("browser.window.height", 900);\n')
+    def key(*keys: str) -> None:
+        down = [{"type": "keyDown", "value": k} for k in keys]
+        up = [{"type": "keyUp", "value": k} for k in reversed(keys)]
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions": down + up}]})
+        m.cmd("WebDriver:ReleaseActions")
+    def findbar_open() -> bool:
+        return bool(chrome(m, "const f = gBrowser.getCachedFindBar && gBrowser.getCachedFindBar(); return !!(f && !f.hidden);"))
+    try:
+        time.sleep(7)
+        # Search from the Notes page: the field is there, typing finds the note.
+        typed = content(m, """const f = document.querySelector('input[aria-label="search notes"]');
+                              if (!f) return false; f.focus(); return true;""")
+        check(who, "the Notes page has a search field", bool(typed))
+        if typed:
+            m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions":
+                  [a for ch in "harvester" for a in ({"type": "keyDown", "value": ch}, {"type": "keyUp", "value": ch})]}]})
+            m.cmd("WebDriver:ReleaseActions")
+            found = wait_for(m, "const r = document.querySelector('[aria-label=\"search results\"]'); return r && r.textContent.includes('Harvester ants') ? r.textContent.slice(0, 80) : null", 10)
+            check(who, "typing in it finds the note", bool(found))
+            key("\ue00c")
+        # A post's text is seen (no mask hiding it): the pixel under its first line is the text's
+        # colour somewhere, read from a picture of the page.
+        seen_text = content(m, """const p = [...document.querySelectorAll('.post .preview')].find((e) => e.textContent.includes('They store seeds'));
+                                  return p ? getComputedStyle(p).maskImage : 'no preview';""")
+        check(who, "a post's text shows in Notes, not masked away", seen_text in ("none", ""), str(seen_text))
+        # Ctrl+K and / on a note's page.
+        goto(m, f"{SERVER}/f/note/{keep}", 5)
+        content(m, "document.activeElement && document.activeElement.blur(); document.body.focus(); return true;")
+        key("\ue009", "k"); time.sleep(1)
+        box = content(m, "return !!document.querySelector('[role=dialog][aria-label=\"search notes\"]')")
+        check(who, "Ctrl+K on a note's page opens the search", bool(box))
+        key("\ue00c"); time.sleep(0.5)
+        still_note = content(m, "return location.pathname")
+        check(who, "Escape puts the search away and leaves the note open", still_note.startswith("/f/note/"), still_note)
+        key("/"); time.sleep(1)
+        box = content(m, "return !!document.querySelector('[role=dialog][aria-label=\"search notes\"]')")
+        check(who, "/ opens formicaria's search, not the browser's find bar", bool(box) and not findbar_open(),
+              f"search {box}, find bar {findbar_open()}")
+        key("\ue00c"); time.sleep(0.5)
+        # Escape closes a note's Options.
+        content(m, "document.querySelector('button[aria-label=\"note options\"]').click(); return true;")
+        time.sleep(0.7)
+        key("\ue00c"); time.sleep(0.7)
+        still = content(m, "return !!document.querySelector('.options-window')")
+        check(who, "Escape closes a note's Options", not still)
+        # Delete a note in its own tab; the Notes tab in front offers it back.
+        notes_tab = m.cmd("WebDriver:GetWindowHandle")
+        notes_tab = notes_tab.get("value", notes_tab) if isinstance(notes_tab, dict) else notes_tab
+        goto(m, f"{SERVER}/f/group/Library", 5)
+        win = m.cmd("WebDriver:NewWindow", {"type": "tab"})
+        win = win.get("value", win) if isinstance(win, dict) else win
+        m.cmd("WebDriver:SwitchToWindow", {"handle": win["handle"] if isinstance(win, dict) else win})
+        m.cmd("WebDriver:Navigate", {"url": f"{SERVER}/f/note/{drop}"})
+        time.sleep(4)
+        content(m, """document.querySelector('button[aria-label="note options"]').click();
+                      setTimeout(() => [...document.querySelectorAll('button.opt')].find((b) => b.textContent.trim() === 'Delete')?.click(), 500);
+                      setTimeout(() => [...document.querySelectorAll('button.danger')].find((b) => b.textContent.trim() === 'Delete')?.click(), 1200);
+                      return true;""")
+        time.sleep(3)
+        gone = bc.post("/api/get", {"id": drop})
+        check(who, "set up: the note is deleted", not (gone or {}).get("id"), str(gone)[:120])
+        m.cmd("WebDriver:SwitchToWindow", {"handle": notes_tab})
+        toast = wait_for(m, "const t = [...document.querySelectorAll('[role=status]')].find((e) => e.textContent.includes('Deleted')); return t ? t.textContent : null", 8)
+        check(who, "the tab in front offers it back: Deleted “…” · Undo", bool(toast) and "Undo" in (toast or ""), str(toast))
+        content(m, "document.activeElement && document.activeElement.blur(); return true;")
+        key("\ue009", "z"); time.sleep(3)
+        back = (bc.post("/api/get", {"id": drop}) or {}).get("id") == drop
+        check(who, "Ctrl+Z puts the note back", back)
+        # Deleted in the same tab, after moving around in it: Back brings the page before out of the
+        # browser's cache, and it says so too.
+        goto(m, f"{SERVER}/f/note/{drop}", 4)
+        content(m, """document.querySelector('button[aria-label="note options"]').click();
+                      setTimeout(() => [...document.querySelectorAll('button.opt')].find((b) => b.textContent.trim() === 'Delete')?.click(), 500);
+                      setTimeout(() => [...document.querySelectorAll('button.danger')].find((b) => b.textContent.trim() === 'Delete')?.click(), 1200);
+                      return true;""")
+        time.sleep(3)
+        toast = wait_for(m, "const t = [...document.querySelectorAll('[role=status]')].find((e) => e.textContent.includes('Deleted')); return t ? location.pathname + ': ' + t.textContent : null", 8)
+        check(who, "deleted in the same tab, the page it goes back to offers Undo", bool(toast), str(toast))
+        content(m, "const b = [...document.querySelectorAll('[role=status] button')].find((e) => e.textContent.trim() === 'Undo'); if (b) b.click(); return !!b;")
+        time.sleep(2)
+        check(who, "its Undo puts the note back", (bc.post("/api/get", {"id": drop}) or {}).get("id") == drop)
+        # Recently deleted, from the chooser.
+        goto(m, f"{SERVER}/f/group/Library", 5)
+        content(m, "document.querySelector('button[aria-label=\"switch this tab to another feature\"]').click(); return true;")
+        time.sleep(0.6)
+        listed = content(m, "return [...document.querySelectorAll('[role=menuitem]')].some((b) => b.textContent.trim() === 'Recently deleted…')")
+        check(who, "Recently deleted is in the chooser", bool(listed))
+        key("\ue00c")
+        # Tab titles.
+        for path, want in [("/f/new", "New tab"), ("/f/settings", "Settings")]:
+            goto(m, f"{SERVER}{path}", 4)
+            t = content(m, "return document.title")
+            check(who, f"{path} is named “{want}” in its tab", t.startswith(want), t)
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
+def first_hour_walk(ff: Path, work: Path) -> None:
+    """**The first hour, walked** (the audit, 2026-11-22): each task tried the way the mainstream
+    apps do it, in formicaria's browser, and what happened written to `work/audit-walk.json`. On
+    request only (`FM_USABILITY_ONLY=audit`): a gap here is a finding, not a failed release; a task
+    fixed becomes an ordinary check."""
+    made = bc.post("/api/create_notes", {"notes": [{"title": "Walk note", "body": "Some text to read.\n", "props": {}}]})
+    nid = made[0]["id"]
+    m = launch(ff, work / "profile-walk", f"{SERVER}/f/group/Library",
+               'user_pref("browser.window.width", 1440);\nuser_pref("browser.window.height", 900);\n')
+    walk = []
+    def run(task: str) -> None:
+        try:
+            r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [task], "script":
+                      "const done = arguments[arguments.length - 1]; (async function() {" + AUDIT_JS + "}).apply(null, arguments).then(done, (e) => done({task: arguments[0], ok: false, said: String(e)}));"})
+            v = r["value"] if isinstance(r, dict) and "value" in r else r
+        except Exception as e:  # noqa: BLE001
+            v = {"task": task, "ok": False, "said": repr(e)[:200]}
+        walk.append(v)
+        print(f"usability: audit {'yes' if v.get('ok') else 'NO '} {task}: {v.get('said', '')} ({v.get('clicks', 0)} clicks)", flush=True)
+    def key(*keys: str) -> None:
+        down = [{"type": "keyDown", "value": k} for k in keys]
+        up = [{"type": "keyUp", "value": k} for k in reversed(keys)]
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions": down + up}]})
+        m.cmd("WebDriver:ReleaseActions")
+    try:
+        m.cmd("WebDriver:SetTimeouts", {"script": 60000})
+        time.sleep(8)
+        run("search-visible")
+        run("own-view")
+        # Ctrl+K and / as real key presses: what opens?
+        key("\ue009", "k"); time.sleep(1.5)
+        opened = content(m, "const d=[...document.querySelectorAll('[role=dialog], [role=combobox], [role=listbox]')].filter(e=>e.getBoundingClientRect().width>0).map(e=>e.getAttribute('aria-label')||e.className); const a=document.activeElement; if (a && a.getAttribute('aria-label')==='search notes') d.push('search notes (focused)'); return d.join(', ')")
+        focus = chrome(m, "return document.commandDispatcher.focusedElement?.id || document.activeElement?.id || ''")
+        walk.append({"task": "ctrl-k", "ok": bool(opened), "said": opened or f"nothing in the page; the window's focus went to {focus or 'the page'}"})
+        print(f"usability: audit {'yes' if opened else 'NO '} ctrl-k: {walk[-1]['said']}", flush=True)
+        key("\ue00c")
+        goto(m, f"{SERVER}/f/note/{nid}", 5)
+        run("history")
+        run("link-suggest")
+        key("\ue00c")
+        goto(m, f"{SERVER}/f/note/{nid}", 5)
+        run("delete-undo")
+        key("\ue009", "z"); time.sleep(2)
+        back = (bc.post("/api/get", {"id": nid}) or {}).get("id") == nid if True else False
+        walk.append({"task": "ctrl-z-restores", "ok": back, "said": "the note came back" if back else "Ctrl+Z after deleting: the note stays deleted"})
+        print(f"usability: audit {'yes' if back else 'NO '} ctrl-z-restores: {walk[-1]['said']}", flush=True)
+        (work / "audit-walk.json").write_text(json.dumps(walk, indent=1))
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001
+        print(f"usability: audit walk stopped: {e!r}"[:300])
+    bc.stop(ff)
+
+
 def previous_release() -> str | None:
     """The newest release tag before this tree: what a person updating comes from."""
     r = subprocess.run(["git", "describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD"], cwd=ROOT,
@@ -1230,6 +1525,8 @@ def main() -> None:
             "music": lambda: music_player(ff, work),
             "width": lambda: reading_width(ff, work),
             "look": lambda: look(ff, work),
+            "audit": lambda: (first_hour_pictures(ff, work), first_hour_walk(ff, work)),
+            "basics": lambda: first_hour_basics(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),
         }
@@ -1238,7 +1535,7 @@ def main() -> None:
         for name, persona in personas.items():
             if only != [""] and name not in only:
                 continue
-            if only == [""] and name == "look":
+            if only == [""] and name in ("look", "audit"):
                 continue  # pictures, on request
             try:
                 persona()

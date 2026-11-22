@@ -10,7 +10,7 @@ moved to [archive/overview-last-verified-narrative-through-2026-07-24.md](./arch
 
 ## Router — read this BEFORE you touch a hot area
 
-The rule this project keeps re-learning: **an on-demand doc no one is pointed to is invisible.**
+The rule this project relearns: **an on-demand doc no one is pointed to is invisible.**
 So before editing one of these areas, open the named file first. `decisions.md#<subject>` means
 grep `decisions.md` for that subject tag — its index is at the top of the file.
 
@@ -24,7 +24,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices can run; corrects `outstanding.md` §2.4. Field survey: `transcription-specialists-survey-2026-08-31.md`. Neither picks |
 | **Handwriting devices** | `handwriting-device-survey-2026-11-01.md` |
 | **Music** | `music-plan-2026-11-13.md` (M1–M5 first) |
-| **Settings**; how wide a note reads | `settings-plan-2026-11-21.md` · `reading-width-research-2026-11-21.md` |
+| **Settings, UI, Home** | `settings-plan-2026-11-21.md` · `reading-width-research-2026-11-21.md` · `ui-audit-2026-11-22.md` · `unifying-home-research-2026-11-22.md` |
 | **Where code lives; the size budget** (adding a crate, module, phone feature) | `structure.md` |
 | **Making formicaria leaner** | `lean-plan-2026-11-18.md` |
 | **Stronger privacy** | `privacy-plan-2026-11-19.md` · `privacy-baseline-2026-11.md` |

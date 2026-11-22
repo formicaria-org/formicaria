@@ -312,6 +312,21 @@
   // The pane's root, so a global key (Ctrl+S) can tell whether *this* pane in the
   // trail is the one being typed in.
   let paneEl = $state<HTMLElement | undefined>(undefined);
+  // **Escape closes the note's Options, wherever the focus is** (`ui-audit-2026-11-22.md`, S1): the
+  // window's own handler heard Escape only with the focus inside it, which a click on ＋ does not
+  // put there. Capture, so the editor (which also takes Escape) does not see this one.
+  $effect(() => {
+    if (!optionsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      optionsOpen = false;
+      captureOpen = false;
+    };
+    addEventListener('keydown', onKey, true);
+    return () => removeEventListener('keydown', onKey, true);
+  });
   /// **How wide the text reads** (`readingWidth.svelte.ts`): the person's step, or this note's Full
   /// width. The measure counts the text alone; the column adds its padding on both sides.
   const readMax = $derived.by(() => {
@@ -2212,6 +2227,8 @@
 
   function onPaneKey(e: KeyboardEvent) {
     if (!ownsKeys()) return;
+    // An Escape something else already answered (the search over the page) is not the note's.
+    if (e.key === 'Escape' && e.defaultPrevented) return;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 's') {
       // The app owns Ctrl+S while a note is open — suppress the browser's own

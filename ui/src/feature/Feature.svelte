@@ -71,6 +71,8 @@
   import NewTab from './NewTab.svelte';
   import SelectionBring from '../lib/SelectionBring.svelte';
   import { noteShown, lastNote } from '../lib/lastNote';
+  import FindNotes from './FindNotes.svelte';
+  import UndoDelete from './UndoDelete.svelte';
 
   let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
 
@@ -172,16 +174,30 @@
     void read();
   });
 
-  // **The tab's title is the thing it shows**, as a browser tab names its page.
+  // **The tab's title is the thing it shows**, as a browser tab names its page. The pages that are
+  // not a view say what they are: they read "timeline" before (the placeholder pane's kind; the
+  // audit, 2026-11-22).
+  const PAGE_NAMES: Partial<Record<Route['kind'], string>> = {
+    new: 'New tab',
+    settings: 'Settings',
+    privacy: 'Privacy',
+    media: 'Save media',
+  };
   $effect(() => {
     const name =
-      pane.kind === 'note'
+      PAGE_NAMES[route.kind] ??
+      (pane.kind === 'note'
         ? pane.noteTitle || 'Note'
         : route.kind === 'group'
           ? sectionLabel(route.name)
-          : (pane.viewName ?? pane.kind);
+          : (here?.label ?? pane.viewName ?? pane.kind));
     document.title = `${name} — formicaria`;
   });
+  /** The pages with a bar of their own carry the search field in it; the others open it over the
+   *  page with Ctrl+K or `/` (`FindNotes.svelte`). */
+  const hasStrip = !['new', 'media', 'privacy', 'settings', 'note'].includes(route.kind);
+  /** *Recently deleted*, from the feature chooser (`DeletedPanel`, `decisions.md` 2026-10-09). */
+  let deletedOpen = $state(false);
 
   /** Open a note (or anything) in a tab of its own. */
   function openNote(id: string) {
@@ -252,6 +268,17 @@
 </script>
 
 <div class="feature">
+  <UndoDelete onrestored={() => void read()} />
+  {#if !hasStrip}
+    <FindNotes onopen={openNote} />
+  {/if}
+  {#if deletedOpen}
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="Recently deleted">
+      {#await import('../lib/DeletedPanel.svelte') then { default: DeletedPanel }}
+        <DeletedPanel onclose={() => (deletedOpen = false)} onrestored={() => void read()} />
+      {/await}
+    </div>
+  {/if}
   <UpdateBanner />
   <BrowserRestartBanner />
   {#if route.kind === 'new'}
@@ -331,6 +358,15 @@
                   <button type="button" role="menuitem" onclick={() => go(f.url)}>{f.label}</button>
                 </li>
               {/each}
+              <li role="separator" class="sep"></li>
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onclick={() => ((choosing = false), (deletedOpen = true))}
+                  >Recently deleted…</button
+                >
+              </li>
             </ul>
           {/if}
         </div>
@@ -354,6 +390,7 @@
              per usual apps"*; `browser/kit/formicaria.cfg`), and here only while the window cannot
              show it (`windowHasSettings`). -->
         <span class="system">
+          <FindNotes inline onopen={openNote} />
           <!-- **A new note from every view** (owner on 0.52: *"how are notes added? The plus
                disappeared from every view"*): in a tab of its own, straight in the editor. -->
           <button type="button" class="new-note" onclick={() => void newNote()} title="A new note"
@@ -500,5 +537,9 @@
   }
   .error {
     margin: var(--space-2);
+  }
+  .menu .sep {
+    border-top: 1px solid var(--border);
+    margin: var(--space-1) 0;
   }
 </style>

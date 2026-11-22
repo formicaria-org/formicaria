@@ -3046,6 +3046,17 @@ environment; build from a `git worktree` with this checkout's environment instea
   *someone listening to a playlist*, `phone-media-check`'s *music:* checks): songs one after another and
   every button of the deck.
 
+## On a computer: what U1 brought back, and what it did not (2026-11-22)
+
+- **Fixed in U1** (`ui-audit-2026-11-22.md`): search on every feature page; Ctrl+K and **/**
+  (taken from Firefox's web search and find bar); Undo after a delete on the tab in front, and in the
+  same tab after Back; Ctrl+Z; *Recently deleted* in the chooser; Escape closing a note's Options;
+  tab titles; post previews (a fade mask had hidden their text). Each is a check in `usability-check`
+  (*someone in their first hour*).
+- **Still open:** redo (Ctrl+Shift+Z) across tabs; the undo of anything but a delete lives only in
+  the tab where it was done. The excerpt keeps `**bold**` and `[[links]]` as typed (`dto.rs`
+  `excerpt_of`).
+
 ## The release checks can fail on noise (2026-11-21)
 
 - **`browser-check`'s memory budget (+10 %)** failed twice on one day with formicaria's browser steady

@@ -29,6 +29,7 @@ import {
   updateBody,
 } from './ipc';
 import type { NoteDetail, NoteDraft } from './types';
+import { rememberDeleted, forgetDeleted } from './lastDeleted';
 
 export type Undoable = {
   /** What happened, in the person's words: `deleted “Lab meeting”`. */
@@ -198,10 +199,13 @@ export async function setPropertyUndoable(
 /** Delete a note, undoably: undo puts it back exactly as it was. */
 export async function deleteUndoable(id: string, title: string): Promise<void> {
   const gone = await deleteNote(id);
+  // Every tab can offer it back (`lastDeleted.ts`): this tab may be about to close.
+  rememberDeleted({ id, vault: gone.vault, file: gone.file, title });
   record({
     label: `deleted “${title}”`,
     undo: async () => {
       await restoreNote(gone.vault, gone.file);
+      forgetDeleted(id);
     },
     redo: async () => {
       await deleteNote(id);

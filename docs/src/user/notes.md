@@ -114,7 +114,16 @@ link's text.
 
 ## Undo, and getting back a deleted note
 
-The **↶** button (beside Settings, or in the bottom bar on a phone) opens a small menu:
+**On a computer**, formicaria's browser shows each page in a tab of its own:
+
+- After you delete a note, **Deleted "…" · Undo** appears at the bottom of the tab you land on.
+  Choose **Undo** to put the note back.
+- **Ctrl+Z** (**⌘Z**) on any page, outside the text, undoes that page's last change. If there is
+  none, it puts back the last note you deleted in the last half hour.
+- **Recently deleted…** is at the bottom of the menu under the page's name (**Notes ▾**).
+
+**On a phone or a paired tablet**, the **↶** button (beside Settings, or in the bottom bar) opens a
+small menu:
 
 - **Undo** names the last thing you did, for example *deleted "Lab meeting"*,
   *changed the due date of "Lab meeting"*, *moved a card to "doing"*, *edits to "Lab meeting"* or

@@ -404,13 +404,14 @@
 
        `white-space: pre-line` because the excerpt keeps its line breaks — a heading and its first
        paragraph read as two lines, which is the shape people recognise. */
-    display: -webkit-box;
-    -webkit-line-clamp: 6;
-    line-clamp: 6;
-    -webkit-box-orient: vertical;
+    /* **No fading mask** (the audit, 2026-11-22, `audit-01` against `audit-01b-no-mask`): in
+       formicaria's browser the mask hid the top of every excerpt and left only its last line, faded —
+       a post read as having no text. Six whole lines of the post's own line height, cut cleanly;
+       the server's excerpt already ends in "…" when there is more. */
+    display: block;
+    max-height: calc(6 * var(--lh-md, 1.5) * 1em);
     overflow: hidden;
     white-space: pre-line;
-    mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
   }
   /* The compact list is a line per note and is never sent an excerpt; keep its old clamp. */
   .row:not(.post) .preview {

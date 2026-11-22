@@ -8783,6 +8783,8 @@ bad token). Starting a build and downloading its artifact wait for the token to 
 
 ## 2026-10-11 — a click on a note starts editing it, and the ＋ has no Edit `#ui` `#track-m`
 
+> AMENDED 2026-11-22 (later): the note's options window opens from **⋯**, not ＋ (＋ only ever adds). What the window holds is unchanged.
+
 > **Reverses** the gesture rule recorded in passing on 2026-08-31 (*"double-click means edit", in the
 > manual, in Help, and pinned by a test*), and removes the *Edit* that *a note's header is its title
 > and one ＋* (2026-09-11) listed first in the ＋ window.
@@ -16201,3 +16203,75 @@ is in `reading-width-research-2026-11-21.md`.
 
 **The four questions.** `#ui`; permitted (extends *Look*, already "this browser" for theme and bar);
 widens what ships only by two device keys. Supersedes nothing.
+
+## 2026-11-22 — The computer gets search, Ctrl+K and Undo back on every page `#ui`
+
+**Found:** the first-hour audit (`ui-audit-2026-11-22.md`) measured that formicaria's browser had lost
+search, the Ctrl+K shortcut, the undo menu and *Recently deleted*. They live in `App.svelte`, and the
+one frame (2026-11-17) shows `Feature.svelte` pages, which never mounted them. The owner, on the
+audit: *"U1 fixes, then Settings"*.
+
+**Ruled:**
+1. **Search on every feature page**:
+   - a *Search notes* field in the page's bar;
+   - **Ctrl+K / ⌘K and `/`** on every page, a note's included, opening it over the page;
+   - both keys taken from Firefox (its web search and find-in-page) while a formicaria page has
+     the focus.
+
+   Ctrl+K *finds notes* here, as quick-find does in other apps. **The command palette stays ruled
+   out**, and this is not one. In the older frame Ctrl+K still opens Settings' commands; the two
+   frames differ until the older one goes.
+2. **A delete is offered back on whichever tab is in front** (`lastDeleted.ts`). Each tab is its own
+   page, and the note's tab closes, taking its undo along. The last delete (vault, file, title; no
+   text) is kept in the browser's storage, and announced:
+   - through the `storage` event to the other tabs;
+   - by an event in the same page;
+   - on `pageshow` when Back restores a cached page.
+
+   Ctrl+Z outside the text undoes the page's own last change, or else puts back the last delete
+   of the last half hour.
+3. **Recently deleted** is in the feature chooser (`Notes ▾`).
+4. **Post previews draw no fade mask**: in formicaria's browser it hid the text.
+
+**The four questions.** `#ui`; restores what the one frame meant to keep (permitted); widens what
+ships by one device key (`fm-last-deleted`). Supersedes nothing.
+
+## 2026-11-22 (later) — The mainstream's conventions: ⋯ for options, `[[` for links, one-vault badges hidden, Import, Export, History `#ui` `#data`
+
+**Asked:** the first-hour audit (`ui-audit-2026-11-22.md`, U2) proposed seven conventions. The owner
+approved four groups: *"⋯ for note options, [[ for links, Badge only if 2+ vaults, Import, Export,
+History"*.
+
+**Ruled:**
+1. **A note's options open from ⋯**, at the top right of the note, as in Notion and Obsidian. **＋ only
+   ever adds**:
+   - *New note* stays ＋;
+   - a card's status chip with no status no longer draws a ＋ (it reads as "add"), but an empty
+     ring with the same tap and long-press.
+
+   Amends 2026-10-11 (*a click on a note starts editing it, and the ＋ has no Edit*): the
+   window and what it holds stay; its button changes.
+2. **`[[` opens the same note finder as `/`** while writing, and inserts the same `note:` link.
+   Obsidian users type it without thinking. The import already turns `[[links]]` into note links
+   (`import/obsidian.rs`).
+3. **The vault badge is drawn only when there is more than one vault.** With one, it named nothing a
+   person could tell apart, on every card.
+4. **Import has a place of its own**:
+   - Settings → **Import** (a section, *Bring your notes from Obsidian or Logseq*), opening the
+     importer that today sits three levels down (Vaults & backup → New vault → Import from
+     another app);
+   - the welcome screen offers it too.
+5. **⋯ → Export**: *Markdown* (the note's own file, downloaded); *PDF* (the browser's print, of the
+   note alone); *HTML* (one page, pictures included). Nothing leaves the device unless the person
+   sends the file on.
+6. **⋯ → History**:
+   - the note's versions from its vault's git history (date, who, how much changed);
+   - one can be read, and **Restore this version** writes it back as a new change, undoable like
+     any edit, so history is never rewritten;
+   - a vault without git says there is no history yet.
+
+**The four questions.** `#ui` `#data`; extends the note's window and Settings (permitted). History adds
+two read commands over git that already ships (`git_native`), and a restore that is an ordinary body
+write. Export adds no dependency: Markdown is the file, PDF the browser's print, and HTML the
+renderer's own output. Widens what ships by those commands. Amends 2026-10-11 (the button), and
+supersedes nothing.

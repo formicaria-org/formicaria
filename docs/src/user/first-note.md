@@ -46,7 +46,10 @@ There is no Edit button to look for.
 
 Two ways, and you will use both:
 
-**Search** — the box at the top of the **sidebar**. It looks inside every note, not just titles, so
+**Search** — on a computer, the **Search notes** field at the top right of every page, or
+**Ctrl+K** (**⌘K** on a Mac) or **/** from any page, a note's included; on a phone, the box at the
+top of the **sidebar**. **Enter** opens the best match, and **Escape** puts the search away. It looks
+inside every note, not just titles, so
 searching for a phrase you half-remember works. The best matches come first: a note with your words
 in its title or tags before one that only mentions them. It finds part of a long word too
 (*beratung* finds *Ernährungsberatung*), and Chinese words anywhere in a sentence.

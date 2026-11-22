@@ -111,7 +111,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | fm-update | v0.0.0 | MIT |
 | fnv | v1.0.7 | Apache-2.0 / MIT |
 | foldhash | v0.2.0 | Zlib |
-| form_urlencoded | v1.2.2 | MIT OR Apache-2.0 |
+| form_urlencoded | v1.2.3 | MIT OR Apache-2.0 |
 | futures-core | v0.3.32 | MIT OR Apache-2.0 |
 | futures-task | v0.3.32 | MIT OR Apache-2.0 |
 | futures-util | v0.3.32 | MIT OR Apache-2.0 |
@@ -328,7 +328,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | unsafe-libyaml | v0.2.11 | MIT |
 | untrusted | v0.9.0 | ISC |
 | ureq | v2.12.1 | MIT OR Apache-2.0 |
-| url | v2.5.8 | MIT OR Apache-2.0 |
+| url | v2.5.9 | MIT OR Apache-2.0 |
 | utf8_iter | v1.0.4 | Apache-2.0 OR MIT |
 | utf8parse | v0.2.2 | Apache-2.0 OR MIT |
 | uuid | v1.23.5 | Apache-2.0 OR MIT |
