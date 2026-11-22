@@ -123,6 +123,28 @@ describe('renderInto — assets degrade gracefully', () => {
     expect(el.querySelector('img')).toBeNull();
   });
 
+  // **On the phone, a button to the phone's PDF app** (2026-11-22): Android's page view has no PDF
+  // viewer, so an iframe there stayed empty.
+  it('on the phone, a PDF is a button that hands it to the PDF app', async () => {
+    const opened: [string, string][] = [];
+    (globalThis as { __fmShare?: unknown }).__fmShare = {
+      openWith: (path: string, mime: string) => opened.push([path, mime]),
+    };
+    try {
+      const el = pane();
+      await renderInto(
+        el,
+        '![paper](asset:sha256-deadbeef)',
+        resolveAs('application/pdf', 'blob:test/p.pdf'),
+      );
+      expect(el.querySelector('iframe')).toBeNull();
+      const b = el.querySelector('button.asset-pdf-open') as HTMLButtonElement;
+      expect(b?.textContent).toBe('Open the PDF: paper');
+    } finally {
+      delete (globalThis as { __fmShare?: unknown }).__fmShare;
+    }
+  });
+
   it('renders video and audio with native controls', async () => {
     const v = pane();
     await renderInto(v, '![clip](asset:sha256-aa)', resolveAs('video/mp4', 'blob:test/v.mp4'));

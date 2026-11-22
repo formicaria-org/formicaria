@@ -467,7 +467,7 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
         img.replaceWith(ph);
         return;
       }
-      upgradeAsset(img, asset, alt);
+      upgradeAsset(img, asset, alt, src);
     }),
   );
 }
@@ -486,7 +486,7 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
  *  was, and it deliberately still is not — every browser's built-in PDF viewer
  *  needs `allow-scripts allow-same-origin`, which together are a no-op, so the
  *  attribute would buy a false sense of security at the cost of the viewer. */
-function upgradeAsset(img: HTMLImageElement, asset: ResolvedAsset, alt: string): void {
+function upgradeAsset(img: HTMLImageElement, asset: ResolvedAsset, alt: string, ref = ''): void {
   const mime = asset.mime;
   if (mime.startsWith('image/') || mime === '') {
     // **The small copy when there is one, the full blob when there is not** (2026-09-04).
@@ -510,6 +510,22 @@ function upgradeAsset(img: HTMLImageElement, asset: ResolvedAsset, alt: string):
     return;
   }
   if (mime === 'application/pdf') {
+    // **On the phone, a button to the phone's PDF app** (2026-11-22): Android's page view has no PDF
+    // viewer, so the frame below stayed empty there. The phone app's bridge (`__fmShare.openWith`)
+    // hands the vault's own file to the app the person uses for PDFs.
+    const share = (globalThis as { __fmShare?: { openWith?: unknown } }).__fmShare;
+    if (share?.openWith && ref) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'asset-pdf-open';
+      b.textContent = `Open the PDF${alt ? `: ${alt}` : ''}`;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void import('./ipc').then((m) => m.openWith(ref, 'application/pdf'));
+      });
+      replaceWithFigure(img, b, alt);
+      return;
+    }
     const frame = document.createElement('iframe');
     frame.className = 'asset-pdf';
     frame.src = asset.url; // native, scrollable, multi-page viewer

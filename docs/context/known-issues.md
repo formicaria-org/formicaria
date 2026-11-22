@@ -3046,6 +3046,27 @@ environment; build from a `git worktree` with this checkout's environment instea
   *someone listening to a playlist*, `phone-media-check`'s *music:* checks): songs one after another and
   every button of the deck.
 
+## On a computer: what the older frame still does that the feature pages do not (2026-11-22)
+
+From the shell's parity list (`unifying-home-research-2026-11-22.md` §10.1). Backing up by itself,
+conflicts, reminders and the manual were fixed in 0.60.9 (`decisions.md`, 2026-11-22, night, later).
+**Still missing on the computer** (the shell, P2b, closes them; each goes on its parity tests):
+- redo (Ctrl+Shift+Z);
+- the sync chips and panels (get changes, unreadable, not in history, decided for you) and the Back
+  up menu;
+- the vault filter;
+- ＋'s other makes (board, discussion, paper, from a template, into another vault);
+- ViewControls (Agenda's month/week/list, Timeline's feed/list);
+- swiping between a group's views;
+- the music player bar;
+- *Bring into another note…*, which does nothing there;
+- drop from a page into the front note;
+- the bridge (ask the assistant about the front note);
+- the rebindable keys (`keys.ts` has no effect there).
+
+**On the phone**, compared with the older frame on a tablet: no redo, no *Recently deleted*, no ＋
+menu, no vault filter, no sync chips. These go on the same list.
+
 ## On a computer: what U1 brought back, and what it did not (2026-11-22)
 
 - **Fixed in U1** (`ui-audit-2026-11-22.md`): search on every feature page; Ctrl+K and **/**

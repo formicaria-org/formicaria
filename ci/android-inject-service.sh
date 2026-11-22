@@ -255,6 +255,14 @@ if [ -f "$gradle" ] && ! grep -q 'youtubedl-android' "$gradle"; then
     ' "$gradle" > "$tmpf" && mv "$tmpf" "$gradle"
 fi
 
+# **A page on plain http opens when the person chooses it** (2026-11-22). The release build forbade
+# clear-text traffic, so a site with no https (a researcher's homepage) never opened, even after
+# *Open it anyway*. Pages are still made secure first (`PagePrivacy.upgrade`); http is only ever used
+# for a site the person allowed on its page. formicaria's own requests are https.
+if [ -f "$gradle" ] && grep -q 'manifestPlaceholders\["usesCleartextTraffic"\] = "false"' "$gradle"; then
+    sed -i 's/manifestPlaceholders\["usesCleartextTraffic"\] = "false"/manifestPlaceholders["usesCleartextTraffic"] = "true"/' "$gradle"
+fi
+
 # **Save media's tools kept whole by R8** (2026-11-18). The release build shrinks and renames classes;
 # youtubedl-android unpacks Python and yt-dlp with Apache Commons Compress, which finds its zip helpers
 # by class name, updates yt-dlp through Apache Commons IO (shrunk: a class loader of null), and reads

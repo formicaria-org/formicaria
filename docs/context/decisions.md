@@ -3973,6 +3973,8 @@ asked to see.
 
 ## 2026-08-31 — view customization is withdrawn, the board rail goes, and a stale binary wasted a review round `#ui` `#toolchain`
 
+> SUPERSEDED IN PART (2026-11-22, *the shell*): the design plan this entry asked for is `unifying-home-research-2026-11-22.md` §9. Making your own view returns as a verb of every kind (P3). The binary trap below still stands.
+
 > **Reverses** the board-rail half of *A view says what it leaves out, and a board admits it scrolls*
 > (2026-08-24) — amended earlier the same day, now removed. **Supersedes** *A saved view is an
 > arrangement you keep, not a query you write* (2026-08-28) and the rename/delete half of *rename is
@@ -12074,6 +12076,8 @@ From the audit of the day's work (the owner: *"many ad hoc custom paths"*):
 
 ## 2026-10-18 — Home is the Library's shelves; tutorials are notes `#ui` `#vault`
 
+> SUPERSEDED IN PART (2026-11-22, *the shell*): Home becomes each space's first view (kinds, getting started, today, just in, recent, pinned, added blocks); the shelves become a block on it. Tutorials stay notes.
+
 > SUPERSEDED IN PART (2026-10-29, late night, *the app opens on Food's Day*): a first launch still opens on the
 > shelves, but a later one no longer reopens the saved view — it opens on Food's Day, the open notes
 > kept.
@@ -15347,6 +15351,8 @@ The owner: *"remove emails from everywhere for now, one can keep it in a browser
 
 ## 2026-11-17 — one frame: one row of options, tabs of features, + suggests, the selection icon `#ui`
 
+> SUPERSEDED IN PART (2026-11-22, *the shell*): navigation moves into fm's own shell, a rail on a computer and the bottom bar on a phone (space, Home, Today, the kinds, Find or do). *A tab is one feature* and *no left panel* give way. fm's chrome stays outside and Firefox's hidden; web pages keep their tabs; the selection icon stands.
+
 > SUPERSEDED in part: the ant's panel of features (it is formicaria's options now; + suggests the
 > features), + as Firefox's web tab (it is formicaria's new-tab page), and on the phone the bottom bar
 > of views button, ＋, collection and switch (it is the one bar).
@@ -16275,3 +16281,118 @@ two read commands over git that already ships (`git_native`), and a restore that
 write. Export adds no dependency: Markdown is the file, PDF the browser's print, and HTML the
 renderer's own output. Widens what ships by those commands. Amends 2026-10-11 (the button), and
 supersedes nothing.
+
+## 2026-11-22 (evening) — The shell: one interface built on kinds, cut by spaces, opening on today `#ui` `#data` `#seams`
+
+**Asked:** the owner: *"one important aspect for usability that we are missing is a unifying UI … it is
+not clear at a glance when one opens the app how it works and what one can do"*. Then, on a Home note:
+*"we need to go beyond using a note as a home, we need to think of possible bigger changes"*. Offered
+the directions in `unifying-home-research-2026-11-22.md` §9, the owner chose **"the full shell"**, and
+**"prototype first"**.
+
+**Ruled (the direction; each phase gets its own entry when built):**
+1. **One shell, the same on every device.**
+   - *Where you go*: a rail on a computer, the bottom bar on a phone. It holds the space, Home,
+     Today, the kinds of the space (each with ＋), and Find or do (Ctrl+K: search, create, the
+     assistant).
+   - *What you see*: the chosen view of the chosen kind.
+   - *The item*: in place, or beside on a wide screen.
+
+   Web pages keep Firefox's tabs behind fm's frame.
+2. **Every kind has the same verbs and one view switcher**: new, find, filter, group, view as…,
+   open, link, export, history, *make a view*. A kind's special view (the music deck, Food's
+   totals, the agenda) is its default view, not an app of its own.
+3. **Kinds are definitions** (a file per kind: fields, icon, default views, actions, what ＋ asks),
+   the shipped ones included. A person can copy one or make their own (P4). What a definition
+   cannot express stays code, named as such (a special renderer).
+4. **Spaces are optional**: one, *Everything*, until the person makes another. A space is a saved
+   choice of kinds, views and pins, with vaults as its natural sources.
+5. **Today** is a view in every space; **Home** is a space's first view.
+6. **Phases**, each a release through the full gate, with the first-hour audit rerun at each:
+   - **P0**: a clickable prototype, outside the repo, put through the audit's 20 tasks;
+   - **P1**: the kind registry;
+   - **P2**: the shell (the Settings plan folds in here);
+   - **P3**: make-a-view and spaces;
+   - **P4**: kinds a person defines.
+
+   U2's conventions (⋯, `[[`, the badge, Import, Export, History) survive any shell. Their place in
+   the order is after P0.
+
+**The four questions.** `#ui` `#data` `#seams`.
+- Contradicts three standing rulings, each bannered above: *one frame* (2026-11-17), *Home is the
+  Library's shelves* (2026-10-18), *view customization is withdrawn* (2026-08-31), whose condition
+  (*"its own design plan"*) this answers.
+- Widens what ships at P1 (the kind file format) and P4 (person-made kinds). Each will carry its
+  own entry.
+
+
+## 2026-11-22 (night) — The phone opens http-only sites when asked, and hands PDFs to the phone's PDF app `#ui` `#track-m`
+
+**Asked:** the owner: some web pages did not open cleanly on a phone: some papers, and some
+researchers' homepages.
+
+**Found, in the emulator:**
+1. An http-only site (no answer on port 443) left the page blank until Android gave up on the https
+   connection, a minute or more, before *Open it anyway* appeared. Then the release build refused
+   plain http (`usesCleartextTraffic="false"`; only the debug build allowed it), so the page never
+   opened at all.
+2. Android's page view has no PDF viewer: a link to a PDF did nothing, and a PDF attached to a note
+   drew an empty frame.
+
+**Ruled:**
+1. **An upgraded address that shows nothing in 8 s gives way** to the *No secure connection* page
+   (`watchUpgrade`; a page that shows itself in time is forgotten there).
+2. **The release build allows clear-text traffic** (patched in `ci/android-inject-service.sh`, as
+   the Gradle file is generated). Pages are still upgraded first. Plain http is used only when the
+   person chose *Open it anyway* or turned *Secure connections only* off. formicaria's own requests
+   are https.
+3. **A PDF goes to the phone's PDF app:**
+   - a page's PDF is fetched with the page's cookies into `files/web-pdf/` (the newest 20 kept,
+     150 MB at most) and opened through Android's chooser;
+   - a note's PDF draws an **Open the PDF** button (`render.ts`, through `__fmShare.openWith`).
+
+   No viewer is bundled (pdf.js would add megabytes), and the computer keeps Firefox's own.
+
+**Tested:** `phone-media-check`'s *web* case opens a real http-only homepage and a real arXiv PDF the
+way a person does. `render.test.ts` tests the phone's PDF button.
+
+**The four questions.** `#ui` `#track-m`. Relaxes a guard (clear-text in the release build) for a
+reason stated above, so it earns this entry. Adds no dependency.
+
+## 2026-11-22 (night, later) — The computer backs up by itself again; conflicts, reminders and the manual work on its pages `#sync` `#ui`
+
+**Found** by the shell's parity list (`unifying-home-research-2026-11-22.md` §10.1). Since the
+computer moved to formicaria's browser pages (2026-11-17, *one frame*), several things the older frame
+did were done by no one on a computer:
+1. **Backing up by itself** (`autoBackup`, 2026-10-11 and 2026-10-17: save, get the other devices'
+   changes, send). Nothing on the server does it, and the feature pages never ran the loop. So a
+   computer sent its notes only when someone pressed Back up, while Settings said it backed up by
+   itself.
+2. **A conflict's buttons** in Collaboration were wired to nothing.
+3. **The program's reminder list** (it announces reminders with no page open) was handed over only
+   by the older frame, so on a computer it went stale.
+4. **Every "How this works" link** was dead: the manual's panel was not mounted.
+
+**Ruled:**
+1. **The feature pages run the same backup loop**: the same policy (`lib/autoBackup.ts`) and the
+   same `syncVault`, in `feature/backupLoop.ts`.
+   - **One tab runs it**, by the browser's lock (`navigator.locks`); the next tab takes over when
+     that one closes.
+   - With no formicaria page open, the server has stopped too.
+   - A vault whose changes are not leaving is said on the page, with a link to Back up.
+   - The older frame keeps its own loop until the shell replaces both (P2d). Two copies of the
+     wiring, one policy, for a few releases.
+2. The tab holding the loop **keeps the program's reminders current**, at start and on every change.
+3. **The conflict buttons call `resolve_conflict`**, as in the older frame.
+4. **The manual's panel and the reminder banner** are mounted on the feature pages.
+
+**Tested:**
+- `Feature.backup.test.ts`: it sends without a press, sends nothing when switched off, and says a
+  vault that cannot send.
+- `Feature.parity.test.ts`: a conflict is resolved, and the reminders are handed over.
+- `usability-check`'s *someone whose notes back up by themselves*: a bare repository as the remote,
+  a change on the computer, and the change arriving there without a press.
+
+**The four questions.** `#sync` `#ui`. Restores what 2026-10-11 and 2026-10-17 ruled, so it is
+permitted. Ships nothing new. The remaining gaps (redo, the sync chips, the player bar, *Bring into
+another note…*) are the shell's parity list, in `known-issues.md`.

@@ -971,6 +971,46 @@ return out;
 """
 
 
+def backs_up_by_itself(ff: Path, work: Path) -> None:
+    """**The computer backs up by itself** (found 2026-11-22: the loop ran only in the older frame,
+    so formicaria's browser never sent notes by itself). A vault with a remote (a bare repository
+    here), sent once by hand, as a first backup always is; a note changed while a formicaria page is
+    open; within a few minutes, without a press, the change is in the remote."""
+    who = "someone whose notes back up by themselves"
+    remote = work / "remote.git"
+    if remote.exists():
+        shutil.rmtree(remote)
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    bc.post("/api/set_git_remote", {"url": remote.as_uri(), "name": "Check Reader",
+                                     "email": "reader@example.org", "vault": ""})
+    made = bc.post("/api/create_notes", {"notes": [{"title": "Sent by itself", "body": "First.\n", "props": {}}]})
+    nid = made[0]["id"]
+    bc.post("/api/commit", {"message": "first backup", "vault": ""})
+    bc.post("/api/push", {"message": "first backup", "vault": ""})
+    def remote_log() -> str:
+        r = subprocess.run(["git", "--git-dir", str(remote), "log", "--all", "-p", "-n", "5"],
+                           capture_output=True, text=True)
+        return r.stdout
+    check(who, "set up: the first backup is in the remote", "First." in remote_log())
+    m = launch(ff, work / "profile-backup", f"{SERVER}/f/group/Library")
+    try:
+        time.sleep(6)
+        bc.post("/api/update_body", {"id": nid, "body": "First.\nChanged on the computer.\n", "base": ""})
+        bc.post("/api/commit", {"message": "auto: edit", "vault": ""})
+        arrived = False
+        for _ in range(60):  # five minutes at most: a tick, the quiet wait, the push
+            time.sleep(5)
+            if "Changed on the computer." in remote_log():
+                arrived = True
+                break
+        check(who, "a change made on the computer reaches the remote without a press", arrived,
+              remote_log()[-400:])
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
 def first_hour_basics(ff: Path, work: Path) -> None:
     """**What a computer had lost, back** (`ui-audit-2026-11-22.md`, U1): search from the Notes page;
     Ctrl+K and `/` as real key presses, opening formicaria's search and not the browser's own; a note
@@ -1527,6 +1567,7 @@ def main() -> None:
             "look": lambda: look(ff, work),
             "audit": lambda: (first_hour_pictures(ff, work), first_hour_walk(ff, work)),
             "basics": lambda: first_hour_basics(ff, work),
+            "backup": lambda: backs_up_by_itself(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),
         }

@@ -702,10 +702,82 @@ class MainActivity : TauriActivity() {
     return next
   }
 
+  /** **A secure address that does not answer gives way in seconds** (2026-11-22; the owner: some
+   *  homepages "do not open cleanly"). A site with no https at all (a server that never answers on
+   *  443) left the page blank until Android gave up on the connection, a minute or more, before the
+   *  choice to open it anyway appeared. After 8 s with nothing shown, that choice is shown. A page
+   *  that shows itself in time is forgotten here (`onPageCommitVisible`). */
+  private fun watchUpgrade(view: WebView, https: String) {
+    if (!upgradedFrom.containsKey(https)) return
+    view.postDelayed({
+      val http = upgradedFrom.remove(https) ?: return@postDelayed
+      if (view.url != null && view.url != https && !view.url!!.startsWith("about:")) return@postDelayed
+      view.stopLoading()
+      view.loadDataWithBaseURL(null, PagePrivacy.insecurePage(http), "text/html", "utf-8", null)
+    }, 8000)
+  }
+
+  /** **A PDF opens in the phone's PDF app** (2026-11-22; the owner: arXiv papers "do not open
+   *  cleanly"). Android's page view cannot show a PDF: a link to one did nothing. It is fetched
+   *  with the page's own cookies into the app's storage (the newest 20 kept) and handed to whichever
+   *  app the person uses for PDFs, as Chrome on Android does. */
+  private fun openPdf(url: String, ua: String?) {
+    Thread {
+      try {
+        val dir = File(filesDir, "web-pdf").apply { mkdirs() }
+        dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(20)?.forEach { it.delete() }
+        var u = java.net.URL(url)
+        var conn: java.net.HttpURLConnection
+        var hops = 0
+        while (true) {
+          conn = u.openConnection() as java.net.HttpURLConnection
+          conn.instanceFollowRedirects = false
+          conn.connectTimeout = 15000
+          conn.readTimeout = 30000
+          CookieManager.getInstance().getCookie(u.toString())?.let { conn.setRequestProperty("Cookie", it) }
+          if (!ua.isNullOrEmpty()) conn.setRequestProperty("User-Agent", ua)
+          val code = conn.responseCode
+          if (code in 300..399 && hops < 5) {
+            u = java.net.URL(u, conn.getHeaderField("Location") ?: break)
+            conn.disconnect(); hops++; continue
+          }
+          break
+        }
+        val base = (u.path.substringAfterLast('/').ifEmpty { "paper" }).replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+        val f = File(dir, if (base.endsWith(".pdf", true)) base else "$base.pdf")
+        conn.inputStream.use { inp ->
+          f.outputStream().use { out ->
+            val buf = ByteArray(64 * 1024); var total = 0L
+            while (true) {
+              val n = inp.read(buf); if (n < 0) break
+              total += n; if (total > 150L * 1024 * 1024) throw java.io.IOException("too large")
+              out.write(buf, 0, n)
+            }
+          }
+        }
+        runOnUiThread {
+          try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+            val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/pdf")
+              .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(Intent.createChooser(view, "Open the PDF with"))
+          } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "No app on this phone opens PDFs", android.widget.Toast.LENGTH_LONG).show()
+          }
+        }
+      } catch (e: Exception) {
+        runOnUiThread {
+          android.widget.Toast.makeText(this, "The PDF could not be fetched", android.widget.Toast.LENGTH_LONG).show()
+        }
+      }
+    }.start()
+  }
+
   private fun open(id: String, page: WebView, url: String) {
     val next = rewrite(id, url) ?: url
     scriptletsFor(id, page, next)
     page.loadUrl(next, PagePrivacy.headers(next))
+    watchUpgrade(page, next)
   }
 
   /** **A site's scriptlets** (`privacy-plan-2026-11-19.md` 3.3), registered for its origin before
@@ -823,6 +895,11 @@ class MainActivity : TauriActivity() {
     if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
       try { WebSettingsCompat.setRequestedWithHeaderOriginAllowList(page.settings, emptySet()) } catch (e: Exception) { }
     CookieManager.getInstance().setAcceptThirdPartyCookies(page, false)
+    page.setDownloadListener { url, ua, disposition, mime, _ ->
+      val pdf = mime?.contains("pdf", true) == true || url.substringBefore('?').endsWith(".pdf", true) ||
+        disposition?.contains(".pdf", true) == true
+      if (pdf) openPdf(url, ua)
+    }
     page.webViewClient = object : WebViewClient() {
       override fun doUpdateVisitedHistory(view: WebView, u: String?, reload: Boolean) {
         pageUrls[id] = view.url ?: ""
@@ -849,7 +926,13 @@ class MainActivity : TauriActivity() {
         scriptletsFor(id, view, next ?: u)
         if (next == null) return false
         view.loadUrl(next, PagePrivacy.headers(next))
+        watchUpgrade(view, next)
         return true
+      }
+
+      override fun onPageCommitVisible(view: WebView, u: String?) {
+        // The secure page showed itself: it needs no way back.
+        if (u != null) upgradedFrom.remove(u)
       }
 
       /// Every request the page makes: media ones are remembered for Save media.

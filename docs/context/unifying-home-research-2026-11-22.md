@@ -167,3 +167,262 @@ and 19 (side by side: two blocks) toward ✅.
   Shepherd's licence file: https://unpkg.com/angular-shepherd@22.0.0/LICENSE.md
 - Onboarding and empty states (vendor blogs, read with care): https://www.appcues.com/blog/user-onboarding-ui-ux-patterns ·
   https://userpilot.com/blog/progressive-disclosure/
+
+## 9. Beyond a home: bigger changes (2026-11-22, later)
+
+**The owner, on §4:** *"I think we need to go beyond using a note as a home, we need to think of possible
+bigger changes."* A Home note fixes the front door, not the building.
+
+**The building's real problem:** formicaria is a set of feature pages, each with its own controls and
+its own way of listing, adding and opening. Each taught separately, so a person learns ten small apps.
+The library model says something else: **one library of notes of kinds; views navigate the kinds**
+(memory, 2026-11-16). The interface has not caught up with the model.
+
+### 9.1 Six bigger directions
+
+| # | Direction | What changes | Precedent | For | Against |
+|---|---|---|---|---|---|
+| D1 | **Object-first shell** (object-oriented UX) | One layout for everything: **the kinds** → **a view of the chosen kind** (list, board, calendar, table, gallery, or its special view) → **the item**. Every kind gets the **same verbs**: new, find, filter, group, view as…, open, link, export, history. Music's deck and Food's totals become *views of their kind*, not separate apps | Sophia Prater's OOUX (*"objects first, then actions"*); Capacities; Anytype; Finder and Mail | Learn once, use everywhere. It is the library model, made visible | The biggest rebuild. Special screens must fit a common frame |
+| D2 | **Kinds as definitions the person can make** | A kind is a file (fields, icon, default views, actions, what *＋* asks). Food, Fitness, Music and Papers become **shipped kinds** a person can copy and change; a person adds *Book*, *Plant*, *Patient*. Forms and views are generated from the definition | Tana's supertags (a tag gives a node its fields; all tagged nodes are a collection with views); Anytype types; Ink & Switch, *Malleable software* (2025) | The unifying mechanism under D1: nothing is special-cased. The most customizable shape there is | Generated forms must still feel designed. Reverses *no view authoring* in spirit |
+| D3 | **Spaces**: areas of a life | *Study*, *Health*, *Home*, *Lab*: each a chosen set of kinds, views and pinned notes, with its own Home; one gesture or key switches. Vaults (personal, lab, shared paper) fit naturally as a space's source | Arc's Spaces, now Dia's Profiles: what users missed most when they were gone | The app's range, cut to what matters in each context | Arc's makers found ambitious structure a barrier. Spaces must be optional, with one default space |
+| D4 | **Time as the spine** | **Today** is the default view: what came in, what is planned, what is due, what was logged, what was written, on one line of time; zoom to week and month | fm's own Timeline and Agenda; Sunsama, Akiflow (§3 of the workspace research) | Everything in fm has a time; a day is how people think | Not everything is about today (a library, a paper). Good as a view, risky as the only door |
+| D5 | **A spatial canvas** | The library as boards of cards arranged by hand | Heptabase (reviews: strong for research, a *steep learning curve*, impractical on a phone); fm's own Excalidraw boards | Shows how ideas connect | **Not as the shell**: learning curve, phone. As a kind of view, it exists already |
+| D6 | **Assistant-first door** | One field, *"Ask or do"*, answering with views, creating, capturing, finding | Dia went AI-first; Superhuman's Cmd+K | One door for everything | A local model's limits; an answer cannot replace seeing your library. As part of Ctrl+K, yes |
+
+### 9.2 The recommendation: one shell, built on kinds, cut by spaces, opening on today
+
+A synthesis of D1 to D4, with D5 and D6 as tools inside it:
+
+1. **One shell, the same on every device.**
+   - **Where you go:** a rail on a computer, the bottom bar on a phone. It holds the **space** (one
+     by default), then **Home**, **Today**, **the kinds of that space** (each with ＋), and **Find
+     or do** (Ctrl+K: search, create, the assistant).
+   - **What you see:** the chosen view of the chosen kind.
+   - **The item:** it opens in place, or beside on a wide screen.
+2. **Kinds are definitions (D2)**, and **every kind has the same verbs and the same view switcher
+   (D1)**. A kind's special view (Music's deck, Food's totals, the Agenda) is its default view, not
+   its own app. *Make your own view* is a verb, not a feature.
+3. **Spaces (D3) are optional.** One space, *Everything*, until the person makes another. A space is
+   a saved choice of kinds, views and pins, so it costs nothing to the model.
+4. **Today (D4)** is a view every space has; **Home** (§4) becomes the space's first view, with the
+   kinds strip, getting-started, today, just-in, recent, pinned and added blocks.
+5. **Web pages stay where browsing is**: Firefox's tabs, hidden behind fm's frame as now. An open
+   note or view can still become a tab of its own.
+
+**Why this, rather than any one direction:** it is the library model drawn as an interface:
+- **kinds** are what the library holds;
+- **views** navigate them;
+- **sources** fill them (*Just in*);
+- **spaces** are how a person cuts the library;
+- **today** is when.
+
+Each piece already half exists:
+- the kinds list (`lib/features.ts`);
+- views as files (`*.view`);
+- the renderers;
+- Timeline and Agenda;
+- vaults.
+
+What changes is that they stop being separate pages.
+
+### 9.3 What it collides with (the owner decides; no arguing it down)
+
+| Standing ruling | The collision | Needed |
+|---|---|---|
+| *One frame* (2026-11-17): one row (≡ · tabs · +), *a tab is one feature*, **no left panel, no second bar** | The shell puts navigation in a rail (computer) and makes one fm view the place you move within, rather than a tab per feature | A **superseding** entry: the rail is fm's frame. Tabs remain for web pages and anything opened out |
+| *No view authoring* (`features.md`) | *Make your own view* becomes a verb on every kind | **Reversal** (already listed in the audit, U3) |
+| *Home is the Library's shelves* (2026-10-18) | Home becomes the space's first view; the shelves a block | **Superseded in part** (§8.1) |
+| Kinds as code (each feature its own page and logic) | Kinds become definitions, the shipped ones included | A `#data` `#seams` entry: the kind file's format, and what stays code (a special renderer such as the music deck) |
+
+### 9.4 How to get there without breaking a release
+
+| Phase | What | Shown by |
+|---|---|---|
+| **P0** | The decisions above. **A clickable prototype** of the shell: static pages, outside the repo (`spikes/`), with the audit's 20 tasks walked on it by the same harness | the first-hour score on the prototype against today's (7 ✅ · 6 ⚠ · 7 ❌) |
+| **P1** | **The kind registry** (workspace design §13.2): each kind declared once, with its verbs and views, the shipped ones written as definitions | every feature page drawn from its kind; no change a person sees yet |
+| **P2** | **The shell**: rail or bar, Home and Today, Find or do, the common view switcher and verbs | the audit's rows 3–12 and 17–19 |
+| **P3** | **Make your own view** as a verb; **Spaces** | rows 6, 8 and 19 |
+| **P4** | **Kinds a person defines** | a new kind made, used, synced and shown on the phone, in `usability-check` and `phone-media-check` |
+
+Each phase is a release through the full gate, and the first-hour audit is rerun at each. The
+Settings plan (`settings-plan-2026-11-21.md`) fits inside P2: Settings becomes one more place in the
+shell, not a card in a tab.
+
+### 9.5 Libraries, revisited for the shell
+
+Nothing in §5 changes. The shell needs **no new framework**: it is Svelte components over the existing
+renderers. A rail with drag-to-reorder kinds uses the same small reordering library as Home.
+Generated forms for kinds need none: they are fields from a definition, drawn by components fm
+already has (`Details`, the property editors).
+
+### Sources (§9)
+
+- OOUX: https://alistapart.com/article/object-oriented-ux/ · https://blog.logrocket.com/ux-design/object-oriented-ux-ooux/
+- Tana supertags: https://tana.inc/docs/supertags · https://tana.inc/articles/intro-to-supertags-search-nodes-and-views
+- Ink & Switch, *Malleable software* (June 2025): https://www.inkandswitch.com/essay/malleable-software/ ·
+  https://simonwillison.net/2025/Jun/11/malleable-software
+- Heptabase reviews (anecdotal): https://dev.to/pickuma/heptabase-review-visual-note-taking-for-thinking-through-problems-5daa ·
+  https://thesweetsetup.com/a-first-look-at-heptabase-a-pkm-app-for-research-and-learning/
+- Arc → Dia: https://browsercompany.substack.com/p/the-strategy-behind-dias-design ·
+  https://browsercompany.substack.com/p/designer-roundtable-building-swipeable ·
+  https://tidbits.com/2025/06/20/dia-browser-debuts-with-contextual-ai-chat-but-arc-users-feel-left-behind/
+
+## 10. What it takes: the plan from today's fm to the shell (2026-11-22, night)
+
+**Asked:** *"what does it take to change fm to this? Only research and plan"*, after the prototype
+(`~/formicaria-org/spikes/shell-prototype/index.html`, outside the repo). Sizes are relative (S, M,
+L, XL) and counted in releases through the full gate; no dates.
+
+### 10.1 Where fm is today (measured 2026-11-22)
+
+| Part | Today | Size |
+|---|---|---|
+| **Two frames** | `ui/src/App.svelte`: the phone, a paired tablet, another browser; its bar `TabBar.svelte`. `ui/src/feature/Feature.svelte`: the computer's pages in formicaria's browser, one feature per tab, steered by the kit (`browser/kit/formicaria.cfg`) | 5,385 + 408 · 545 · 833 lines |
+| **Per-feature screens** | `Pane.svelte`, `TrackerPane.svelte` (Food, Fitness, Health), `lib/music/` and `lib/video/` (14 files), `NotePanel.svelte`, `SettingsPanel.svelte` | 1,036 · 999 · — · 5,268 · 3,604 lines |
+| **Kinds, twice** | Server: `crates/fm-app/src/kinds.rs` (`KINDS`: key, label, mark, views, sources, place, hand-offs; `kind_key` on every note; the `kinds` command). Interface: `ui/src/lib/features.ts` (ten features, their pages). **The two lists do not know each other** | 237 · 57 lines |
+| **Views** | `.view` files (`views.rs`), renderers Board, Agenda, Timeline, Search, Totals; Gallery removed; components also for Calendar, Shelf, Trends, Activity, Discussions. **No Table, no Gallery** | 1,410 lines; 11 renderer components |
+| **Tests bound to the frames** | `usability-check.py`: 52 `/f/` addresses. `phone-media-check.py`: 25 selectors of the phone's bar. UI tests: 51 of 174 files render `App` or `Feature` | — |
+
+**The lesson to carry:** the move to the one frame (2026-11-17) silently dropped search, undo and
+*Recently deleted* on the computer (`ui-audit-2026-11-22.md`). A frame change must come with **a
+parity list**: every capability of the old frame, each tested in the new one before the old one goes.
+
+### 10.2 The target, as parts
+
+| Part | What it is | Built from |
+|---|---|---|
+| **Kind definitions** | One file per kind, the shipped ones in `crates/fm-app/src/shipped/kinds/*.kind` (YAML, like `.view`): key, label, icon, purpose line, how it is recognised (today's `KINDS` markers), its views (default first), its verbs, what ＋ asks (fields), its summary. Read by the server, served by `kinds`. Later a person's own in `<vault>/kinds/` (P4) | `kinds.rs` + `features.ts`, merged |
+| **`kind_summary`** | One request: per kind, a count and the last item, from the index (cheap, low memory) | the FTS index, `kind_key` |
+| **`KindView.svelte`** | The view switcher and the verbs (new, find, filter, group, sort, *make a view*) over any view of a kind | `Pane.svelte`'s feed loading; the renderers |
+| **New generic views** | **List** (from Timeline's compact list and Search), **Table** (new), **Gallery** (back, thumbnails exist) | existing renderers, `Card.svelte` |
+| **Special views** | A kind's own screen as one of its views: Music's player, Food's day and totals, Fitness's week, Health's cards, Agenda, Shelves, Videos | `MusicScreen`, `TrackerPane`, `VideoScreen`, `Calendar`, `Shelf` wrapped, not rewritten |
+| **`Shell.svelte`** | One frame, all devices. A rail on a computer, the bottom bar on a phone, from one model (space, Home, Today, kinds, Find or do, Settings). Routes `/s/<space>/<kind>[/<view>][?item=<id>]`, `/s/home`, `/s/today`, `/s/settings`. Old `/f/…` addresses redirect | `Feature.svelte`, `TabBar.svelte`, `FindNotes`, `UndoDelete` |
+| **The item, beside or in place** | `NotePanel` in a side slot on a wide screen, full on a narrow one; ⋯ with U2's Export and History | `Pane.svelte`'s note path |
+| **Home and Today** | Home: kinds strip, getting started, blocks (§4), **customizable from the first shell release** (the owner, 2026-11-22: *"the initial home screen must be customizable"*): *Customize home* adds a block (any view, a note, a tracker's total, a playlist, Today, Just in, Recent, Pinned), drags it, removes it, and sets a section to one or two columns. It is saved to `home.md` in the vault (so it syncs and versions), with *Reset to the default*. This needs **views embedded in notes** (§8.2). Today: a composed feed (agenda, due, logged, arrived, written) | agenda/timeline commands, composed server-side as one `today` read; `render.ts`'s embeds plus a view embed |
+| **Settings in the shell** | A place with its categories (`settings-plan-2026-11-21.md`), no longer a card in a tab | `SettingsPanel.svelte`, regrouped |
+| **The kit** | One pinned fm tab, the shell; web pages in their own tabs as now; the window's ⚙ opens `/s/settings` in the shell; `keepToOurTabs` keeps the shell tab; *Open as a tab* still opens an item alone | `formicaria.cfg` (`notesTab`, `keepToOurTabs`, the + page) |
+| **The phone** | The shell's bottom bar replaces `TabBar`'s feature tabs. Open web pages and items stay reachable through one *open* switcher (today's roller) | `App.svelte`'s phone path, `TabBar.svelte` |
+
+### 10.3 The phases
+
+Each phase is a release (or two) through the full gate, with the first-hour audit rerun.
+
+| Phase | What ships | A person sees | Size | Gate adds | Decision entry |
+|---|---|---|---|---|---|
+| **P0** ✓ prototype · **P0b** | The prototype, then the audit's 20 tasks walked on it by the harness; the owner's review; changes to the design | nothing in fm | S | the walk's score on the prototype | none |
+| **P1** | **Kinds as definitions**: shipped `.kind` files, merged from `kinds.rs` and `features.ts`; `kinds` returns them; `features.ts` reads them; `kind_summary` | nothing changes yet | M · 1 | Rust tests per kind file; every note recognised as before (a differential test on the tutorials vault) | the `.kind` format (`#data` `#seams`) |
+| **P2a** | **One view switcher and the same verbs** on every feature page, inside today's frame: List, Table, Gallery and each kind's special view; U2's ⋯, `[[`, badge rule, Import/Export/History land here | every kind works the same way; ⋯ on every item | L · 1–2 | a persona per verb on three kinds; the audit's rows 5–12, 16–17 | U2's entry already written; Table/Gallery |
+| **P2b** | **The shell on the computer**: rail, **a customizable Home** (add, move, remove blocks; saved to `home.md`; reset), Today, item beside, Find or do, Settings as a place (the Settings plan folds in); the kit's one shell tab; `/f/` redirects | the new interface | XL · 2 | **the parity list** checked in `usability-check`; a block added, moved and removed survives a reload and a sync; `browser-check`'s memory budget; the audit rerun | the shell entry (written), the kit's tab rules, view embeds in notes, `home.md` |
+| **P2c** | **The shell on the phone**: bottom bar, the *open* switcher; `App.svelte`'s phone path retired; `phone-media-check` moved to the shell's selectors | the same interface on the phone | L · 1–2 | the phone's parity list; the music, media and privacy cases unchanged in what they prove | the phone's bar (supersedes parts of 2026-11-17) |
+| **P2d** | **The old frames removed**: `App.svelte`'s desktop and tablet chrome, `Feature.svelte`'s strip, `TabBar`'s feature tabs. Thousands of lines out | nothing (only if the parity lists held) | M · 1 | the parity lists still green with the old code gone | none (follows P2b/P2c) |
+| **P3** | **Make a view** as a verb (saved as a `.view` of the kind); **Spaces** (a saved choice of kinds, views, pins; one default) | own views; spaces | L · 1–2 | make, use, sync, reload a view; switch spaces | spaces' file and where it lives |
+| **P4** | **A person's own kinds**: a kind made from a form, its fields, views and ＋, synced, on the phone | new kinds | L · 1–2 | make a kind, add items, see it on the phone | person-made kinds (`#data`) |
+
+**In total: about 9 to 12 releases**, with P2b the largest and riskiest. U2 is no longer a separate
+step: it lands in P2a. The Settings plan lands in P2b.
+
+### 10.4 What stays the same
+
+- **The server's job:** notes as files, the index, git, sync, the commands. It gains `kind_summary`,
+  a composed `today` read and the kind loader. It stays a classic, low-memory server, with
+  customization in the front (memory: *simple server, rich front*).
+- **The renderers:** wrapped, not rewritten.
+- **The note page** (`NotePanel`): moved into a slot, not redesigned. Its options move to ⋯ (U2).
+- **The browser engine and the kit's other work:** privacy, Save media, updates.
+
+### 10.5 Risks, and what answers each
+
+| Risk | Answer |
+|---|---|
+| **Losing capabilities again** in the frame change | The parity list, written in P0b from both frames, each item a test before P2d deletes anything |
+| **Scope growing** while it is built | One phase per release. Nothing from P3 or P4 enters P2 |
+| **Special screens not fitting** a common frame | They are views, wrapped whole. The frame only gives them the switcher and the verbs around them |
+| **The phone's memory** with a richer shell | `phone-media-check` measures memory per case already; the bottom bar is the same size as today's |
+| **Novelty**: a new interface people must learn | Mainstream placements throughout (rail, ⋯, Ctrl+K, a view switcher); the audit's conventions as the test |
+| **Tests rewritten wholesale** | `/f/` addresses redirect during the change, so old personas keep running while new ones are added; the phone's selectors move in one phase (P2c) |
+| **The owner's review time** | A prototype or a screenshot set before each visible phase (P2a, P2b, P2c) |
+
+### 10.6 The owner's answers (2026-11-22, night)
+
+- **0.60.9 ships now** (the phone page fixes); the shell is the release after.
+- **The owner refines the plan first**, and building waits for that.
+- **"Full implementation" before the next release = P1 to P2d**: the whole shell on computer and
+  phone, U2 and the Settings plan inside it, the old frames removed once the parity list passes. P3
+  and P4 follow. Each phase is still taken through the full gate locally before the next begins;
+  only the last is released.
+- **Home must be customizable** from the first shell release (above).
+
+### 10.7 The first steps
+
+1. **P0b:**
+   - walk the audit's 20 tasks on the prototype with the harness, and compare scores;
+   - write the parity list from both frames;
+   - the owner looks at the prototype and says what to change.
+2. **P1:** kinds as definitions. Invisible, so safe to ship early, and everything after it reads them.
+3. **Decision entries** as each phase starts (the `.kind` format first).
+
+## 11. P1 in detail: kinds as definitions (design, 2026-11-22, night)
+
+**What a rail entry is.** Two lists exist today, and they mean different things:
+- The server's `KINDS` (`kinds.rs`) are **types of note**, recognised from markers: study note, web
+  page, paper, recipe, log entry, song, video, meeting, conversation, discussion, proposal, file.
+  Each note has exactly one (`kind_key`).
+- The interface's `FEATURES` (`features.ts`) are **sections a person navigates**: Notes, Tasks,
+  Agenda, Food, Fitness, Health, Music, Videos, Discussions, Collaboration. They are made of views
+  (`BUILTIN_SPACES`, shipped `.view` groups).
+
+A rail entry is the second, so a `.kind` file defines **a section chosen by a rule over notes**,
+with its views and its ＋. *Tasks* is any note with a status or a due date, whatever its type; *Food*
+is food entries and recipes. The server's note types stay as they are: the rule may name them.
+
+**The file** (`crates/fm-app/src/shipped/kinds/<key>.kind`, YAML, embedded like the shipped
+`.view`s; later a person's own in `<vault>/kinds/`, P4):
+
+```yaml
+key: music
+label: Music
+icon: play                 # an Icon.svelte name
+purpose: Songs, albums and playlists you keep
+order: 70                  # its place in the rail
+match:                     # which notes belong: the same filter language as a .view
+  - prop: kind_key
+    eq: song
+views:                     # the view switcher, the default first
+  - special: music          # a screen the app ships (MusicScreen); only shipped kinds may name one
+  - view: Songs             # a shipped or saved .view, by name
+  - renderer: table
+    columns: [title, artist, album, duration_s]
+  - renderer: gallery
+new:                       # what ＋ creates
+  props: { log: music }
+  asks: [title, artist]     # the fields the quick form shows
+```
+
+The first set of shipped kinds, mapping today's features one to one so P1 changes nothing a person
+sees:
+- **Notes:** study notes, web pages and papers. Shelves and Timeline are its views. Papers and Web
+  pages may later become kinds of their own: a file each, no code.
+- **Tasks:** status or due. Board and Agenda.
+- **Food:** `log: food`, recipes. Its shipped views.
+- **Fitness**, **Health**, **Music**, **Videos:** the same pattern.
+- **Discussions**, **Collaboration:** their pages as special views.
+
+*Agenda* stays a view (of Tasks, and later the heart of Today).
+
+**What changes in code (P1, invisible):**
+1. `kinds.rs` gains the loader. It parses the shipped `.kind` files with the parser `.view` uses
+   (`views.rs`), keeps `kind_of` as is, and adds the sections to the `kinds` command's answer
+   (`{ types: [...], sections: [...] }`, the old field kept for Myrme).
+2. **`kind_summary`**: per section, how many notes match and the latest one. One pass over the
+   index through `fm-query` (a pure filter, the seam respected). Bounded and cheap.
+3. `ui/src/lib/features.ts` becomes a reader of `kinds.sections`, keeping its exported shape so
+   `NewTab`, the chooser and `TabBar` change by one import. `BUILTIN_SPACES` and `groupsOf` give
+   their views to the sections.
+4. **Tests:**
+   - each shipped `.kind` parses;
+   - every note of the tutorials vault lands in the same feature as before (a differential test);
+   - `kind_summary` counts match a direct count;
+   - the UI's features list is unchanged.
+
+**Decision entry at P1:** the `.kind` format, and that a section is a rule over notes, not a new
+property written into them (`#data` `#seams`).

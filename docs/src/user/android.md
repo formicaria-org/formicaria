@@ -179,3 +179,11 @@ player and those keys are one: what you press anywhere shows everywhere.
 
 **A saved page's copy** (the link in a note made by *Save this page*) opens in a tab of its own, as it
 was saved; other attachments (a PDF) open with the app you choose in Android's *Open with*.
+
+## PDFs on the phone
+
+Android's page view cannot show a PDF. On the phone, formicaria hands a PDF to the app you use for
+PDFs, both when you open a link to one (an arXiv paper, for example) and when you press **Open the
+PDF** on one attached to a note. If no app on the phone opens PDFs, formicaria says so. Google's
+Drive, or any PDF reader from the Play Store or F-Droid, will do.
+

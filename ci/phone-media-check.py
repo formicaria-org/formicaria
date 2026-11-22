@@ -686,6 +686,53 @@ MUSIC_SETUP_JS = r"""
 })()
 """
 
+# **Pages that would not open on a phone** (the owner, 2026-11-22: some papers and some researchers'
+# homepages): a site with no https at all must offer *Open it anyway* within
+# seconds and then open over plain http (the release build forbade it); a PDF must reach the phone's
+# PDF app (Android's page view cannot show one).
+OPEN_JS = r"""
+(async () => {
+  const page = %s;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, secs) => {
+    for (let i = 0; i < secs * 4; i++) { let v = null; try { v = f(); } catch {} if (v) return v; await sleep(250); }
+    return null;
+  };
+  document.querySelector('button[aria-label="close save media"]')?.click();
+  document.querySelector('button[aria-label="close the new tab"]')?.click();
+  const plus = await until(() => document.querySelector('button[aria-label="new tab"]'), 30);
+  if (!plus) return { error: 'no +' };
+  plus.click();
+  const field = await until(() => document.querySelector('input[aria-label="a web address or a search"]'), 15);
+  if (!field) return { error: 'no address field' };
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, page);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  await sleep(500);
+  field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  return { opened: page };
+})()
+"""
+
+
+def pages_text() -> list:
+    """Every page view the debugger lists, with its address and the start of its text."""
+    out = []
+    try:
+        pages = json.load(urllib.request.urlopen("http://127.0.0.1:9333/json", timeout=5))
+    except Exception:  # noqa: BLE001
+        return out
+    for p in pages:
+        if "webSocketDebuggerUrl" not in p:
+            continue
+        try:
+            c = Cdp(p["webSocketDebuggerUrl"])
+            t = c.evaluate("(document.title || '') + ' | ' + (document.body ? document.body.innerText.slice(0, 300) : '')") or ""
+            out.append((p.get("url", ""), t, c))
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
 # **A case's page closed once it is done**, as a person closes a tab: the app holds at most eight
 # panes (`MAX_PANES`, `ui/src/lib/panes.ts`) and refuses a ninth, which the privacy check's own pages
 # then were (2026-11-20, after the Bandcamp case made eight). Only a web page in front is closed —
@@ -1182,6 +1229,48 @@ def main() -> None:
             say(f"yt-dlp not updated, not the app's fault: {refused[-1].split('not updated:')[-1].strip()[:200]}")
         check("the phone's yt-dlp can update itself (no fault in the app's code)", not broken,
               broken[-1].split("not updated:")[-1].strip()[:300] if broken else "")
+        if not only or "web" in only:
+            # A site with no https at all: the choice within seconds, then the page over http.
+            started = time.time()
+            say(f"opening an http-only homepage: {cdp.evaluate(OPEN_JS % json.dumps('http://piketty.pse.ens.fr/en/'))}")
+            offer = None
+            while time.time() - started < 25 and not offer:
+                time.sleep(1)
+                offer = next(((u, t, c) for u, t, c in pages_text() if "No secure connection" in t), None)
+            waited = round(time.time() - started)
+            check("a site with no https offers to open it anyway, within seconds", bool(offer) and waited <= 15,
+                  f"after {waited} s: {[(u[:60], t[:60]) for u, t, _ in pages_text()]}")
+            if offer:
+                offer[2].evaluate("document.querySelector('a[href^=\"fm-insecure:\"]').click(); true")
+                shown = None
+                for _ in range(25):
+                    time.sleep(1)
+                    shown = next(((u, t) for u, t, _ in pages_text() if "piketty.pse.ens.fr" in u and "No secure" not in t and len(t) > 20), None)
+                    if shown:
+                        break
+                check("“Open it anyway” opens the page over plain http", bool(shown),
+                      f"{[(u[:60], t[:80]) for u, t, _ in pages_text()]}")
+            cdp.evaluate(CLOSE_JS)
+            # A PDF: the phone's PDF app is offered.
+            adb("logcat", "-c", check_rc=False)
+            say(f"opening a PDF: {cdp.evaluate(OPEN_JS % json.dumps('https://arxiv.org/pdf/2401.00001'))}")
+            chooser = ""
+            for _ in range(40):
+                time.sleep(1)
+                # Any sign the PDF reached a viewer: Android's chooser, a PDF app's window, or our
+                # file's content link handed over.
+                log = adb("logcat", "-d", check_rc=False, timeout=60)
+                chooser = next((l for l in log.splitlines() if any(k in l for k in (
+                    "action.CHOOSER", "ChooserActivity", "ResolverActivity", "PdfViewer",
+                    "fileprovider/vault/web-pdf"))), "")
+                if chooser:
+                    break
+            check("a PDF is handed to the phone's PDF app (Android's chooser opens)", bool(chooser),
+                  chooser[:200] or f"no chooser in the log; pages: {[(u[:80], t[:60]) for u, t, _ in pages_text()]}; "
+                  f"focus: {adb('shell', 'dumpsys', 'window', check_rc=False, timeout=60).count('ChooserActivity')}")
+            adb("shell", "input", "keyevent", "4", check_rc=False)
+            time.sleep(1)
+            cdp.evaluate(CLOSE_JS)
         if not only or "resume" in only:
             name = "Bandcamp: an album, the app stopped half way"
             base = (cdp.evaluate(COUNT_JS) or {})

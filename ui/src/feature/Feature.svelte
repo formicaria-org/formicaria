@@ -73,6 +73,11 @@
   import { noteShown, lastNote } from '../lib/lastNote';
   import FindNotes from './FindNotes.svelte';
   import UndoDelete from './UndoDelete.svelte';
+  import { backUpInOneTab } from './backupLoop';
+  import { sync as syncReminders } from '../lib/reminders.svelte';
+  import ReminderBanner from '../lib/ReminderBanner.svelte';
+  import ManualPanel from '../lib/ManualPanel.svelte';
+  import { unsentLabel, type Unsent } from '../lib/autoBackup';
 
   let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
 
@@ -199,6 +204,29 @@
   /** *Recently deleted*, from the feature chooser (`DeletedPanel`, `decisions.md` 2026-10-09). */
   let deletedOpen = $state(false);
 
+  /// **Backing up by itself, on the computer** (`backupLoop.ts`): one tab of formicaria's browser runs
+  /// the loop; a vault whose changes are not leaving is said here, as the older frame's chip says it.
+  let unsent = $state<Unsent[]>([]);
+  let backupNote = $state('');
+  onMount(() =>
+    backUpInOneTab({
+      refresh: () => void read(),
+      onUnsent: (u) => (unsent = u),
+      // **The program's reminders kept current** (found 2026-11-22): on a computer the program says a
+      // reminder when no page is open, from the list a page hands it. Only the older frame handed
+      // it, so on formicaria's browser that list went stale. The tab holding the loop hands it, at
+      // start and whenever the notes change.
+      whileLeading: () => {
+        void syncReminders();
+        return ipc.listenChanges(() => void syncReminders());
+      },
+      said: (vault, phase) => {
+        if (phase === 'conflicts')
+          backupNote = `Notes in “${vault}” came back with edits from another device in both versions: open them to merge.`;
+      },
+    }),
+  );
+
   /** Open a note (or anything) in a tab of its own. */
   function openNote(id: string) {
     window.open(itemUrl({ kind: 'note', id }), '_blank', 'noopener');
@@ -281,6 +309,21 @@
   {/if}
   <UpdateBanner />
   <BrowserRestartBanner />
+  <ReminderBanner />
+  <!-- The manual's reader: every "How this works" link opens it (dead on these pages before
+       2026-11-22: the panel was only mounted by the older frame). -->
+  <ManualPanel />
+  {#if unsent.length}
+    <p class="backup-warn" role="status">
+      {unsentLabel(unsent)} · <a href="/f/settings">Back up in Settings</a>
+    </p>
+  {/if}
+  {#if backupNote}
+    <p class="backup-warn" role="status">
+      {backupNote}
+      <button type="button" aria-label="dismiss" onclick={() => (backupNote = '')}>✕</button>
+    </p>
+  {/if}
   {#if route.kind === 'new'}
     <NewTab {go} />
   {:else if route.kind === 'media'}
@@ -420,7 +463,17 @@
         startEditing={false}
         {vaults}
         onopen={openNote}
-        onresolve={async () => {}}
+        onresolve={async (c, keep) => {
+          // **A conflict's buttons do what they say** (they were a no-op on these pages until
+          // 2026-11-22): the same `resolve_conflict` the older frame calls, then a fresh read.
+          try {
+            await ipc.resolveConflict(c.vault, c.path, keep);
+            await read();
+            saved();
+          } catch (e) {
+            error = String(e);
+          }
+        }}
         onmove={(g, id, v) => void move(g, id, v)}
         onstatus={(id, v) => void move('status', id, v ?? '')}
         onnavigate={openNote}
@@ -541,5 +594,21 @@
   .menu .sep {
     border-top: 1px solid var(--border);
     margin: var(--space-1) 0;
+  }
+  .backup-warn {
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    background: var(--warning-bg, #fff4d6);
+    color: var(--text);
+    font-size: var(--text-sm);
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  .backup-warn button {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    cursor: pointer;
   }
 </style>
