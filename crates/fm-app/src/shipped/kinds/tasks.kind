@@ -1,0 +1,21 @@
+key: tasks
+label: Tasks
+icon: board
+mark: ▦
+purpose: Things to do, with a status and a date
+order: 20
+page: /f/group/Tasks
+match:
+  - any:
+      - prop: status
+        exists: true
+      - prop: due
+        exists: true
+views:
+  - builtin: board
+  - builtin: agenda
+  - renderer: table
+    columns: [status, due]
+new:
+  props: { status: todo }
+  asks: [title, due]

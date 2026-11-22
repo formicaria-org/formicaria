@@ -35,7 +35,7 @@ Undid something by mistake? The **↶** button takes back the last thing you did
 - **On a phone**, while you write, a row of buttons sits above the keyboard: the **microphone**,
   which writes down what you say where the cursor is; **record**, which keeps the recording in the
   note; and **add a photo or file**.
-- **On a computer**, use the note's own **＋ → Add media**: a photo, a video, a recording or any
+- **On a computer**, use the note's own **⋯ → Add media**: a photo, a video, a recording or any
   file.
 
 To turn a recording into text later, ask Myrme in the note's discussion: `@Myrme /transcribe`.

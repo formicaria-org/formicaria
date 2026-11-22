@@ -272,7 +272,7 @@ enum DirDto {
 /// `tag`, `tags_any`, `tags_all`, `text`, `date`, `not`, `any` — must be set.
 #[derive(Deserialize, Default)]
 #[serde(default, deny_unknown_fields)]
-struct PredDto {
+pub(crate) struct PredDto {
     // prop: <key> with one of eq / ne / exists
     prop: Option<String>,
     eq: Option<serde_yaml_ng::Value>,
@@ -466,7 +466,7 @@ fn lower(file: &ViewFile) -> Result<Query, String> {
     Ok(q)
 }
 
-fn lower_pred(p: &PredDto) -> Result<Predicate, String> {
+pub(crate) fn lower_pred(p: &PredDto) -> Result<Predicate, String> {
     // Count the selectors so "exactly one" can be enforced with a real message.
     let selectors = [
         p.prop.is_some(),

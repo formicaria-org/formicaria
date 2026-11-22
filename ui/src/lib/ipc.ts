@@ -1,6 +1,8 @@
 import type { ClockAnswer } from './appTime';
 import type {
   WorkoutFile,
+  Section,
+  SectionSummary,
   DemotedField,
   Recoverable,
   Config,
@@ -290,26 +292,58 @@ export interface ActionSpec {
   agent: 'off' | 'propose' | 'act';
 }
 export const actions = () => invoke<ActionSpec[]>('actions');
+/** **⋯ → History**: a note's versions from its vault's git, newest first. */
+export const noteHistory = (id: string, limit = 50) =>
+  invoke<{ commit: string; author: string; time: string }[]>('note_history', { id, limit });
+/** One version of a note: its file and its body, or nulls when it did not exist there. */
+export const noteVersion = (id: string, commit: string) =>
+  invoke<{ text: string | null; body: string | null }>('note_version', { id, commit });
+/** **⋯ → Export → Markdown**: the note's own file. */
+export const noteFile = (id: string) =>
+  invoke<{ text: string; title: string | null }>('note_file', { id });
+/** **The library's sections** (the shell, P1): what a person navigates, from the shipped `.kind` files. */
+export const sections = () => invoke<Section[]>('sections');
+/** Per section, how many notes it holds and its newest. */
+export const sectionSummary = () => invoke<SectionSummary[]>('section_summary');
+/** The notes carrying a tag, newest first (the Home note: `home`). */
+export const tagged = (tag: string, limit = 50) => invoke<ObjectMeta[]>('tagged', { tag, limit });
+/** A section's notes, newest first: what its list, table and gallery views draw. */
+export const sectionNotes = (key: string, limit = 500) =>
+  invoke<ObjectMeta[]>('section_notes', { key, limit });
 /** **The change stream** (`/api/changes`): `onChange(generation)` each time the vaults move, from any
  *  tab, device, the add-on or a put. Only where the app talks to its server over HTTP (not inside the
  *  phone app, not in tests). Answers a stop. */
 export function listenChanges(onChange: (generation: number) => void): () => void {
   if (isPhone() || !import.meta.env.PROD || typeof EventSource === 'undefined') return () => {};
-  const es = new EventSource('/api/changes');
-  es.onmessage = (e) => {
-    try {
-      const m = JSON.parse(e.data) as { generation?: unknown; save?: unknown };
-      // **Write what is typed, now**: the program or the browser is about to restart for an update.
-      // The same event the updater raises in its own page (`updater.svelte.ts`'s `SAVE_NOW`).
-      if (m.save === true) window.dispatchEvent(new CustomEvent('fm-save-now', { detail: [] }));
-      const g = m.generation;
-      if (typeof g === 'number') onChange(g);
-    } catch {
-      /* a line that is not ours */
+  // **One stream per page, however many listen** (2026-11-22, the shell): each part of the page
+  // opening its own `EventSource` held one of the browser's six connections to the server each, and
+  // with two tabs open every other request waited for good ("Reading configuration…" forever).
+  listeners.add(onChange);
+  if (!stream) {
+    stream = new EventSource('/api/changes');
+    stream.onmessage = (e) => {
+      try {
+        const m = JSON.parse(e.data) as { generation?: unknown; save?: unknown };
+        // **Write what is typed, now**: the program or the browser is about to restart for an update.
+        // The same event the updater raises in its own page (`updater.svelte.ts`'s `SAVE_NOW`).
+        if (m.save === true) window.dispatchEvent(new CustomEvent('fm-save-now', { detail: [] }));
+        const g = m.generation;
+        if (typeof g === 'number') for (const l of [...listeners]) l(g);
+      } catch {
+        /* a line that is not ours */
+      }
+    };
+  }
+  return () => {
+    listeners.delete(onChange);
+    if (!listeners.size && stream) {
+      stream.close();
+      stream = null;
     }
   };
-  return () => es.close();
 }
+let stream: EventSource | null = null;
+const listeners = new Set<(generation: number) => void>();
 export const updateBody = (id: string, body: string, base = '') =>
   invoke<string>('update_body', { id, body, base });
 // Destructive: unlink the note's file + index rows. Named `deleteNote` because

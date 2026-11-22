@@ -21,7 +21,9 @@ beforeEach(async () => {
     length: 0,
   });
   mock.clearFaults();
-  setFirstView('home'); // what a real first launch opens on; the suite starts on Board
+  // The shelves, opened as a first view: since 2026-11-22 a first launch opens on Home (the shell),
+  // and the shelves are a view of Notes. What is tested here is the shelves themselves.
+  setFirstView('shelves');
   await mock.handle('create_notes', {
     notes: [
       { title: 'Start here', tags: ['tutorial', 'shelf:Tutorials'], props: {} },

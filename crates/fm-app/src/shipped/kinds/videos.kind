@@ -1,0 +1,13 @@
+key: videos
+label: Videos
+icon: play
+mark: ▶
+purpose: Videos you saved
+order: 80
+page: /f/group/Videos
+types: [video]
+views:
+  - view: All videos
+  - renderer: gallery
+  - renderer: table
+    columns: [source, duration_s]

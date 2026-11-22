@@ -39,6 +39,17 @@
         ><Icon name="plus" size={22} /><span>New note</span></button
       >
     </li>
+    <!-- **The shell's places** (P2b/P2c): Home and Today, before the sections. -->
+    <li>
+      <button type="button" onclick={() => go('/f/home')}
+        ><Icon name="home" size={22} /><span>Home</span></button
+      >
+    </li>
+    <li>
+      <button type="button" onclick={() => go('/f/today')}
+        ><Icon name="sun" size={22} /><span>Today</span></button
+      >
+    </li>
     {#each FEATURES as f (f.key)}
       <li>
         <button type="button" onclick={() => go(f.url)}

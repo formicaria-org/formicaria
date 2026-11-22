@@ -1640,3 +1640,32 @@ export interface BrowserStatus {
   /** Tabs down the side (always shown) instead of across the top. */
   side_tabs?: boolean;
 }
+
+/** One way a section is seen (`fm_app::sections::ViewRef`): exactly one of the four. */
+export interface SectionView {
+  builtin?: 'timeline' | 'board' | 'agenda' | 'search';
+  view?: string;
+  special?: string;
+  renderer?: 'list' | 'table' | 'gallery';
+  columns?: string[];
+  label?: string;
+}
+/** A section of the library (`fm_app::sections::Section`; the shell, P1). */
+export interface Section {
+  key: string;
+  label: string;
+  icon: string;
+  mark: string;
+  purpose: string;
+  order: number;
+  page: string;
+  types: string[];
+  views: SectionView[];
+  new: { props?: Record<string, unknown>; asks?: string[] };
+}
+/** A section's count and newest note (`section_summary`). */
+export interface SectionSummary {
+  key: string;
+  count: number;
+  latest: ObjectMeta | null;
+}

@@ -1731,7 +1731,7 @@ fn open_formicaria(url: &str, dist: Option<&Path>) {
     #[cfg(feature = "browser")]
     // On the notes: a feature page in a tab of its own (`decisions.md` 2026-11-17).
     if browser::opens_in_it()
-        && browser::launch(&format!("{url}/f/group/Library"), &addon_xpi(dist), url).is_ok()
+        && browser::launch(&format!("{url}/f/home"), &addon_xpi(dist), url).is_ok()
     {
         return;
     }

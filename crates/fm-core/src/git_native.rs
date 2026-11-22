@@ -1818,6 +1818,66 @@ pub fn deleted_notes(vault: &Path, days: u32) -> Result<Vec<crate::git::Deleted>
     Ok(found)
 }
 
+/// **A note's history** (libgit2): the commits that changed `rel`, newest first, at most `limit`.
+/// A commit counts when the file's blob differs from its parent's (or appears with no parent).
+pub fn file_versions(
+    vault: &Path,
+    rel: &str,
+    limit: usize,
+) -> Result<Vec<crate::git::Version>, StoreError> {
+    use crate::git::Version;
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let mut walk = repo.revwalk().map_err(map)?;
+    if walk.push_head().is_err() {
+        return Ok(Vec::new());
+    }
+    // A commit before its parents, then by time: `TIME` alone orders commits made in the same second
+    // arbitrarily, and listed the oldest version first (`git log --date-order` is the same rule).
+    walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME).map_err(map)?;
+    let path = Path::new(rel);
+    let blob_in =
+        |c: &git2::Commit| c.tree().ok().and_then(|t| t.get_path(path).ok()).map(|e| e.id());
+    let mut out = Vec::new();
+    for oid in walk.take(20_000) {
+        if out.len() >= limit {
+            break;
+        }
+        let Ok(oid) = oid else { continue };
+        let Ok(commit) = repo.find_commit(oid) else { continue };
+        if commit.parent_count() > 1 {
+            continue;
+        }
+        let here = blob_in(&commit);
+        let before = commit.parent(0).ok().and_then(|p| blob_in(&p));
+        if here.is_some() && here != before {
+            let author = commit.author();
+            out.push(Version {
+                commit: oid.to_string(),
+                author: author.name().unwrap_or_default().to_string(),
+                time: format_iso(author.when()),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// The text of `rel` as `commit` left it (libgit2), or `None`.
+pub fn file_at(vault: &Path, rel: &str, commit: &str) -> Result<Option<String>, StoreError> {
+    if !vault.join(".git").exists() || !crate::git::is_commit_id(commit) {
+        return Ok(None);
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let Ok(obj) = repo.revparse_single(commit) else { return Ok(None) };
+    let Ok(c) = obj.peel_to_commit() else { return Ok(None) };
+    let Ok(tree) = c.tree() else { return Ok(None) };
+    let Ok(entry) = tree.get_path(Path::new(rel)) else { return Ok(None) };
+    let Ok(blob) = repo.find_blob(entry.id()) else { return Ok(None) };
+    Ok(Some(String::from_utf8_lossy(blob.content()).into_owned()))
+}
+
 /// `notes/<ULID>.md` → `<ULID>`; blobs, manifest, `.view` files and anything nested → `None`.
 /// Duplicated from [`crate::git`] rather than shared because it is four lines and the
 /// differential test is what actually keeps the two backends honest.

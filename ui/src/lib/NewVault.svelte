@@ -11,7 +11,7 @@
   // zenity would mean the core spawns a process to do its own first run. So: a typed path,
   // and the server answers what is really there on every keystroke.
   import ManualLink from './ManualLink.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import {
     checkImport,
     checkPath,
@@ -45,8 +45,17 @@
     restic?: boolean | null;
     oncreated: (vaults: VaultInfo[]) => void;
     oncancel?: () => void;
+    /** Open on this step: Settings → Import opens straight on the importer. */
+    start?: 'create' | 'import';
   }
-  let { firstRun = false, git = null, restic = null, oncreated, oncancel }: Props = $props();
+  let {
+    firstRun = false,
+    git = null,
+    restic = null,
+    oncreated,
+    oncancel,
+    start = 'create',
+  }: Props = $props();
 
   let name = $state('notes');
   let path = $state('~/notes');
@@ -92,7 +101,7 @@
   // Import is the only one that **converts** rather than moving bytes, and the only one that can
   // also target a vault you already have — so it is the only mode with a destination question.
   type Mode = 'create' | 'clone' | 'restore' | 'import';
-  let mode = $state<Mode>('create');
+  let mode = $state<Mode>(untrack(() => start));
   let url = $state('');
   let gitName = $state('');
   let gitEmail = $state('');

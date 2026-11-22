@@ -352,6 +352,14 @@ step: it lands in P2a. The Settings plan lands in P2b.
   only the last is released.
 - **Home must be customizable** from the first shell release (above).
 
+### 10.6b Built (2026-11-22, night)
+
+For the next release: P1 and P2a in full; P2b with the rail, Home (customizable, as a note tagged
+`home`), Today, the note beside the page, Settings as a place, and most of the parity list; and P2c's
+first part (Home and Today as the phone's tabs). Not built: P2c's bottom bar and P2d, the deletion.
+The detail is in `decisions.md` (2026-11-22, night, latest) and `known-issues.md` (*The shell: what it
+does not do yet*).
+
 ### 10.7 The first steps
 
 1. **P0b:**

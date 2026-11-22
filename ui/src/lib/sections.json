@@ -1,0 +1,303 @@
+[
+  {
+    "key": "notes",
+    "label": "Notes",
+    "icon": "pen",
+    "mark": "✎",
+    "purpose": "Write anything, and link notes together",
+    "order": 10,
+    "page": "/f/group/Library",
+    "types": [
+      "study",
+      "web",
+      "paper"
+    ],
+    "views": [
+      {
+        "view": "Shelves"
+      },
+      {
+        "builtin": "timeline"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "tags"
+        ]
+      },
+      {
+        "renderer": "gallery"
+      }
+    ],
+    "new": {}
+  },
+  {
+    "key": "tasks",
+    "label": "Tasks",
+    "icon": "board",
+    "mark": "▦",
+    "purpose": "Things to do, with a status and a date",
+    "order": 20,
+    "page": "/f/group/Tasks",
+    "types": [],
+    "views": [
+      {
+        "builtin": "board"
+      },
+      {
+        "builtin": "agenda"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "status",
+          "due"
+        ]
+      }
+    ],
+    "new": {
+      "props": {
+        "status": "todo"
+      },
+      "asks": [
+        "title",
+        "due"
+      ]
+    }
+  },
+  {
+    "key": "agenda",
+    "label": "Agenda",
+    "icon": "calendar",
+    "mark": "◷",
+    "purpose": "Your days, with what is planned and what is due",
+    "order": 30,
+    "page": "/f/agenda",
+    "types": [],
+    "views": [
+      {
+        "builtin": "agenda"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "start",
+          "due"
+        ]
+      }
+    ],
+    "new": {
+      "asks": [
+        "title",
+        "start"
+      ]
+    }
+  },
+  {
+    "key": "food",
+    "label": "Food journal",
+    "icon": "chart",
+    "mark": "◍",
+    "purpose": "What you eat, and what is in it",
+    "order": 40,
+    "page": "/f/group/Food",
+    "types": [],
+    "views": [
+      {
+        "view": "Day"
+      },
+      {
+        "view": "Menu"
+      },
+      {
+        "view": "Trends"
+      },
+      {
+        "view": "Diet"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "slot",
+          "amount_g",
+          "kcal"
+        ]
+      }
+    ],
+    "new": {
+      "props": {
+        "log": "food"
+      }
+    }
+  },
+  {
+    "key": "fitness",
+    "label": "Fitness",
+    "icon": "chart",
+    "mark": "◆",
+    "purpose": "Workouts, programs and how you progress",
+    "order": 50,
+    "page": "/f/group/Fitness",
+    "types": [],
+    "views": [
+      {
+        "view": "Week"
+      },
+      {
+        "view": "Regime"
+      },
+      {
+        "view": "Exercises"
+      },
+      {
+        "view": "Coach"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "reps",
+          "work_g"
+        ]
+      }
+    ],
+    "new": {
+      "props": {
+        "log": "workout"
+      }
+    }
+  },
+  {
+    "key": "health",
+    "label": "Health",
+    "icon": "chart",
+    "mark": "✚",
+    "purpose": "Measurements, and a diary for your doctor",
+    "order": 60,
+    "page": "/f/group/Health",
+    "types": [],
+    "views": [
+      {
+        "view": "Diary"
+      },
+      {
+        "view": "Over time"
+      },
+      {
+        "view": "Guidance"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "weight_g",
+          "record"
+        ]
+      }
+    ],
+    "new": {
+      "props": {
+        "log": "health"
+      }
+    }
+  },
+  {
+    "key": "music",
+    "label": "Music",
+    "icon": "play",
+    "mark": "♪",
+    "purpose": "Songs, albums and playlists you keep",
+    "order": 70,
+    "page": "/f/group/Music",
+    "types": [
+      "song"
+    ],
+    "views": [
+      {
+        "view": "Songs"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "artist",
+          "album",
+          "duration_s"
+        ]
+      },
+      {
+        "renderer": "gallery"
+      }
+    ],
+    "new": {
+      "props": {
+        "log": "music"
+      },
+      "asks": [
+        "title",
+        "artist"
+      ]
+    }
+  },
+  {
+    "key": "videos",
+    "label": "Videos",
+    "icon": "play",
+    "mark": "▶",
+    "purpose": "Videos you saved",
+    "order": 80,
+    "page": "/f/group/Videos",
+    "types": [
+      "video"
+    ],
+    "views": [
+      {
+        "view": "All videos"
+      },
+      {
+        "renderer": "gallery"
+      },
+      {
+        "renderer": "table",
+        "columns": [
+          "source",
+          "duration_s"
+        ]
+      }
+    ],
+    "new": {}
+  },
+  {
+    "key": "discussions",
+    "label": "Discussions",
+    "icon": "chat",
+    "mark": "✉",
+    "purpose": "Conversations about your notes, with people or the assistant",
+    "order": 90,
+    "page": "/f/discussions",
+    "types": [
+      "discussion"
+    ],
+    "views": [
+      {
+        "special": "discussions"
+      }
+    ],
+    "new": {}
+  },
+  {
+    "key": "collaboration",
+    "label": "Collaboration",
+    "icon": "list",
+    "mark": "⇄",
+    "purpose": "Changes proposed to shared notebooks, to accept or decline",
+    "order": 100,
+    "page": "/f/collaboration",
+    "types": [
+      "proposal"
+    ],
+    "views": [
+      {
+        "special": "collaboration"
+      }
+    ],
+    "new": {}
+  }
+]

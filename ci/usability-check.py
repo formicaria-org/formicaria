@@ -272,14 +272,14 @@ def opening_on_a_second_day(ff: Path) -> None:
         seen = []
         for _ in range(120):
             seen = tabs_now(m)
-            notes = [u for u in seen if "/f/group/Library" in u or u.rstrip("/") == SERVER]
+            notes = [u for u in seen if "/f/home" in u or "/f/group/Library" in u or u.rstrip("/") == SERVER]
             if notes:
                 break
             time.sleep(0.25)
         took = time.time() - t0
         time.sleep(6)  # what else opens by itself, does so by now
         seen = tabs_now(m)
-        notes = [u for u in seen if "/f/group/Library" in u or u.rstrip("/") == SERVER]
+        notes = [u for u in seen if "/f/home" in u or "/f/group/Library" in u or u.rstrip("/") == SERVER]
         check(who, f"{day} day: the notes show within 5 s", took < 5, f"{took:.1f} s")
         print(f"usability: [{who}] {day} day: notes in {took:.1f} s; tabs {seen}")
         check(who, f"{day} day: one tab of the notes, nothing unasked", len(notes) == 1 and len(seen) == 1, f"tabs: {seen}")
@@ -300,7 +300,8 @@ def left_on_settings(ff: Path) -> None:
     program). Left so, opened again: the notes must open beside it, and closing Settings must leave
     them open."""
     who = "someone whose last session ended on Settings alone"
-    is_notes = lambda u: "/f/group/" in u or u.rstrip("/") == SERVER  # noqa: E731
+    # The notes: Home since the shell (2026-11-22), or a section's page.
+    is_notes = lambda u: "/f/home" in u or "/f/group/" in u or u.rstrip("/") == SERVER  # noqa: E731
     settings = f"{SERVER}/f/settings"
 
     def quit_browser(m) -> None:
@@ -392,7 +393,7 @@ def update_bar(ff: Path) -> None:
             break
         time.sleep(0.25)
     check(who, "Update brings the notes forward, and the page takes the press",
-          pressed == "pressed" and "/f/group/" in shown and "#update" not in shown, f"{pressed}; shown {shown}")
+          pressed == "pressed" and ("/f/group/" in shown or "/f/home" in shown) and "#update" not in shown, f"{pressed}; shown {shown}")
     # Later: away for that version.
     chrome(m, f"return window.formicariaUpdateShow({json.dumps(offer)}).then(() => true)")
     later = chrome(m, """
@@ -750,16 +751,17 @@ def settings_alone(ff: Path, work: Path) -> None:
         check(who, "Settings shows on its own page", bool(shown))
         check(who, "nothing covers the page to close Settings on a click",
               content(m, "return document.querySelector('.settings-backdrop') === null") is True)
-        click_at(12, 400)   # beside the panel
+        click_at(1300, 700)  # beside the panel, on the page (the rail is down the left since the shell)
         click_at(200, 12)   # the top line, where the update notice is
         still = alive()
         check(who, "a click beside Settings leaves the browser open", bool(still), f"tabs {still}")
-        content(m, "document.querySelector('button[aria-label=close]')?.click(); return true;")
+        # Leaving Settings: the rail's Home (the shell's Settings is a place, with no ✕ of its own).
+        content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.includes('Home'))?.click(); return true;""")
         time.sleep(3)
         still = alive()
         landed = content(m, "return location.pathname") or ""
-        check(who, "closing Settings goes to the notes, the browser still open",
-              bool(still) and landed.startswith("/f/group/Library"), f"tabs {still}, at {landed}")
+        check(who, "leaving Settings goes to the notes, the browser still open",
+              bool(still) and landed.startswith("/f/home"), f"tabs {still}, at {landed}")
         m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
     except Exception as e:  # noqa: BLE001 - the browser gone takes the connection with it
         # Said, and nothing more asked of a connection whose browser has gone (asking hung).
@@ -1011,6 +1013,62 @@ def backs_up_by_itself(ff: Path, work: Path) -> None:
     bc.stop(ff)
 
 
+def the_shell(ff: Path, work: Path) -> None:
+    """**The shell** (P2b): one frame on every page of formicaria's browser. The rail moves between
+    places in the tab (no reload); Home is customized and keeps it across a reload (it is a note
+    tagged `home`); Today shows the day; a note opens beside the page; ＋ New makes a board."""
+    who = "someone finding their way around"
+    bc.post("/api/create_notes", {"notes": [
+        {"title": "Write the methods", "body": "", "props": {"status": "todo"}},
+        {"title": "Lab diary", "body": "Today the colony moved.\n", "props": {}}]})
+    m = launch(ff, work / "profile-shell", f"{SERVER}/f/home",
+               'user_pref("browser.window.width", 1440);\nuser_pref("browser.window.height", 900);\n')
+    try:
+        m.cmd("WebDriver:SetWindowRect", {"width": 1440, "height": 900})
+        time.sleep(7)
+        kinds = wait_for(m, "const l = document.querySelector('[aria-label=\"what you can do here\"]'); return l ? l.querySelectorAll('li').length : null", 15)
+        check(who, "Home lists what can be done: every section", (kinds or 0) >= 10, str(kinds))
+        # The rail, in the tab: a marker set on the page survives the move (no reload).
+        content(m, "window.__stayed = 1; return true;")
+        content(m, """const r = document.querySelector('nav[aria-label="formicaria"]');
+                      const b = [...r.querySelectorAll('button')].find((x) => /^\\s*\\S?\\s*Tasks/.test(x.textContent) && !x.classList.contains('add'));
+                      b.click(); return true;""")
+        moved = wait_for(m, "return location.pathname === '/f/group/Tasks' && window.__stayed === 1", 8)
+        check(who, "the rail goes to Tasks in the same tab, without a reload", bool(moved),
+              str(content(m, "return location.pathname + ' ' + window.__stayed")))
+        # A card opens beside the page.
+        opened = wait_for(m, """const c = [...document.querySelectorAll('.card')].find((e) => e.textContent.includes('Write the methods'));
+                                if (c) c.click(); return !!c;""", 10)
+        beside = wait_for(m, "return !!document.querySelector('aside[aria-label=\"the note beside\"]')", 8)
+        check(who, "a note opens beside the page", bool(opened) and bool(beside))
+        # Today.
+        content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.includes('Today')).click(); return true;""")
+        parts = wait_for(m, "return document.querySelectorAll('.today section').length || null", 8)
+        check(who, "Today shows the day in its four parts", parts == 4, str(parts))
+        # Home, customized: Pinned removed, and it stays removed after a reload.
+        content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.includes('Home')).click(); return true;""")
+        wait_for(m, "return !!document.querySelector('button.customize')", 8)
+        content(m, "document.querySelector('button.customize').click(); return true;", 600)
+        content(m, "const b = document.querySelector('button[aria-label=\"remove Pinned\"]'); if (b) b.click(); return !!b;", 2500)
+        goto(m, f"{SERVER}/f/home", 6)
+        kept = wait_for(m, "const l = document.querySelector('[aria-label=\"home blocks\"]'); return l ? l.textContent : null", 10) or ""
+        check(who, "Home keeps its customizing across a reload", "Getting started" in kept and "Pinned" not in kept, kept[:200])
+        # ＋ New → New board.
+        content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.trim() === '＋ New').click(); return true;""", 600)
+        items = wait_for(m, "const l = [...document.querySelectorAll('[role=menuitem]')].map((x) => x.textContent.trim()); return l.length ? l : null", 6)
+        clicked = content(m, """const b = [...document.querySelectorAll('[role=menuitem]')].find((x) => x.textContent.trim() === 'New board'); if (b) b.click(); return !!b;""")
+        time.sleep(4)
+        print(f"usability: [{who}] ＋ New: menu {items}, New board clicked {clicked}, error {content(m, "return (document.querySelector('.new .error') || {}).textContent || ''")!r}")
+        found = bc.post("/api/search", {"query": "Untitled board"}) or []
+        beside = content(m, "return !!document.querySelector('aside[aria-label=\"the note beside\"]')")
+        check(who, "＋ New makes a board, open beside", any((n.get("title") or "") == "Untitled board" for n in found) and beside,
+              f"{[n.get('title') for n in found][:5]}; beside {beside}; " + str(content(m, "return JSON.stringify({items: [...document.querySelectorAll('[role=menuitem]')].map(x => x.textContent.trim()), err: (document.querySelector('.new .error') || {}).textContent || '', open: document.querySelector('.new .plus')?.getAttribute('aria-expanded')})")))
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+    except Exception as e:  # noqa: BLE001
+        check(who, "the browser still open", False, repr(e)[:200])
+    bc.stop(ff)
+
+
 def first_hour_basics(ff: Path, work: Path) -> None:
     """**What a computer had lost, back** (`ui-audit-2026-11-22.md`, U1): search from the Notes page;
     Ctrl+K and `/` as real key presses, opening formicaria's search and not the browser's own; a note
@@ -1111,6 +1169,27 @@ def first_hour_basics(ff: Path, work: Path) -> None:
         listed = content(m, "return [...document.querySelectorAll('[role=menuitem]')].some((b) => b.textContent.trim() === 'Recently deleted…')")
         check(who, "Recently deleted is in the chooser", bool(listed))
         key("\ue00c")
+        # **`[[` finds a note** (the shell, P2a; U2): typed in a note being written, the finder opens and
+        # Enter puts in a link.
+        made2 = bc.post("/api/create_notes", {"notes": [{"title": "Linking here", "body": "Start.\n", "props": {}}]})
+        lid = made2[0]["id"]
+        goto(m, f"{SERVER}/f/note/{lid}", 5)
+        content(m, "document.querySelector('.read p').click(); return true;", 800)
+        key("")  # End: the caret after the text
+        for ch in " [[Harv":
+            key(ch)
+        offered = wait_for(m, "const l = [...document.querySelectorAll('[role=listbox]')].find((e) => e.getBoundingClientRect().width > 0); return l ? l.textContent.slice(0, 80) : null", 6)
+        check(who, "typing [[ in a note offers the notes to link", bool(offered) and "Harvester" in (offered or ""), str(offered))
+        key(""); time.sleep(1.5)  # Enter
+        key(""); time.sleep(2)    # Escape: out of the editor, saved
+        body = (bc.post("/api/get", {"id": lid}) or {}).get("body", "")
+        check(who, "Enter puts in a link to it", "(note:" in body and "[[" not in body, body[-120:])
+        # **Every section can be a table** (the shell, P2a).
+        bc.post("/api/create_notes", {"notes": [{"title": "Order the nest", "body": "", "props": {"status": "todo"}}]})
+        goto(m, f"{SERVER}/f/group/Tasks", 5)
+        content(m, "const g = document.querySelector('[role=group][aria-label=\"view as\"]'); const b = g && [...g.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Table'); if (b) b.click(); return !!b;")
+        table = wait_for(m, "return document.querySelector('table') ? document.querySelector('table').textContent.slice(0, 120) : null", 10)
+        check(who, "Tasks can be seen as a table", bool(table) and "Order the nest" in table, str(table))
         # Tab titles.
         for path, want in [("/f/new", "New tab"), ("/f/settings", "Settings")]:
             goto(m, f"{SERVER}{path}", 4)
@@ -1526,6 +1605,8 @@ def main() -> None:
     (work / "vault").mkdir()
     env = dict(os.environ, XDG_CONFIG_HOME=str(work / "config"), FM_UI_DIST="ui/dist",
                FM_VAULT=str(work / "vault"), FM_VAULTS=str(work / "vaults.json"), FM_OPEN="0",
+               # Firefox kept between runs, checked against Mozilla's signed sums each time (`browser_kit.rs`).
+               FM_BROWSER_CACHE=str(bc.CACHE / "firefox-archives"),
                FM_AUTO_SHUTDOWN="0", FM_ADDR=f"127.0.0.1:{bc.PORT}",
                # The usage diary's sample and counts every 15 s, not 5 min, so this run sees them.
                FM_DIARY_EVERY="15",
@@ -1567,6 +1648,7 @@ def main() -> None:
             "look": lambda: look(ff, work),
             "audit": lambda: (first_hour_pictures(ff, work), first_hour_walk(ff, work)),
             "basics": lambda: first_hour_basics(ff, work),
+            "shell": lambda: the_shell(ff, work),
             "backup": lambda: backs_up_by_itself(ff, work),
             "reader": lambda: saved_page_reader(work),
             "media": lambda: media_saver(ff, work),

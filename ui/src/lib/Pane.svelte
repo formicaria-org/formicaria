@@ -65,6 +65,8 @@
     /// Message counts by note id — one `thread_roots` call for the whole app, not one per row.
     counts?: Record<string, number>;
     onnavigate: (id: string) => void; // a note pane's chip was followed → open that note
+    /** Go to one of formicaria's places by its address (`/f/…`), from Home (the shell's places). */
+    ongo?: (url: string) => void;
     onsaved: () => void; // a note pane wrote → schedule the git commit
     /** A note pane's note was left blank and discarded — the views drop it. */
     ondiscarded?: (id: string) => void;
@@ -111,6 +113,7 @@
     onstatus,
     counts = {},
     onnavigate,
+    ongo,
     onsaved,
     ondiscarded,
     onchange,
@@ -557,6 +560,14 @@
       <!-- A view whose feed has not come. Falling through drew the timeline: "No notes yet", or
            someone's notes, for a moment on every step between views (2026-11-04). -->
       <p class="pane-empty">Loading…</p>
+    {:else if drawnPane.kind === 'home'}
+      {#await import('../feature/HomeView.svelte') then { default: HomeView }}
+        <HomeView go={(u) => ongo?.(u)} {onopen} />
+      {/await}
+    {:else if drawnPane.kind === 'today'}
+      {#await import('../feature/TodayView.svelte') then { default: TodayView }}
+        <TodayView {onopen} />
+      {/await}
     {:else if drawnPane.kind === 'activity'}
       <Activity {shown} {onopen} />
     {:else if drawnPane.kind === 'discussions'}

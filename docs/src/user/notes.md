@@ -44,7 +44,7 @@ The item disappears once you have all three.
 ## Editing a note
 
 Click any card to open it. It shows the rendered read view, under a header that is just the
-note's title and a **＋**. **To edit, click or tap anywhere in the note's text**: the editor opens
+note's title and a **⋯**. **To edit, click or tap anywhere in the note's text**: the editor opens
 with the cursor where you clicked. A tick box, a table cell, a link, a chip to another note or a
 player does what it does instead of opening the editor, and selecting text to copy it is not a
 click. From the keyboard, press **Enter** with the note in focus.
@@ -53,7 +53,7 @@ click. From the keyboard, press **Enter** with the note in focus.
 leave the note: switch to another window, close it, or press Back on a phone. Your typing is autosaved
 throughout, so none of these can lose work.
 
-Everything else a note offers is under the same **＋**: **Add media** (a photo, a video, a recording or a
+Everything else a note offers is under the same **⋯**: **Add media** (a photo, a video, a recording or a
 file — from reading too, in which case it opens the editor and adds at the end), **Full screen** for a
 whiteboard, **Copy to…** another vault, **Delete** and **Close**. At the bottom of that window you can
 see which vault the note is in and who last edited it.
@@ -146,7 +146,7 @@ on this device or another, formicaria says so and leaves it as it is.
 The **Back** button undoes your last step, one at a time. On a phone that is the Back key or
 gesture; on a computer it is the browser's Back button.
 
-- **A menu or panel** that is open closes first — a note's ＋ window, the `/` menu while writing,
+- **A menu or panel** that is open closes first — a note's ⋯ window, the `/` menu while writing,
   Settings, Help.
 - **A level inside something** goes back up one level: a Settings category to the list of them (on
   a phone), a recipe in the food sheet to the list it was chosen from, a diet or an exercise to the
@@ -247,7 +247,7 @@ until you press **Stop & write**, then writes what you said into the note where 
 ordinary text you can change. It understands any language and writes it down in that language; up
 to five minutes at a time.
 
-On a computer, record it instead: the note's **＋ → Add media → Record audio**, then write
+On a computer, record it instead: the note's **⋯ → Add media → Record audio**, then write
 `@Myrme /transcribe` in its discussion. The recording stays in the note, and the words come back as
 a proposal you accept or change.
 
@@ -454,3 +454,22 @@ note's **＋** (Options) holds what you can do with it beyond writing:
 
 The **Mail** view and the **Agenda** say on one line where their notes come from and when they were
 last read, with **Read now**.
+
+## Export, and a note's history
+
+The note's **⋯** has:
+
+- **Export**:
+  - **Markdown (.md)**, the note's own file as it is kept;
+  - **PDF (print)**, the browser's print, which offers *Save as PDF*;
+  - **Web page (.html)**, one page with its pictures inside.
+- **History…**: the note's versions from its notebook's history, newest first. Choose one to read
+  it, and **Put this version's text back** to make it the note's text again. That is a new change,
+  so **Undo** takes it back, and nothing in the history is lost. A notebook without history (git)
+  has none to show yet.
+
+## Linking with `[[`
+
+While writing, type **`[[`** and the start of a note's name, as in Obsidian. The same list as **/**
+appears, and **Enter** puts in the link.
+

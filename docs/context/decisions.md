@@ -14499,6 +14499,8 @@ this fetches ahead rather than lazily, so it does not trade against it); one sup
 
 ## 2026-11-12 — the app opens on the Library's Timeline `#ui`
 
+> SUPERSEDED (2026-11-22, *the shell, built*): every launch opens on Home, whose Recent and Just in blocks show what the timeline did, beside everything else. The timeline stays a view of Notes.
+
 > Reverses in part *the app opens on Food's Day* (2026-10-29): see its banner.
 
 **The owner:** *"the food view is the default one, it should be the timeline of the library"*.
@@ -16396,3 +16398,65 @@ did were done by no one on a computer:
 **The four questions.** `#sync` `#ui`. Restores what 2026-10-11 and 2026-10-17 ruled, so it is
 permitted. Ships nothing new. The remaining gaps (redo, the sync chips, the player bar, *Bring into
 another note…*) are the shell's parity list, in `known-issues.md`.
+
+## 2026-11-22 (night, latest) — The shell, built: sections from files, one view switcher, ⋯, a customizable Home kept as a note `#ui` `#data` `#seams`
+
+**Builds** the direction of 2026-11-22 (evening), *the shell*, P1 to P2c, for one release. What was
+decided while building:
+
+1. **A section is a rule over notes**, not a new property (`crates/fm-app/src/sections.rs`, the
+   shipped `shipped/kinds/*.kind`).
+   - A file says: the section's key, label, icon, mark, purpose, order, page, the server's note
+     `types` it holds, a `match:` in the `.view` filter language, its `views` (one each of
+     `builtin`, `view`, `special` or `renderer`), and what ＋ makes (`new:`).
+   - The interface reads the same files through `ui/src/lib/sections.json`, written from them by a
+     test (`FM_WRITE_SECTIONS=1`), so there is one list, not two.
+   - New read commands: `sections`, `section_summary`, `section_notes`, `tagged`.
+2. **Every section has *View as: As usual · Table · Gallery*** with a filter, beside its own view.
+   ＋ makes what the section holds (a task on Tasks). The Table and Gallery renderers are generic and
+   name no property they are not given.
+3. **The conventions of 2026-11-22 (later)**, as ruled there:
+   - ⋯ for a note's options, and an empty status as a ring;
+   - `[[` finds a note;
+   - the vault badge only with more than one vault;
+   - Settings → **Import**;
+   - **⋯ → Export** (Markdown, the browser's print, a web page with its pictures);
+   - **⋯ → History**: new read commands `note_history`, `note_version` and `note_file`, over
+     `vcs::file_versions`/`file_at` in both git backends, proven equal by `git_differential.rs`.
+4. **Home is a note tagged `home`, not a `home.md` beside the notes.** That changes what the research
+   proposed (§4). A note is files-as-truth already, syncs, has history and exports; a new kind of
+   file would have needed its own reader, writer and sync rules.
+   - One block per line (`![Today](view:today)`, `![Menu](view:Menu)`, `![](note:<id>)`).
+   - *Customize home* adds, moves (arrows or dragging) and removes blocks, sets one or two columns,
+     and resets.
+   - **Every launch opens on Home** (banner on 2026-11-12).
+5. **The shell is a frame around the computer's pages** (`ui/src/feature/Shell.svelte`), not a
+   rewrite of them. It holds:
+   - the rail (＋ New, Find or do, Home, Today, the sections with counts and ＋, sync and backup,
+     Settings);
+   - a note beside the page on a wide screen;
+   - the player bar, redo, *Bring into another note…*;
+   - the backup loop and the reminders, for the whole tab.
+
+   Moving between places changes the address and redraws the page (`{#key path}`), with no reload.
+   Settings in the shell is a place (`SettingsPanel`'s `place`), with no ✕ of its own.
+6. **One change stream per page** (`ipc.listenChanges`). Each listener opening its own
+   `EventSource` used up the browser's six connections to the server with two tabs open, and every
+   other request then waited for good. Found by `usability-check` on the first run of the shell.
+7. **The phone (P2c, this release's part):** Home and Today are pane kinds, so the phone's tabs hold
+   them, Home first. The **+** sheet offers Home and Today before the sections. The phone keeps its
+   own bar of tabs for pages and notes. Replacing it with the shell's bottom bar is not in this
+   release.
+
+**Not in this release:**
+- deleting the older frame (P2d): the phone still runs it;
+- the vault filter, swiping between views, drop from a page, the bridge, and rebindable keys on the
+  computer.
+
+These are listed in `known-issues.md`.
+
+**The four questions.** `#ui` `#data` `#seams`.
+- Supersedes 2026-11-12 (the start view); builds what 2026-11-22 (evening) and (later) ruled.
+- Widens what ships by the `.kind` format, seven read commands, and the `home`, `pinned` and
+  `template` tags read by the shell. No dependency added.
+

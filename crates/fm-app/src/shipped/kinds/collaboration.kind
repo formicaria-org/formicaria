@@ -1,0 +1,10 @@
+key: collaboration
+label: Collaboration
+icon: list
+mark: ⇄
+purpose: Changes proposed to shared notebooks, to accept or decline
+order: 100
+page: /f/collaboration
+types: [proposal]
+views:
+  - special: collaboration

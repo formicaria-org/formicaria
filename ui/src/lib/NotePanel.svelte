@@ -80,6 +80,8 @@
   import { isRemote } from './remote';
   import { isPhone } from './platform';
   import { measureFor, fullWidth, setFullWidth } from './readingWidth.svelte';
+  import { exportHtml, exportMarkdown, exportPdf } from './exportNote';
+  import HistoryPanel from './HistoryPanel.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -201,6 +203,8 @@
   // who last edited. The header is the title and this button on every device. It is a *window* (a
   // card), not a dropdown; every action closes it, and it dismisses on outside-tap/Escape.
   let optionsOpen = $state(false);
+  let exportOpen = $state(false);
+  let historyOpen = $state(false);
   /// The ＋ that opens the options window, which is placed against it (`popup`).
   let optionsBtn = $state<HTMLButtonElement>();
 
@@ -2745,6 +2749,21 @@
     const el = editorEl;
     if (!el) return closeSlash();
     const caret = el.selection().from;
+    // **`[[` finds a note too** (`decisions.md` 2026-11-22, later): Obsidian's way, typed without
+    // thinking by anyone who used it. On the same line, after a `[[` not yet closed; the name may hold
+    // spaces, as titles do. The same finder and the same link as `/`.
+    const line = draft.slice(draft.lastIndexOf('\n', caret - 1) + 1, caret);
+    const open = line.lastIndexOf('[[');
+    if (open !== -1 && !line.slice(open).includes(']]')) {
+      const from = caret - line.length + open;
+      const query = line.slice(open + 2);
+      if (query.length <= 80) {
+        slash = { ...slash, open: true, from, query, active: 0, embed: false };
+        clearTimeout(slashTimer);
+        slashTimer = setTimeout(runSlashSearch, 150);
+        return;
+      }
+    }
     let i = caret - 1;
     while (i >= 0 && !/\s/.test(draft[i]) && draft[i] !== '/') i--;
     if (i < 0 || draft[i] !== '/') return closeSlash();
@@ -2802,7 +2821,11 @@
     if (!el) return;
     const caret = el.selection().from;
     const ref = forceEmbed || slash.embed ? embedFor(meta) : refFor(meta);
-    draft = draft.slice(0, slash.from) + ref + draft.slice(caret);
+    // A `[[name]]` typed whole: its closing brackets go with it.
+    const rest = draft.slice(caret);
+    const after =
+      draft.startsWith('[[', slash.from) && rest.startsWith(']]') ? rest.slice(2) : rest;
+    draft = draft.slice(0, slash.from) + ref + after;
     closeSlash();
     onInput();
     await tick();
@@ -2869,7 +2892,7 @@
             aria-haspopup="dialog"
             aria-expanded={optionsOpen}
             aria-label="note options"
-            title="Options">＋</button
+            title="More: details, media, export, history…">⋯</button
           >
           {#if optionsOpen}
             <!-- Dismissed by tapping outside (the wrapper's clickOutside), Escape, or its ✕ —
@@ -2983,6 +3006,54 @@
                 >
                   {fullWidth(id) ? 'Readable width' : 'Full width'}
                 </button>
+              {/if}
+              {#if !isBoard && !isDiscussion}
+                <!-- **⋯ → Export and History** (`decisions.md` 2026-11-22, later). -->
+                <button
+                  class="opt"
+                  aria-expanded={exportOpen}
+                  onclick={() => (exportOpen = !exportOpen)}
+                  >Export<span class="opt-caret" aria-hidden="true">{exportOpen ? '▾' : '▸'}</span
+                  ></button
+                >
+                {#if exportOpen}
+                  <div class="opt-sub" role="group" aria-label="export">
+                    <button
+                      class="opt"
+                      onclick={() => {
+                        optionsOpen = false;
+                        exportOpen = false;
+                        exportMarkdown(note!.id).catch((e) => (error = String(e)));
+                      }}>Markdown (.md)</button
+                    >
+                    <button
+                      class="opt"
+                      onclick={() => {
+                        optionsOpen = false;
+                        exportOpen = false;
+                        setTimeout(exportPdf, 50);
+                      }}>PDF (print)</button
+                    >
+                    <button
+                      class="opt"
+                      onclick={() => {
+                        optionsOpen = false;
+                        exportOpen = false;
+                        if (content)
+                          exportHtml(noteName(note!) ?? 'note', content).catch(
+                            (e) => (error = String(e)),
+                          );
+                      }}>Web page (.html)</button
+                    >
+                  </div>
+                {/if}
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    historyOpen = true;
+                  }}>History…</button
+                >
               {/if}
               {#if isPaper && clipboardAvailable}
                 <button
@@ -3982,6 +4053,23 @@
         {/if}
       </div>
     </div>
+  {/if}
+  {#if historyOpen && note}
+    <HistoryPanel
+      id={note.id}
+      title={noteName(note) ?? 'a note'}
+      current={note.body}
+      base={note.version}
+      onclose={() => (historyOpen = false)}
+      onrestored={() =>
+        void getNote(note!.id).then((n) => {
+          if (n) {
+            loaded++;
+            note = n;
+            draft = n.body;
+          }
+        })}
+    />
   {/if}
 </article>
 

@@ -1,0 +1,19 @@
+key: fitness
+label: Fitness
+icon: chart
+mark: ◆
+purpose: Workouts, programs and how you progress
+order: 50
+page: /f/group/Fitness
+match:
+  - prop: log
+    eq: workout
+views:
+  - view: Week
+  - view: Regime
+  - view: Exercises
+  - view: Coach
+  - renderer: table
+    columns: [reps, work_g]
+new:
+  props: { log: workout }

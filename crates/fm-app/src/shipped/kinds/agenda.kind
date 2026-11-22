@@ -1,0 +1,19 @@
+key: agenda
+label: Agenda
+icon: calendar
+mark: ◷
+purpose: Your days, with what is planned and what is due
+order: 30
+page: /f/agenda
+match:
+  - any:
+      - prop: start
+        exists: true
+      - prop: due
+        exists: true
+views:
+  - builtin: agenda
+  - renderer: table
+    columns: [start, due]
+new:
+  asks: [title, start]

@@ -77,6 +77,7 @@ pub mod record;
 pub mod refs;
 pub mod reminders;
 pub mod scope;
+pub mod sections;
 pub mod video;
 // A git token, only on platforms with no credential helper to delegate to (i.e. Android).
 pub mod secrets;

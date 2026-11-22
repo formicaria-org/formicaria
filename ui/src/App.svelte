@@ -682,6 +682,7 @@
   }
   let settingsOpen = $state(false);
   let newVaultOpen = $state(false);
+  let newVaultStart = $state<'create' | 'import'>('create');
   // Kept as state rather than read off the last ping, because the panel has to survive
   // the beat that follows opening it — and because a note staying broken must not make
   // the list flicker.
@@ -2376,6 +2377,12 @@
     };
     if (r.kind === 'group') return open(featurePane(r.name));
     if (r.kind === 'builtin') return open({ kind: r.pane });
+    // The shell's places, as tabs here (P2c).
+    if (r.kind === 'home') return open({ kind: 'home' });
+    if (r.kind === 'today') return open({ kind: 'today' });
+    if (r.kind === 'view') return open({ kind: 'view', viewName: r.name });
+    if (r.kind === 'settings') return void (settingsOpen = true);
+    if (r.kind === 'new') return void (newTabOpen = true);
   }
   /** A web address or a web search chosen in *Web*: a page item. */
   function openWeb(at: string) {
@@ -4024,6 +4031,7 @@
               onstatus={onSetStatus}
               counts={threadCounts}
               onnavigate={openNoteInPane}
+              ongo={goNewTab}
               onsaved={noteSaved}
               ondiscarded={noteDiscarded}
               onchange={(patch) => {
@@ -4077,9 +4085,10 @@
             userTheme = sel;
             themeRefused = '';
           }}
-          onnewvault={() => {
+          onnewvault={(start) => {
             // **Over Settings, not instead of it** (2026-10-20): Back from the form returns to
             // Settings, where it was asked for, and a vault made there shows in its list.
+            newVaultStart = start ?? 'create';
             newVaultOpen = true;
           }}
           onvaults={() => void loadVaults()}
@@ -4202,6 +4211,7 @@
       ></div>
       <div class="sheet over-settings" role="dialog" aria-modal="true" aria-label="New vault">
         <NewVault
+          start={newVaultStart}
           git={gitAvailable}
           restic={resticAvailable}
           oncreated={(v) => {

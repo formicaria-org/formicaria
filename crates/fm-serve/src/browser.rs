@@ -332,7 +332,8 @@ pub fn policies(
         // update for one, must not lose the person's tabs. The formicaria tab is pinned and restored
         // with them; the startup script opens it if it is missing.
         // The browser opens on the notes, a feature page (`/f/…`, `decisions.md` 2026-11-17).
-        "Homepage": { "URL": format!("{server}/f/group/Library"), "StartPage": "previous-session" },
+        // **Home is where formicaria starts** (the shell, P2b).
+        "Homepage": { "URL": format!("{server}/f/home"), "StartPage": "previous-session" },
         "EnableTrackingProtection": {
             "Value": true, "Cryptomining": true, "Fingerprinting": true, "EmailTracking": true
         },
@@ -723,7 +724,7 @@ pub fn route(
         // Open formicaria in its browser now, from Settings, right after setting it up.
         "/api/browser_open" => {
             // On the notes, as every start does (the root is the older whole-app page).
-            let r = launch(&format!("{server}/f/group/Library"), &xpi(), server);
+            let r = launch(&format!("{server}/f/home"), &xpi(), server);
             Some(match r {
                 Ok(()) => ok(stream, status(st)),
                 Err(e) => {

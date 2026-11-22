@@ -379,7 +379,7 @@ def tabs(m: "Marionette") -> dict:
         "quick_switch": r.get("swap") == "tab" and r.get("swapBack") is True,
         "plus_suggests": plus.get("more") is True and str(plus.get("url", "")).endswith("/f/new"),
         "one_row": plus.get("oneRow") is True and r.get("webRow") is True,
-        "whole_app_to_notes": str(r.get("wholeApp", "")).endswith("/f/group/Library"),
+        "whole_app_to_notes": str(r.get("wholeApp", "")).endswith("/f/home"),
         "old_tabs_carried": (r.get("carried") or 0) >= 2,
         "bare_toolbar": r.get("bare") is True,
     }
@@ -492,6 +492,8 @@ def main() -> None:
     (work / "config").mkdir(parents=True)
     (work / "vault").mkdir()
     env = dict(os.environ, XDG_CONFIG_HOME=str(work / "config"), FM_UI_DIST="ui/dist",
+               # Firefox kept between runs, checked against Mozilla's signed sums each time (`browser_kit.rs`).
+               FM_BROWSER_CACHE=str(CACHE / "firefox-archives"),
                FM_VAULT=str(work / "vault"), FM_VAULTS=str(work / "vaults.json"), FM_OPEN="0",
                FM_AUTO_SHUTDOWN="0", FM_ADDR=f"127.0.0.1:{PORT}")
     server = subprocess.Popen([str(ROOT / "target" / "debug" / "fm-serve")], cwd=ROOT, env=env,
@@ -537,7 +539,8 @@ def main() -> None:
             and "Firefox" not in str(first.get("title", "")),
             "the brand strings are formicaria's": first.get("brand") == "formicaria",
             "the ant is first in the tab row": first.get("ant") == "TabsToolbar" and first.get("antFirst") is True,
-            "the browser opens on the notes": str(first.get("home", "")).endswith("/f/group/Library"),
+            # Home since the shell (2026-11-22).
+            "the browser opens on Home": str(first.get("home", "")).endswith("/f/home"),
             "only the add-on line is locked": first.get("signaturesLocked") is True,
             "Sync and the Mozilla account are available": first.get("accountsAvailable") is True,
             "split view is on": first.get("splitView") is True,

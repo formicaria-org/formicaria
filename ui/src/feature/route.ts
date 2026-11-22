@@ -11,6 +11,8 @@ import type { PaneKind } from '../lib/panes';
 
 export type Route =
   | { kind: 'new' }
+  | { kind: 'home' }
+  | { kind: 'today' }
   | { kind: 'settings' }
   | { kind: 'privacy' }
   | { kind: 'media' }
@@ -29,6 +31,9 @@ export function parseRoute(path: string): Route {
     .map(decodeURIComponent);
   const [head, rest] = [parts[0] ?? '', parts.slice(1).join('/')];
   if (head === 'new') return { kind: 'new' };
+  // **The shell's own places** (P2b): Home, a space's first view, and Today.
+  if (head === 'home') return { kind: 'home' };
+  if (head === 'today') return { kind: 'today' };
   if (head === 'settings') return { kind: 'settings' };
   if (head === 'privacy') return { kind: 'privacy' };
   if (head === 'media') return { kind: 'media' };
@@ -42,6 +47,10 @@ export function parseRoute(path: string): Route {
 /** The address of an item, as formicaria's tabs and links know it (`note:<id>`, `view:…`). */
 export function itemUrl(r: Route): string {
   switch (r.kind) {
+    case 'home':
+      return '/f/home';
+    case 'today':
+      return '/f/today';
     case 'new':
       return '/f/new';
     case 'settings':

@@ -24,7 +24,7 @@ the same notes differently. Pick one from the list of views.
 
 ![The Timeline: each note under its day, with its first lines and its tags](manual:images/timeline.png)
 
-**To give a note a tag**: open it, press its **＋ → Details**, and write the tag in **Tags** (several
+**To give a note a tag**: open it, press its **⋯ → Details**, and write the tag in **Tags** (several
 tags are separated by commas). With a mouse you can also drag a book onto another shelf.
 
 ## Tasks: a board and an agenda

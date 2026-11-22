@@ -12,6 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
 import Timeline from './Timeline.svelte';
+import { setVaults } from '../lib/vaults.svelte';
 import type { ObjectMeta } from '../lib/types';
 
 const note = (over: Partial<ObjectMeta> = {}): ObjectMeta =>
@@ -69,11 +70,22 @@ describe('a post', () => {
   });
 
   it('names the vault and the note, which is what makes a shared stream readable', () => {
+    // With more than one vault: the badge is drawn only then (`decisions.md` 2026-11-22, later).
+    setVaults([{ name: 'personal' }, { name: 'lab' }] as never);
     render(Timeline, { cards: [note({ vault: 'lab' })], onopen: () => {} } as never);
     expect(screen.getByText('Battery chemistry')).toBeTruthy();
     expect(screen.getByText('rough notes on LiFePO4 cells')).toBeTruthy();
     expect(screen.getByText('lab')).toBeTruthy();
     cleanup();
+    setVaults(null);
+  });
+
+  it('draws no vault badge when there is only one vault', () => {
+    setVaults([{ name: 'personal' }] as never);
+    render(Timeline, { cards: [note({ vault: 'personal' })], onopen: () => {} } as never);
+    expect(document.querySelector('.vault-badge')).toBeNull();
+    cleanup();
+    setVaults(null);
   });
 
   // **One control opens the note, and it is a real button.** The post used to be a `div` with

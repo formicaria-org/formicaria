@@ -1,0 +1,22 @@
+key: food
+label: Food journal
+icon: chart
+mark: ◍
+purpose: What you eat, and what is in it
+order: 40
+page: /f/group/Food
+match:
+  - any:
+      - prop: log
+        eq: food
+      - prop: recipe
+        exists: true
+views:
+  - view: Day
+  - view: Menu
+  - view: Trends
+  - view: Diet
+  - renderer: table
+    columns: [slot, amount_g, kcal]
+new:
+  props: { log: food }

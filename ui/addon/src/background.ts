@@ -886,7 +886,8 @@ async function wholeAppToNotes(id: number, url: string) {
     await (
       browser.tabs as unknown as { update(id: number, o: { url: string }): Promise<unknown> }
     ).update(id, {
-      url: `${c.server}/f/group/Library`,
+      // Home since the shell (2026-11-22).
+      url: `${c.server}/f/home`,
     });
   }
 }

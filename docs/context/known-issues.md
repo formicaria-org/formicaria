@@ -3046,26 +3046,27 @@ environment; build from a `git worktree` with this checkout's environment instea
   *someone listening to a playlist*, `phone-media-check`'s *music:* checks): songs one after another and
   every button of the deck.
 
-## On a computer: what the older frame still does that the feature pages do not (2026-11-22)
+## The shell: what it does not do yet (2026-11-22)
 
-From the shell's parity list (`unifying-home-research-2026-11-22.md` §10.1). Backing up by itself,
-conflicts, reminders and the manual were fixed in 0.60.9 (`decisions.md`, 2026-11-22, night, later).
-**Still missing on the computer** (the shell, P2b, closes them; each goes on its parity tests):
-- redo (Ctrl+Shift+Z);
-- the sync chips and panels (get changes, unreadable, not in history, decided for you) and the Back
-  up menu;
+Built in this release (`decisions.md`, 2026-11-22, night, latest; `unifying-home-research-2026-11-22.md`
+§10). From the parity list, the shell now has:
+- backing up by itself, with *Back up now* and the sync chips and panels;
+- conflicts, reminders and the manual;
+- ＋ New's makes (board, discussion, paper, template);
+- redo, the player bar, view controls, and *Bring into another note…*.
+
+**Still not on the computer:**
 - the vault filter;
-- ＋'s other makes (board, discussion, paper, from a template, into another vault);
-- ViewControls (Agenda's month/week/list, Timeline's feed/list);
 - swiping between a group's views;
-- the music player bar;
-- *Bring into another note…*, which does nothing there;
-- drop from a page into the front note;
+- dropping from a page into the front note;
 - the bridge (ask the assistant about the front note);
-- the rebindable keys (`keys.ts` has no effect there).
+- rebindable keys (`keys.ts` has no effect on the feature pages).
 
-**On the phone**, compared with the older frame on a tablet: no redo, no *Recently deleted*, no ＋
-menu, no vault filter, no sync chips. These go on the same list.
+**The phone keeps its own bar of tabs.** Home and Today are tabs there, and Home opens first; the
+shell's bottom bar is not built. **The older frame is not deleted (P2d)**: the phone still runs it.
+**Spaces, making your own views and your own kinds** are P3 and P4. On the phone, compared with the
+older frame on a tablet, there is still no redo, no *Recently deleted*, no ＋ menu, no vault filter
+and no sync chips.
 
 ## On a computer: what U1 brought back, and what it did not (2026-11-22)
 
@@ -3079,6 +3080,12 @@ menu, no vault filter, no sync chips. These go on the same list.
   `excerpt_of`).
 
 ## The release checks can fail on noise (2026-11-21)
+
+- **Mozilla's server timing out** stopped `browser-check` twice on 2026-11-22: every run set
+  formicaria's browser up from nothing, downloading Firefox each time. The checks now keep the archive
+  (`FM_BROWSER_CACHE`, `~/.cache/formicaria-browser-check/firefox-archives`), and the server checks
+  it against Mozilla's signed sums exactly as it checks a download (`browser_kit.rs`). The small
+  checksum files are still fetched each run.
 
 - **`browser-check`'s memory budget (+10 %)** failed twice on one day with formicaria's browser steady
   (783–842 MB) and the unmodified reference swinging (717–785 MB): three runs each are too few. A rerun

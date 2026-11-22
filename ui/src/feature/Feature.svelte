@@ -56,7 +56,7 @@
   // views*). The address says which (`route.ts`); the page holds no state beyond what is on screen:
   // it reads by commands, writes by commands, and re-reads when the server says something moved
   // (`listenChanges`). Opening a note opens it in a tab of its own (`openItem`).
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import * as diary from '../lib/diary';
   import Pane from '../lib/Pane.svelte';
   import { feedKey, newPane, type Feed, type Pane as PaneT } from '../lib/panes';
@@ -69,9 +69,16 @@
   import { trackersShown } from '../lib/trackers.svelte';
   import { FEATURES, featureOf } from '../lib/features';
   import NewTab from './NewTab.svelte';
+  import SectionNotes from './SectionNotes.svelte';
+  import ViewControls from '../lib/ViewControls.svelte';
+  import HomeView from './HomeView.svelte';
+  import TodayView from './TodayView.svelte';
+  import sectionsJson from '../lib/sections.json';
+  import type { Section, SectionView } from '../lib/types';
   import SelectionBring from '../lib/SelectionBring.svelte';
   import { noteShown, lastNote } from '../lib/lastNote';
   import FindNotes from './FindNotes.svelte';
+  import { refreshVaults } from '../lib/vaults.svelte';
   import UndoDelete from './UndoDelete.svelte';
   import { backUpInOneTab } from './backupLoop';
   import { sync as syncReminders } from '../lib/reminders.svelte';
@@ -79,13 +86,25 @@
   import ManualPanel from '../lib/ManualPanel.svelte';
   import { unsentLabel, type Unsent } from '../lib/autoBackup';
 
-  let { go = (url: string) => location.assign(url) }: { go?: (url: string) => void } = $props();
+  let {
+    go = (url: string) => location.assign(url),
+    path = location.pathname,
+    onitem,
+  }: {
+    go?: (url: string) => void;
+    /** The address this page draws (the shell passes it; on its own, the page's own). */
+    path?: string;
+    /** Open a note beside the page (the shell); without it, in a tab of its own. */
+    onitem?: (id: string) => void;
+  } = $props();
+  /// **Inside the shell**, the work that must outlive a move between places (the backup loop, the
+  /// reminders, the manual, the undo toast) is the shell's; on its own, the page does it.
 
   /** **Leaving a feature page never closes the window** (2026-11-19). It went back, or else closed
    *  the window: a page opened on its own (restored at start, one entry in its history) closed the
    *  only window, and the browser with it, and the next start restored the same page. Back if there
    *  is somewhere to go back to, else the notes. */
-  const leave = () => (history.length > 1 ? history.back() : go('/f/group/Library'));
+  const leave = () => (history.length > 1 ? history.back() : go('/f/home'));
 
   // **Settings is never nowhere** (2026-11-19; the owner, after 0.55.0: *"One should update and have
   // everything there automatically"*). It is the window's, at the right end of the tab row; while that
@@ -96,16 +115,15 @@
     // **The usage diary** (`lib/diary.ts`): this page's kind and how long it took to open — a
     // feature's own name, never a note's, a group's or a view's (those are the person's).
     diary.watch();
-    diary.pageOpened(
-      featureOf(location.pathname)?.key ?? (route.kind === 'builtin' ? route.pane : route.kind),
-    );
+    diary.pageOpened(featureOf(path)?.key ?? (route.kind === 'builtin' ? route.pane : route.kind));
     ipc.browserStatus().then(
       (st) => (windowHasSettings = !!(st.running && st.kit_current)),
       () => (windowHasSettings = false),
     );
   });
 
-  const route: Route = parseRoute(location.pathname);
+  // Drawn again, not changed, when the address moves (the shell keys the page on it).
+  const route: Route = parseRoute(untrack(() => path));
 
   let views = $state<ViewInfo[]>([]);
   let vaults = $state<string[]>([]);
@@ -148,7 +166,15 @@
   });
 
   /** The feature this tab shows, for its chooser (`Food ▾`). */
-  const here = featureOf(location.pathname);
+  const here = featureOf(untrack(() => path));
+  /// **Its section** (the shell, P2a): the same feature as a section of the library, with its generic
+  /// views (a table, a gallery) beside its own, and what its ＋ makes.
+  const section = (sectionsJson as Section[]).find((s) => s.page === here?.url);
+  const genericViews = (section?.views ?? []).filter((v) => !!v.renderer);
+  /// The generic view chosen, or none for the section's own ("As usual").
+  let generic = $state<SectionView | null>(null);
+  const viewName = (v: SectionView) =>
+    v.label ?? (v.renderer ? v.renderer.charAt(0).toUpperCase() + v.renderer.slice(1) : '');
   let choosing = $state(false);
   // Settings as a page: its theme and the new-vault form, as the app keeps them.
   let theme = $state(
@@ -158,6 +184,7 @@
     theme = toggledTheme(theme);
   }
   let newVaultOpen = $state(false);
+  let newVaultStart = $state<'create' | 'import'>('create');
 
   async function read() {
     // A feature reads once its first view is chosen, not the placeholder before it.
@@ -184,6 +211,8 @@
   // audit, 2026-11-22).
   const PAGE_NAMES: Partial<Record<Route['kind'], string>> = {
     new: 'New tab',
+    home: 'Home',
+    today: 'Today',
     settings: 'Settings',
     privacy: 'Privacy',
     media: 'Save media',
@@ -200,7 +229,9 @@
   });
   /** The pages with a bar of their own carry the search field in it; the others open it over the
    *  page with Ctrl+K or `/` (`FindNotes.svelte`). */
-  const hasStrip = !['new', 'media', 'privacy', 'settings', 'note'].includes(route.kind);
+  const hasStrip = !['new', 'media', 'privacy', 'settings', 'note', 'home', 'today'].includes(
+    route.kind,
+  );
   /** *Recently deleted*, from the feature chooser (`DeletedPanel`, `decisions.md` 2026-10-09). */
   let deletedOpen = $state(false);
 
@@ -208,8 +239,9 @@
   /// the loop; a vault whose changes are not leaving is said here, as the older frame's chip says it.
   let unsent = $state<Unsent[]>([]);
   let backupNote = $state('');
-  onMount(() =>
-    backUpInOneTab({
+  onMount(() => {
+    if (onitem) return;
+    return backUpInOneTab({
       refresh: () => void read(),
       onUnsent: (u) => (unsent = u),
       // **The program's reminders kept current** (found 2026-11-22): on a computer the program says a
@@ -224,12 +256,13 @@
         if (phase === 'conflicts')
           backupNote = `Notes in “${vault}” came back with edits from another device in both versions: open them to merge.`;
       },
-    }),
-  );
+    });
+  });
 
   /** Open a note (or anything) in a tab of its own. */
   function openNote(id: string) {
-    window.open(itemUrl({ kind: 'note', id }), '_blank', 'noopener');
+    if (onitem) onitem(id);
+    else window.open(itemUrl({ kind: 'note', id }), '_blank', 'noopener');
   }
 
   let commitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -253,6 +286,8 @@
   }
 
   onMount(() => {
+    // The vault list, for the vault badge (drawn only with more than one vault).
+    void refreshVaults();
     void ipc
       .listViews()
       .then((v) => (views = v))
@@ -285,9 +320,9 @@
   /** **＋ New note** (the view's line): a blank note, opened in a tab of its own. */
   async function newNote() {
     try {
-      const [made] = await ipc.createNotes([
-        { title: '', body: '', tags: [], start: '', props: {} },
-      ]);
+      // **What this section's ＋ makes** (its `.kind`'s `new:`): a task on Tasks, an entry on Food.
+      const props = (section?.new?.props ?? {}) as Record<string, string | number>;
+      const [made] = await ipc.createNotes([{ title: '', body: '', tags: [], start: '', props }]);
       if (made) window.open(`/f/note/${made.id}`, '_blank');
     } catch (e) {
       error = String(e);
@@ -296,7 +331,7 @@
 </script>
 
 <div class="feature">
-  <UndoDelete onrestored={() => void read()} />
+  {#if !onitem}<UndoDelete onrestored={() => void read()} />{/if}
   {#if !hasStrip}
     <FindNotes onopen={openNote} />
   {/if}
@@ -309,10 +344,10 @@
   {/if}
   <UpdateBanner />
   <BrowserRestartBanner />
-  <ReminderBanner />
+  {#if !onitem}<ReminderBanner />{/if}
   <!-- The manual's reader: every "How this works" link opens it (dead on these pages before
        2026-11-22: the panel was only mounted by the older frame). -->
-  <ManualPanel />
+  {#if !onitem}<ManualPanel />{/if}
   {#if unsent.length}
     <p class="backup-warn" role="status">
       {unsentLabel(unsent)} · <a href="/f/settings">Back up in Settings</a>
@@ -326,6 +361,10 @@
   {/if}
   {#if route.kind === 'new'}
     <NewTab {go} />
+  {:else if route.kind === 'home'}
+    <HomeView {go} onopen={openNote} />
+  {:else if route.kind === 'today'}
+    <TodayView onopen={openNote} />
   {:else if route.kind === 'media'}
     {@const asked = mediaAsked()}
     <div class="privacy-page">
@@ -356,19 +395,24 @@
         onlayout={() => {}}
         onclose={leave}
         page
+        place={!!onitem}
         onkeyschanged={() => {}}
         commands={[]}
         columns="auto"
         oncolumns={() => {}}
         {theme}
         ontheme={toggleTheme}
-        onnewvault={() => (newVaultOpen = true)}
+        onnewvault={(start) => {
+          newVaultStart = start ?? 'create';
+          newVaultOpen = true;
+        }}
       />
     {/await}
     {#if newVaultOpen}
       <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
         {#await import('../lib/NewVault.svelte') then { default: NewVault }}
           <NewVault
+            start={newVaultStart}
             oncreated={() => (newVaultOpen = false)}
             oncancel={() => (newVaultOpen = false)}
           />
@@ -420,13 +464,50 @@
               type="button"
               class:on={active(t)}
               aria-current={active(t) ? 'page' : undefined}
-              onclick={() =>
-                (pane = newPane(
+              onclick={() => {
+                generic = null;
+                pane = newPane(
                   t.to.kind as PaneT['kind'],
                   t.to.viewName ? { viewName: t.to.viewName } : {},
-                ))}>{t.label}</button
+                );
+              }}>{t.label}</button
             >
           {/each}
+        {/if}
+        {#if !generic}
+          <!-- **The view's own controls** (the parity list: Agenda's month, week or list, the
+               timeline's feed or list, a saved view's "show everything"), as the older frame's bar. -->
+          <span class="controls">
+            <ViewControls
+              {pane}
+              {feed}
+              onchange={(patch) => {
+                const changed = Object.entries(patch).some(
+                  ([k, v]) => pane[k as keyof PaneT] !== v,
+                );
+                if (changed) pane = { ...pane, ...patch };
+              }}
+            />
+          </span>
+        {/if}
+        {#if genericViews.length}
+          <!-- **View as** (the shell, P2a): every section's notes as a table or a gallery, beside its own. -->
+          <span class="view-as" role="group" aria-label="view as">
+            <button
+              type="button"
+              class:on={!generic}
+              aria-pressed={!generic}
+              onclick={() => (generic = null)}>As usual</button
+            >
+            {#each genericViews as v (viewName(v))}
+              <button
+                type="button"
+                class:on={generic === v}
+                aria-pressed={generic === v}
+                onclick={() => (generic = v)}>{viewName(v)}</button
+              >
+            {/each}
+          </span>
         {/if}
         <!-- **Help from every view**, a plain link. Settings is the window's, at the right end of the
              tab row on every tab (owner, 2026-11-18: *"why not simply add settings on top right as
@@ -452,47 +533,51 @@
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="body">
-      <Pane
-        {pane}
-        index={0}
-        cols={1}
-        {feed}
-        statuses={statusesOf(feed)}
-        shown={() => true}
-        focused={true}
-        startEditing={false}
-        {vaults}
-        onopen={openNote}
-        onresolve={async (c, keep) => {
-          // **A conflict's buttons do what they say** (they were a no-op on these pages until
-          // 2026-11-22): the same `resolve_conflict` the older frame calls, then a fresh read.
-          try {
-            await ipc.resolveConflict(c.vault, c.path, keep);
-            await read();
-            saved();
-          } catch (e) {
-            error = String(e);
-          }
-        }}
-        onmove={(g, id, v) => void move(g, id, v)}
-        onstatus={(id, v) => void move('status', id, v ?? '')}
-        onnavigate={openNote}
-        onsaved={saved}
-        onchange={(patch) => {
-          // Only a real change: a new object for the same pane would draw it again, and again.
-          const changed = Object.entries(patch).some(([k, v]) => pane[k as keyof PaneT] !== v);
-          if (changed) pane = { ...pane, ...patch };
-        }}
-        ontitle={(t) => {
-          if (t !== pane.noteTitle) pane = { ...pane, noteTitle: t };
-          if (route.kind === 'note') noteShown(route.id, t || 'Untitled');
-        }}
-        onreorder={() => {}}
-        onresize={() => {}}
-        onclose={leave}
-        onfocus={() => {}}
-        headed={false}
-      />
+      {#if generic && section}
+        <SectionNotes {section} view={generic} onopen={openNote} />
+      {:else}
+        <Pane
+          {pane}
+          index={0}
+          cols={1}
+          {feed}
+          statuses={statusesOf(feed)}
+          shown={() => true}
+          focused={true}
+          startEditing={false}
+          {vaults}
+          onopen={openNote}
+          onresolve={async (c, keep) => {
+            // **A conflict's buttons do what they say** (they were a no-op on these pages until
+            // 2026-11-22): the same `resolve_conflict` the older frame calls, then a fresh read.
+            try {
+              await ipc.resolveConflict(c.vault, c.path, keep);
+              await read();
+              saved();
+            } catch (e) {
+              error = String(e);
+            }
+          }}
+          onmove={(g, id, v) => void move(g, id, v)}
+          onstatus={(id, v) => void move('status', id, v ?? '')}
+          onnavigate={openNote}
+          onsaved={saved}
+          onchange={(patch) => {
+            // Only a real change: a new object for the same pane would draw it again, and again.
+            const changed = Object.entries(patch).some(([k, v]) => pane[k as keyof PaneT] !== v);
+            if (changed) pane = { ...pane, ...patch };
+          }}
+          ontitle={(t) => {
+            if (t !== pane.noteTitle) pane = { ...pane, noteTitle: t };
+            if (route.kind === 'note') noteShown(route.id, t || 'Untitled');
+          }}
+          onreorder={() => {}}
+          onresize={() => {}}
+          onclose={leave}
+          onfocus={() => {}}
+          headed={false}
+        />
+      {/if}
     </div>
   {/if}
 </div>
@@ -594,6 +679,27 @@
   .menu .sep {
     border-top: 1px solid var(--border);
     margin: var(--space-1) 0;
+  }
+  .view-as {
+    display: inline-flex;
+    gap: 2px;
+    margin-inline-start: var(--space-2);
+    padding: 2px;
+    border-radius: var(--radius-md);
+    background: var(--card-bg);
+  }
+  .view-as button {
+    border: none;
+    background: transparent;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .view-as button.on {
+    background: var(--surface);
+    font-weight: 600;
   }
   .backup-warn {
     margin: 0;

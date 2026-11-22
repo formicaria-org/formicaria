@@ -26,6 +26,10 @@ export type PaneKind =
   | 'discussions'
   | 'note'
   | 'view'
+  /** **The shell's places** (P2b/P2c): Home (customizable) and Today, as panes so the phone's tabs
+   *  can hold them too. */
+  | 'home'
+  | 'today'
   /** **A web page, an item of the collection like a note** (`workspace-design` §13.7): on the phone
    *  the shell draws it where this pane is (`__fmPage`); elsewhere it opens as a link. */
   | 'page';
@@ -157,17 +161,26 @@ export const HOME_VIEW = 'Shelves';
 /** What a first launch opens on: the shelves — a saved workspace keeps whatever its owner had. A
  *  variable only so the suite, most of which was written against a first screen of Board, can say
  *  so once (`test-setup.ts`); the tests about the first screen set it back. */
-const homePane = () => newPane('view', { viewName: HOME_VIEW });
+/// **Home is the shell's** since 2026-11-22 (*the shell*: Home is a space's first view; the shelves
+/// are a view of Notes). `HOME_VIEW` stays the shelves' view, which Notes still opens on.
+const homePane = () => newPane('home');
 let firstPane: () => Pane = homePane;
-export function setFirstView(kind: PaneKind | 'home') {
-  firstPane = kind === 'home' ? homePane : () => newPane(kind);
+export function setFirstView(kind: PaneKind | 'home' | 'shelves') {
+  firstPane =
+    kind === 'home'
+      ? homePane
+      : kind === 'shelves'
+        ? () => newPane('view', { viewName: HOME_VIEW })
+        : () => newPane(kind);
 }
 
 /** **Every launch after the first opens on the Library's Timeline** (the owner, 2026-11-12: *"the
  *  food view is the default one, it should be the timeline of the library"*; `decisions.md#ui`).
  *  Before that it was Food's Day (2026-10-29). A first launch still opens on the shelves and their
  *  tutorials. The Timeline is a built-in window, not a shipped `.view`, so it is named by its kind. */
-export const START_KIND: PaneKind = 'timeline';
+/// **Every launch opens on Home** since 2026-11-22 (*the shell*), which shows the recent notes the
+/// timeline did, beside everything else that can be done.
+export const START_KIND: PaneKind = 'home';
 let startKind: PaneKind | null = START_KIND;
 /** The suite, written against a workspace that reopens as it was left, turns this off once
  *  (`test-setup.ts`); the tests about opening turn it back on. */
@@ -300,6 +313,10 @@ export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated
  *  3 s heartbeat refreshes the distinct set. `note` has no feed (NotePanel self-fetches by id). */
 export function feedKey(p: Pane): string | null {
   switch (p.kind) {
+    // Home and Today read for themselves (`HomeView`, `TodayView`).
+    case 'home':
+    case 'today':
+      return null;
     case 'board':
       return `board:${p.groupBy}`;
     case 'agenda':
@@ -447,6 +464,8 @@ export const BUILTIN_PANES: BuiltinPane[] = [
   { kind: 'activity', label: 'Activity', icon: 'inbox' },
   { kind: 'collaboration', label: 'Collaboration', icon: 'merge' },
   { kind: 'discussions', label: 'Discussions', icon: 'chat' },
+  { kind: 'home', label: 'Home', icon: 'home' },
+  { kind: 'today', label: 'Today', icon: 'sun' },
 ];
 
 /// **The icon a window is drawn with** wherever open windows are listed — the tab row on a wide screen

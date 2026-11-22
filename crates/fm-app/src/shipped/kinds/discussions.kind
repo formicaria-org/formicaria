@@ -1,0 +1,10 @@
+key: discussions
+label: Discussions
+icon: chat
+mark: ✉
+purpose: Conversations about your notes, with people or the assistant
+order: 90
+page: /f/discussions
+types: [discussion]
+views:
+  - special: discussions

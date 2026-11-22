@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 159 of them are below**, grouped by what they are for. If you add an arm to
+**All 166 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -65,6 +65,13 @@ dispatch no longer has fails too.)
 | `clip_save`      | `url`, `title`, `body`, `tags`, `props`, `bibtex`, `snapshot`, `vault` | `ObjectMeta` | keeps a page from formicaria's browser: the note the add-on built, and the page's copy as an asset linked at its end; with `bibtex`, the note is made as `create_paper` makes one. Fetches nothing; only `http(s)` pages. Stamps the source contract (`source: web`, `source_id`, `captured`, `recorded: copied`) where the add-on did not |
 | `page_notes`     | `url` | `[{id, title, context}]` | the notes that name a page, matched by its address with the scheme, `www.`, fragment, tracking parameters and trailing slash ignored; `context` is the line that names it. Read-only; the browser's toolbar count |
 | `kinds`          | — | `[{key, label, mark, views, sources, place, out}]` | the library's kinds of notes (`fm_app::kinds`): each kind's views, sources, default place and hand-offs; every listed note carries its `kind_key`. Read-only |
+| `sections`       | — | `[{key, label, icon, mark, purpose, order, page, types, views, new}]` | the library's sections (`fm_app::sections`, from the shipped `.kind` files): what a person navigates, each a rule over notes, its views (`builtin`, `view`, `special` or `renderer`) and what ＋ makes. Read-only |
+| `note_history`   | `id`, `limit?` (50) | `[{commit, author, time}]` | the commits that changed the note's file, newest first, from its vault's git (⋯ → History). Read-only; empty without git |
+| `note_version`   | `id`, `commit` | `{text, body}` | the note's file as that commit left it, and its body (`null` when it did not exist there). Read-only |
+| `note_file`      | `id` | `{text, title}` | the note's file as the store writes it (⋯ → Export → Markdown). Read-only |
+| `tagged`         | `tag`, `limit?` (50) | `[ObjectMeta]` | the notes carrying a tag, newest first (the Home note is tagged `home`). Read-only |
+| `section_notes`  | `key`, `limit?` (500, at most 5000) | `[ObjectMeta]` | a section's notes, newest first: what its list, table and gallery views draw. Read-only |
+| `section_summary` | — | `[{key, count, latest}]` | per section, how many notes it holds and its newest (`ObjectMeta` or null), from one read of the store. Read-only |
 | `actions`        | — | `[{key, label, takes, makes, runs, agent}]` | what formicaria can do, declared once (`fm_app::actions`): each action, where it runs (`server`, `hand-off`, `open`), and the assistant's permission (`off` for each). Read-only |
 | `put`            | `to: {note, at?} \| {new: {title, shelf?}}, md, base?` | `{id, version?}` (a new note: its metadata) | **the one way content moves into a note** (`fm_app::actions::put`): at its end or the end of a heading's section (`at: "after:<heading>"`), whether or not it is open; `base` guards the version read. Or a new note on a shelf |
 | `recipe_from_page` | `url` (query); body = the page | `WebRecipe`        | reads a recipe out of a page the browser already has — `recipe_from_link`'s reader with no fetch |

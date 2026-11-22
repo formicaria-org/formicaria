@@ -3,7 +3,7 @@
 // renderers, the note), without the app's bars, panes and windows around them: the browser's tabs are
 // the windows. Started as the app is (`lib/start.ts`).
 import '../app.css';
-import Feature from './Feature.svelte';
+import Shell from './Shell.svelte';
 import { start } from '../lib/start';
 
-start(Feature);
+start(Shell);

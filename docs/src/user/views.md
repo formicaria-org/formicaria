@@ -46,7 +46,7 @@ side so its title reads across. **A shelf is a tag that starts with `shelf:`**: 
 `shelf:Recipes` stands on the **Recipes** shelf, one with two such tags stands on both, and the ones
 with none are on **Other** (its newest thirty; every note is in the Timeline). Other tags make no
 shelf, so your notes do not fill up with every tag you use. To put a book on a shelf, add the tag
-in the note's **＋ → Details → Tags** (a new name is a new shelf); with a mouse you can also drag it
+in the note's **⋯ → Details → Tags** (a new name is a new shelf); with a mouse you can also drag it
 onto another shelf, which swaps its `shelf:` tag for that one. Every notebook starts with five short
 guides on **Tutorials** — the same pages as this manual's [Tutorials](../tutorials/1-start-here.md).
 Notes from an earlier version kept their shelf in a `shelf` property; the app turns it into the tag

@@ -286,23 +286,38 @@ pub fn acquire(
     }
     let ext = file.rsplit('.').next().unwrap_or("bin");
     let archive = work.join(format!("firefox-{version}.{ext}"));
-    say(&format!("Downloading Firefox {version} from Mozilla…"));
-    fm_fetch::fetch(
-        &fm_fetch::Download {
-            url: &(base + &file.replace(' ', "%20")),
-            dest: &archive,
-            sha256: None,
-        },
-        progress,
-        &|| false,
-    )
-    .map_err(|e| format!("The download stopped: {e}"))?;
+    // **A copy kept by the checks** (`FM_BROWSER_CACHE`, set only by `ci/browser-check.py` and
+    // `ci/usability-check.py`, 2026-11-22): each run sets formicaria's browser up from nothing, and
+    // twice in a day Mozilla's server timing out failed the release gate before anything was tested.
+    // A cached archive is checked against Mozilla's signed sums below exactly as a download is.
+    let cache = std::env::var_os("FM_BROWSER_CACHE").map(PathBuf::from);
+    let cached = cache.as_ref().map(|d| d.join(format!("firefox-{version}.{ext}")));
+    let from_cache = cached.as_ref().is_some_and(|c| {
+        fm_fetch::verify_sha512(c, &want).unwrap_or(false) && std::fs::copy(c, &archive).is_ok()
+    });
+    if !from_cache {
+        say(&format!("Downloading Firefox {version} from Mozilla…"));
+        fm_fetch::fetch(
+            &fm_fetch::Download {
+                url: &(base + &file.replace(' ', "%20")),
+                dest: &archive,
+                sha256: None,
+            },
+            progress,
+            &|| false,
+        )
+        .map_err(|e| format!("The download stopped: {e}"))?;
+    }
     say("Checking the download…");
     if !fm_fetch::verify_sha512(&archive, &want)? {
         let _ = std::fs::remove_file(&archive);
         return Err(
             "The download did not match Mozilla's published sum, so it was discarded.".into()
         );
+    }
+    if let (Some(dir), Some(c), false) = (&cache, &cached, from_cache) {
+        let _ = std::fs::create_dir_all(dir);
+        let _ = std::fs::copy(&archive, c);
     }
     say("Unpacking…");
     let stage = work.join("stage");

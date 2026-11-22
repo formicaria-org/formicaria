@@ -802,6 +802,15 @@ const READ_ONLY: &[&str] = &[
     "diary_note",
     // The actions table (`actions.rs`): a constant.
     "actions",
+    // The library's sections (`sections.rs`, the shell): shipped files, and a count over the store.
+    "sections",
+    "section_summary",
+    "section_notes",
+    "tagged",
+    // A note's history and its file (⋯ → History, Export; 2026-11-22, later): reads of git and disk.
+    "note_history",
+    "note_version",
+    "note_file",
     // The app's clock (2026-10-24): a read, and the one the UI and the assistant poll.
     "clock",
     // This device's privacy switches (2026-11-17): a per-device file.
@@ -947,6 +956,50 @@ fn dispatch_inner(
         // **The library's kinds of notes** (`kinds.rs`): each kind's views, sources, default place and
         // hand-offs. Read-only; for the UI and Myrme. (Replaces 0.38's `sources`.)
         "kinds" => json(crate::kinds::KINDS),
+        // **The library's sections** (`sections.rs`; the shell, P1): what a person navigates, each a
+        // rule over notes with its views and its ＋. And, per section, a count and the newest note.
+        "sections" => json(crate::sections::sections()),
+        "section_summary" => json(crate::sections::summary(&lock()?.store(scope)).map_err(err)?),
+        // **⋯ → History** (`decisions.md` 2026-11-22, later): a note's versions from its vault's git, and
+        // one version's text. Restoring is an ordinary body write the UI makes, undoable.
+        "note_history" | "note_version" => {
+            let mut g = lock()?;
+            let id: fm_model::Id =
+                s("id").parse().map_err(|_| format!("invalid id: {}", s("id")))?;
+            let obj = g.store(scope).get(id).map_err(err)?.ok_or("no such note")?;
+            let path = g.config(scope, &obj.vault)?.path;
+            drop(g);
+            let rel = format!("notes/{id}.md");
+            if cmd == "note_history" {
+                let limit =
+                    args.get("limit").and_then(Value::as_u64).unwrap_or(50).min(500) as usize;
+                json(vcs::file_versions(&path, &rel, limit).map_err(err)?)
+            } else {
+                let text = vcs::file_at(&path, &rel, &s("commit")).map_err(err)?;
+                let body = text
+                    .as_deref()
+                    .and_then(|t| fm_core::frontmatter::from_file(t).ok())
+                    .map(|o| o.body);
+                json(serde_json::json!({ "text": text, "body": body }))
+            }
+        }
+        // **⋯ → Export → Markdown**: the note's own file, as the store writes it.
+        "note_file" => {
+            let mut g = lock()?;
+            let st = g.store(scope);
+            let id: fm_model::Id =
+                s("id").parse().map_err(|_| format!("invalid id: {}", s("id")))?;
+            let obj = st.get(id).map_err(err)?.ok_or("no such note")?;
+            json(serde_json::json!({ "text": st.encode(&obj).map_err(err)?, "title": obj.title }))
+        }
+        "tagged" => {
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(50).min(500) as usize;
+            json(crate::sections::tagged(&lock()?.store(scope), &s("tag"), limit).map_err(err)?)
+        }
+        "section_notes" => {
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(500).min(5000) as usize;
+            json(crate::sections::notes(&lock()?.store(scope), &s("key"), limit).map_err(err)?)
+        }
         "actions" => json(crate::actions::ACTIONS),
         // **Put a piece into a note** (`actions.rs`): the one way content moves in, from any gesture
         // and (later) the assistant; into an existing note (`to.note`, at its end or after a heading)

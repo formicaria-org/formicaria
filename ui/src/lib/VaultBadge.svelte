@@ -6,7 +6,7 @@
   // has no boundary to show). The colour tells the truth about who can see the note because the
   // vault is derived from where the file lives — never from anything the file says.
   import { hashHue } from './vaultColor';
-  import { labelFor } from './vaults.svelte';
+  import { labelFor, vaultList } from './vaults.svelte';
 
   let { vault, dot = false }: { vault?: string | null; dot?: boolean } = $props();
   /// **Callers keep passing the vault *name*** — the identity — and the label is resolved here, so the
@@ -17,9 +17,13 @@
   /// laptop and on the phone, which is the whole point — a local folder name would give one audience
   /// two colours.
   const hue = $derived(shown ? hashHue(shown) : 0);
+  /// **Only when there is more than one vault** (`decisions.md` 2026-11-22, later; the audit): with one,
+  /// a badge on every card names nothing a person could tell apart. While the list is still unknown
+  /// it is not drawn either: it appears once the list says there are several.
+  const several = $derived((vaultList()?.length ?? 0) > 1);
 </script>
 
-{#if vault}
+{#if vault && several}
   {#if dot}
     <span
       class="vault-dot"

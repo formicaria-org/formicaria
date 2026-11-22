@@ -206,6 +206,7 @@
     category,
     onkeyschanged,
     page = false,
+    place = false,
   }: {
     onclose: () => void;
     /** **Settings as a page of its own** (`/f/settings`), not a panel over another screen: no
@@ -213,8 +214,11 @@
      *  (an update notice above it stays clickable). 2026-11-19: on the page, the layer covered the
      *  update notice, and a click on it closed Settings — and with it the browser. */
     page?: boolean;
+    /** **A place in the shell** (P2b): beside the rail, filling the page, with no ✕ of its own (the
+     *  rail is how one leaves). */
+    place?: boolean;
     /** Opens the new-vault form — create, join, restore or import. */
-    onnewvault: () => void;
+    onnewvault: (start?: 'create' | 'import') => void;
     /** Told when the set of vaults changed here (one removed, one taken back). */
     onvaults?: () => void;
     layout: 'single' | 'tiled';
@@ -1254,7 +1258,7 @@
 
 <svelte:window onkeydown={(e) => (capturing ? capture(e) : onkeydown(e))} />
 
-<div class="settings-overlay" class:page>
+<div class="settings-overlay" class:page class:place>
   {#if !page}
     <button class="settings-backdrop" aria-label="close settings" onclick={onclose}></button>
   {/if}
@@ -1295,7 +1299,8 @@
           bind:value={query}
         />
       {/if}
-      <button class="x" aria-label="close" title="Close" onclick={onclose}>✕</button>
+      {#if !place}<button class="x" aria-label="close" title="Close" onclick={onclose}>✕</button
+        >{/if}
     </div>
     <!-- **The categories.** One is on screen at a time; each says its current state beside its
          name, so the list is also the overview. One this copy has nothing in is not listed. -->
@@ -1420,7 +1425,7 @@
           <ManualLink page="user/appearance.html" section="reading-width" />
           <p class="muted">
             How wide a note's text runs. Stored in this browser. One note can use the full width
-            from its <strong>＋</strong> → <strong>Full width</strong>.
+            from its <strong>⋯</strong> → <strong>Full width</strong>.
           </p>
           <ul class="caps" aria-label="reading width">
             {#each WIDTHS as w (w.value)}
@@ -2018,6 +2023,19 @@
         {/if}
       </section>
 
+      <!-- **Import, a place of its own** (`decisions.md` 2026-11-22, later). -->
+      <section data-cat="import" data-words="import obsidian logseq bring notes move migrate">
+        <h3>Bring your notes</h3>
+        <ManualLink page="user/import.html" section="doing-it" />
+        <p class="muted">
+          From an Obsidian vault or a Logseq graph: every page becomes a note, its links and tags
+          kept, in a vault of its own or one you have.
+        </p>
+        <button type="button" class="new-vault" onclick={() => onnewvault('import')}
+          >Import from Obsidian or Logseq…</button
+        >
+      </section>
+
       <!-- **Vaults & backup, a category of its own** (`decisions.md#ui`, 2026-10-15): everything about
            a vault is set here and nowhere else. -->
       <section
@@ -2028,7 +2046,7 @@
           <h3>Vaults <span class="count">{vaults.length}</span></h3>
           <ManualLink page="user/backup.html" section="setting-up-once" />
           {#if !isRemote()}
-            <button class="new-vault" onclick={onnewvault}>New vault…</button>
+            <button class="new-vault" onclick={() => onnewvault()}>New vault…</button>
           {/if}
         </div>
         <!-- **Backing up by itself.** On unless turned off, per device, and it says beside the
@@ -2481,6 +2499,20 @@
     height: auto;
     padding-top: var(--space-4);
     z-index: auto;
+  }
+  /* A place in the shell: the page's width, no card around it. */
+  .settings-overlay.place {
+    padding: 0;
+    display: block;
+  }
+  .settings-overlay.place .panel {
+    width: 100%;
+    max-width: 64rem;
+    max-height: none;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    background: transparent;
   }
   .settings-backdrop {
     position: fixed;

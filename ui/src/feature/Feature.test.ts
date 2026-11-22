@@ -27,9 +27,9 @@ it('a feature shows its views as a strip, and a card opens its note in a tab of 
   const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
   render(Feature);
   const strip = await screen.findByRole('navigation', { name: /views/ });
-  const names = [...strip.querySelectorAll('button:not(.feature-name):not(.new-note)')].map((b) =>
-    b.textContent?.trim(),
-  );
+  const names = [
+    ...strip.querySelectorAll('button:not(.feature-name):not(.new-note):not(.view-as button)'),
+  ].map((b) => b.textContent?.trim());
   expect(names).toEqual(['Board', 'Agenda']);
   await fireEvent.click(screen.getByRole('button', { name: 'Agenda' }));
   expect(screen.getByRole('button', { name: 'Agenda' }).getAttribute('aria-current')).toBe('page');
@@ -97,7 +97,7 @@ it('Settings on its own page: no layer over the page, and leaving it goes to the
   await fireEvent.click(x);
   await fireEvent.keyDown(window, { key: 'Escape' });
   expect(closed).not.toHaveBeenCalled();
-  expect(went[0]).toBe('/f/group/Library');
+  expect(went[0]).toBe('/f/home');
 });
 
 it('a note opened on its own, closed, goes to the notes, not out of the browser', async () => {

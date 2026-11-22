@@ -4,6 +4,7 @@
 // column order) so what you see in the browser matches the real window. This
 // file is deliberately NOT under src/renderers — status names live here, never
 // in a renderer, which is the invariant the CI grep enforces.
+import sectionsJson from './sections.json';
 import { parseStamp } from './stamp';
 import { GIT_ASSETS_CEILING, humanSize } from './size';
 import { isPhone } from './platform';
@@ -119,6 +120,47 @@ const freshPrivacy = () => ({
 let mockPrivacy = freshPrivacy();
 let mockMediaJobs: import('./ipc').MediaJob[] = [];
 /** Files the stand-in treats as sound (the server reads a file's first bytes; the mock is told). */
+/// A note's versions, for ⋯ → History in tests. `reset()` clears it.
+const mockHistory = new Map<
+  string,
+  { commit: string; author: string; time: string; body: string }[]
+>();
+export function setHistory(
+  id: string,
+  versions: { commit: string; author: string; time: string; body: string }[],
+): void {
+  mockHistory.set(id, versions);
+}
+/// The shipped sections' rules, for the mock: the same markers `sections.rs` reads.
+function mockInSection(key: string, n: ObjectMeta): boolean {
+  const p = n.props ?? {};
+  const has = (k: string) => p[k] !== undefined && p[k] !== null && p[k] !== '';
+  switch (key) {
+    case 'notes':
+      return n.type !== 'asset' && !has('log') && !has('thread_of') && !has('proposes');
+    case 'tasks':
+      return !!n.status || !!n.due;
+    case 'agenda':
+      return !!n.start || !!n.due;
+    case 'food':
+      return p.log === 'food' || has('recipe');
+    case 'fitness':
+      return p.log === 'workout';
+    case 'health':
+      return p.log === 'health';
+    case 'music':
+      return p.log === 'music';
+    case 'videos':
+      return p.log === 'video';
+    case 'discussions':
+      return has('thread_of');
+    case 'collaboration':
+      return has('proposes');
+    default:
+      return false;
+  }
+}
+
 export const mockSoundRefs = new Set<string>();
 /** The stand-in's blobs per vault, as `storage.rs` would find them on disk (tests fill it). */
 export const mockBlobs: Record<string, { hash: string; size: number; kind: string }[]> = {};
@@ -932,6 +974,7 @@ export function reset(): void {
   mockDiary = { on: true, lines: [] };
   mockBrowser = { ...mockBrowser, running: false, kit_current: false };
   mockDeleted.length = 0;
+  mockHistory.clear();
   mockClockZone = '';
   mockPrivacy = freshPrivacy();
   mockMediaJobs = [];
@@ -2113,6 +2156,43 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'kinds':
       return [] as T;
+    // The shipped sections, as the server reads them (`sections.json` is their JSON, kept equal by a
+    // Rust test), and their counts over the mock's notes, by the same rules for the ones a test needs.
+    case 'sections':
+      return structuredClone(sectionsJson) as T;
+    case 'tagged':
+      return notes
+        .filter((n) => n.tags.includes(String(args.tag)))
+        .sort((a, b) => b.updated.localeCompare(a.updated))
+        .slice(0, Number(args.limit ?? 50)) as T;
+    case 'section_notes': {
+      const key = String(args.key ?? '');
+      return notes
+        .filter((n) => mockInSection(key, n))
+        .sort((a, b) => b.updated.localeCompare(a.updated))
+        .slice(0, Number(args.limit ?? 500)) as T;
+    }
+    // ⋯ → History and Export: versions a test sets (`setHistory`), and the note's file.
+    case 'note_history':
+      return (mockHistory.get(String(args.id)) ?? []).map(({ body: _b, ...v }) => v) as T;
+    case 'note_version': {
+      const v = (mockHistory.get(String(args.id)) ?? []).find((x) => x.commit === args.commit);
+      return { text: v ? `---\n---\n${v.body}` : null, body: v ? v.body : null } as T;
+    }
+    case 'note_file': {
+      const n = notes.find((x) => x.id === args.id);
+      if (!n) throw new Error('no such note');
+      return {
+        text: `---\ntitle: ${n.title ?? ''}\n---\n${noteDetail(n.id)?.body ?? ''}`,
+        title: n.title,
+      } as T;
+    }
+    case 'section_summary':
+      return (sectionsJson as { key: string }[]).map((sec) => {
+        const mine = notes.filter((n) => mockInSection(sec.key, n));
+        const latest = [...mine].sort((a, b) => b.updated.localeCompare(a.updated))[0] ?? null;
+        return { key: sec.key, count: mine.length, latest };
+      }) as T;
     // The vault list the mock models. Two, so the sidebar's vault chips and filter are
     // exercised (they only render above one). The first-run state — an empty list — is
     // reached for real, not here: `pnpm dev` should give you a working app.

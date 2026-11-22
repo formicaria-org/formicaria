@@ -77,7 +77,8 @@
   {title}
   aria-label={status ? `status: ${status}` : 'status: none'}
 >
-  {status ?? '+'}
+  <!-- No status: an empty ring, not a ＋ — ＋ only ever adds (`decisions.md` 2026-11-22, later). -->
+  {status ?? '○'}
 </button>
 
 {#if picker}
@@ -120,7 +121,7 @@
   .status-chip:hover {
     border-color: var(--border-strong);
   }
-  /* No status yet: a quiet "+" affordance rather than an empty pill. */
+  /* No status yet: a quiet empty ring rather than an empty pill (＋ only ever adds). */
   .status-chip.unset {
     background: transparent;
     border-color: var(--border);

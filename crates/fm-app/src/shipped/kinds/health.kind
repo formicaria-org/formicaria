@@ -1,0 +1,18 @@
+key: health
+label: Health
+icon: chart
+mark: ✚
+purpose: Measurements, and a diary for your doctor
+order: 60
+page: /f/group/Health
+match:
+  - prop: log
+    eq: health
+views:
+  - view: Diary
+  - view: Over time
+  - view: Guidance
+  - renderer: table
+    columns: [weight_g, record]
+new:
+  props: { log: health }

@@ -1623,3 +1623,59 @@ fn a_closed_proposal_reads_back_what_it_did_on_both() {
     assert_eq!(git::closed_change(a.path(), "proposal/p9").unwrap(), None);
     assert_eq!(git_native::closed_change(b.path(), "proposal/p9").unwrap(), None);
 }
+
+/// **A note's history** (⋯ → History, 2026-11-22): both backends list the same commits for a file,
+/// newest first, read the same text from each, and refuse anything that is not a commit id.
+#[test]
+fn a_notes_history_agrees_and_reads_each_version() {
+    if !have_git() {
+        return;
+    }
+    let d = tempdir().unwrap();
+    let v = d.path();
+    g(v, &["init", "-q"]);
+    g(v, &["config", "user.name", "Ana"]);
+    g(v, &["config", "user.email", "ana@lab.invalid"]);
+    fs::create_dir_all(v.join("notes")).unwrap();
+    let rel = "notes/01JD0000000000000000000000.md";
+    // **Every commit in the same second**, as a quick run of edits and backups makes them: ordered by
+    // time alone, libgit2 listed the oldest version first (found by `pixi run ci`, 2026-11-22).
+    let commit = |args: &[&str]| {
+        let ok = Command::new("git")
+            .arg("-C")
+            .arg(v)
+            .args(args)
+            .env("GIT_AUTHOR_DATE", "2026-01-05T10:00:00+00:00")
+            .env("GIT_COMMITTER_DATE", "2026-01-05T10:00:00+00:00")
+            .status()
+            .unwrap();
+        assert!(ok.success());
+    };
+    for (i, text) in ["first\n", "second\n", "third\n"].iter().enumerate() {
+        fs::write(v.join(rel), text).unwrap();
+        fs::write(v.join("other.txt"), format!("{i}")).unwrap();
+        g(v, &["add", "-A"]);
+        commit(&["commit", "-q", "-m", &format!("edit {i}")]);
+        // A commit that touches only another file is not a version of this one.
+        fs::write(v.join("other.txt"), format!("{i}b")).unwrap();
+        commit(&["commit", "-qam", &format!("other {i}")]);
+    }
+    let cli = git::file_versions(v, rel, 50).unwrap();
+    let lib = git_native::file_versions(v, rel, 50).unwrap();
+    assert_eq!(cli.len(), 3);
+    assert_eq!(
+        cli.iter().map(|x| &x.commit).collect::<Vec<_>>(),
+        lib.iter().map(|x| &x.commit).collect::<Vec<_>>(),
+        "the same versions, newest first"
+    );
+    let (newest, oldest) = (&cli[0].commit, &cli[2].commit);
+    assert_eq!(git::file_at(v, rel, newest).unwrap().as_deref(), Some("third\n"), "newest first");
+    assert_eq!(git_native::file_at(v, rel, &lib[0].commit).unwrap().as_deref(), Some("third\n"));
+    assert_eq!(git::file_at(v, rel, oldest).unwrap().as_deref(), Some("first\n"));
+    assert_eq!(git_native::file_at(v, rel, oldest).unwrap().as_deref(), Some("first\n"));
+    assert_eq!(git::file_versions(v, rel, 1).unwrap().len(), 1, "the limit holds");
+    for bad in ["--output=/tmp/x", "HEAD", "zzzzzzzz", ""] {
+        assert_eq!(git::file_at(v, rel, bad).unwrap(), None, "{bad}");
+        assert_eq!(git_native::file_at(v, rel, bad).unwrap(), None, "{bad}");
+    }
+}

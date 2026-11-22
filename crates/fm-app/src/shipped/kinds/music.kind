@@ -1,0 +1,16 @@
+key: music
+label: Music
+icon: play
+mark: ♪
+purpose: Songs, albums and playlists you keep
+order: 70
+page: /f/group/Music
+types: [song]
+views:
+  - view: Songs
+  - renderer: table
+    columns: [artist, album, duration_s]
+  - renderer: gallery
+new:
+  props: { log: music }
+  asks: [title, artist]

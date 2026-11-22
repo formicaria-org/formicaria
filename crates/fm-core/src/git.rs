@@ -1979,6 +1979,62 @@ pub fn deleted_notes(vault: &Path, days: u32) -> Result<Vec<Deleted>, StoreError
     Ok(found)
 }
 
+/// One version of a file in a vault's history: the commit that wrote it, who, and when (`%aI`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Version {
+    pub commit: String,
+    pub author: String,
+    pub time: String,
+}
+
+/// **A note's history** (`decisions.md` 2026-11-22, later: ⋯ → History): the commits that changed
+/// `rel`, newest first, at most `limit`. Read-only; a vault without git has none.
+pub fn file_versions(vault: &Path, rel: &str, limit: usize) -> Result<Vec<Version>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let out = git(vault)
+        .args([
+            "log",
+            "--no-merges",
+            "--date-order",
+            &format!("-n{limit}"),
+            "--pretty=format:%H\x1f%an\x1f%aI",
+            "--",
+            rel,
+        ])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Ok(Vec::new());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|l| {
+            let mut f = l.split('\x1f');
+            Some(Version {
+                commit: f.next()?.to_string(),
+                author: f.next()?.to_string(),
+                time: f.next()?.to_string(),
+            })
+        })
+        .collect())
+}
+
+/// Is this a commit id, and nothing git could read as an option?
+pub(crate) fn is_commit_id(s: &str) -> bool {
+    (7..=64).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// The text of `rel` as `commit` left it, or `None` when it did not exist there.
+pub fn file_at(vault: &Path, rel: &str, commit: &str) -> Result<Option<String>, StoreError> {
+    if !vault.join(".git").exists() || !is_commit_id(commit) {
+        return Ok(None);
+    }
+    let out = git(vault).args(["show", &format!("{commit}:{rel}")]).output().map_err(spawn)?;
+    Ok(out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned()))
+}
+
 fn note_id_from_path(path: &str) -> Option<String> {
     let stem = path.strip_prefix("notes/")?.strip_suffix(".md")?;
     (!stem.is_empty() && !stem.contains('/')).then(|| stem.to_string())

@@ -13,6 +13,9 @@ export const CATEGORIES = [
   // **A vault's settings have a category of their own** (`decisions.md#ui`, 2026-10-15): where it
   // lives, where it is sent, its snapshot, which attachments travel, making and removing vaults.
   { id: 'vaults', label: 'Vaults & backup' },
+  // **Import, a place of its own** (`decisions.md` 2026-11-22, later): it sat three levels down,
+  // under making a new vault.
+  { id: 'import', label: 'Import' },
   { id: 'notes', label: 'Food & reminders' },
   { id: 'assistant', label: 'Assistant' },
   // **Privacy** (`decisions.md` 2026-11-17): each protection a switch, on every device.

@@ -10,6 +10,7 @@ describe('how Settings is divided', () => {
       'keyboard',
       'clock',
       'vaults',
+      'import',
       'notes',
       'assistant',
       'privacy',

@@ -1,0 +1,16 @@
+# A section of the library (docs/context/unifying-home-research-2026-11-22.md §11): which notes belong,
+# the views that navigate them, and what ＋ makes. The ten shipped ones are today's features, one to one.
+key: notes
+label: Notes
+icon: pen
+mark: ✎
+purpose: Write anything, and link notes together
+order: 10
+page: /f/group/Library
+types: [study, web, paper]
+views:
+  - view: Shelves
+  - builtin: timeline
+  - renderer: table
+    columns: [tags]
+  - renderer: gallery

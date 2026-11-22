@@ -30,6 +30,8 @@ it('a new tab suggests the features, a new note and the web', async () => {
   const names = [...features.querySelectorAll('button')].map((b) => b.textContent?.trim());
   expect(names).toEqual([
     'New note',
+    'Home',
+    'Today',
     'Notes',
     'Tasks',
     'Agenda',

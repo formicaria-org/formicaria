@@ -13,26 +13,21 @@ export interface Feature {
   url: string;
 }
 
-export const FEATURES: Feature[] = [
-  { key: 'Library', label: 'Notes', mark: '✎', icon: 'pen', url: '/f/group/Library' },
-  { key: 'Tasks', label: 'Tasks', mark: '▦', icon: 'board', url: '/f/group/Tasks' },
-  { key: 'agenda', label: 'Agenda', mark: '◷', icon: 'calendar', url: '/f/agenda' },
-  { key: 'Food', label: 'Food journal', mark: '◍', icon: 'chart', url: '/f/group/Food' },
-  { key: 'Fitness', label: 'Fitness', mark: '◆', icon: 'chart', url: '/f/group/Fitness' },
-  { key: 'Health', label: 'Health', mark: '✚', icon: 'chart', url: '/f/group/Health' },
-  { key: 'Music', label: 'Music', mark: '♪', icon: 'play', url: '/f/group/Music' },
-  { key: 'Videos', label: 'Videos', mark: '▶', icon: 'play', url: '/f/group/Videos' },
-  // Discussions and collaboration (the owner, on 0.50: they had disappeared — the one frame's list
-  // left them out, and the old views menu was gone).
-  { key: 'discussions', label: 'Discussions', mark: '✉', icon: 'chat', url: '/f/discussions' },
-  {
-    key: 'collaboration',
-    label: 'Collaboration',
-    mark: '⇄',
-    icon: 'list',
-    url: '/f/collaboration',
-  },
-];
+// **Read from the library's sections** (`sections.json`, written from the shipped `.kind` files by a
+// test in `crates/fm-app/src/sections.rs`; the shell, P1): one list, not two. The key each feature
+// had before (the diary's word for a page, a group's name) is its page's last part.
+import sectionsJson from './sections.json';
+import type { Section } from './types';
+
+const keyOf = (page: string): string => page.replace(/^\/f\/(group\/)?/, '').split('/')[0];
+
+export const FEATURES: Feature[] = (sectionsJson as Section[]).map((s) => ({
+  key: keyOf(s.page),
+  label: s.label,
+  mark: s.mark,
+  icon: s.icon,
+  url: s.page,
+}));
 
 /** The feature a page address belongs to, if any. */
 export function featureOf(path: string): Feature | undefined {
