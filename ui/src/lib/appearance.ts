@@ -51,6 +51,10 @@ export const SUPPORTED: readonly string[] = [
   'danger-fg',
   'ok-bg',
   'ok-fg',
+  'chip-bg',
+  'chip-border',
+  'chip-fg',
+  'column-fg',
   // Type
   'font-sans',
   'font-mono',

@@ -3,6 +3,7 @@
   // has beside its own, with the same verb on each, *Filter*. The notes come from `section_notes`,
   // the section's own rule (`sections.rs`), read again whenever the vaults change.
   import { onMount } from 'svelte';
+  import { shownVault } from '../lib/shownVaults.svelte';
   import * as ipc from '../lib/ipc';
   import type { ObjectMeta, Section, SectionView } from '../lib/types';
   import Table from '../renderers/Table.svelte';
@@ -35,8 +36,10 @@
   const fold = (t: string) => t.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
   const shown = $derived.by(() => {
     const words = fold(filter).split(/\s+/).filter(Boolean);
-    if (!words.length) return cards;
-    return cards.filter((c) => {
+    // The vaults chosen not to see are left out first (the rail's vault chooser).
+    const seen = cards.filter((c) => shownVault(c.vault));
+    if (!words.length) return seen;
+    return seen.filter((c) => {
       const hay = fold([c.title ?? '', c.preview, c.tags.join(' ')].join(' '));
       return words.every((w) => hay.includes(w));
     });

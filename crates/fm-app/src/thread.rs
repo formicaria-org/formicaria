@@ -255,8 +255,18 @@ pub fn is_template(o: &fm_model::Object) -> bool {
 
 /// What the board and the agenda draw: the notes you plan with, and not the templates you make
 /// them from. A template with a `status` would otherwise sit among the tasks for ever.
+///
+/// **Nor a training or food plan** (a note carrying `program`, `plan.rs`, 2026-11-23): its `start`
+/// and `due` are the days it was in force, so a plan replaced by another, its `due` the day it
+/// ended, sat in the agenda as *overdue* and on Home's board as a task to do.
 pub fn tasks_base() -> Filter {
-    notes_base().and(Predicate::Not(Box::new(Predicate::TagsAll(vec![TEMPLATE_TAG.into()]))))
+    notes_base().and(Predicate::Not(Box::new(Predicate::TagsAll(vec![TEMPLATE_TAG.into()])))).and(
+        Predicate::Not(Box::new(Predicate::Prop {
+            key: crate::log::PROGRAM.into(),
+            op: fm_query::Op::Exists,
+            value: fm_model::PropertyValue::Null,
+        })),
+    )
 }
 
 /// One log's entries **and** the notes holding its targets, in one filter — so a day's totals and

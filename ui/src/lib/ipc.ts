@@ -304,7 +304,9 @@ export const noteFile = (id: string) =>
 /** **The library's sections** (the shell, P1): what a person navigates, from the shipped `.kind` files. */
 export const sections = () => invoke<Section[]>('sections');
 /** Per section, how many notes it holds and its newest. */
-export const sectionSummary = () => invoke<SectionSummary[]>('section_summary');
+/** Per section, its count and newest; `hidden` vaults are left out (the rail's vault chooser). */
+export const sectionSummary = (hidden: string[] = [], days?: number) =>
+  invoke<SectionSummary[]>('section_summary', days ? { hidden, days } : { hidden });
 /** The notes carrying a tag, newest first (the Home note: `home`). */
 export const tagged = (tag: string, limit = 50) => invoke<ObjectMeta[]>('tagged', { tag, limit });
 /** **The journal** (Home, 2026-11-23): notes tagged `journal` titled with a day, newest day first,

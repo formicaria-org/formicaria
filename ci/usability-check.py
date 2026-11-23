@@ -909,6 +909,21 @@ def first_hour_pictures(ff: Path, work: Path) -> None:
         shot("01b-no-mask")
         # Home (2026-11-23): wide, the Journal page, and narrow as a phone-width window has it.
         goto(m, f"{SERVER}/f/home", 6); shot("01c-home")
+        # Home arranged: a heatmap across, the board full width, the journal narrow; and in dark mode.
+        homes = bc.post("/api/tagged", {"tag": "home", "limit": 1}) or []
+        arranged = ("![](card:stat:notes?size=glance&phone=1&w=half&h=short)\n"
+                    "![](card:journal?size=summary&phone=1&w=narrow&h=tall)\n"
+                    "![](card:heat:notes?size=full&phone=0&w=wide&h=medium)\n"
+                    "![](card:board:tasks?size=full&phone=0&w=full&h=medium)\n"
+                    "![](card:due?size=summary&phone=1&w=half&h=short)\n")
+        if homes:
+            got = bc.post("/api/get", {"id": homes[0]["id"]}) or {}
+            bc.post("/api/update_body", {"id": homes[0]["id"], "body": arranged, "base": got.get("version", "")})
+        else:
+            bc.post("/api/create_notes", {"notes": [{"title": "Home", "body": arranged, "tags": ["home"], "props": {}}]})
+        goto(m, f"{SERVER}/f/home", 6); shot("01f-home-arranged")
+        content(m, "document.documentElement.dataset.theme = 'dark'; return true;", 800); shot("01g-home-dark")
+        content(m, "document.documentElement.dataset.theme = 'light'; return true;", 300)
         goto(m, f"{SERVER}/f/today", 5); shot("01d-journal")
         m.cmd("WebDriver:SetWindowRect", {"width": 520, "height": 900})
         goto(m, f"{SERVER}/f/home", 6); shot("01e-home-narrow")
@@ -1078,11 +1093,24 @@ def the_shell(ff: Path, work: Path) -> None:
         rail("Journal")
         parts = wait_for(m, "return document.querySelectorAll('.today section').length || null", 8)
         check(who, "the Journal page shows what the day collected, in four parts", parts == 4, str(parts))
-        # Home, edited: Continue removed; it stays removed after a reload, and the pinned section is there.
+        # Home, arranged where it is: a card's ⋯ makes it the full width (it then takes the whole
+        # row), and another card's ⋯ removes it; both stay after a reload (2026-11-23).
         rail("Home")
-        wait_for(m, "return !!document.querySelector('button.customize')", 8)
-        content(m, "document.querySelector('button.customize').click(); return true;", 600)
-        content(m, "const b = document.querySelector('button[aria-label=\"remove Continue\"]'); if (b) b.click(); return !!b;", 2500)
+        wait_for(m, "return !!document.querySelector('button[aria-label=\"more for Due and planned\"]')", 10)
+        content(m, "document.querySelector('button[aria-label=\"more for Due and planned\"]').click(); return true;", 500)
+        content(m, "[...document.querySelectorAll('.cmenu button')].find((b) => b.textContent.trim() === 'Full width')?.click(); return true;", 2500)
+        span = content(m, """const li = [...document.querySelectorAll('li.card')].find((e) => e.textContent.includes('Due and planned'));
+                             const grid = li && li.parentElement;
+                             return li && grid ? Math.round(li.getBoundingClientRect().width / grid.getBoundingClientRect().width * 100) : null;""")
+        check(who, "a card's ⋯ → Full width makes it take the whole row", (span or 0) >= 97, f"{span}% of the grid")
+        content(m, "document.querySelector('button[aria-label=\"more for Continue\"]').click(); return true;", 500)
+        content(m, "[...document.querySelectorAll('.cmenu button')].find((b) => b.textContent.trim() === 'Remove from Home')?.click(); return true;", 2500)
+        # A section hidden from the rail leaves it.
+        content(m, "document.querySelector('button[aria-label=\"more for Health\"]').click(); return true;", 400)
+        content(m, "[...document.querySelectorAll('[role=menuitem]')].find((b) => b.textContent.trim() === 'Hide from the rail')?.click(); return true;", 800)
+        hidden = content(m, """const l = document.querySelector('nav[aria-label="formicaria"] ul[aria-label="sections"]');
+                               return l ? !l.textContent.includes('Health') : null;""")
+        check(who, "a section hidden from the rail leaves it", hidden is True, str(hidden))
         goto(m, f"{SERVER}/f/home", 6)
         shown = wait_for(m, "const l = document.querySelector('[aria-label=\"home cards shown\"]'); return l ? l.textContent : null", 10) or ""
         watch = content(m, "return (document.querySelector('[aria-label=\"kept an eye on\"]') || {}).textContent || ''") or ""

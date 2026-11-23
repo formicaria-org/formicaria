@@ -125,10 +125,12 @@ pub struct Summary {
     pub recent: Vec<String>,
 }
 
-/// How far back [`Summary::recent`] reaches: a month's figure and its trend, with room for a zone.
+/// How far back [`Summary::recent`] reaches unless asked: a month's figure and its trend, with room
+/// for a zone. Home's heatmap asks for a year (`days`, at most [`RECENT_DAYS_MAX`]).
 pub const RECENT_DAYS: i64 = 35;
-/// At most this many in [`Summary::recent`]: a figure past it says "2000+", it never stalls a read.
-const RECENT_MAX: usize = 2000;
+pub const RECENT_DAYS_MAX: i64 = 400;
+/// At most this many in [`Summary::recent`]: a figure past it is a floor, and a read never stalls.
+const RECENT_MAX: usize = 5000;
 
 const SHIPPED: &[(&str, &str)] = &[
     ("notes", include_str!("shipped/kinds/notes.kind")),
@@ -260,9 +262,17 @@ fn is_day(t: &str) -> bool {
 }
 
 /// Each section's count and newest note, from one read of the store.
-pub fn summary(store: &dyn Store) -> Result<Vec<Summary>, StoreError> {
-    let (objects, _) = store.candidates(&Filter::new())?;
-    let since = time::OffsetDateTime::now_utc() - time::Duration::days(RECENT_DAYS);
+pub fn summary(
+    store: &dyn Store,
+    hidden: &[String],
+    days: i64,
+) -> Result<Vec<Summary>, StoreError> {
+    let (mut objects, _) = store.candidates(&Filter::new())?;
+    // **The vaults the person chose not to see** (the rail's vault chooser, 2026-11-23): a view
+    // preference, not an entitlement (`scope.rs` is that), so the counts leave them out here.
+    objects.retain(|o| !hidden.contains(&o.vault));
+    let since =
+        time::OffsetDateTime::now_utc() - time::Duration::days(days.clamp(1, RECENT_DAYS_MAX));
     Ok(loaded()
         .into_iter()
         .map(|l| {

@@ -158,6 +158,10 @@
    `ci/checks.sh` fails if a palette climbs back above zero. */
 :where(:root),
 :where(:root[data-theme='dark']) {
+  /* Native controls (a button's text, a field, a scrollbar) drawn for the theme's ground: without
+     it the browser drew them light on a dark page, and a button's label was dark on dark
+     (2026-11-23). */
+  color-scheme: dark;
   --bg: #16161d;
   --surface: #1c1c25;
   --surface-elevated: #23232e;
@@ -169,14 +173,15 @@
   --text-muted: #a2a2b5;
   --text-subtle: #6f6f83;
 
-  /* Brand accent = the app icon's red (#dc2626, red-600). A brighter red-500
-     reads better as interactive text/rings on the dark background. */
-  --accent: #dc2626;
-  --accent-hover: #ef4444;
-  --accent-contrast: #ffffff;
+  /* Brand accent: the app icon's red, lightened until it reads as text on every dark surface
+     (4.5:1, `themes.contrast.test.ts`, 2026-11-23); so a filled button's label is dark on it, as
+     no red can both read on these surfaces and carry white. */
+  --accent: #e66363;
+  --accent-hover: #ea7f7f;
+  --accent-contrast: #16161d;
   --accent-subtle: #2a1618;
-  --link: #ef4444;
-  --focus-ring: #ef4444;
+  --link: #f26666;
+  --focus-ring: #f26666;
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.35);
@@ -194,10 +199,18 @@
   --danger-fg: #ffd7dd;
   --ok-bg: #23402c;
   --ok-fg: #c9f3d6;
+  /* A status chip and a board column's title: saturation and lightness (and alpha), the hue
+     coming from the word (`--hue`). Tokens, so a theme that is light or dark whatever the mode
+     keeps them legible (2026-11-23). */
+  --chip-bg: 60% 20% / 0.55;
+  --chip-border: 55% 45% / 0.5;
+  --chip-fg: 70% 78%;
+  --column-fg: 65% 72%;
 }
 
 /* ---- (2) Semantic tokens — warm light ---- */
 :where(:root[data-theme='light']) {
+  color-scheme: light;
   --bg: #f7f6f3;
   --surface: #ffffff;
   --surface-elevated: #ffffff;
@@ -211,7 +224,7 @@
 
   /* Brand accent = the app icon's red. On white, a darker red-700 for links/rings
      keeps text legible while buttons use the exact icon red. */
-  --accent: #dc2626;
+  --accent: #d82323;
   --accent-hover: #b91c1c;
   --accent-contrast: #ffffff;
   --accent-subtle: #fbe3e6;
@@ -226,14 +239,18 @@
   --tint-b: #2f8a52;
   --tint-c: #b07716;
   --u-overdue: #d23b3b;
-  --u-soon: #b07716;
+  --u-soon: #966513;
   --u-week: #2f6fd0;
-  --u-later: #2f8a52;
+  --u-later: #2b7e4b;
   --u-none: var(--text-muted);
   --danger-bg: #fbe3e6;
   --danger-fg: #8a1f2b;
   --ok-bg: #e2f3e8;
   --ok-fg: #1f5a33;
+  --chip-bg: 70% 94%;
+  --chip-border: 45% 72%;
+  --chip-fg: 55% 28%;
+  --column-fg: 55% 28%;
 }
 
 /* ---- (3) Legacy aliases: renderers reference these; they map to semantics,
@@ -242,6 +259,10 @@
   --panel: var(--surface);
   --muted: var(--text-muted);
   --card-bg: var(--surface-elevated);
+  /* The label on an accent fill. Many components asked for `--accent-fg`, which no theme set, so
+     they fell back to white: unreadable on dark mode's lighter accent (2026-11-23). */
+  --accent-fg: var(--accent-contrast);
+  --on-accent: var(--accent-contrast);
   --card-border: var(--border);
   --column-bg: var(--surface);
   --column-border: var(--border);
@@ -263,6 +284,20 @@ html,
 body {
   margin: 0;
   height: 100%;
+}
+
+/* A button or a field takes the theme's text colour: the browser's own is not the theme's, and on
+   a dark theme a button that set no colour wrote dark on dark (2026-11-23). */
+button,
+input,
+select,
+textarea {
+  color: inherit;
+}
+
+/* Scrollbars in the theme's colours, everywhere (inherited from the page), not the system's. */
+html {
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 body {
@@ -307,20 +342,12 @@ body {
 }
 
 .status-chip[data-value]:not([data-value='']) {
-  background: hsl(var(--hue) 60% 20% / 0.55);
-  border-color: hsl(var(--hue) 55% 45% / 0.5);
-  color: hsl(var(--hue) 70% 78%);
+  background: hsl(var(--hue) var(--chip-bg));
+  border-color: hsl(var(--hue) var(--chip-border));
+  color: hsl(var(--hue) var(--chip-fg));
 }
 .column-head[data-value]:not([data-value='']) .column-label {
-  color: hsl(var(--hue) 65% 72%);
-}
-:root[data-theme='light'] .status-chip[data-value]:not([data-value='']) {
-  background: hsl(var(--hue) 70% 94%);
-  border-color: hsl(var(--hue) 45% 72%);
-  color: hsl(var(--hue) 55% 30%);
-}
-:root[data-theme='light'] .column-head[data-value]:not([data-value='']) .column-label {
-  color: hsl(var(--hue) 55% 34%);
+  color: hsl(var(--hue) var(--column-fg));
 }
 
 /* Derived-urgency colors — keyed by the computed bucket so any renderer (the

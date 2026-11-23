@@ -296,7 +296,7 @@
   button.primary {
     background: var(--accent, #6639ba);
     border-color: var(--accent, #6639ba);
-    color: #fff;
+    color: var(--accent-contrast);
   }
   button.ghost {
     color: var(--text-muted);

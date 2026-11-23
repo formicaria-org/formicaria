@@ -37,8 +37,74 @@ fn a_sections_recent_lists_only_the_last_month_newest_first() {
     put(&mut s, "Old idea", &[], RECENT_DAYS + 10);
     put(&mut s, "Yesterday's idea", &[], 1);
     put(&mut s, "Today's idea", &[], 0);
-    let notes = summary(&s).unwrap().into_iter().find(|x| x.key == "notes").unwrap();
+    let notes =
+        summary(&s, &[], RECENT_DAYS).unwrap().into_iter().find(|x| x.key == "notes").unwrap();
     assert_eq!(notes.count, 3, "the count is every note");
     assert_eq!(notes.recent.len(), 2, "recent is the last {RECENT_DAYS} days only");
+    // A heatmap asks for a year: the older note is in it.
+    let year = summary(&s, &[], 371).unwrap().into_iter().find(|x| x.key == "notes").unwrap();
+    assert_eq!(year.recent.len(), 3);
     assert!(notes.recent[0] > notes.recent[1], "newest first: {:?}", notes.recent);
+}
+
+#[test]
+fn a_hidden_vault_is_left_out_of_the_counts() {
+    let mut s = MemoryStore::new();
+    for (title, vault) in [("Lab idea", "lab"), ("Home idea", "home"), ("Lab plan", "lab")] {
+        let mut o = Object::new(Kind::Note, format!("{title}\n"));
+        o.title = Some(title.to_string());
+        o.vault = vault.to_string();
+        s.put(&o).unwrap();
+    }
+    let count = |hidden: &[String]| {
+        summary(&s, hidden, RECENT_DAYS)
+            .unwrap()
+            .into_iter()
+            .find(|x| x.key == "notes")
+            .unwrap()
+            .count
+    };
+    assert_eq!(count(&[]), 3);
+    assert_eq!(count(&["lab".to_string()]), 1);
+    assert_eq!(count(&["home".to_string()]), 2);
+}
+
+/// **A plan is not a task, and a meeting is not one either** (2026-11-23): a training plan's `start`
+/// and `due` are the days it was in force, and a meeting's `due` is when it ends. Neither belongs
+/// in the agenda's deadlines (a plan) or in Tasks (both); a real task does.
+#[test]
+fn plans_and_meetings_are_not_tasks() {
+    use fm_app::commands::{agenda, set_property};
+    let mut s = MemoryStore::new();
+    let mut add = |title: &str, props: &[(&str, &str)]| {
+        let mut o = Object::new(Kind::Note, format!("{title}\n"));
+        o.title = Some(title.to_string());
+        s.put(&o).unwrap();
+        for (k, v) in props {
+            set_property(&mut s, &o.id.to_string(), k, v).unwrap();
+        }
+    };
+    add(
+        "Strength, invented plan",
+        &[
+            ("program", "training"),
+            ("plan", "strength-x"),
+            ("start", "2026-10-01"),
+            ("due", "2026-10-11"),
+        ],
+    );
+    add("Lab meeting", &[("start", "2026-10-05T10:00"), ("due", "2026-10-05T11:00")]);
+    add("Send the draft", &[("due", "2026-10-20")]);
+    add("Order reagents", &[("status", "todo")]);
+    let in_agenda: Vec<_> = agenda(&s).unwrap().into_iter().filter_map(|n| n.title).collect();
+    assert!(
+        !in_agenda.iter().any(|t| t.contains("plan")),
+        "a plan is not a deadline: {in_agenda:?}"
+    );
+    assert!(in_agenda.iter().any(|t| t == "Lab meeting"), "a meeting stays on the calendar");
+    assert!(in_agenda.iter().any(|t| t == "Send the draft"));
+    let tasks = fm_app::sections::notes(&s, "tasks", 50).unwrap();
+    let mut titles: Vec<_> = tasks.into_iter().filter_map(|n| n.title).collect();
+    titles.sort();
+    assert_eq!(titles, ["Order reagents", "Send the draft"]);
 }

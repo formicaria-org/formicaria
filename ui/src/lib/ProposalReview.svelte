@@ -664,7 +664,7 @@
   button.accept {
     background: var(--accent, #6639ba);
     border: 1px solid var(--accent, #6639ba);
-    color: #fff;
+    color: var(--accent-contrast);
     padding: 4px 12px;
     border-radius: var(--radius-2, 6px);
     font-size: 0.85rem;

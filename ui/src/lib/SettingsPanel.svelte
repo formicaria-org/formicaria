@@ -2767,7 +2767,7 @@
   .caps button.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--accent-contrast);
   }
   /* Pressed. A touch screen has no hover, so this is the only sign a tap landed before the answer. */
   .caps button:not(.link):not(.binding):not(.primary):active:not(:disabled) {

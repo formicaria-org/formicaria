@@ -14,26 +14,37 @@
   // generated from what the person uses. **Edit Home** lists the cards (size, on the phone, order)
   // and what can be added; **Pin to Home** works from a note's ⋯ and a section's bar.
   import { onMount } from 'svelte';
+  import { hiddenVaults, shownVault } from '../lib/shownVaults.svelte';
   import * as ipc from '../lib/ipc';
   import sectionsJson from '../lib/sections.json';
   import type { ObjectMeta, Section, SectionSummary, ViewInfo } from '../lib/types';
   import { appToday, dayOfInstant } from '../lib/appTime';
-  import { addDays } from '../lib/civil';
+  import { addDays, mondayOf } from '../lib/civil';
+  import { isDeadline, isOverdue } from '../lib/urgency';
+  import { dayOf } from '../lib/stamp';
   import {
     BUILTIN,
+    defaultRoom,
     generated,
     labelOf,
     layout,
     readHome,
     saveHome,
     sizesOf,
+    snapHeight,
+    snapWidth,
+    HEIGHTS,
+    WIDTHS,
     type Card,
+    type CardHeight,
     type CardSize,
+    type CardWidth,
     type HomeDoc,
   } from '../lib/home';
   import { webTarget } from '../lib/features';
   import { searchUrl } from '../lib/privacy.svelte';
   import JournalEntry from './JournalEntry.svelte';
+  import { popup } from '../lib/popup';
 
   let { go, onopen }: { go: (url: string) => void; onopen: (id: string) => void } = $props();
 
@@ -56,6 +67,25 @@
   let narrow = $state(false);
   let root = $state<HTMLDivElement | undefined>(undefined);
   let entry = $state<{ focus: () => void } | undefined>(undefined);
+  /** A card's edge being dragged: the room it would take, shown while dragging. */
+  let resizing = $state<{ ref: string; w: CardWidth; h: CardHeight } | null>(null);
+  /** A card being moved by its header, and the card it would go before. */
+  let dragRef = $state<string | null>(null);
+  let dropOn = $state<string | null>(null);
+  /** The card or figure whose ⋯ is open. */
+  let menuRef = $state<string | null>(null);
+  /** Where a card's ⋯ is, for its menu to open beside (`popup` keeps it on the screen). */
+  function moreBox(ref: string) {
+    const b = [...document.querySelectorAll<HTMLElement>('button.more-btn')].find(
+      (x) => x.dataset.ref === ref,
+    );
+    const r = b?.getBoundingClientRect();
+    return r
+      ? { top: r.top, bottom: r.bottom, left: r.left, right: r.right }
+      : { top: 0, bottom: 0, left: 0, right: 0 };
+  }
+  /** A year of each section's notes, by when they were made: for heatmaps only. */
+  let year = $state<SectionSummary[]>([]);
 
   /** The cards shown: the person's, or the generated ones while nothing is set up. */
   const cards = $derived(doc.cards.length ? doc.cards : generated(summary));
@@ -63,9 +93,14 @@
   const placed = $derived(layout(cards, narrow));
   const today = $derived(appToday());
 
+  /** **Only the newest read lands** (2026-11-23): a read begun before a save and answered after it
+   *  put the older Home back on screen, so an edit seemed to snap back. A save, and each newer
+   *  read, makes the older ones stale. */
+  let readGen = 0;
   async function read() {
+    const gen = ++readGen;
     const [s, r, a, p, v, h, alive] = await Promise.all([
-      ipc.sectionSummary().catch(() => []),
+      ipc.sectionSummary(hiddenVaults()).catch(() => []),
       ipc.recent().catch(() => []),
       ipc.getAgenda().catch(() => []),
       ipc.tagged('pinned').catch(() => []),
@@ -73,10 +108,13 @@
       readHome(),
       ipc.alive().catch(() => null),
     ]);
+    if (gen !== readGen) return;
+    // The vaults chosen not to see leave Home too (the rail's vault chooser).
+    const seen = (n: ObjectMeta) => shownVault(n.vault);
     summary = s;
-    recent = r;
-    agenda = a;
-    pinned = p;
+    recent = r.filter(seen);
+    agenda = a.filter(seen);
+    pinned = p.filter(seen);
     views = v.filter((x) => !x.error);
     paired = !!alive && 'devices' in alive && (alive.devices ?? 0) > 0;
     home = h ? { id: h.id, version: h.version } : null;
@@ -101,18 +139,30 @@
         }
       }),
     );
+    for (const k of Object.keys(next)) next[k] = next[k].filter((n) => shownVault(n.vault));
     rows = next;
     notes = nextNotes;
+    if (cards.some((c) => c.ref.startsWith('heat:')))
+      year = await ipc.sectionSummary(hiddenVaults(), 371).catch(() => []);
   }
 
-  onMount(() => {
+  // Read now, and again when the vaults shown change.
+  $effect(() => {
+    void hiddenVaults().join('\n');
     void read();
+  });
+  onMount(() => {
     const stop = ipc.listenChanges(() => void read());
     const again = () => {
       if (placed.journal) entry?.focus();
       else go('/f/today');
     };
     addEventListener('fm-home-again', again);
+    const away = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest?.('.cmenu, .more-btn')) menuRef = null;
+    };
+    addEventListener('click', away);
     // Narrow by Home's own width (a phone, or a pane on a tablet), not the window's.
     const measure = () => (narrow = !!root && root.clientWidth > 0 && root.clientWidth < 700);
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
@@ -121,19 +171,33 @@
     return () => {
       stop();
       removeEventListener('fm-home-again', again);
+      removeEventListener('click', away);
       ro?.disconnect();
     };
   });
 
-  async function save(next: HomeDoc) {
+  /** **A change shows at once**, and is written after (2026-11-23): waiting for the write left a
+   *  card at its old size for seconds on a busy computer. Writes go one after another, each on
+   *  the version the one before left, and a write that fails puts the screen back and says so. */
+  let writing: Promise<void> = Promise.resolve();
+  let edits = 0;
+  function save(next: HomeDoc): Promise<void> {
+    readGen++;
     saveError = '';
-    try {
-      home = await saveHome(next, home);
-      doc = next;
-      await fill();
-    } catch (e) {
-      saveError = String(e);
-    }
+    const before = $state.snapshot(doc) as HomeDoc;
+    const mine = ++edits;
+    doc = next;
+    writing = writing.then(async () => {
+      try {
+        home = await saveHome(next, home);
+        await fill();
+      } catch (e) {
+        // Back to what was shown, unless a newer change has replaced it since.
+        if (mine === edits) doc = before;
+        saveError = `Home was not saved: ${String(e)}`;
+      }
+    });
+    return writing;
   }
   /** The cards as they stand, made the person's own on the first edit. */
   const own = (): Card[] =>
@@ -151,6 +215,79 @@
     void save({ ...doc, cards: list });
   };
   const remove = (i: number) => void save({ ...doc, cards: own().filter((_, k) => k !== i) });
+  /** A card's place in the list, by what it shows. */
+  const at = (ref: string) => cards.findIndex((c) => c.ref === ref);
+  const changeRef = (ref: string, patch: Partial<Card>) => {
+    menuRef = null;
+    const i = at(ref);
+    if (i >= 0) change(i, patch);
+  };
+  function removeRef(ref: string) {
+    menuRef = null;
+    const i = at(ref);
+    if (i >= 0) remove(i);
+  }
+  /** A card moved by its header, dropped on another: it goes where that one was. */
+  function moveTo(ref: string) {
+    const from = dragRef ? at(dragRef) : -1;
+    const to = at(ref);
+    dragRef = null;
+    dropOn = null;
+    if (from < 0 || to < 0 || from === to) return;
+    const list = own();
+    const [c] = list.splice(from, 1);
+    list.splice(to, 0, c);
+    void save({ ...doc, cards: list });
+  }
+  /** **Dragging an edge**: the right one sets the width, the bottom one the height, the corner
+   *  both. It snaps to the grid's widths and the three heights, and is kept on release. */
+  function grip(e: PointerEvent, c: Card, axis: 'x' | 'y' | 'xy') {
+    e.preventDefault();
+    const handle = e.currentTarget as HTMLElement;
+    const li = handle.closest('li.card') as HTMLElement | null;
+    const grid = li?.parentElement;
+    if (!li || !grid) return;
+    const box = li.getBoundingClientRect();
+    const across = grid.getBoundingClientRect().width || 1;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    handle.setPointerCapture?.(e.pointerId);
+    resizing = { ref: c.ref, w: c.w, h: c.h };
+    const move = (ev: PointerEvent) => {
+      if (!resizing) return;
+      resizing = {
+        ref: c.ref,
+        w: axis === 'y' ? resizing.w : snapWidth((ev.clientX - box.left) / across),
+        h: axis === 'x' ? resizing.h : snapHeight((ev.clientY - box.top) / rem),
+      };
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      const r = resizing;
+      resizing = null;
+      if (r && (r.w !== c.w || r.h !== c.h)) changeRef(c.ref, { w: r.w, h: r.h });
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  }
+  const SIZE_NAMES: Record<CardSize, string> = {
+    glance: 'Glance',
+    summary: 'Summary',
+    full: 'Full',
+  };
+  const WIDTH_NAMES: Record<CardWidth, string> = {
+    narrow: 'Narrow',
+    half: 'Half',
+    wide: 'Wide',
+    full: 'Full width',
+  };
+  const HEIGHT_NAMES: Record<CardHeight, string> = {
+    short: 'Short',
+    medium: 'Medium',
+    tall: 'Tall',
+  };
   function add(ref: string, size?: CardSize) {
     if (!ref || cards.some((c) => c.ref === ref)) return;
     const sizes = sizesOf(ref);
@@ -159,6 +296,7 @@
       label: '',
       size: size && sizes.includes(size) ? size : sizes.includes('summary') ? 'summary' : sizes[0],
       phone: BUILTIN[ref]?.phone ?? false,
+      ...defaultRoom(ref),
     };
     void save({ ...doc, cards: [...own(), card] });
   }
@@ -189,6 +327,12 @@
       items: sections
         .filter((s) => s.key !== 'discussions' && s.key !== 'collaboration')
         .map((s) => ({ ref: `stat:${s.key}`, label: `${s.label} this week`, size: 'glance' })),
+    },
+    {
+      group: 'Heatmaps',
+      items: sections
+        .filter((s) => s.key !== 'discussions' && s.key !== 'collaboration')
+        .map((s) => ({ ref: `heat:${s.key}`, label: `${s.label}, day by day` })),
     },
     {
       group: 'Boards',
@@ -222,16 +366,43 @@
     );
   }
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  /** **A heatmap**, as GitHub draws one: a column per week (Monday at the top), a square per day,
+   *  darker for more notes made that day, over the last `weeks` weeks. */
+  function heat(key: string, weeks: number) {
+    const made = new Map<string, number>();
+    for (const t of year.find((s) => s.key === key)?.recent ?? []) {
+      const d = dayOfInstant(t);
+      made.set(d, (made.get(d) ?? 0) + 1);
+    }
+    const first = addDays(mondayOf(today), -7 * (weeks - 1));
+    const level = (n: number) => (n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 6 ? 3 : 4);
+    let total = 0;
+    const cols = Array.from({ length: weeks }, (_, w) =>
+      Array.from({ length: 7 }, (_, d) => {
+        const day = addDays(first, w * 7 + d);
+        const n = day > today ? 0 : (made.get(day) ?? 0);
+        total += n;
+        return { day, n, level: level(n), future: day > today };
+      }),
+    );
+    return { cols, total };
+  }
   function stat(key: string) {
     const fortnight = perDay(key, 14);
     const week = sum(fortnight.slice(7));
     const before = sum(fortnight.slice(0, 7));
     return { week, trend: week > before ? '↑' : week < before ? '↓' : '' };
   }
+  // Today's meetings and spans, and the deadlines due today or overdue. A meeting or a plan that
+  // ended earlier is over, not overdue (`isDeadline`, 2026-11-23).
   const due = $derived(
-    agenda.filter((n) => dayOfInstant(n.start ?? '') === today || (!!n.due && n.due <= today)),
+    agenda.filter(
+      (n) =>
+        dayOfInstant(n.start ?? '') === today ||
+        (isDeadline(n) && n.status !== 'done' && dayOf(n.due ?? '') <= today),
+    ),
   );
-  const overdueDue = $derived(due.filter((n) => !!n.due && n.due < today));
+  const overdueDue = $derived(due.filter((n) => isOverdue(n)));
   const justIn = $derived(
     recent.filter(
       (n) =>
@@ -256,14 +427,13 @@
     const look = open
       .map((n) => ({
         n,
-        why:
-          n.due && n.due < today
-            ? 'overdue'
-            : n.status === 'blocked'
-              ? 'blocked'
-              : dayOfInstant(n.updated) < week
-                ? 'unmoved a week'
-                : '',
+        why: isOverdue(n)
+          ? 'overdue'
+          : n.status === 'blocked'
+            ? 'blocked'
+            : dayOfInstant(n.updated) < week
+              ? 'unmoved a week'
+              : '',
       }))
       .filter((x) => x.why);
     return {
@@ -344,6 +514,70 @@
   }
 </script>
 
+{#snippet more(c: Card)}
+  {@const name = labelOf(c, sections)}
+  <button
+    type="button"
+    class="more-btn"
+    data-ref={c.ref}
+    aria-label={`more for ${name}`}
+    aria-expanded={menuRef === c.ref}
+    title="Size, room, phone, remove"
+    onclick={() => (menuRef = menuRef === c.ref ? null : c.ref)}>⋯</button
+  >
+  {#if menuRef === c.ref}
+    <div
+      class="cmenu"
+      role="group"
+      aria-label={`${name} on Home`}
+      use:popup={{ anchor: () => moreBox(c.ref), align: 'end' }}
+    >
+      {#if sizesOf(c.ref).length > 1}
+        <div class="opt-row">
+          <span>Show</span>
+          {#each sizesOf(c.ref) as z (z)}
+            <button
+              type="button"
+              aria-pressed={c.size === z}
+              onclick={() => changeRef(c.ref, { size: z })}>{SIZE_NAMES[z]}</button
+            >
+          {/each}
+        </div>
+      {/if}
+      {#if c.size !== 'glance' && !narrow}
+        <div class="opt-row">
+          <span>Width</span>
+          {#each Object.keys(WIDTHS) as CardWidth[] as w (w)}
+            <button type="button" aria-pressed={c.w === w} onclick={() => changeRef(c.ref, { w })}
+              >{WIDTH_NAMES[w]}</button
+            >
+          {/each}
+        </div>
+      {/if}
+      {#if c.size !== 'glance'}
+        <div class="opt-row">
+          <span>Height</span>
+          {#each Object.keys(HEIGHTS) as CardHeight[] as h (h)}
+            <button type="button" aria-pressed={c.h === h} onclick={() => changeRef(c.ref, { h })}
+              >{HEIGHT_NAMES[h]}</button
+            >
+          {/each}
+        </div>
+      {/if}
+      <label class="opt-row"
+        ><input
+          type="checkbox"
+          checked={c.phone}
+          onchange={(e) =>
+            changeRef(c.ref, { phone: (e.currentTarget as HTMLInputElement).checked })}
+        /> On the phone</label
+      >
+      <button type="button" class="remove" onclick={() => removeRef(c.ref)}>Remove from Home</button
+      >
+    </div>
+  {/if}
+{/snippet}
+
 <div class="home" class:narrow bind:this={root}>
   <header class="top">
     <h1>Home</h1>
@@ -356,6 +590,8 @@
       {editing ? 'Done' : 'Edit Home'}
     </button>
   </header>
+
+  {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
 
   {#if editing}
     <section class="edit" aria-label="edit home">
@@ -384,6 +620,28 @@
                   >{z === 'glance' ? 'Glance' : z === 'summary' ? 'Summary' : 'Full'}</option
                 >{/each}
             </select>
+            {#if c.size !== 'glance'}
+              <select
+                aria-label={`width of ${name}`}
+                value={c.w}
+                onchange={(e) =>
+                  change(i, { w: (e.currentTarget as HTMLSelectElement).value as CardWidth })}
+              >
+                {#each Object.keys(WIDTHS) as CardWidth[] as w (w)}<option value={w}
+                    >{WIDTH_NAMES[w]}</option
+                  >{/each}
+              </select>
+              <select
+                aria-label={`height of ${name}`}
+                value={c.h}
+                onchange={(e) =>
+                  change(i, { h: (e.currentTarget as HTMLSelectElement).value as CardHeight })}
+              >
+                {#each Object.keys(HEIGHTS) as CardHeight[] as h (h)}<option value={h}
+                    >{HEIGHT_NAMES[h]}</option
+                  >{/each}
+              </select>
+            {/if}
             <label class="phone"
               ><input
                 type="checkbox"
@@ -447,7 +705,6 @@
           bind:value={words}
           onblur={() => words !== doc.text && void save({ cards: own(), text: words })}></textarea>
       </label>
-      {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
     </section>
   {/if}
 
@@ -456,7 +713,7 @@
       {#each placed.glance as c (c.ref)}
         {@const fam = c.ref.split(':')[0]}
         {@const arg = c.ref.slice(c.ref.indexOf(':') + 1)}
-        <li>
+        <li class="tile">
           <button type="button" onclick={() => whole(c)?.()}>
             {#if fam === 'stat'}
               {@const st = stat(arg)}
@@ -476,6 +733,7 @@
               <b>{justIn.length}</b><span>came in this week</span>
             {/if}
           </button>
+          {@render more(c)}
         </li>
       {/each}
     </ul>
@@ -486,12 +744,13 @@
       {#each placed.watch as c (c.ref)}
         {@const fam = c.ref.split(':')[0]}
         {@const arg = c.ref.slice(c.ref.indexOf(':') + 1)}
-        <li>
+        <li class="tile">
           <button type="button" onclick={() => whole(c)?.()}>
             {#if fam === 'note'}{c.label || notes[c.ref]?.title || 'A note'}
             {:else if fam === 'section'}{labelOf(c, sections)} <span class="n">{count(arg)}</span>
             {:else}{labelOf(c, sections)}{/if}
           </button>
+          {@render more(c)}
         </li>
       {/each}
     </ul>
@@ -499,29 +758,51 @@
 
   {#if doc.text}<p class="words-shown">{doc.text}</p>{/if}
 
-  <div class="main" class:with-journal={!!placed.journal}>
-    {#if placed.journal}
-      <div class="journal">
-        <JournalEntry bind:this={entry} day={today} {onopen} compact={narrow} />
-        {#if placed.journal.size === 'full'}
-          <button type="button" class="more" onclick={() => go('/f/today')}>Earlier days</button>
-        {/if}
-      </div>
-    {/if}
-    <ol class="cards" aria-label="home cards shown">
-      {#each placed.main as c (c.ref)}
-        {@const fam = c.ref.split(':')[0]}
-        {@const arg = c.ref.slice(c.ref.indexOf(':') + 1)}
-        {@const full = c.size === 'full'}
-        {@const open = whole(c)}
-        <li class="card" class:full>
-          <h3>
+  <!-- **The grid** (2026-11-23): every card, the journal one of them, at its width and height. -->
+  <ol class="grid" aria-label="home cards shown">
+    {#each placed.main as c (c.ref)}
+      {@const fam = c.ref.split(':')[0]}
+      {@const arg = c.ref.slice(c.ref.indexOf(':') + 1)}
+      {@const full = c.size === 'full'}
+      {@const open = whole(c)}
+      {@const room = resizing?.ref === c.ref ? resizing : c}
+      <li
+        class="card"
+        class:journal-card={c.ref === 'journal'}
+        class:resizing={resizing?.ref === c.ref}
+        class:dropping={dropOn === c.ref}
+        style={`--span:${WIDTHS[room.w]};--h:${HEIGHTS[room.h]}rem`}
+        ondragover={(e) => {
+          if (!dragRef) return;
+          e.preventDefault();
+          dropOn = c.ref;
+        }}
+        ondragleave={() => dropOn === c.ref && (dropOn = null)}
+        ondrop={() => moveTo(c.ref)}
+      >
+        {#if c.ref !== 'journal'}
+          <h3
+            draggable={!narrow}
+            ondragstart={() => (dragRef = c.ref)}
+            ondragend={() => ((dragRef = null), (dropOn = null))}
+            title={narrow ? undefined : 'Drag to move'}
+          >
             {#if open}<button type="button" class="title" onclick={open}
                 >{labelOf(c, sections)}</button
               >
             {:else}{labelOf(c, sections)}{/if}
           </h3>
-          {#if c.ref === 'due'}
+        {/if}
+        {@render more(c)}
+        <div class="body">
+          {#if c.ref === 'journal'}
+            <JournalEntry bind:this={entry} day={today} {onopen} compact={narrow} />
+            {#if full}
+              <button type="button" class="more-link" onclick={() => go('/f/today')}
+                >Earlier days</button
+              >
+            {/if}
+          {:else if c.ref === 'due'}
             {#if due.length}
               <ul class="mini">
                 {#each due.slice(0, full ? 30 : 6) as n (n.id)}
@@ -529,7 +810,7 @@
                     <button type="button" class="link" onclick={() => onopen(n.id)}
                       >{title(n)}</button
                     >
-                    {#if n.due && n.due < today}<span class="why">overdue</span>{/if}
+                    {#if isOverdue(n)}<span class="why">overdue</span>{/if}
                   </li>
                 {/each}
               </ul>
@@ -587,6 +868,29 @@
                 </li>
               {/each}
             </ul>
+          {:else if fam === 'heat'}
+            {@const hm = heat(arg, full ? 53 : 26)}
+            <div
+              class="heat"
+              style={`--weeks:${hm.cols.length}`}
+              role="img"
+              aria-label={`${labelOf(c, sections)}: ${hm.total} in the last ${full ? 'year' : 'six months'}`}
+            >
+              {#each hm.cols as col, i (i)}
+                <div class="hcol">
+                  {#each col as d (d.day)}
+                    <span
+                      class={`hcell l${d.level}`}
+                      class:future={d.future}
+                      title={`${d.day}: ${d.n}`}
+                    ></span>
+                  {/each}
+                </div>
+              {/each}
+            </div>
+            <p class="figure small">
+              <b>{hm.total}</b> in the last {full ? 'year' : 'six months'}
+            </p>
           {:else if fam === 'stat'}
             {@const days = perDay(arg, full ? 30 : 7)}
             {@const top = Math.max(1, ...days)}
@@ -648,10 +952,25 @@
               <p class="preview">{full ? n.body : n.body.slice(0, 280)}</p>
             {:else}<p class="muted">This note is not here.</p>{/if}
           {/if}
-        </li>
-      {/each}
-    </ol>
-  </div>
+        </div>
+        {#if !narrow}
+          <span
+            class="grip x"
+            role="separator"
+            aria-label={`width of ${labelOf(c, sections)}: drag`}
+            onpointerdown={(e) => grip(e, c, 'x')}
+          ></span>
+          <span
+            class="grip y"
+            role="separator"
+            aria-label={`height of ${labelOf(c, sections)}: drag`}
+            onpointerdown={(e) => grip(e, c, 'y')}
+          ></span>
+          <span class="grip xy" aria-hidden="true" onpointerdown={(e) => grip(e, c, 'xy')}></span>
+        {/if}
+      </li>
+    {/each}
+  </ol>
 
   {#if narrow}
     <form
@@ -818,43 +1137,245 @@
     margin: 0;
     white-space: pre-line;
   }
-  .main {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--space-3);
-    align-items: start;
-  }
-  .main.with-journal {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  }
-  .narrow .main.with-journal {
-    grid-template-columns: 1fr;
-  }
-  .journal {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .cards {
+  /* **The grid** (2026-11-23): twelve columns; each card spans its width and holds its height,
+     its content scrolling inside. A narrow screen has one column: every card full width. */
+  .grid {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: var(--space-3);
+    align-items: start;
   }
-  .main.with-journal .cards {
-    grid-template-columns: 1fr;
+  .narrow .grid {
+    grid-template-columns: minmax(0, 1fr);
   }
   .card {
+    position: relative;
+    grid-column: span var(--span, 6);
+    height: var(--h, 16rem);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-4);
     min-width: 0;
+    overflow: hidden;
   }
-  .card.full {
+  .narrow .card {
     grid-column: 1 / -1;
+  }
+  .card.resizing {
+    outline: 2px dashed var(--accent);
+    outline-offset: 2px;
+  }
+  .card.dropping {
+    box-shadow: inset 4px 0 0 var(--accent);
+  }
+  .body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  /* The journal card is the entry itself: its own frame, filling the card's room. */
+  .card.journal-card {
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  .journal-card .body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .journal-card .body :global(.entry) {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  /* The edges to drag: the right one for the width, the bottom one for the height. */
+  .grip {
+    position: absolute;
+    z-index: 2;
+  }
+  .grip.x {
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+  }
+  .grip.y {
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 8px;
+    cursor: ns-resize;
+  }
+  .grip.xy {
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    z-index: 3;
+  }
+  .card:hover .grip.xy {
+    background: linear-gradient(135deg, transparent 50%, var(--border) 50%);
+    border-bottom-right-radius: var(--radius-md);
+  }
+  .card h3[draggable='true'] {
+    cursor: grab;
+  }
+  /* ⋯ on every card and figure: size, room, the phone, remove. */
+  .more-btn {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    z-index: 4;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-md);
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    opacity: 0;
+  }
+  .card:hover .more-btn,
+  .tile:hover .more-btn,
+  .more-btn:focus-visible,
+  .more-btn[aria-expanded='true'],
+  .narrow .more-btn {
+    opacity: 1;
+  }
+  .more-btn:hover {
+    background: var(--card-bg);
+    color: var(--text);
+  }
+  .cmenu {
+    position: absolute;
+    top: 2.2rem;
+    right: var(--space-2);
+    z-index: 20;
+    min-width: 15rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md, 0 4px 16px rgb(0 0 0 / 0.18));
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--text);
+  }
+  .opt-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+  .opt-row > span {
+    width: 3.6rem;
+    color: var(--text-muted);
+  }
+  .opt-row button {
+    font: inherit;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .opt-row button[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .cmenu .remove {
+    margin-top: var(--space-1);
+    font: inherit;
+    text-align: left;
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--danger-fg);
+    cursor: pointer;
+  }
+  .cmenu .remove:hover {
+    background: var(--card-bg);
+  }
+  .tile {
+    position: relative;
+  }
+  .tile .cmenu {
+    top: 100%;
+    left: 0;
+    right: auto;
+  }
+  .tile .more-btn {
+    top: 2px;
+    right: 2px;
+  }
+  /* A heatmap, as GitHub draws one: a column per week, Monday at the top. The squares share the
+     card's width, so a year always fits; they stay square. */
+  .heat {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 2px;
+    max-width: calc(var(--weeks, 26) * 15px);
+  }
+  .hcol {
+    display: grid;
+    grid-template-rows: repeat(7, auto);
+    gap: 2px;
+  }
+  .hcell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text) 9%, transparent);
+  }
+  .hcell.l1 {
+    background: color-mix(in srgb, var(--accent) 32%, var(--surface));
+  }
+  .hcell.l2 {
+    background: color-mix(in srgb, var(--accent) 55%, var(--surface));
+  }
+  .hcell.l3 {
+    background: color-mix(in srgb, var(--accent) 78%, var(--surface));
+  }
+  .hcell.l4 {
+    background: var(--accent);
+  }
+  .hcell.future {
+    visibility: hidden;
+  }
+  .figure.small {
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .figure.small b {
+    font-size: var(--text-md);
+    color: var(--text);
+  }
+  .more-link {
+    align-self: flex-start;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
   }
   .card h3 {
     margin: 0 0 var(--space-2);

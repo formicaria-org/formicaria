@@ -140,8 +140,9 @@ function mockInSection(key: string, n: ObjectMeta): boolean {
       return n.type !== 'asset' && !has('log') && !has('thread_of') && !has('proposes');
     case 'web':
       return n.kind_key === 'web';
+    // A status, or a due date and no start; never a plan (`tasks.kind`, 2026-11-23).
     case 'tasks':
-      return !!n.status || !!n.due;
+      return !has('program') && (!!n.status || (!!n.due && !n.start));
     case 'agenda':
       return !!n.start || !!n.due;
     case 'food':
@@ -2202,9 +2203,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'section_summary':
       return (sectionsJson as { key: string }[]).map((sec) => {
-        const mine = notes.filter((n) => mockInSection(sec.key, n));
+        const hidden = (args.hidden as string[] | undefined) ?? [];
+        const mine = notes.filter((n) => mockInSection(sec.key, n) && !hidden.includes(n.vault));
         const latest = [...mine].sort((a, b) => b.updated.localeCompare(a.updated))[0] ?? null;
-        const since = new Date(Date.now() - 35 * 86_400_000).toISOString();
+        const days = Math.min(400, Math.max(1, Number(args.days ?? 35)));
+        const since = new Date(Date.now() - days * 86_400_000).toISOString();
         const recent = mine
           .map((n) => n.created)
           .filter((c) => c >= since)

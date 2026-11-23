@@ -1,6 +1,6 @@
 <script lang="ts">
   import { calledOff } from '../lib/calledOff';
-  import { urgency, relativeDue, urgencyLabel, URGENCY_ORDER } from '../lib/urgency';
+  import { urgency, urgencyOf, relativeDue, urgencyLabel, URGENCY_ORDER } from '../lib/urgency';
   import { formatStamp } from '../lib/stamp';
   import VaultBadge from '../lib/VaultBadge.svelte';
   import EditedBy from '../lib/EditedBy.svelte';
@@ -20,7 +20,8 @@
     URGENCY_ORDER.map((u) => ({
       u,
       label: urgencyLabel(u),
-      items: cards.filter((c) => urgency(c.due) === u),
+      // A meeting or a plan whose end has passed is over, not overdue (`urgencyOf`).
+      items: cards.filter((c) => urgencyOf(c) === u),
     })).filter((g) => g.items.length > 0),
   );
 </script>

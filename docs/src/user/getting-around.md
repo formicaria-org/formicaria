@@ -7,14 +7,21 @@ place you chose, and on a wide screen a note you open appears **beside** it rath
 
 From the top:
 
+- **All vaults ▾**, when you have two or more vaults: tick the vaults you want to see. A vault you
+  untick leaves every page here: its notes are out of the sections, Home, the search and the
+  counts. Nothing is deleted, and ticking it brings it back. Your choice is remembered by this
+  browser.
 - **＋ New**: a note, a board, a discussion, a paper (from a DOI, an arXiv link or a BibTeX entry), or
   a note from one of your templates.
 - **Find or do** (**Ctrl+K**, **⌘K** on a Mac, or **/**): search every note, or type a web address
-  to open the page. Any words also offer **Search the web**, below the notes they find.
+  to open the page. **Search the web for …** is always the first line. The line **Enter** will use
+  is highlighted: the best note when notes match, or the web search when none do. **↑** and **↓**
+  move the highlight, and **Ctrl+Enter** (**⌘↵**) always searches the web.
 - **Home** and the **Journal** (below).
 - **Your library**: each section with how many notes it holds. Hover over one for its own **＋**,
   which makes what that section holds: a task in Tasks, an entry in Food journal. **Web**'s ＋ opens
-  Find or do, to open a page.
+  Find or do, to open a page. Its **⋯** has **Hide from the rail**, for a section you never use;
+  **Show hidden sections** at the end of the list brings it back. Its notes are not touched.
 - **Back up now**, and a note when something wants a look: notes that could not be read, notes not
   yet in history, notes the merge decided for you. Each opens a short panel that explains.
 - **Settings**.
@@ -38,12 +45,27 @@ Home is where formicaria opens. It shows how things stand, and you choose what i
 | A board | how many cards are in each column, and the ones that need a look: overdue, blocked, or unmoved for a week | the whole board, column by column |
 | A section or a saved view | its newest notes | more of them |
 | A figure | the last seven days, day by day | the last thirty |
+| A heatmap | a square for each day of the last six months, darker for more notes made that day, as on GitHub | the last year |
 | Came in | pages, songs and meetings brought in this week | more of them |
 | Continue | the note you were in last | — |
 | A note | its first lines | the whole note |
 
 Any card or figure can also be at **glance** size: a figure in the top row, or a link in the row of
 things kept an eye on. A card's title opens its whole place, and **Back** returns to Home.
+
+### Arranging Home where it is
+
+Every card, the journal included, sits on a grid, and you choose the room it takes:
+- **Drag a card's right edge** to make it narrower or wider, and its **bottom edge** for its
+  height; the corner does both. It snaps to the grid: **narrow** (a third), **half**, **wide** (two
+  thirds) or **full width**, and **short**, **medium** or **tall**.
+- **Drag a card by its title** onto another to move it there.
+- **⋯** on any card or figure (hover over it to see it) has the same choices for anyone who would
+  rather not drag: what it shows (glance, summary, full), its width and height, whether it is **on
+  the phone**, and **Remove from Home**.
+
+A change shows at once and is saved straight after. If it cannot be saved, Home puts it back and
+says why.
 
 ### Before you change anything
 
@@ -57,12 +79,13 @@ The quickest way to add something is from where it is:
 - in a note, **⋯ → Pin to Home**;
 - on a section's or a saved view's page, **Pin to Home** in its bar.
 
-It appears in the row of things kept an eye on.
+It appears in the row of things kept an eye on. Once pinned, the same place offers **Remove from
+Home**.
 
 ### Edit Home
 
 **Edit Home** lists the cards on Home. For each one you can:
-- choose its size: glance, summary or full;
+- choose what it shows: glance, summary or full; and its width and height;
 - choose whether it is **on the phone**;
 - move it with its arrows, or drag it;
 - remove it with ✕.
@@ -82,7 +105,11 @@ or Obsidian, and it is saved as you write. A day you never write in leaves no em
 **Open as a note** gives it everything a note has: links with `[[`, the `/` menu, pictures.
 
 Below today's entry the Journal page shows **what the day collected**, in four parts: what was
-**planned and due**, what you **logged**, what **came in**, and what you **wrote**. Then come the
+**planned and due**, what you **logged**, what **came in**, and what you **wrote**.
+
+**What counts as overdue.** Only a task: a note with a status, or with a due date and no start. A
+meeting's end and a plan's last day are not deadlines, so a meeting that ended or a training plan
+you replaced is simply over; it is never *overdue*, and it is not in Tasks. Then come the
 **earlier days**: choose one to read it or write in it. **Go to a day** opens any day, and writing in
 it makes that day's entry.
 
@@ -104,7 +131,7 @@ The table and the gallery have a **Filter** field above them.
 ## On a phone
 
 The phone keeps its own bar of tabs, and Home opens first. It is the same Home, kept calm:
-- only the cards marked **on the phone**;
+- only the cards marked **on the phone**, each the full width, at the height you chose;
 - at most three figures;
 - nothing at full size except the journal;
 - the links kept an eye on in one row you can scroll sideways.

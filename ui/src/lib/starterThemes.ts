@@ -19,6 +19,7 @@ export const STARTERS: readonly Starter[] = [
     says: 'Warm off-white and a serif, like a printed page. Light, whichever mode is chosen.',
     css: `/* Paper — warm off-white and a serif. Light, whichever mode is chosen. */
 :root {
+  color-scheme: light;
   --bg: #f4efe6;
   --surface: #fbf8f2;
   --surface-elevated: #fffdf9;
@@ -41,7 +42,7 @@ export const STARTERS: readonly Starter[] = [
   --tint-b: #3d7a4a;
   --tint-c: #a06a14;
   --u-overdue: #b8322a;
-  --u-soon: #a06a14;
+  --u-soon: #926012;
   --u-week: #2f5f9e;
   --u-later: #3d7a4a;
   --u-none: #5e554b;
@@ -49,6 +50,10 @@ export const STARTERS: readonly Starter[] = [
   --danger-fg: #7d2416;
   --ok-bg: #e1eedc;
   --ok-fg: #2c5a2e;
+  --chip-bg: 70% 94%;
+  --chip-border: 45% 72%;
+  --chip-fg: 55% 28%;
+  --column-fg: 55% 28%;
   --font-sans: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
 }
 `,
@@ -58,6 +63,7 @@ export const STARTERS: readonly Starter[] = [
     says: 'Deep blue-black with a soft blue accent, easy on the eyes at night. Dark, always.',
     css: `/* Night ink — deep blue-black, a soft blue accent. Dark, whichever mode is chosen. */
 :root {
+  color-scheme: dark;
   --bg: #0e1320;
   --surface: #141a2a;
   --surface-elevated: #1a2134;
@@ -88,6 +94,10 @@ export const STARTERS: readonly Starter[] = [
   --danger-fg: #ffd9df;
   --ok-bg: #1d3a2b;
   --ok-fg: #c8f0d8;
+  --chip-bg: 60% 20% / 0.55;
+  --chip-border: 55% 45% / 0.5;
+  --chip-fg: 70% 78%;
+  --column-fg: 65% 72%;
 }
 `,
   },

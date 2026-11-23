@@ -4,6 +4,7 @@
   // written: what the Today page was); then the earlier days. Any day can be chosen, and its entry
   // is made on the first keystroke like today's.
   import { onMount } from 'svelte';
+  import { shownVault } from '../lib/shownVaults.svelte';
   import * as ipc from '../lib/ipc';
   import type { ObjectMeta } from '../lib/types';
   import { appToday, formatMoment } from '../lib/appTime';
@@ -21,7 +22,9 @@
   /** The day before `d`, by the calendar (`civil.ts`). */
   const before = (d: string): string => addDays(d, -1);
   async function read() {
-    earlier = await ipc.journal(before(day), 14).catch(() => []);
+    earlier = (await ipc.journal(before(day), 14).catch(() => [])).filter((n) =>
+      shownVault(n.vault),
+    );
   }
   $effect(() => {
     void day;

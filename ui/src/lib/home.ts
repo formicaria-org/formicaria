@@ -20,6 +20,14 @@ import * as ipc from './ipc';
 import type { Section, SectionSummary } from './types';
 
 export type CardSize = 'glance' | 'summary' | 'full';
+/** **The room a card takes** (2026-11-23, the owner: *"I cannot select the space they take"*):
+ *  a width on a 12-column grid and a height, chosen by dragging an edge (it snaps) or from the
+ *  card's ⋯. On a narrow screen every card is the full width; its height still holds. */
+export type CardWidth = 'narrow' | 'half' | 'wide' | 'full';
+export type CardHeight = 'short' | 'medium' | 'tall';
+export const WIDTHS: Record<CardWidth, number> = { narrow: 4, half: 6, wide: 8, full: 12 };
+/** Heights in rem. */
+export const HEIGHTS: Record<CardHeight, number> = { short: 9, medium: 16, tall: 26 };
 export interface Card {
   /** What it shows: a built-in (`journal`, `due`…) or `stat:`/`board:`/`section:`/`view:`/`note:`. */
   ref: string;
@@ -27,6 +35,8 @@ export interface Card {
   label: string;
   size: CardSize;
   phone: boolean;
+  w: CardWidth;
+  h: CardHeight;
 }
 export interface HomeDoc {
   cards: Card[];
@@ -65,6 +75,7 @@ const rest = (ref: string) => ref.slice(ref.indexOf(':') + 1);
 /** The sizes a card offers. */
 export function sizesOf(ref: string): CardSize[] {
   if (BUILTIN[ref]) return BUILTIN[ref].sizes;
+  if (family(ref) === 'heat') return ['summary', 'full'];
   return ['stat', 'board', 'section', 'view', 'note'].includes(family(ref)) ? ALL : ['summary'];
 }
 
@@ -76,6 +87,8 @@ export function labelOf(card: Card, sections: Section[]): string {
   switch (family(card.ref)) {
     case 'stat':
       return `${s?.label ?? rest(card.ref)} this week`;
+    case 'heat':
+      return `${s?.label ?? rest(card.ref)}, day by day`;
     case 'board':
       return `${s?.label ?? rest(card.ref)} board`;
     case 'section':
@@ -85,6 +98,30 @@ export function labelOf(card: Card, sections: Section[]): string {
     default:
       return 'A note';
   }
+}
+
+/** The room a card starts with: the journal tall, a heatmap wide, the rest half. */
+export function defaultRoom(ref: string): { w: CardWidth; h: CardHeight } {
+  if (ref === 'journal') return { w: 'half', h: 'tall' };
+  if (family(ref) === 'heat') return { w: 'wide', h: 'medium' };
+  if (ref === 'continue' || family(ref) === 'stat') return { w: 'half', h: 'short' };
+  return { w: 'half', h: 'medium' };
+}
+const isWidth = (v: string | null): v is CardWidth => !!v && v in WIDTHS;
+const isHeight = (v: string | null): v is CardHeight => !!v && v in HEIGHTS;
+
+/** A width from a dragged edge: the fraction of the grid it reaches, to the nearest width. */
+export function snapWidth(fraction: number): CardWidth {
+  const cols = fraction * 12;
+  return (Object.keys(WIDTHS) as CardWidth[]).reduce((best, w) =>
+    Math.abs(WIDTHS[w] - cols) < Math.abs(WIDTHS[best] - cols) ? w : best,
+  );
+}
+/** A height from a dragged edge, in rem, to the nearest height. */
+export function snapHeight(rem: number): CardHeight {
+  return (Object.keys(HEIGHTS) as CardHeight[]).reduce((best, h) =>
+    Math.abs(HEIGHTS[h] - rem) < Math.abs(HEIGHTS[best] - rem) ? h : best,
+  );
 }
 
 const LINE = /^!\[([^\]]*)\]\(((?:card|view|note):[^)\s]+)\)\s*$/;
@@ -104,11 +141,16 @@ export function parse(body: string): HomeDoc {
       const [ref, query = ''] = target.slice(5).split('?');
       const q = new URLSearchParams(query);
       const size = q.get('size') as CardSize | null;
+      const room = defaultRoom(ref);
+      const w = q.get('w');
+      const h = q.get('h');
       cards.push({
         ref,
         label,
         size: size && sizesOf(ref).includes(size) ? size : 'summary',
         phone: q.get('phone') === '1',
+        w: isWidth(w) ? w : room.w,
+        h: isHeight(h) ? h : room.h,
       });
     } else if (target.startsWith('view:')) {
       const name = target.slice(5);
@@ -120,9 +162,10 @@ export function parse(body: string): HomeDoc {
         label: LEGACY[name] ? '' : label === builtinLabel ? '' : label,
         size: 'summary',
         phone: BUILTIN[ref]?.phone ?? false,
+        ...defaultRoom(ref),
       });
     } else {
-      cards.push({ ref: target, label, size: 'summary', phone: false });
+      cards.push({ ref: target, label, size: 'summary', phone: false, ...defaultRoom(target) });
     }
   }
   return { cards, text: words.join('\n').trim() };
@@ -131,7 +174,7 @@ export function parse(body: string): HomeDoc {
 /** Cards and words → the Home note's body. The words first, then one card per line. */
 export function write(doc: HomeDoc): string {
   const lines = doc.cards.map(
-    (c) => `![${c.label}](card:${c.ref}?size=${c.size}&phone=${c.phone ? 1 : 0})`,
+    (c) => `![${c.label}](card:${c.ref}?size=${c.size}&phone=${c.phone ? 1 : 0}&w=${c.w}&h=${c.h})`,
   );
   return (doc.text.trim() ? `${doc.text.trim()}\n\n` : '') + lines.join('\n') + '\n';
 }
@@ -147,6 +190,7 @@ export function generated(summary: SectionSummary[]): Card[] {
     label: '',
     size,
     phone,
+    ...defaultRoom(ref),
   });
   const out: Card[] = [card('journal', 'summary', true)];
   // The busiest sections of the last month, as figures (at most three).
@@ -179,10 +223,15 @@ export function layout(cards: Card[], narrow: boolean) {
   const figure = (c: Card) => ['stat', 'board'].includes(family(c.ref)) || BUILTIN[c.ref];
   const glance = shown.filter((c) => c.size === 'glance' && figure(c) && c.ref !== 'journal');
   const watch = shown.filter((c) => c.size === 'glance' && !figure(c));
-  const journal = shown.find((c) => c.ref === 'journal') ?? null;
+  // The journal is a card like the others, in the grid at its place (2026-11-23).
   const main = shown
-    .filter((c) => c.size !== 'glance' && c.ref !== 'journal')
-    .map((c) => (narrow && c.size === 'full' ? { ...c, size: 'summary' as CardSize } : c));
+    .filter((c) => c.size !== 'glance' || c.ref === 'journal')
+    .map((c) =>
+      narrow && c.size === 'full' && c.ref !== 'journal'
+        ? { ...c, size: 'summary' as CardSize }
+        : c,
+    );
+  const journal = main.find((c) => c.ref === 'journal') ?? null;
   return { glance: narrow ? glance.slice(0, 3) : glance.slice(0, 6), watch, journal, main };
 }
 
@@ -220,8 +269,17 @@ export async function pinToHome(ref: string, label = ''): Promise<boolean> {
   const doc: HomeDoc = home?.doc ?? { cards: [], text: '' };
   if (!doc.cards.length) doc.cards = generated(await ipc.sectionSummary().catch(() => []));
   if (doc.cards.some((c) => c.ref === ref)) return false;
-  doc.cards.push({ ref, label, size: pinSize(ref), phone: true });
+  doc.cards.push({ ref, label, size: pinSize(ref), phone: true, ...defaultRoom(ref) });
   await saveHome(doc, home);
+  return true;
+}
+
+/** **Remove from Home**, from where it was pinned (the same button, once pinned). Answers false
+ *  when it was not on Home. */
+export async function unpinFromHome(ref: string): Promise<boolean> {
+  const home = await readHome();
+  if (!home || !home.doc.cards.some((c) => c.ref === ref)) return false;
+  await saveHome({ ...home.doc, cards: home.doc.cards.filter((c) => c.ref !== ref) }, home);
   return true;
 }
 

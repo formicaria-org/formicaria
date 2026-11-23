@@ -68,7 +68,8 @@
   import { setPropertyUndoable } from '../lib/undo.svelte';
   import { trackersShown } from '../lib/trackers.svelte';
   import { FEATURES, asksAddress, featureOf, openFind } from '../lib/features';
-  import { pinToHome } from '../lib/home';
+  import { onHome, pinToHome, unpinFromHome } from '../lib/home';
+  import { shownVault } from '../lib/shownVaults.svelte';
   import NewTab from './NewTab.svelte';
   import SectionNotes from './SectionNotes.svelte';
   import ViewControls from '../lib/ViewControls.svelte';
@@ -184,6 +185,10 @@
     route.kind === 'view' ? `view:${route.name}` : section ? `section:${section.key}` : '',
   );
   let pinnedHome = $state(false);
+  // On Home already? Then the button takes it off.
+  $effect(() => {
+    if (pinRef) void onHome(pinRef).then((on) => (pinnedHome = on));
+  });
   // Settings as a page: its theme and the new-vault form, as the app keeps them.
   let theme = $state(
     typeof document !== 'undefined' ? (document.documentElement.dataset.theme ?? 'dark') : 'dark',
@@ -531,13 +536,12 @@
             <button
               type="button"
               class="new-note"
-              disabled={pinnedHome}
               onclick={() =>
                 pinRef &&
-                void pinToHome(pinRef)
-                  .then(() => (pinnedHome = true))
+                void (pinnedHome ? unpinFromHome(pinRef) : pinToHome(pinRef))
+                  .then(() => (pinnedHome = !pinnedHome))
                   .catch((e) => (error = String(e)))}
-              >{pinnedHome ? 'On Home ✓' : 'Pin to Home'}</button
+              >{pinnedHome ? 'Remove from Home' : 'Pin to Home'}</button
             >
           {/if}
           <!-- **A new note from every view** (owner on 0.52: *"how are notes added? The plus
@@ -567,7 +571,7 @@
           cols={1}
           {feed}
           statuses={statusesOf(feed)}
-          shown={() => true}
+          shown={(n) => shownVault(n.vault)}
           focused={true}
           startEditing={false}
           {vaults}

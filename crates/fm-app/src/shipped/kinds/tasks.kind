@@ -5,12 +5,23 @@ mark: ▦
 purpose: Things to do, with a status and a date
 order: 20
 page: /f/group/Tasks
+# A task has a status, or a due date and no start (2026-11-23). A note with a start is a span (a
+# meeting, its `due` the end) and a note with `program` is a plan (its days in force): neither is a
+# thing to do, and both sat here and in Home's "overdue".
 match:
+  - not:
+      prop: program
+      exists: true
   - any:
       - prop: status
         exists: true
-      - prop: due
-        exists: true
+      - not:
+          any:
+            - not:
+                prop: due
+                exists: true
+            - prop: start
+              exists: true
 views:
   - builtin: board
   - builtin: agenda

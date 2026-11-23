@@ -7,6 +7,7 @@ import Shell from './Shell.svelte';
 import * as mock from '../lib/mock';
 import { appToday } from '../lib/appTime';
 import { typeInto } from '../lib/editor/testing';
+import { resetShownVaults } from '../lib/shownVaults.svelte';
 
 const wide = (on: boolean) =>
   vi.stubGlobal('matchMedia', (q: string) => ({
@@ -116,7 +117,14 @@ it('Pin to Home, from a section’s bar: the section becomes a link on Home', as
     // The generated Home is kept with it, so pinning never empties Home.
     expect(d.body).toContain('card:journal');
   });
-  expect(await screen.findByRole('button', { name: 'On Home ✓' })).toBeTruthy();
+  // Pinned, the same button takes it off again.
+  await fireEvent.click(await screen.findByRole('button', { name: 'Remove from Home' }));
+  await vi.waitFor(async () => {
+    const [h] = (await mock.handle('tagged', { tag: 'home' })) as { id: string }[];
+    const d = (await mock.handle('get', { id: h.id })) as { body: string };
+    expect(d.body).not.toContain('card:section:tasks');
+  });
+  expect(await screen.findByRole('button', { name: 'Pin to Home' })).toBeTruthy();
 });
 
 it('the one box: a web address opens the page; words also offer a web search', async () => {
@@ -132,6 +140,40 @@ it('the one box: a web address opens the page; words also offer a web search', a
   expect(
     await screen.findByRole('button', { name: /Search the web for “ant colonies”/ }),
   ).toBeTruthy();
+});
+
+it('the one box: with a note that matches, the web is still one key away, and Enter shows what it does', async () => {
+  await mock.handle('create_notes', {
+    notes: [{ title: 'Ant colonies, field notes', body: 'Ant colonies move.', props: {} }],
+  });
+  const opened: string[] = [];
+  vi.stubGlobal('open', (u: string) => void opened.push(u));
+  history.replaceState(null, '', '/f/group/Tasks');
+  render(Shell);
+  const field = (await screen.findAllByRole('searchbox', { name: 'search notes' }))[0];
+  await fireEvent.input(field, { target: { value: 'ant colonies' } });
+  const results = await screen.findByRole('region', { name: 'search results' });
+  // The top note is the one Enter would open, and it is drawn so.
+  const note = await within(results).findByRole('button', { name: /Ant colonies, field notes/ });
+  await vi.waitFor(() => expect(note.getAttribute('aria-current')).toBe('true'));
+  const webRow = within(results).getByRole('button', { name: /Search the web/ });
+  expect(webRow.getAttribute('aria-current')).toBeNull();
+  // Ctrl+Enter searches the web, whatever is chosen.
+  await fireEvent.keyDown(field, { key: 'Enter', ctrlKey: true });
+  expect(opened).toHaveLength(1);
+  expect(decodeURIComponent(opened[0])).toContain('ant colonies');
+  // ↑ chooses the web row, and Enter then searches the web.
+  await fireEvent.input(field, { target: { value: 'ant colonies' } });
+  const again = await screen.findByRole('region', { name: 'search results' });
+  await within(again).findByRole('button', { name: /Ant colonies, field notes/ });
+  await fireEvent.keyDown(field, { key: 'ArrowUp' });
+  expect(
+    within(again)
+      .getByRole('button', { name: /Search the web/ })
+      .getAttribute('aria-current'),
+  ).toBe('true');
+  await fireEvent.keyDown(field, { key: 'Enter' });
+  expect(opened).toHaveLength(2);
 });
 
 it('Alt+Home goes Home from any page', async () => {
@@ -210,4 +252,122 @@ it('Settings in the shell is a place: no close of its own', async () => {
   render(Shell);
   await screen.findByRole('dialog', { name: 'settings' });
   expect(screen.queryByRole('button', { name: 'close' })).toBeNull();
+});
+
+const homeBody = async () => {
+  const [h] = (await mock.handle('tagged', { tag: 'home' })) as { id: string }[];
+  if (!h) return '';
+  return ((await mock.handle('get', { id: h.id })) as { body: string }).body;
+};
+
+it('a card’s ⋯: its width, its height, and Remove from Home, where it is', async () => {
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  const cards = await screen.findByRole('list', { name: 'home cards shown' });
+  await within(cards).findByRole('heading', { name: /Continue/ });
+  const open = async () => {
+    await fireEvent.click(within(cards).getByRole('button', { name: 'more for Continue' }));
+    return screen.findByRole('group', { name: 'Continue on Home' });
+  };
+  await fireEvent.click(within(await open()).getByRole('button', { name: 'Full width' }));
+  await vi.waitFor(async () => expect(await homeBody()).toMatch(/card:continue\?[^)]*w=full/));
+  await fireEvent.click(within(await open()).getByRole('button', { name: 'Tall' }));
+  await vi.waitFor(async () => expect(await homeBody()).toMatch(/card:continue\?[^)]*h=tall/));
+  await fireEvent.click(within(await open()).getByRole('button', { name: 'Remove from Home' }));
+  await vi.waitFor(async () => expect(await homeBody()).not.toContain('card:continue'));
+});
+
+it('a heatmap on Home: a square per day, as GitHub draws one', async () => {
+  await mock.handle('create_notes', {
+    notes: [
+      { title: 'Idea one', body: 'x', props: {} },
+      { title: 'Idea two', body: 'y', props: {} },
+    ],
+  });
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Edit Home' }));
+  await fireEvent.change(screen.getByRole('combobox', { name: 'card to add' }), {
+    target: { value: 'heat:notes' },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  const map = await screen.findByRole('img', {
+    name: /Notes, day by day: \d+ in the last six months/,
+  });
+  expect(map.querySelectorAll('.hcol')).toHaveLength(26);
+  expect(map.querySelectorAll('.hcell')).toHaveLength(26 * 7);
+  await vi.waitFor(() =>
+    expect(map.querySelectorAll('.hcell:not(.l0):not(.future)').length).toBeGreaterThan(0),
+  );
+});
+
+it('a section hidden from the rail leaves it, and comes back from Show hidden sections', async () => {
+  globalThis.localStorage?.removeItem('fm-rail-hidden');
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  const rail = await screen.findByRole('navigation', { name: 'formicaria' });
+  await fireEvent.click(within(rail).getByRole('button', { name: 'more for Health' }));
+  await fireEvent.click(await within(rail).findByRole('menuitem', { name: 'Hide from the rail' }));
+  const listed = within(rail).getByRole('list', { name: 'sections' });
+  expect(within(listed).queryByRole('button', { name: /Health/ })).toBeNull();
+  await fireEvent.click(within(rail).getByRole('button', { name: /Show hidden sections \(1\)/ }));
+  await fireEvent.click(within(rail).getByRole('button', { name: 'show Health in the rail' }));
+  expect(within(listed).getAllByRole('button', { name: /Health/ }).length).toBeGreaterThan(0);
+  globalThis.localStorage?.removeItem('fm-rail-hidden');
+});
+
+it('the vault chooser: a vault unticked is left out of the counts, and comes back ticked', async () => {
+  globalThis.localStorage?.removeItem('fm-hidden-vaults');
+  resetShownVaults();
+  const asked: unknown[] = [];
+  const real = mock.handle;
+  vi.spyOn(mock, 'handle').mockImplementation(((cmd: string, args: Record<string, unknown>) => {
+    if (cmd === 'section_summary') asked.push(args?.hidden);
+    return real(cmd, args);
+  }) as typeof mock.handle);
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  const rail = await screen.findByRole('navigation', { name: 'formicaria' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: /All vaults/ }));
+  const list = await within(rail).findByRole('group', { name: 'vaults to see' });
+  const boxes = within(list).getAllByRole('checkbox') as HTMLInputElement[];
+  expect(boxes.length).toBeGreaterThan(1);
+  await fireEvent.click(boxes[1]);
+  expect(await within(rail).findByRole('button', { name: /\d+ of \d+ vaults/ })).toBeTruthy();
+  await vi.waitFor(() => expect(asked.some((h) => Array.isArray(h) && h.length === 1)).toBe(true));
+  await fireEvent.click(boxes[1]);
+  expect(await within(rail).findByRole('button', { name: /All vaults/ })).toBeTruthy();
+  globalThis.localStorage?.removeItem('fm-hidden-vaults');
+  resetShownVaults();
+});
+
+it('Home: two quick changes are both kept, and a save that fails puts the screen back and says so', async () => {
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  const cards = await screen.findByRole('list', { name: 'home cards shown' });
+  await within(cards).findByRole('heading', { name: /Continue/ });
+  const open = async () => {
+    await fireEvent.click(within(cards).getByRole('button', { name: 'more for Continue' }));
+    return screen.findByRole('group', { name: 'Continue on Home' });
+  };
+  // Two changes, the second before the first is written.
+  await fireEvent.click(within(await open()).getByRole('button', { name: 'Full width' }));
+  await fireEvent.click(within(await open()).getByRole('button', { name: 'Tall' }));
+  await vi.waitFor(async () => {
+    const b = await homeBody();
+    expect(b).toMatch(/card:continue\?[^)]*w=full/);
+    expect(b).toMatch(/card:continue\?[^)]*h=tall/);
+  });
+  // A save refused: the card goes back to its size, and Home says why.
+  const real = mock.handle;
+  vi.spyOn(mock, 'handle').mockImplementation(((cmd: string, args: Record<string, unknown>) =>
+    cmd === 'update_body'
+      ? Promise.reject(new Error('the disk is full'))
+      : real(cmd, args)) as typeof mock.handle);
+  await fireEvent.click(within(await open()).getByRole('button', { name: 'Narrow' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('the disk is full');
+  const li = within(cards)
+    .getByRole('heading', { name: /Continue/ })
+    .closest('li') as HTMLElement;
+  expect(li.getAttribute('style')?.replace(/\s/g, '')).toContain('--span:12');
 });

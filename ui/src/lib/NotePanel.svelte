@@ -82,7 +82,7 @@
   import { measureFor, fullWidth, setFullWidth } from './readingWidth.svelte';
   import { exportHtml, exportMarkdown, exportPdf } from './exportNote';
   import HistoryPanel from './HistoryPanel.svelte';
-  import { pinToHome } from './home';
+  import { onHome, pinToHome, unpinFromHome } from './home';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -206,8 +206,16 @@
   let optionsOpen = $state(false);
   let exportOpen = $state(false);
   let historyOpen = $state(false);
-  /** **Pin to Home** (Home, 2026-11-23): this note as a link in Home's watch row. */
+  /** **Pin to Home** (Home, 2026-11-23): this note as a link in Home's watch row; once pinned the
+   *  same item takes it off again. Asked when the options open, so it is right after an edit of
+   *  Home made elsewhere. */
   let pinnedHome = $state(false);
+  $effect(() => {
+    if (optionsOpen && note) {
+      const ref = `note:${note.id}`;
+      void onHome(ref).then((on) => (pinnedHome = on));
+    }
+  });
   /// The ＋ that opens the options window, which is placed against it (`popup`).
   let optionsBtn = $state<HTMLButtonElement>();
 
@@ -3059,14 +3067,14 @@
                 >
                 <button
                   class="opt"
-                  disabled={pinnedHome}
                   onclick={() => {
                     optionsOpen = false;
-                    if (note)
-                      pinToHome(`note:${note.id}`)
-                        .then(() => (pinnedHome = true))
-                        .catch((e) => (error = String(e)));
-                  }}>{pinnedHome ? 'On Home ✓' : 'Pin to Home'}</button
+                    if (!note) return;
+                    const ref = `note:${note.id}`;
+                    (pinnedHome ? unpinFromHome(ref) : pinToHome(ref))
+                      .then(() => (pinnedHome = !pinnedHome))
+                      .catch((e) => (error = String(e)));
+                  }}>{pinnedHome ? 'Remove from Home' : 'Pin to Home'}</button
                 >
               {/if}
               {#if isPaper && clipboardAvailable}

@@ -10,6 +10,9 @@
   import { openFind } from '../lib/features';
   import NewMenu from './NewMenu.svelte';
   import SyncStatus from './SyncStatus.svelte';
+  import VaultChooser from './VaultChooser.svelte';
+  import { popup } from '../lib/popup';
+  import { hiddenVaults } from '../lib/shownVaults.svelte';
 
   let {
     path,
@@ -30,21 +33,73 @@
   let summary = $state<SectionSummary[]>([]);
   const read = () =>
     void ipc
-      .sectionSummary()
+      .sectionSummary(hiddenVaults())
       .then((s) => (summary = s))
       .catch(() => {});
-  onMount(() => {
+  // The counts leave out the vaults chosen not to see, and follow the choice.
+  $effect(() => {
+    void hiddenVaults().join('\n');
     read();
-    return ipc.listenChanges(read);
+  });
+  onMount(() => {
+    const stop = ipc.listenChanges(read);
+    // A section's menu closes on a press anywhere else.
+    const away = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest?.('.more, .menu')) menuFor = null;
+    };
+    addEventListener('click', away);
+    return () => {
+      stop();
+      removeEventListener('click', away);
+    };
   });
   const count = (k: string) => summary.find((s) => s.key === k)?.count;
+
+  // **Sections hidden from the rail** (2026-11-23; the owner: *"I feel like I can only add"*): a
+  // section never used leaves the rail, its notes untouched, and comes back from *Show hidden
+  // sections*. A view preference of this browser, like the vaults shown.
+  const RAIL_KEY = 'fm-rail-hidden';
+  let railHidden = $state<string[]>(
+    (() => {
+      try {
+        const v = JSON.parse(localStorage.getItem(RAIL_KEY) ?? '[]');
+        return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+      } catch {
+        return [];
+      }
+    })(),
+  );
+  let showHidden = $state(false);
+  let menuFor = $state<string | null>(null);
+  /** Where a section's ⋯ is, for its menu to open beside (`popup` keeps it on the screen). */
+  function moreBox(key: string) {
+    const b = [...document.querySelectorAll<HTMLElement>('button.more')].find(
+      (x) => x.dataset.key === key,
+    );
+    const r = b?.getBoundingClientRect();
+    return r
+      ? { top: r.top, bottom: r.bottom, left: r.left, right: r.right }
+      : { top: 0, bottom: 0, left: 0, right: 0 };
+  }
+  function setRailHidden(key: string, hide: boolean) {
+    railHidden = hide ? [...railHidden, key] : railHidden.filter((k) => k !== key);
+    menuFor = null;
+    try {
+      localStorage.setItem(RAIL_KEY, JSON.stringify(railHidden));
+    } catch {
+      // Not remembered by this browser; still honoured on this page.
+    }
+  }
+  const listed = $derived(sections.filter((s) => !railHidden.includes(s.key)));
+  const tucked = $derived(sections.filter((s) => railHidden.includes(s.key)));
   const on = (url: string) => path === url || path.startsWith(`${url}/`);
   /** Ctrl+K's search, opened from the rail (`FindNotes` listens). */
   const find = openFind;
 </script>
 
 <nav class="rail" aria-label="formicaria">
-  <div class="space" title="Spaces come later: one space, everything in it">Everything</div>
+  <VaultChooser />
   <NewMenu {onopen} />
   <button type="button" class="find" onclick={find}
     ><Icon name="search" size={15} /> Find or do <kbd>Ctrl K</kbd></button
@@ -65,7 +120,7 @@
   >
   <h2>Your library</h2>
   <ul aria-label="sections">
-    {#each sections as s (s.key)}
+    {#each listed as s (s.key)}
       <li>
         <button
           type="button"
@@ -84,9 +139,56 @@
           title={`New in ${s.label}`}
           onclick={() => onnew(s)}>＋</button
         >
+        <button
+          type="button"
+          class="more"
+          data-key={s.key}
+          aria-label={`more for ${s.label}`}
+          aria-expanded={menuFor === s.key}
+          title={`More for ${s.label}`}
+          onclick={() => (menuFor = menuFor === s.key ? null : s.key)}>⋯</button
+        >
+        {#if menuFor === s.key}
+          <div
+            class="menu"
+            role="menu"
+            aria-label={`${s.label} in the rail`}
+            use:popup={{ anchor: () => moreBox(s.key), align: 'end' }}
+          >
+            <button type="button" role="menuitem" onclick={() => setRailHidden(s.key, true)}
+              >Hide from the rail</button
+            >
+          </div>
+        {/if}
       </li>
     {/each}
   </ul>
+  {#if tucked.length}
+    <button
+      type="button"
+      class="tucked-toggle"
+      aria-expanded={showHidden}
+      onclick={() => (showHidden = !showHidden)}
+      >{showHidden ? 'Hide' : 'Show'} hidden sections ({tucked.length})</button
+    >
+    {#if showHidden}
+      <ul class="tucked" aria-label="hidden sections">
+        {#each tucked as s (s.key)}
+          <li>
+            <button type="button" class="item" onclick={() => go(s.page)}
+              ><span class="mark" aria-hidden="true">{s.mark}</span> {s.label}</button
+            >
+            <button
+              type="button"
+              class="unhide"
+              aria-label={`show ${s.label} in the rail`}
+              onclick={() => setRailHidden(s.key, false)}>Show</button
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {/if}
   <span class="grow"></span>
   <SyncStatus {unsent} />
   <button
@@ -112,10 +214,6 @@
     background: var(--card-bg);
     overflow: auto;
     height: 100%;
-  }
-  .space {
-    font-weight: 650;
-    padding: var(--space-1) var(--space-2);
   }
   .find {
     display: flex;
@@ -196,8 +294,75 @@
     font-size: 1rem;
   }
   li:hover .add,
-  .add:focus-visible {
+  .add:focus-visible,
+  li:hover .more,
+  .more:focus-visible,
+  .more[aria-expanded='true'] {
     display: block;
+  }
+  .more {
+    position: absolute;
+    right: 1.9rem;
+    top: 50%;
+    translate: 0 -50%;
+    display: none;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+  }
+  .menu {
+    position: absolute;
+    z-index: 30;
+    right: 0;
+    top: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md, 0 4px 16px rgb(0 0 0 / 0.15));
+    padding: var(--space-1);
+  }
+  .menu button {
+    font: inherit;
+    background: none;
+    border: none;
+    color: var(--text);
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .menu button:hover {
+    background: var(--card-bg);
+  }
+  .tucked-toggle {
+    font: inherit;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    text-align: left;
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+  }
+  .tucked {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    opacity: 0.8;
+  }
+  .tucked li {
+    display: flex;
+    align-items: center;
+  }
+  .unhide {
+    font: inherit;
+    font-size: var(--text-xs);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    cursor: pointer;
   }
   li:hover .n {
     visibility: hidden;

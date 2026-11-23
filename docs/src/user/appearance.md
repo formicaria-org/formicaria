@@ -145,6 +145,12 @@ as the app changes. Anything you leave out keeps its built-in value.
 | `--focus-ring` | the outline round whatever the keyboard is on |
 | `--shadow-sm` · `--shadow-md` · `--shadow-lg` | the shadow under cards, menus and dialogs (any CSS `box-shadow` value) |
 
+**Legible in every theme.** Every theme formicaria offers, in light and in dark, keeps text at a
+contrast of at least 4.5 to 1 against what is behind it, the accessibility guideline (WCAG) for
+reading text; focus rings and coloured markers keep at least 3 to 1. A check measures each theme
+before every release. A theme you write yourself is yours: the same names are listed here, but
+nothing measures it.
+
 **Highlights and meaning**
 
 | Name | What it colours |
@@ -157,6 +163,7 @@ as the app changes. Anything you leave out keeps its built-in value.
 | `--u-none` | no date |
 | `--danger-bg` · `--danger-fg` | warnings and anything that deletes: background and text |
 | `--ok-bg` · `--ok-fg` | confirmations: background and text |
+| `--chip-bg` · `--chip-border` · `--chip-fg` · `--column-fg` | a status chip and a board column's title: the saturation and lightness (and, for the background and border, the transparency) of their colour, written `60% 20% / 0.55`; the hue comes from the status word |
 
 **Type**
 

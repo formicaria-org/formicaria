@@ -169,10 +169,13 @@ fn a_program_is_something_you_plan_and_an_entry_is_not() {
         v.into_iter().filter_map(|m| m.title).collect()
     };
     assert_eq!(titles(commands::recent(&s).unwrap()), ["Cut"]);
+    // **A plan is not a task** (2026-11-23, evening): its `start` and `due` are the days it is in
+    // force, so it is on no board and in no agenda (`thread::tasks_base`); it was on the board
+    // until then, and a replaced plan showed as *overdue*.
     let board = commands::board(&s, "status").unwrap();
     let on_board: Vec<_> =
         board.columns.iter().flat_map(|c| c.cards.iter()).filter_map(|c| c.title.clone()).collect();
-    assert_eq!(on_board, ["Cut"]);
+    assert!(on_board.is_empty(), "{on_board:?}");
     // Search still finds what you plan; a food log is searched from its own sheet.
     assert!(titles(commands::search(&s, "Oats").unwrap()).is_empty());
     assert_eq!(titles(commands::search(&s, "Cut").unwrap()), ["Cut"]);

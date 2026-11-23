@@ -3,9 +3,12 @@
   // day: what is planned and due, what was logged, what came in, what was written. Composed from the
   // reads that exist (the agenda, the recent notes), so it costs the server nothing new.
   import { onMount } from 'svelte';
+  import { shownVault } from '../lib/shownVaults.svelte';
   import * as ipc from '../lib/ipc';
   import type { ObjectMeta } from '../lib/types';
   import { appToday, dayOfInstant } from '../lib/appTime';
+  import { isDeadline } from '../lib/urgency';
+  import { dayOf } from '../lib/stamp';
 
   // Since Home's journal (2026-11-23) this is **what the day collected**, under the day's entry on the
   // Journal page (`JournalView`); `heading` empty leaves out its own title there.
@@ -14,36 +17,53 @@
   let agenda = $state<ObjectMeta[]>([]);
   let recent = $state<ObjectMeta[]>([]);
   async function read() {
-    [agenda, recent] = await Promise.all([
+    const [a, r] = await Promise.all([
       ipc.getAgenda().catch(() => []),
       ipc.recent().catch(() => []),
     ]);
+    agenda = a;
+    recent = r;
   }
   onMount(() => {
     void read();
     return ipc.listenChanges(() => void read());
   });
 
+  const shownN = (n: ObjectMeta) => shownVault(n.vault);
   const today = $derived(appToday());
+  // Today's meetings and spans, and the deadlines due today or overdue: a meeting or a plan
+  // that ended earlier is over, not due (`isDeadline`, 2026-11-23).
   const planned = $derived(
-    agenda.filter((n) => dayOfInstant(n.start ?? '') === today || (!!n.due && n.due <= today)),
+    agenda
+      .filter(shownN)
+      .filter(
+        (n) =>
+          dayOfInstant(n.start ?? '') === today ||
+          (isDeadline(n) && n.status !== 'done' && dayOf(n.due ?? '') <= today),
+      ),
   );
   const logged = $derived(
-    recent.filter((n) => n.kind_key === 'log' && dayOfInstant(n.start ?? n.created) === today),
+    recent
+      .filter(shownN)
+      .filter((n) => n.kind_key === 'log' && dayOfInstant(n.start ?? n.created) === today),
   );
   const cameIn = $derived(
-    recent.filter(
-      (n) =>
-        ['web', 'song', 'video', 'meeting', 'paper'].includes(n.kind_key ?? '') &&
-        dayOfInstant(n.created) === today,
-    ),
+    recent
+      .filter(shownN)
+      .filter(
+        (n) =>
+          ['web', 'song', 'video', 'meeting', 'paper'].includes(n.kind_key ?? '') &&
+          dayOfInstant(n.created) === today,
+      ),
   );
   const written = $derived(
-    recent.filter(
-      (n) =>
-        !['log', 'web', 'song', 'video'].includes(n.kind_key ?? '') &&
-        dayOfInstant(n.updated) === today,
-    ),
+    recent
+      .filter(shownN)
+      .filter(
+        (n) =>
+          !['log', 'web', 'song', 'video'].includes(n.kind_key ?? '') &&
+          dayOfInstant(n.updated) === today,
+      ),
   );
   const groups = $derived([
     { label: 'Planned and due', items: planned, empty: 'Nothing planned or due today.' },

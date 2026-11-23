@@ -3056,7 +3056,6 @@ Built in this release (`decisions.md`, 2026-11-22, night, latest; `unifying-home
 - redo, the player bar, view controls, and *Bring into another note…*.
 
 **Still not on the computer:**
-- the vault filter;
 - swiping between a group's views;
 - dropping from a page into the front note;
 - the bridge (ask the assistant about the front note);
@@ -3068,7 +3067,7 @@ shell's bottom bar is not built. **The older frame is not deleted (P2d)**: the p
 older frame on a tablet, there is still no redo, no *Recently deleted*, no ＋ menu, no vault filter
 and no sync chips.
 
-## Home: what it does not do yet (2026-11-23)
+## Home: what it does not do yet (2026-11-23; the grid, the evening)
 
 Home is a glance, a journal and cards (`decisions.md`, 2026-11-23; `unifying-home-research-2026-11-22.md`
 §12). Not built:
@@ -3085,6 +3084,12 @@ Home is a glance, a journal and cards (`decisions.md`, 2026-11-23; `unifying-hom
 - **A reading list** with read and unread: Web shows the pages kept, with no state for reading.
 - **Photo and voice** in the phone's capture box: it takes a line of text or a web address.
 - **What the day collected** is shown for today only: for an earlier day the Journal shows its entry.
+- **The grid on a touch screen**: the edges are not draggable on a narrow screen (every card is the
+  full width there); the height is set from the card's ⋯.
+- **Moving a card** is by dragging its title with a mouse; there is no keyboard move but Edit Home's
+  arrows.
+- **A theme written by hand is not measured**: `themes.contrast.test.ts` checks the built-in themes
+  and the starters only.
 
 ## On a computer: what U1 brought back, and what it did not (2026-11-22)
 

@@ -5315,7 +5315,7 @@
     padding: var(--space-2) var(--space-4);
     font-size: var(--text-sm);
     background: var(--accent);
-    color: white;
+    color: var(--accent-contrast);
     border-radius: 999px;
     pointer-events: none;
   }

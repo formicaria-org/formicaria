@@ -16467,6 +16467,9 @@ These are listed in `known-issues.md`.
 
 ## 2026-11-23 — Home is a glance, a journal and cards; Web is a section, and Find or do opens the web `#ui` `#data`
 
+> **AMENDED 2026-11-23 (evening)** (*Home is a grid you arrange*): point 1's "no free grid" is
+> reversed. Cards, the journal one of them, take a width and a height on a snapped 12-column grid.
+
 **Why.** The owner on 0.61.0's Home, on both screens: *"a loose collection with not that nice and
 customizable purpose, what is for?"*; on the phone, *"cluttered and not very intuitive, just listing
 the views"*; and *"web seems a hidden feature"*. What Home should be instead, in the owner's words:
@@ -16522,4 +16525,67 @@ The research (`unifying-home-research-2026-11-22.md` §12) found three things th
 
 **Widens what ships** by one read command (`journal`), one field (`recent`), one `.kind` file (Web),
 and the `card:` line form of the Home note.
+
+## 2026-11-23 (evening) — Home is a grid you arrange; vaults chosen on the rail; only a task is overdue; every theme legible `#ui` `#data` `#vault`
+
+**Why.** The owner on 0.62.0:
+- *"how do I remove things from screen? I feel like I can only add"*;
+- *"I cannot select the space they take, the journal is of fixed size"*;
+- a heatmap *"like those one can see in github"*;
+- in Find or do, *"it automatically picks a note that might be related, but I wanted to search
+  online"*;
+- *"where did the vaults go? How can I select the ones to see?"*;
+- two training plans and an old item shown *"in overdue … both should not be there"*;
+- *"go through the current suggested themes and see if things are well visible in them"*.
+
+**Decided:**
+1. **Home is a grid you arrange** (reverses 2026-11-23 point 1, *no free grid*). Every card, the
+   journal one of them, has a width on a 12-column grid (narrow, half, wide, full) and a height
+   (short, medium, tall). Drag the right or bottom edge, or the corner; it snaps. Drag a card by
+   its title to move it. On a narrow screen every card is the full width and keeps its height. The
+   widths and heights are in the Home note's card lines (`&w=…&h=…`); a line without them takes the
+   card's own room.
+2. **Remove where it is.** A ⋯ on every card and figure: what it shows, width, height, on the phone,
+   Remove from Home. Pin to Home is a toggle: once pinned, the same item says *Remove from Home*.
+   A section's ⋯ in the rail has *Hide from the rail* (a view preference of the browser, like the
+   vaults shown), and *Show hidden sections* brings them back.
+3. **A heatmap card** (`heat:<section>`): GitHub's form, a column per week and a square per day,
+   six months at summary, a year at full. `section_summary` takes `days` (at most 400) to list a
+   year of creation times.
+4. **A Home change shows at once and is written after**, one write after another, and a failed
+   write puts the screen back and says so on Home. A read begun before a save no longer lands
+   after it. Both were found by usability-check: a card stayed at its old width for seconds.
+5. **Find or do shows what Enter does.** *Search the web* is always the first line; the line Enter
+   acts on is drawn as chosen (the best note when notes match); ↑ and ↓ move it; Ctrl+Enter always
+   searches the web.
+6. **The vault chooser** sits at the rail's top with two or more vaults. Unticked vaults leave every
+   page: sections, Home, search, counts (`section_summary`'s `hidden`). It is a view preference
+   under the phone's own name (`fm-hidden-vaults`), never an entitlement (`scope.rs` is that). The
+   last vault shown cannot be unticked.
+7. **Only a task is overdue.** `due` is a deadline only for a task: a note with a status, or with a
+   due date and no start. A note with a start is a span (a meeting, its `due` the end), and a note
+   with `program` is a plan (its days in force). `tasks_base` leaves plans out (board, agenda,
+   reminders; a 2026-10-11 test had held a program on the board, and now holds it off); Tasks' rule is *a status, or a due and no start, and not a plan*; the agenda list,
+   Home and the Journal call a span that has ended *over*, never *overdue*. Found on a real
+   library, locally; nothing of it is written here.
+8. **Every theme is legible, and a test keeps it so** (`themes.contrast.test.ts`). Every built-in
+   theme and starter, in light and dark:
+   - text at 4.5:1 or better, focus rings and markers at 3:1 (WCAG 2.2, 1.4.3 and 1.4.11);
+   - status chips and column titles at every hue.
+
+   What it changed:
+   - dark mode's accent is a lighter red, with dark labels on filled buttons, since no red reads
+     on its dark surfaces and carries white too;
+   - light's accent, "due soon" and "later", and Paper's "due soon", are a little darker;
+   - status-chip colours are tokens (`--chip-bg`, `--chip-border`, `--chip-fg`, `--column-fg`), so
+     Paper and Night ink keep their own;
+   - each mode and those two starters declare `color-scheme`;
+   - buttons and fields inherit the theme's text colour, and scrollbars take its colours. On a
+     dark theme, buttons that set no colour had written dark on dark.
+   - `--accent-fg` and `--on-accent`, asked for by components but set by no theme, are aliases of
+     `--accent-contrast`.
+
+**Widens what ships** by `section_summary`'s `hidden` and `days`, four theme tokens in `SUPPORTED`
+and the manual, and two browser preferences (`fm-rail-hidden`, and the computer now reading
+`fm-hidden-vaults`).
 

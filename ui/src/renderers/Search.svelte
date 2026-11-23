@@ -20,7 +20,14 @@
     cards,
     query,
     onopen,
-  }: { cards: ObjectMeta[]; query?: string; onopen: (id: string) => void } = $props();
+    active = null,
+  }: {
+    cards: ObjectMeta[];
+    query?: string;
+    onopen: (id: string) => void;
+    /** The row Enter acts on, drawn as chosen (Find or do, 2026-11-23). */
+    active?: string | null;
+  } = $props();
   const searching = $derived(query !== undefined);
 </script>
 
@@ -44,7 +51,13 @@
   {:else}
     <div class="list">
       {#each cards as card (card.id)}
-        <button class="row" data-type={card.type} onclick={() => onopen(card.id)}>
+        <button
+          class="row"
+          class:active={active === card.id}
+          aria-current={active === card.id ? 'true' : undefined}
+          data-type={card.type}
+          onclick={() => onopen(card.id)}
+        >
           <span class="what">
             <span class="title">
               {#if card.type === 'asset'}<span class="type">asset</span>{/if}
@@ -90,6 +103,10 @@
     font: inherit;
     color: inherit;
     width: 100%;
+  }
+  .row.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
   }
   .row:hover {
     border-color: var(--accent);

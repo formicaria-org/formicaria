@@ -24,6 +24,37 @@ function daysUntil(due: string): number | null {
   return daysFrom(appToday(), day);
 }
 
+/** **Whether a note's `due` is a deadline** (2026-11-23): a task's is; a span's is not. A note with
+ *  a `start` and no status is a span (a meeting, a plan): its `due` is when it ends, and an end in
+ *  the past is over, not overdue. A note with a status is a task even with a start. */
+export function isDeadline(c: {
+  due?: string | null;
+  start?: string | null;
+  status?: string | null;
+}) {
+  return !!c.due && (!!c.status || !c.start);
+}
+
+/** A note's urgency in a list of what is due: its band, or `null` for a span that has ended (shown
+ *  on the calendar, but due nowhere). */
+export function urgencyOf(c: {
+  due?: string | null;
+  start?: string | null;
+  status?: string | null;
+}): Urgency | null {
+  const u = urgency(c.due ?? null);
+  return u === 'overdue' && !isDeadline(c) ? null : u;
+}
+
+/** Whether a note is overdue: a deadline, not done, before today. */
+export function isOverdue(c: {
+  due?: string | null;
+  start?: string | null;
+  status?: string | null;
+}): boolean {
+  return isDeadline(c) && c.status !== 'done' && urgency(c.due ?? null) === 'overdue';
+}
+
 export function urgency(due: string | null): Urgency {
   if (!due) return 'none';
   const days = daysUntil(due);

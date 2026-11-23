@@ -960,7 +960,16 @@ fn dispatch_inner(
         // **The library's sections** (`sections.rs`; the shell, P1): what a person navigates, each a
         // rule over notes with its views and its ＋. And, per section, a count and the newest note.
         "sections" => json(crate::sections::sections()),
-        "section_summary" => json(crate::sections::summary(&lock()?.store(scope)).map_err(err)?),
+        "section_summary" => {
+            let hidden: Vec<String> = args
+                .get("hidden")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+            let days =
+                args.get("days").and_then(Value::as_i64).unwrap_or(crate::sections::RECENT_DAYS);
+            json(crate::sections::summary(&lock()?.store(scope), &hidden, days).map_err(err)?)
+        }
         // **⋯ → History** (`decisions.md` 2026-11-22, later): a note's versions from its vault's git, and
         // one version's text. Restoring is an ordinary body write the UI makes, undoable.
         "note_history" | "note_version" => {

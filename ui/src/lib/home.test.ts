@@ -2,7 +2,18 @@
 // read as cards; the Home nobody set up; where each card goes on a wide and a narrow screen; Pin to Home.
 import { beforeEach, expect, it } from 'vitest';
 import * as mock from './mock';
-import { generated, layout, parse, pinToHome, readHome, write, type Card } from './home';
+import {
+  generated,
+  layout,
+  parse,
+  pinToHome,
+  readHome,
+  snapHeight,
+  snapWidth,
+  unpinFromHome,
+  write,
+  type Card,
+} from './home';
 import type { SectionSummary } from './types';
 
 beforeEach(() => mock.reset());
@@ -11,9 +22,23 @@ it('cards and the person’s words survive a write and a read', () => {
   const doc = {
     text: 'This term: the thesis.',
     cards: [
-      { ref: 'journal', label: '', size: 'full', phone: true },
-      { ref: 'board:tasks', label: 'Lab board', size: 'summary', phone: false },
-      { ref: 'note:01JD0000000000000000000000', label: '', size: 'glance', phone: true },
+      { ref: 'journal', label: '', size: 'full', phone: true, w: 'full', h: 'tall' },
+      {
+        ref: 'board:tasks',
+        label: 'Lab board',
+        size: 'summary',
+        phone: false,
+        w: 'narrow',
+        h: 'short',
+      },
+      {
+        ref: 'note:01JD0000000000000000000000',
+        label: '',
+        size: 'glance',
+        phone: true,
+        w: 'half',
+        h: 'medium',
+      },
     ] as Card[],
   };
   expect(parse(write(doc))).toEqual(doc);
@@ -22,9 +47,16 @@ it('cards and the person’s words survive a write and a read', () => {
 it('a Home set up in 0.61.0 is read as cards, nothing lost', () => {
   const old = '![Today](view:today)\n![Menu](view:Menu)\n![](note:01JD0000000000000000000000)\n';
   expect(parse(old).cards).toEqual([
-    { ref: 'due', label: '', size: 'summary', phone: true },
-    { ref: 'view:Menu', label: 'Menu', size: 'summary', phone: false },
-    { ref: 'note:01JD0000000000000000000000', label: '', size: 'summary', phone: false },
+    { ref: 'due', label: '', size: 'summary', phone: true, w: 'half', h: 'medium' },
+    { ref: 'view:Menu', label: 'Menu', size: 'summary', phone: false, w: 'half', h: 'medium' },
+    {
+      ref: 'note:01JD0000000000000000000000',
+      label: '',
+      size: 'summary',
+      phone: false,
+      w: 'half',
+      h: 'medium',
+    },
   ]);
 });
 
@@ -65,6 +97,8 @@ it('a narrow screen shows only the phone’s cards, three figures at most, nothi
     label: '',
     size,
     phone,
+    w: 'half',
+    h: 'medium',
   });
   const cards = [
     c('journal', 'full', true),
@@ -78,12 +112,13 @@ it('a narrow screen shows only the phone’s cards, three figures at most, nothi
   ];
   const wide = layout(cards, false);
   expect(wide.glance.map((x) => x.ref)).toHaveLength(4);
-  expect(wide.main.map((x) => x.ref)).toEqual(['board:tasks', 'justin']);
+  // The journal is a card in the grid, at its place.
+  expect(wide.main.map((x) => x.ref)).toEqual(['journal', 'board:tasks', 'justin']);
   const narrow = layout(cards, true);
   expect(narrow.glance).toHaveLength(3);
   expect(narrow.watch.map((x) => x.ref)).toEqual(['note:A']);
   expect(narrow.journal?.ref).toBe('journal');
-  expect(narrow.main).toEqual([c('board:tasks', 'summary', true)]);
+  expect(narrow.main).toEqual([c('journal', 'full', true), c('board:tasks', 'summary', true)]);
 });
 
 it('Pin to Home keeps the generated Home and adds the pin once', async () => {
@@ -98,5 +133,28 @@ it('Pin to Home keeps the generated Home and adds the pin once', async () => {
     label: '',
     size: 'glance',
     phone: true,
+    w: 'half',
+    h: 'medium',
   });
+  // And off again, from the same place.
+  expect(await unpinFromHome('view:Menu')).toBe(true);
+  expect((await readHome())!.doc.cards.some((x) => x.ref === 'view:Menu')).toBe(false);
+});
+
+it('a dragged edge snaps: to the nearest width on the grid, to the nearest height', () => {
+  expect(snapWidth(0.3)).toBe('narrow');
+  expect(snapWidth(0.52)).toBe('half');
+  expect(snapWidth(0.7)).toBe('wide');
+  expect(snapWidth(0.95)).toBe('full');
+  expect(snapHeight(5)).toBe('short');
+  expect(snapHeight(17)).toBe('medium');
+  expect(snapHeight(40)).toBe('tall');
+});
+
+it('a Home line without a width or height takes the card’s own room', () => {
+  const [j, h] = parse(
+    '![](card:journal?size=summary&phone=1)\n![](card:heat:notes?size=full&phone=0)',
+  ).cards;
+  expect([j.w, j.h]).toEqual(['half', 'tall']);
+  expect([h.w, h.h, h.size]).toEqual(['wide', 'medium', 'full']);
 });
