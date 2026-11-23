@@ -1,7 +1,9 @@
 # Getting around: the rail, Home and the Journal
 
 On a computer, formicaria's pages share one frame. Down the left is the **rail**. Next to it is the
-place you chose, and on a wide screen a note you open appears **beside** it rather than in a new tab.
+place you chose, and on a wide screen a note you open appears **beside** it rather than in a new tab. The
+note beside has two buttons at its top: **⤢ Full screen**, to give it the whole page (**Back**
+returns), and **✕**, to close it and give the page its full width again.
 
 ## The rail
 
@@ -25,6 +27,10 @@ From the top:
 - **Back up now**, and a note when something wants a look: notes that could not be read, notes not
   yet in history, notes the merge decided for you. Each opens a short panel that explains.
 - **Settings**.
+
+A small **red dot** beside **Collaboration**, on the rail and in the phone's list of views, says the
+assistant has proposals you have not looked at yet. Looking at one, or accepting or declining it,
+takes it away.
 
 Moving between places stays in the same tab: **Back** returns to where you were. **Alt+Home** goes
 Home from any page, and pressing **Home** while you are on Home puts you in today's journal entry.
@@ -86,7 +92,8 @@ Home**.
 
 **Edit Home** lists the cards on Home. For each one you can:
 - choose what it shows: glance, summary or full; and its width and height;
-- choose whether it is **on the phone**;
+- choose whether to **show it on the phone**. On the phone, a card you change or add there is shown
+  there; one that is not is marked *not shown on the phone* in the list;
 - move it with its arrows, or drag it;
 - remove it with ✕.
 
@@ -131,10 +138,16 @@ The table and the gallery have a **Filter** field above them.
 ## On a phone
 
 The phone keeps its own bar of tabs, and Home opens first. It is the same Home, kept calm:
-- only the cards marked **on the phone**, each the full width, at the height you chose;
+- only the cards marked **show on the phone**, each the full width, at the height you chose;
 - at most three figures;
 - nothing at full size except the journal;
 - the links kept an eye on in one row you can scroll sideways.
 
-At the bottom is a box to jot a line into today's entry; a web address typed there opens the page.
+Under Home's title is a box to jot a line into today's entry; a web address typed there opens the
+page.
+
+**Writing in the journal on the phone**, the entry takes the screen: Home glides until the entry is
+at the top, and the entry fills the room above the keyboard, the jot box out of the way. Leave the
+entry and Home glides back to where you were.
+
 **+** offers Home and the Journal before the sections.

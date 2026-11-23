@@ -5,394 +5,126 @@
 <h1 align="center">formicaria</h1>
 
 <p align="center">
-  <em>A local-first notebook for research and daily life: notes, tasks, a food log and a training log, and collaboration, over plain Markdown files.</em>
+  <em>A local-first library for research and daily life: notes, tasks, a journal, food, training, health, music and the web, kept as plain Markdown files on your own devices.</em>
 </p>
 
 ---
 
-formicaria stores each note as a single Markdown file with YAML frontmatter, in a directory
-you control. It runs as a local web application: a small server on your machine, and your
-browser as the interface. There is no account, no cloud service and no network dependency.
+formicaria keeps each note as one Markdown file in a folder you control, on a computer and on a
+phone. There is no account and no cloud service: your devices talk to each other through git, and
+to nobody else unless you ask.
 
-A vault is an ordinary directory of files, and becomes a git repository wherever git is
-available. Running several — one per audience, such as personal
-notes, a lab's notes, and a paper shared with a collaborator — is the normal case, and is
-what the name refers to: a *formicarium* is one colony's nest, and *formicaria* is the
-plural.
+A **vault** is such a folder. Running several (personal notes, a lab's notes, a paper shared with a
+collaborator) is the normal case, and is what the name says: a *formicarium* is one colony's nest,
+and *formicaria* is the plural.
 
-Notes, tasks and shared documents are not separate systems. A task is a note with a `due`
-property; a shared note is a note in a different repository. A meal you ate and a set you
-lifted are notes too, so a **food log** and a **training log** sit beside your writing, in the
-same files, and travel with it.
+Everything is a note of some kind. A task is a note with a status or a due date; a meal, a workout,
+a song, a saved web page and a meeting are notes too. So they sit together, search together and
+travel together.
 
-The app gathers its views into four groups: **Library** (your notes), **Tasks** (board and
-agenda), **Food** and **Fitness**. The last two can be hidden in Settings if you want only a
-notebook.
+## What you can do
 
-## Food and fitness
+- **Write**, in an editor that renders as you type, with links between notes (`[[`), pictures,
+  formulas, diagrams and whiteboards. [Notes](docs/src/user/notes.md)
+- **Start from Home**: today's journal entry, ready to write in, and the cards you choose (what is
+  due, a board, figures, heatmaps), arranged as you like on a computer and kept calm on a phone.
+  [Getting around](docs/src/user/getting-around.md)
+- **Plan**: tasks on a board, an agenda and a calendar, reminders. [Views](docs/src/user/views.md)
+- **Log food and training** against sourced diets and regimes, and keep a health diary.
+  [Food and training](docs/src/user/trackers.md) · [Health](docs/src/user/health.md)
+- **Keep music and videos**, saved from the web, and play them. [Music](docs/src/user/music.md) ·
+  [Save media](docs/src/user/media.md)
+- **Browse** in formicaria's own browser, with privacy protections, and keep any page as a note.
+  [The browser](docs/src/user/browser.md) · [Privacy](docs/src/user/privacy.md)
+- **Read your calendar and labelled mail** as notes, with meetings proposed for you to accept.
+  [Calendars](docs/src/user/calendars.md) · [Mail](docs/src/user/mail.md)
+- **Bring in** a Logseq or Obsidian folder, papers from a DOI or BibTeX, and attachments of any kind.
+  [Import](docs/src/user/import.md)
+- **Back up and share**: every vault is a git repository; share one with a collaborator, review
+  their proposed changes, keep encrypted snapshots. [Backup](docs/src/user/backup.md) ·
+  [Collaboration](docs/src/user/collaboration.md)
+- **Ask a local assistant** (optional): it answers in a note's discussion, researches listed sources
+  and drafts changes you review, entirely on your device.
+  [The study assistant](https://formicaria-org.github.io/formicaria/manual/user/assistant.html)
+- **Make it yours**: themes, layouts, and which sections you see. [Appearance](docs/src/user/appearance.md)
 
-Both are early, and neither has been checked by anyone but the author. Nothing here is advice:
-every figure names the body that published it. The manual's chapter is
-[Food and training](docs/src/user/trackers.md).
-
-**Food** — four views: *Day*, *Menu*, *Trends*, *Diet*.
-
-- **Log what you eat**, by weight or as a range when you only know it roughly, at the time you
-  ate it. The list of 18,300 foods comes with the app (the French, German, Swiss and Italian tables, USDA where they have
-  none) and is searched offline.
-- **Packaged food**: write it down from its label, or look it up by its barcode — typed, or
-  read from a photograph — at Open Food Facts, asked only when you press. On a computer the
-  assistant can read the label off a photograph and fill it in for you to check; a phone keeps
-  the photograph with the food so that can be done later.
-- **Recipes** are notes: your own, and 54 public-domain ones carried word for word.
-- **A menu for the days ahead**, with a shopping list, and a list of what is in your kitchen.
-- **Follow a diet** from a library of sourced ones, or set your own targets, and see on the
-  day's screen how you measure up, with dishes for what the day is short of. Each diet comes
-  with an example day to start from.
-- **Every vitamin and mineral** beside its reference value, and your weight as a trend.
-
-**Fitness** — three views: *Week*, *Exercises*, *Regime*.
-
-- **A timetable for the week**: open a day and fill it by picking from a list, which arrives
-  with sourced numbers you can change. Routines repeat on the days you choose.
-- **117 exercise cards**, with and without equipment, in the words of the body that published
-  each (the NHS, the U.S. Army's manual), with films to watch.
-- **Follow a regime** from a library of sourced ones — among them the Norwegian 4×4 and
-  interval walking — each with a week to start from, and see what the week still lacks.
-
-## Features
-
-The following require only a browser.
-
-| Feature | Description |
-|---|---|
-| **Notes** | Markdown with YAML frontmatter, one note per file. The editor renders as you write, and the text is still the file: editing in the application or in an external editor round-trips byte for byte. |
-| **Tasks and scheduling** | Any note accepts `start` and `due` properties, each with an optional time, so all-day deadlines and timed meetings use the same field. |
-| **Board** | Kanban grouped by any property, not only status. Dragging a card sets that property and its position in the column. |
-| **Agenda** | Month and week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
-| **Reminders** | A note with a start or a due date reminds you at its time, once you turn it on in Settings. On an Android phone it shows while the app is open; on a computer formicaria stays running quietly for it after you close the page, with the assistant's model stopped. |
-| **Food and fitness** | A food log and a training log kept as notes, with diets and regimes to follow: see [above](#food-and-fitness). |
-| **Timeline** | Notes ordered as a journal by day. |
-| **Import** | Point at a Logseq or Obsidian folder and it becomes notes, with links between them kept and tags lifted into properties. |
-| **Papers** | A paper is a note: made from a pasted BibTeX entry, a DOI or an arXiv link. |
-| **Themes** | Colours and type are a CSS file in the vault, so a theme travels with the notes; which one is on is chosen per device. |
-| **Updating** | The app says when a newer version exists, then gets it, checks it and installs it, from Settings. The previous version is kept to go back to. |
-| **Search** | Full-text search over all notes via SQLite FTS5, with case and accent folding. |
-| **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target, and Back returns to the source. In the *tiled* layout it opens in a pane alongside. |
-| **Whiteboards** | A note whose body is an Excalidraw scene. It remains a note, so it appears on the board and in the agenda like any other. |
-| **Maths and diagrams** | KaTeX and Mermaid are bundled; `$…$` and ` ```mermaid ` blocks render without network access. |
-| **Media** | Images, PDFs and video are stored once by content hash, referenced from notes and displayed inline. Drop a file in or paste a screenshot; on Android, share a picture to formicaria from another app. |
-| **Undo and Back** | Undo the last change (a deleted note, a date, a tag, a card moved, an edit) from the ↶ menu or with Ctrl+Z; bring back any note deleted in the last 30 days. Back walks the views and notes you opened, on a phone as in a browser. |
-
-### Features requiring additional software
-
-These are optional. When a tool is absent the corresponding feature is unavailable and the
-application reports it; nothing else is affected. Install them with a system package
-manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria only looks on
-`PATH`.
-
-| Feature | Requires | Behaviour without it |
-|---|---|---|
-| **History** — versions of a note beyond the current session | `git` on Linux and macOS; **nothing on Windows**, which carries its own | Notes remain intact as files; no history is recorded |
-| **Backup and sharing** — send a vault somewhere else, get a collaborator's changes | a remote, and `git` except on Windows | The vault remains local |
-| **PDF text search** — text inside a PDF becomes searchable | `pdftotext` (poppler) | The PDF is stored and displayed but not indexed |
-| **Thumbnails** — previews for images and PDFs | `vipsthumbnail` (libvips) | A placeholder is shown instead of a preview |
-| **Media backup** — encrypted, deduplicated snapshots of your notes *and* their attachments | `restic`, and a repository per vault (the password is set in the app; `RESTIC_PASSWORD` overrides it) | Notes still back up on their own; media remains local |
-| **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
-| **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable. Exercised on Linux and Android; **on macOS and Windows this is compiled and type-checked but has never been run** | Settings shows the reason instead of a switch |
-| **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable. A printed page is read first by a small OCR on Linux, macOS and Android | The assistant says it cannot see pictures rather than guessing at one |
-| **Transcribing recordings** — `/transcribe` on audio | nothing on Linux or Windows: a further ~170 MB it fetches when you turn the switch on (the Windows path is untried, like the rest of Windows). **No macOS build exists upstream** | The switch says no runtime is published for this platform |
-| **Meetings from your calendar** — upcoming meetings as notes, kept in step | your calendar's private iCal address, pasted once in Settings; computer only | Nothing is read |
-| **Gmail, read-only** — labelled mail as one note per conversation; the assistant proposes the meetings it fixes | your own Google Cloud client (a ten-minute set-up, walked through in the manual) and, for meetings in prose, the study assistant; computer only; exercised on Linux only | Nothing is read; invitations in calendars still arrive |
-
-<details>
-<summary>Installing the optional tools</summary>
-
-```sh
-# Debian / Ubuntu
-sudo apt install git poppler-utils libvips-tools restic
-# macOS
-brew install git poppler vips restic
-# any OS, via pixi
-pixi global install git poppler libvips restic
-```
-
-Windows: through [pixi](https://pixi.sh). (Not git — the Windows build carries its own.)
-</details>
-
-## Requirements
-
-| | |
-|---|---|
-| **A web browser** | Any current Firefox, Chrome, Safari or Edge. This is the interface; there is no separate desktop window. |
-| **A 64-bit OS** | Linux x86-64 with glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, Fedora 35+) · macOS on Apple silicon · Windows 10/11 x64 |
-
-Nothing else is required. The interface, fonts, maths renderer and diagram renderer are
-compiled into the binary, so no runtime, package manager or network connection is needed to
-run it.
-
-**How far each platform is proven, plainly.** Linux is what this is written and used on daily.
-**macOS and Windows have been run by other people, who report download, setup and note-taking
-working** — but on earlier releases, not this one, and not checked on this end: there is no Mac and
-no Windows machine here. The reports come with real problems attached. See
-[Project status](#project-status).
+The whole manual is at **[formicaria-org.github.io/formicaria/manual](https://formicaria-org.github.io/formicaria/manual/)**,
+and comes with every download.
 
 ## Install
 
-**Not a developer? Go to [the Get it page](https://formicaria-org.github.io/formicaria/get.html)** —
-one button per device, and a few plain steps. On an Android phone it is
-**[Download for Android](https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk)**,
-then *Open*, allow the install, *Install*.
+**[The Get it page](https://formicaria-org.github.io/formicaria/get.html)** has one button per
+device and a few plain steps.
 
-The rest of this section is the same thing in more detail. Download the archive for your platform
-from [Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
-double-click the launcher for your system — `Start formicaria.vbs` on Windows,
-`Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
-itself; closing the tab stops the app about a minute and a half later (unless a reminder is
-waiting: then it stays, quietly, until that has been said). Later versions are installed from
-inside the app: Settings, *Check now*.
+- **Computer** (Linux, macOS, Windows): download the archive, unpack it, and double-click the
+  launcher for your system (`Start formicaria.sh`, `.command` or `.vbs`). formicaria opens in its
+  own browser. Later versions install from inside the app.
+- **Android**: [download the app](https://github.com/formicaria-org/formicaria/releases/latest/download/formicaria-android.apk),
+  open it and allow the install. [Android](docs/src/user/android.md)
+- **iPhone**: an unsigned `.ipa` you sign with your own Apple ID; read
+  [the iPhone chapter](docs/src/user/iphone.md) first, because that signing expires after seven days.
 
-**On a phone**, the same page carries an Android `.apk` and an iPhone `.ipa`, built by the same
-release. Android is a few taps; the iPhone needs a computer. Each has a chapter:
-[Android](docs/src/user/android.md) · [iPhone](docs/src/user/iphone.md) — the iPhone one is not
-optional reading, because Apple's free signing expires after seven days.
-
-The archive carries a `README.txt` and the whole manual (`Manual.html`), including what to do
-about the security warning your OS shows for unsigned software — **on macOS that is now System
-Settings → Privacy & Security → Open Anyway**, not the old right-click.
-
-From a terminal, the binaries are under `program/`:
-
-```sh
-tar xzf formicaria-*-linux-x86_64.tar.gz && cd formicaria-*
-./program/fm-serve            # serves http://127.0.0.1:8765
-```
-
-`fm` must stay in the same directory as `fm-serve`: it is the binary git invokes to merge
-notes, and the merge driver is not installed if it cannot be found.
+Nothing else is required. Some features use a tool if it is installed (git for history on Linux and
+macOS, pdftotext for searching PDFs): [Configuration and optional tools](docs/src/reference/configuration.md).
 
 <details>
 <summary>Building from source</summary>
 
-The toolchain is pinned with [pixi](https://pixi.sh); no other prerequisites.
+The toolchain is pinned with [pixi](https://pixi.sh); there are no other prerequisites.
 
 ```sh
-pixi run serve      # build the UI, then serve it against ./vault
+pixi run serve      # build the interface, then serve it against ./vault
 pixi run build      # → target/release/{fm-serve,fm}
 ```
+
+The Android app: `pixi run android-init` once, then `pixi run android-release`.
 </details>
 
-## Study assistant (optional, local AI)
+## How it is built
 
-formicaria can run a small **local AI assistant** that answers in a note's discussion, researches the
-web, and drafts note edits you review. It is **off by default**, runs **entirely on your device** (no
-account, no API key, no cloud — your notes never leave the machine), and is fully removable.
-
-**Users do not need any of this.** Since 2026-09-02 the app installs the assistant itself: turn it
-on in Settings, it asks which model and states the size and licence, and downloads the runtime and
-weights with progress and a cancel. Before starting a model it checks it can read how much memory
-the machine has free and refuses if it cannot — it will not run a model it cannot watch.
-
-**Observed on Linux and Android; inferred on macOS and Windows.** The per-OS memory readings that
-gate it were written on a Linux machine that cannot compile them, so they are type-checked in CI
-(`pixi run -e cross check-cross`) and *run* only by the `cross` workflow. Until that has run,
-"the assistant works on macOS" is an inference — and this README would rather say so than let you
-find out.
-
-The assistant, **Myrme**, is developed in its own repository,
-[formicaria-org/myrme](https://github.com/formicaria-org/myrme), and this app links it by a pinned
-tag. Its developer commands live there. For example, run these **in a Myrme checkout**:
-
-```sh
-pixi run fetch-model lfm2.5-1.2b   # a local model into Myrme's agents/ (gitignored)
-pixi run fetch-whisper             # the audio runtime, staged by hand; the app fetches it itself
-pixi run search-proxy              # optional: a local proxy; the app itself searches in-process
-```
-
-To use them from this checkout, link or copy Myrme's `agents/runtime` and `agents/models` into
-`agents/` here. The app prefers a checkout's `agents/` when it is there, and `pixi run catalogue`
-writes the catalogue beside them. Then turn it on in Settings → Assistant → Study assistant, and in
-any discussion write `@lfm2.5-1.2b summarize this in 3 bullets /search`.
-
-It can only **reply** or **propose a change on a review branch** — never write to `main`. Full guide:
-[the study assistant](https://formicaria-org.github.io/formicaria/manual/user/assistant.html).
-
-## Android
-
-formicaria also runs on Android, with the assistant on-device. Build a signed APK and install it:
-
-```sh
-pixi run android-init      # fetch the Android toolchain into ./.android (one time)
-pixi run android-release   # → a signed, 16 KB-aligned APK at mobile/formicaria-<abi>.apk
-```
-
-Install it with `adb install -r mobile/formicaria-*.apk` (or copy it to the phone and open it). The
-assistant downloads its model on first enable and then runs offline. Built `--no-default-features`,
-the app contains none of the assistant — a lighter notes-only build.
-
-## Vaults
-
-A vault is a directory: notes in `vault/notes/*.md`, media in `vault/blobs/` addressed by
-content hash. Select one with `FM_VAULT`:
-
-```sh
-FM_VAULT=~/notes ./program/fm-serve
-```
-
-Multiple vaults are configured in a file — `~/.config/formicaria/vaults.json` on Linux,
-`~/Library/Application Support/formicaria/vaults.json` on macOS,
-`%APPDATA%\formicaria\vaults.json` on Windows:
-
-```json
-{
-  "vaults": [
-    { "name": "personal", "path": "~/notes" },
-    { "name": "lab",      "path": "~/lab-notes", "restic": "/backups/lab" }
-  ]
-}
-```
-
-The first entry receives new notes. Each vault is an independent git repository with its
-own collaborators.
-
-### Configuration
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `FM_VAULT` | *(none — the app asks on first run)* | Vault directory, when no vault list is configured |
-| `FM_VAULTS` | per-OS config path | Location of the vault list |
-| `FM_CONFIG_DIR` | per-OS config path | Directory the vault list and the restic password live in |
-| `FM_ADDR` | `127.0.0.1:8765` | Address to bind |
-| `FM_OPEN` | **on** | Open the browser on start. Set to `0` to keep it closed |
-| `FM_UI_DIST` | unset (uses the embedded interface) | Serve the interface from a directory instead |
-| `FM_AUTO_SHUTDOWN` | on | Closing the browser tab stops the app, unless a reminder is still waiting: then it stays, without the assistant, until that has been said. Set to `0` to keep it running |
-| `FM_RESTIC_REPO` | unset | Restic repository for a single-vault install (a vault list uses its own `restic` field) |
-| `RESTIC_PASSWORD` | unset | Password for the restic repositories |
-| `FM_GIT_TOKEN` | unset | Git token, read only where there is no `git` binary and so no credential helper — the phone, and Windows without git installed |
-
-## Sharing
-
-Sharing a vault means giving its git repository a remote: the people who can clone it are
-the people who can read it. Access is determined by which repository a note is in, not by
-any field inside the file — a value in a file can be mistyped, and git history is permanent.
-
-Concurrent edits to different parts of one note merge without conflict. This requires a
-frontmatter-aware merge driver, because the file format rewrites `updated:` on every save:
-without it, any two concurrent edits collide on that line, inside the YAML, where the
-parser rejects the result. Genuine conflicts are placed in the note's body, so the note
-still opens and can be resolved in the editor.
-
-The server binds `127.0.0.1` and has no authentication. It is not designed to be exposed to
-a network.
-
-## Documentation
-
-The manual is an mdBook under [`docs/`](docs/) — build with `pixi run docs`; start at
-`docs/src/introduction.md`. New to the code? [`docs/src/dev/getting-started.md`](docs/src/dev/getting-started.md).
-
-Its chapters for people using the app:
-[notes, and reminders](docs/src/user/notes.md) ·
-[views](docs/src/user/views.md) ·
-[food and training](docs/src/user/trackers.md) ·
-[importing from Logseq or Obsidian](docs/src/user/import.md) ·
-[meetings from your calendar](docs/src/user/calendars.md) ·
-[mail](docs/src/user/mail.md) ·
-[appearance](docs/src/user/appearance.md) ·
-[attachments](docs/src/user/assets.md) ·
-[backup](docs/src/user/backup.md) ·
-[installing a new version](docs/src/user/updating.md) ·
-[collaboration](docs/src/user/collaboration.md) ·
-[the study assistant](https://formicaria-org.github.io/formicaria/manual/user/assistant.html) ·
-[Android](docs/src/user/android.md) ·
-[iPhone](docs/src/user/iphone.md).
-
-[`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md) is the **design journal**: where the
-shape of the project was argued out, including options that were rejected and rulings that
-have since been reversed. It is kept because the reasoning is worth having, not because it
-describes the current build — for that, read `docs/context/features.md`.
-
-[`docs/context/`](docs/context/README.md) is the maintainer's working memory — decisions and
-their reasons, known gaps, and the queue. These are **unedited working notes, not
-documentation**: they are written to be useful to whoever is next in the code, they contradict
-each other across dates on purpose (`decisions.md` is append-only, so a reversal sits beside
-what it reversed), and they are not a description of how to use the app. The manual is.
+- **Files are the truth.** One note, one file; the app's index is disposable and rebuilt from them.
+- **Access is the repository.** Who can read a note is who can clone the vault it is in, never a
+  field inside the file. Concurrent edits merge line by line through a frontmatter-aware merge
+  driver; a real conflict is placed in the note, which still opens.
+- **Local only.** The server binds `127.0.0.1`, without authentication; it is not made for a network.
+- **The assistant is a separate project**, [Myrme](https://github.com/formicaria-org/myrme), linked
+  by a pinned release. It can only reply or propose; it never writes to your notes by itself.
 
 ## Project status
 
-**v0.63.0, and young.** The first commit is dated 2026-07-14; this is one person's project,
-built alongside their research rather than as a product. It is used daily on **Linux and
-Android**, the two platforms the author works on and the only two anything here is checked
-against.
+**v0.63.1, and young.** One person's project since July 2026, built alongside their research. It
+is used daily on **Linux and Android**, the only platforms checked here. macOS, Windows and iPhone
+are built by CI on every release and have been reported working by other people on early versions,
+but nobody here has run the current one on them.
 
-**The other platforms have been run by other people, and reported working.** macOS on **v0.2.1**:
-download and setup "works smoothly", notes and search both used
-([#2](https://github.com/formicaria-org/formicaria/issues/2), 2026-08-30) — reported alongside real
-faults, including a view that could not be recovered by reloading the page, only by restarting the
-app. Windows on **v0.2.0 through v0.3.1**, and iOS, both reported working as of 2026-09-09.
-
-**None of it is verified here, and none of it is this version.** There is no Mac, no Windows
-machine and no iPhone on this end, so a report is one person's session rather than a suite. And
-every report above is against a **v0.2.x or v0.3.x** archive: **nobody has downloaded anything newer** — v0.4.0 and v0.5.0 show zero, and every download of
-v0.5.1 and v0.5.2 is this project's own, fetched on 2026-09-11 to test the updater against real
-releases rather than hand-built ones — so the current release is exactly as unproven off Linux and Android as
-the ones before it were. The builds are compiled and tested by CI and the archives
-are real; that is a different claim from someone having opened one.
-
-**The newest parts are the least proven.** Food and fitness (since 0.7.0) have been used by
-the author alone, and nothing added to them since 0.7.0 was looked at on a phone before its
-release. Reminders have never been seen to arrive on a phone, and their notifications on
-Windows and macOS have never been run.
-
-Treat the feature tables above as *what is implemented*, not as *what is proven on your
-machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),
-kept as working notes rather than marketing; the current state of each feature is
-[`docs/context/features.md`](docs/context/features.md).
+The honest list of what is unfinished is [`docs/context/known-issues.md`](docs/context/known-issues.md);
+the state of each feature is [`docs/context/features.md`](docs/context/features.md).
 
 ## Development
 
 ```sh
-pixi run ci        # fmt + clippy + test + test-native-git + test-ui + check-ui + deny
-                   # + checks + third-party-check + docs — the single gate
+pixi run ci        # the single gate: format, lint, all tests, docs and the project's checks
 ```
 
-**`pixi run ci` locally *is* the gate.** Run it before you push. GitHub then runs the same gate on
-Linux for every push to `main` and every pull request (`ci`), as a second opinion, not the first.
-
-The other workflows are started by hand, each for a question that is not asked on every push:
-`cross` (does it still build and pass on macOS and Windows), `ios` (does the iOS app still
-package), `docs` (publish the manual), and **`android`** (build and sign the Android app, which is
-how a build is tried on a phone before a release).
-
-**The exception is `release`, which fires unattended on a `v*` tag.** Pushing a tag publishes a
-release. It is the one workflow you can start by accident. It builds nothing itself: it **calls `desktop`, `ios` and `android`**, each of which you can also
-run by hand, so the build you tested and the build that is published are made by the same steps.
+Releases also pass checks in formicaria's own browser and in an Android emulator, and are published
+by a tag. Start with [Getting started](docs/src/dev/getting-started.md) and
+[`CONTRIBUTING.md`](CONTRIBUTING.md); [`SECURITY.md`](SECURITY.md) has the private route for
+reporting a vulnerability. [`docs/context/`](docs/context/README.md) is the maintainers' working
+memory: decisions and their reasons, known gaps, the queue.
 
 ```text
-crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
-         fm-fetch · fm-update      (downloads, and updating the app in place)
-         agent-serve               (the assistant's binary; Myrme itself is linked by tag)
-ui/      Svelte 5 + Vite, compiled into the binary at build time
-docs/    mdBook manual
-vault/   notes (a separate git repository; ignored by this one)
+crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli · fm-fetch · fm-update · agent-serve
+ui/      Svelte 5, compiled into the binary
+browser/ formicaria's browser kit (applied to Firefox ESR)
+mobile/  the Android and iPhone apps
+docs/    the manual (mdBook)
 ```
-
-## Contributing
-
-[`CONTRIBUTING.md`](CONTRIBUTING.md) — the pixi-only toolchain, `pixi run ci` as the single gate,
-the invariants a change must not break, the **four questions** to ask before adding anything, and
-an honest list of what is deliberately *not* wanted. [`SECURITY.md`](SECURITY.md) has the private
-route for reporting a vulnerability and a plainly stated threat model.
 
 ## Licence
 
-[MIT](LICENSE). [`THIRD-PARTY.md`](THIRD-PARTY.md) lists the licences of everything the
-binaries carry — the Rust crates they link, the npm packages baked into the bundled user
-interface, and the font families bundled with the whiteboard. It is generated by
-`ci/third-party.sh`, checked for staleness by `pixi run ci`, and copied into every release
-archive beside the binaries it describes.
+[MIT](LICENSE). [`THIRD-PARTY.md`](THIRD-PARTY.md) lists the licences of everything the binaries
+carry.
 
-**The Android app (APK) is distributed under GPL-3.0.** It carries youtubedl-android (GPL-3.0),
-which runs yt-dlp and Python inside the app for *Save media* (and LAME, LGPL, for MP3), and a work that includes it
-is distributed under its terms. formicaria's own source code stays MIT; the complete source of
-the APK is this repository. The computer builds and the iPhone build are unaffected (the computer
-fetches yt-dlp and ffmpeg at run time, separately).
+**The Android app is distributed under GPL-3.0**, because it carries youtubedl-android (GPL-3.0) for
+*Save media*. formicaria's own source stays MIT; the app's complete source is this repository. The
+computer and iPhone builds are unaffected.

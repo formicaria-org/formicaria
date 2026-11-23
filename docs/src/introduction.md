@@ -1,16 +1,18 @@
 # formicaria
 
-formicaria is a notebook for research, writing and daily life that runs on your own computer.
+formicaria is a library for research, writing and daily life that runs on your own computer and phone.
 
 Your notes are ordinary text files in a folder you own. You can read them in any editor, copy them
 to a USB stick, or open them in ten years on a computer that has never heard of this app. There is
 no account, no subscription, and nothing is uploaded anywhere.
 
-It opens in your web browser, but it is not a website: the whole thing runs on your machine, and it
-works with the internet switched off.
+On a computer it opens in its own browser, and on a phone it is an app. It is not a website: the
+whole thing runs on your device, and it works with the internet switched off.
 
 ## What you can do with it
 
+- **Start from Home.** Today's journal entry, ready to write in, and the things you keep an eye on,
+  arranged as you like. See [Getting around](./user/getting-around.md).
 - **Write and find notes.** Search looks inside every note, not just titles. (Searching the text
   *inside* PDFs needs one extra program on your computer — Settings tells you whether this one has
   it.)
@@ -21,6 +23,10 @@ works with the internet switched off.
 - **Keep a food log and a training log.** What you ate and what you trained are notes too, with
   diets and training regimes from published sources to follow and be measured against. See
   [Food and training](./user/trackers.md).
+- **Keep a health diary, music and videos.** See [Health](./user/health.md),
+  [Music](./user/music.md) and [Save media](./user/media.md).
+- **Browse and keep pages.** formicaria's browser keeps trackers out, and any page can become a
+  note. See [The browser](./user/browser.md).
 - **Bring your notes with you.** A Logseq or Obsidian folder becomes notes, links kept. See
   [Importing](./user/import.md).
 - **Keep pictures, PDFs and drawings** alongside the writing, including whiteboards you draw

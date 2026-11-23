@@ -45,6 +45,7 @@
   import { searchUrl } from '../lib/privacy.svelte';
   import JournalEntry from './JournalEntry.svelte';
   import { popup } from '../lib/popup';
+  import { KEYBOARD_EVENT } from '../lib/keyboard';
 
   let { go, onopen }: { go: (url: string) => void; onopen: (id: string) => void } = $props();
 
@@ -72,6 +73,36 @@
   /** A card being moved by its header, and the card it would go before. */
   let dragRef = $state<string | null>(null);
   let dropOn = $state<string | null>(null);
+  /** **Writing on the phone, the journal has the screen** (2026-11-23; the owner: Home's top, a
+   *  floating jot bar and a sliver of the entry, with the keyboard up). Home glides until the entry
+   *  is at the top, the entry takes the height above the keyboard (`--app-h`), the jot bar fades;
+   *  leaving the entry glides back to where Home was. No movement when motion is to be reduced. */
+  let inEntry = $state(false);
+  let wasAt = 0;
+  const motion = () =>
+    typeof matchMedia === 'undefined' || !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let entryCard: HTMLElement | null = null;
+  const toEntry = () =>
+    entryCard?.scrollIntoView?.({ block: 'start', behavior: motion() ? 'smooth' : 'auto' });
+  function enterWriting(e: FocusEvent) {
+    if (!narrow || inEntry) return;
+    inEntry = true;
+    wasAt = root?.scrollTop ?? 0;
+    entryCard = e.currentTarget as HTMLElement;
+    requestAnimationFrame(toEntry);
+  }
+  // The keyboard coming up resizes Home and cuts a glide short: once it has settled, again.
+  onMount(() => {
+    const settled = () => inEntry && requestAnimationFrame(toEntry);
+    addEventListener(KEYBOARD_EVENT, settled);
+    return () => removeEventListener(KEYBOARD_EVENT, settled);
+  });
+  function leaveWriting(e: FocusEvent) {
+    const card = e.currentTarget as HTMLElement;
+    if (!inEntry || card.contains(e.relatedTarget as Node | null)) return;
+    inEntry = false;
+    root?.scrollTo?.({ top: wasAt, behavior: motion() ? 'smooth' : 'auto' });
+  }
   /** The card or figure whose ⋯ is open. */
   let menuRef = $state<string | null>(null);
   /** Where a card's ⋯ is, for its menu to open beside (`popup` keeps it on the screen). */
@@ -202,9 +233,12 @@
   /** The cards as they stand, made the person's own on the first edit. */
   const own = (): Card[] =>
     (doc.cards.length ? doc.cards : generated(summary)).map((c) => ({ ...c }));
+  /** **A card changed on the phone is wanted on the phone** (2026-11-23: a board set to *summary*
+   *  on the phone stayed off it, unticked). Unless the change is that very tick. */
   const change = (i: number, patch: Partial<Card>) => {
     const list = own();
-    list[i] = { ...list[i], ...patch };
+    const here = narrow && !('phone' in patch) ? { phone: true } : {};
+    list[i] = { ...list[i], ...patch, ...here };
     void save({ ...doc, cards: list });
   };
   const move = (i: number, by: number) => {
@@ -295,7 +329,8 @@
       ref,
       label: '',
       size: size && sizes.includes(size) ? size : sizes.includes('summary') ? 'summary' : sizes[0],
-      phone: BUILTIN[ref]?.phone ?? false,
+      // Added on the phone, it is for the phone.
+      phone: narrow || (BUILTIN[ref]?.phone ?? false),
       ...defaultRoom(ref),
     };
     void save({ ...doc, cards: [...own(), card] });
@@ -578,7 +613,7 @@
   {/if}
 {/snippet}
 
-<div class="home" class:narrow bind:this={root}>
+<div class="home" class:narrow class:writing={inEntry} bind:this={root}>
   <header class="top">
     <h1>Home</h1>
     <button
@@ -590,6 +625,26 @@
       {editing ? 'Done' : 'Edit Home'}
     </button>
   </header>
+
+  {#if narrow}
+    <form
+      class="capture"
+      onsubmit={(e) => {
+        e.preventDefault();
+        void capture();
+      }}
+    >
+      <input
+        type="text"
+        bind:value={captured}
+        placeholder="Jot into today, or a web address"
+        aria-label="jot into today or open a web address"
+        oninput={() => (captureNote = '')}
+      />
+      <button type="submit" disabled={!captured.trim()}>Add</button>
+    </form>
+    {#if captureNote}<p class="capture-note" role="status">{captureNote}</p>{/if}
+  {/if}
 
   {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
 
@@ -604,12 +659,17 @@
         {#each cards as c, i (c.ref)}
           {@const name = labelOf(c, sections)}
           <li
+            class:off-phone={narrow && !c.phone}
             draggable="true"
             ondragstart={() => (dragFrom = i)}
             ondragover={(e) => e.preventDefault()}
             ondrop={() => drop(i)}
           >
-            <span class="name">{name}</span>
+            <span class="name"
+              >{name}{#if narrow && !c.phone}<span class="off-note">
+                  · not shown on the phone</span
+                >{/if}</span
+            >
             <select
               aria-label={`size of ${name}`}
               value={c.size}
@@ -649,7 +709,7 @@
                 aria-label={`${name} on the phone`}
                 onchange={(e) =>
                   change(i, { phone: (e.currentTarget as HTMLInputElement).checked })}
-              /> On phone</label
+              /> Show on the phone</label
             >
             <button
               type="button"
@@ -692,7 +752,7 @@
             const it = catalogue.flatMap((g) => g.items).find((x) => x.ref === adding);
             add(adding, it?.size);
             adding = '';
-          }}>Add</button
+          }}>Add to Home</button
         >
         <button type="button" class="reset" onclick={reset} disabled={!set}
           >Reset to the default</button
@@ -769,6 +829,8 @@
       <li
         class="card"
         class:journal-card={c.ref === 'journal'}
+        onfocusin={(e) => c.ref === 'journal' && enterWriting(e)}
+        onfocusout={(e) => c.ref === 'journal' && leaveWriting(e)}
         class:resizing={resizing?.ref === c.ref}
         class:dropping={dropOn === c.ref}
         style={`--span:${WIDTHS[room.w]};--h:${HEIGHTS[room.h]}rem`}
@@ -971,26 +1033,6 @@
       </li>
     {/each}
   </ol>
-
-  {#if narrow}
-    <form
-      class="capture"
-      onsubmit={(e) => {
-        e.preventDefault();
-        void capture();
-      }}
-    >
-      <input
-        type="text"
-        bind:value={captured}
-        placeholder="Jot into today, or a web address"
-        aria-label="jot into today or open a web address"
-        oninput={() => (captureNote = '')}
-      />
-      <button type="submit" disabled={!captured.trim()}>Add</button>
-    </form>
-    {#if captureNote}<p class="capture-note" role="status">{captureNote}</p>{/if}
-  {/if}
 </div>
 
 <style>
@@ -1042,8 +1084,10 @@
     margin: 0;
     padding: 0;
   }
+  /* Every control stays on the screen: a row wraps, the name on a line of its own on a phone. */
   .list li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
     padding: 3px 0;
@@ -1053,6 +1097,19 @@
   .list .name {
     flex: 1;
     min-width: 8rem;
+  }
+  .narrow .list .name {
+    flex-basis: 100%;
+  }
+  .list select {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .list li.off-phone .name {
+    color: var(--text-muted);
+  }
+  .off-note {
+    font-size: var(--text-xs);
   }
   .list button {
     border: 1px solid var(--border);
@@ -1186,6 +1243,10 @@
     border: none;
     background: none;
   }
+  /* The entry's own header leaves room for the card's ⋯ in its corner. */
+  .journal-card .body :global(.entry header) {
+    padding-right: 1.8rem;
+  }
   .journal-card .body {
     display: flex;
     flex-direction: column;
@@ -1312,8 +1373,11 @@
   .cmenu .remove:hover {
     background: var(--card-bg);
   }
+  /* A figure's or a link's ⋯ sits beside it, never over it (the layout guard, 2026-11-23). */
   .tile {
     position: relative;
+    display: flex;
+    align-items: flex-start;
   }
   .tile .cmenu {
     top: 100%;
@@ -1321,8 +1385,8 @@
     right: auto;
   }
   .tile .more-btn {
-    top: 2px;
-    right: 2px;
+    position: static;
+    align-self: center;
   }
   /* A heatmap, as GitHub draws one: a column per week, Monday at the top. The squares share the
      card's width, so a year always fits; they stay square. */
@@ -1504,14 +1568,30 @@
     color: var(--danger-fg);
   }
   /* The capture bar stays at the bottom, within a thumb's reach. */
+  /* Writing on the phone: the entry fills the room above the keyboard; the jot bar gives way. */
+  .home.narrow.writing .card.journal-card {
+    height: calc(var(--app-h, 100dvh) - var(--space-4));
+  }
+  .home.writing .capture {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .card.journal-card {
+      transition: height 0.22s ease;
+    }
+    .capture {
+      transition:
+        opacity 0.18s ease,
+        visibility 0.18s;
+    }
+  }
+  /* The jot box sits under Home's title: in the page, never floating over it (2026-11-23). */
   .capture {
-    position: sticky;
-    bottom: 0;
     display: flex;
     gap: var(--space-2);
     padding: var(--space-2) 0;
-    background: var(--bg);
-    margin-top: auto;
   }
   .capture input {
     flex: 1;

@@ -104,6 +104,17 @@ def content(m, script: str, wait_ms: int = 0):
     return m.cmd("WebDriver:ExecuteScript", {"args": [], "script": script})["value"]
 
 
+LAYOUT_GUARD = (Path(__file__).parent / "layout-guard.js").read_text()
+
+
+def layout(m, who: str, where: str) -> list:
+    """**The layout guard** (`ci/layout-guard.js`, 2026-11-23) on the screen as it is: every control
+    on the screen and uncovered, the line being typed visible. One check per screen it is run on."""
+    problems = content(m, LAYOUT_GUARD) or []
+    check(who, f"{where}: every control is on the screen and uncovered", not problems, "; ".join(problems[:6]))
+    return problems
+
+
 def goto(m, url: str, settle: float = 4):
     m.cmd("WebDriver:Navigate", {"url": url})
     time.sleep(settle)
@@ -1087,6 +1098,18 @@ def the_shell(ff: Path, work: Path) -> None:
                                 if (c) c.click(); return !!c;""", 10)
         beside = wait_for(m, "return !!document.querySelector('aside[aria-label=\"the note beside\"]')", 8)
         check(who, "a note opens beside the page", bool(opened) and bool(beside))
+        # It closes, giving the page its width back; opened again, it takes the full screen.
+        content(m, "document.querySelector('button[aria-label=\"close the note beside\"]').click(); return true;", 1200)
+        # Polled: a page driven by the test runs its timers lazily while the test waits.
+        gone = wait_for(m, "return !document.querySelector('aside[aria-label=\"the note beside\"]') || null", 4)
+        check(who, "the note beside closes", gone is True, str(gone))
+        wait_for(m, """const c = [...document.querySelectorAll('.card')].find((e) => e.textContent.includes('Write the methods'));
+                       if (c) c.click(); return !!c;""", 10)
+        wait_for(m, "return !!document.querySelector('aside[aria-label=\"the note beside\"]')", 8)
+        content(m, "[...document.querySelectorAll('aside button')].find((b) => b.textContent.includes('Full screen')).click(); return true;", 2500)
+        full = content(m, "return location.pathname")
+        check(who, "the note beside takes the full screen", str(full).startswith("/f/note/"), str(full))
+        goto(m, f"{SERVER}/f/group/Tasks", 5)
         # Pin to Home, from the section's bar.
         content(m, "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Pin to Home')?.click(); return true;", 2500)
         # The Journal page: what the day collected, in its four parts.
@@ -1103,6 +1126,8 @@ def the_shell(ff: Path, work: Path) -> None:
                              const grid = li && li.parentElement;
                              return li && grid ? Math.round(li.getBoundingClientRect().width / grid.getBoundingClientRect().width * 100) : null;""")
         check(who, "a card's ⋯ → Full width makes it take the whole row", (span or 0) >= 97, f"{span}% of the grid")
+        # Home draws again after the change just saved; its ⋯ come back with it.
+        wait_for(m, "return !!document.querySelector('button[aria-label=\"more for Continue\"]') || null", 6)
         content(m, "document.querySelector('button[aria-label=\"more for Continue\"]').click(); return true;", 500)
         content(m, "[...document.querySelectorAll('.cmenu button')].find((b) => b.textContent.trim() === 'Remove from Home')?.click(); return true;", 2500)
         # A section hidden from the rail leaves it.
@@ -1128,6 +1153,38 @@ def the_shell(ff: Path, work: Path) -> None:
         check(who, "Web is a section, and the one box offers to open an address", bool(table) and "Go to example.org" in offered,
               f"page {table}; offered {offered!r}")
         key("\ue00c")  # Escape: the box closes, nothing opened
+        # **The layout guard, on a laptop and at a phone's width** (2026-11-23): every control on the
+        # screen and uncovered; at a phone's width the journal, typed into, keeps the typed line in
+        # view with nothing over it, and the jot box gives way.
+        goto(m, f"{SERVER}/f/home", 5)
+        layout(m, who, "Home on a laptop")
+        content(m, "document.querySelector('button.customize').click(); return true;", 800)
+        layout(m, who, "Edit Home on a laptop")
+        content(m, "document.querySelector('button.customize').click(); return true;", 500)
+        m.cmd("WebDriver:SetWindowRect", {"width": 420, "height": 860})
+        goto(m, f"{SERVER}/f/home", 5)
+        layout(m, who, "Home at a phone's width")
+        content(m, "document.querySelector('button.customize').click(); return true;", 800)
+        layout(m, who, "Edit Home at a phone's width")
+        content(m, "document.querySelector('button.customize').click(); return true;", 500)
+        content(m, "const c = document.querySelector('section[aria-label^=\"journal, \"] .cm-content'); c.focus(); c.click(); return true;", 500)
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions":
+              [a for ch in "\ue010 More about the colony" for a in ({"type": "keyDown", "value": ch}, {"type": "keyUp", "value": ch})]}]})
+        m.cmd("WebDriver:ReleaseActions", {})
+        time.sleep(1.5)
+        focused = content(m, """const h = document.querySelector('.home'); const j = document.querySelector('.capture');
+                                return {writing: !!h && h.classList.contains('writing'),
+                                        jot: j ? getComputedStyle(j).visibility : 'none'}""") or {}
+        check(who, "typing in the journal at a phone's width gives it the screen; the jot box gives way",
+              focused.get("writing") is True and focused.get("jot") in ("hidden", "none"), str(focused))
+        layout(m, who, "the journal, typed into at a phone's width")
+        content(m, "document.activeElement && document.activeElement.blur(); return true;", 800)
+        goto(m, f"{SERVER}/f/today", 5)
+        layout(m, who, "the Journal page at a phone's width")
+        goto(m, f"{SERVER}/f/group/Tasks", 5)
+        layout(m, who, "Tasks at a phone's width")
+        m.cmd("WebDriver:SetWindowRect", {"width": 1440, "height": 900})
+        goto(m, f"{SERVER}/f/home", 5)
         # ＋ New → New board.
         content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.trim() === '＋ New').click(); return true;""", 600)
         items = wait_for(m, "const l = [...document.querySelectorAll('[role=menuitem]')].map((x) => x.textContent.trim()); return l.length ? l : null", 6)

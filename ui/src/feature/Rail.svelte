@@ -11,6 +11,7 @@
   import NewMenu from './NewMenu.svelte';
   import SyncStatus from './SyncStatus.svelte';
   import VaultChooser from './VaultChooser.svelte';
+  import WaitingDot from '../lib/WaitingDot.svelte';
   import { popup } from '../lib/popup';
   import { hiddenVaults } from '../lib/shownVaults.svelte';
 
@@ -129,7 +130,7 @@
           aria-current={on(s.page) ? 'page' : undefined}
           onclick={() => go(s.page)}
           ><span class="mark" aria-hidden="true">{s.mark}</span>
-          {s.label}
+          {s.label}{#if s.key === 'collaboration'}<WaitingDot />{/if}
           {#if count(s.key) !== undefined}<span class="n">{count(s.key)}</span>{/if}</button
         >
         <button

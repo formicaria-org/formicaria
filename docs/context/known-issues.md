@@ -3067,6 +3067,14 @@ shell's bottom bar is not built. **The older frame is not deleted (P2d)**: the p
 older frame on a tablet, there is still no redo, no *Recently deleted*, no ＋ menu, no vault filter
 and no sync chips.
 
+## Mail: what the sender's clock does not reach (2026-11-23)
+
+- **Emails imported before 0.63.1** have no sender's clock in their heading, so the assistant reads
+  their bare times as written (on the app's clock). Only emails read from 0.63.1 on carry it.
+- **A meeting already set by hand** may be proposed moving if a new email in its thread restates it
+  in the sender's time while the heading lacks the sender's clock; rejecting the proposal is
+  remembered.
+
 ## Home: what it does not do yet (2026-11-23; the grid, the evening)
 
 Home is a glance, a journal and cards (`decisions.md`, 2026-11-23; `unifying-home-research-2026-11-22.md`
@@ -3086,6 +3094,9 @@ Home is a glance, a journal and cards (`decisions.md`, 2026-11-23; `unifying-hom
 - **What the day collected** is shown for today only: for an earlier day the Journal shows its entry.
 - **The grid on a touch screen**: the edges are not draggable on a narrow screen (every card is the
   full width there); the height is set from the card's ⋯.
+- **The layout guard checks the screens the checks visit**: Home, Edit Home, the journal, the Journal
+  page and Tasks (laptop and phone width), and Home with the keyboard up on the phone. Other screens
+  are not guarded yet; they are added as each is changed.
 - **Moving a card** is by dragging its title with a mouse; there is no keyboard move but Edit Home's
   arrows.
 - **A theme written by hand is not measured**: `themes.contrast.test.ts` checks the built-in themes

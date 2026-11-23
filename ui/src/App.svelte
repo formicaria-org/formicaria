@@ -35,6 +35,7 @@
   import { tick, untrack } from 'svelte';
   import { popup } from './lib/popup';
   import Icon from './lib/Icon.svelte';
+  import WaitingDot from './lib/WaitingDot.svelte';
   import Search from './renderers/Search.svelte';
   import Pane from './lib/Pane.svelte';
   import {
@@ -3318,7 +3319,8 @@
                   <button
                     type="button"
                     role="menuitem"
-                    onclick={() => ((viewsOpen = false), t.run())}>{t.label}</button
+                    onclick={() => ((viewsOpen = false), t.run())}
+                    >{t.label}{#if t.key === 'collaboration'}<WaitingDot />{/if}</button
                   >
                 </li>
               {/each}
@@ -3486,7 +3488,7 @@
               aria-label={`open ${t.label}`}
             >
               <Icon name={t.icon} size={16} />
-              <span class="lbl">{t.label}</span>
+              <span class="lbl">{t.label}</span>{#if t.key === 'collaboration'}<WaitingDot />{/if}
             </button>
           {/each}
         </nav>

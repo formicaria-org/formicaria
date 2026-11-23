@@ -290,7 +290,7 @@ it('a heatmap on Home: a square per day, as GitHub draws one', async () => {
   await fireEvent.change(screen.getByRole('combobox', { name: 'card to add' }), {
     target: { value: 'heat:notes' },
   });
-  await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Add to Home' }));
   const map = await screen.findByRole('img', {
     name: /Notes, day by day: \d+ in the last six months/,
   });
@@ -370,4 +370,32 @@ it('Home: two quick changes are both kept, and a save that fails puts the screen
     .getByRole('heading', { name: /Continue/ })
     .closest('li') as HTMLElement;
   expect(li.getAttribute('style')?.replace(/\s/g, '')).toContain('--span:12');
+});
+
+it('the note beside closes, or takes the full screen', async () => {
+  await mock.handle('create_notes', {
+    notes: [{ title: 'Beside me', body: 'Words beside.', props: { status: 'todo' } }],
+  });
+  history.replaceState(null, '', '/f/group/Tasks');
+  render(Shell);
+  const open = async () => {
+    const card = await vi.waitFor(() => {
+      const c = [...document.querySelectorAll('.card')].find((e) =>
+        e.textContent?.includes('Beside me'),
+      );
+      if (!c) throw new Error('no card');
+      return c as HTMLElement;
+    });
+    await fireEvent.click(card);
+    return screen.findByRole('complementary', { name: 'the note beside' });
+  };
+  const beside = await open();
+  await fireEvent.click(within(beside).getByRole('button', { name: 'close the note beside' }));
+  await vi.waitFor(() =>
+    expect(screen.queryByRole('complementary', { name: 'the note beside' })).toBeNull(),
+  );
+  const again = await open();
+  await fireEvent.click(within(again).getByRole('button', { name: /Full screen/ }));
+  await vi.waitFor(() => expect(location.pathname).toMatch(/^\/f\/note\//));
+  expect(screen.queryByRole('complementary', { name: 'the note beside' })).toBeNull();
 });

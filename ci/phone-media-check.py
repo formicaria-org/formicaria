@@ -950,6 +950,99 @@ def phone_log() -> str:
     return (" | ".join(hits[-8:])[:1000] or "nothing telling in the log") + "; emulator: " + emulator_state()
 
 
+LAYOUT_GUARD = "(function () {\n" + (Path(__file__).parent / "layout-guard.js").read_text() + "\n})()"
+
+HOME_JS = r"""
+(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < 40 && !document.querySelector('.home'); i++) {
+    const b = [...document.querySelectorAll('button, a')].find(
+      (x) => (x.getAttribute('aria-label') || x.textContent || '').trim() === 'Home');
+    if (b) b.click();
+    await wait(500);
+  }
+  return !!document.querySelector('.home');
+})()"""
+
+
+def guard(cdp, where: str) -> None:
+    """The layout guard (`ci/layout-guard.js`) on the phone's screen as it is."""
+    problems = cdp.evaluate(LAYOUT_GUARD) or []
+    check(f"{where}: every control is on the screen and uncovered", not problems, "; ".join(problems[:6]))
+
+
+def home_on_the_phone(cdp) -> None:
+    """Home, Edit Home and the journal on the phone, with the keyboard up (2026-11-23)."""
+    cdp.evaluate("""window.__TAURI_INTERNALS__.invoke('fm', { cmd: 'create_notes', args: { notes: [
+        { title: 'Order the reagents', body: '', tags: [], start: '', props: { status: 'todo' } }] } })""")
+    shown = cdp.evaluate(HOME_JS)
+    check("Home opens on the phone", bool(shown))
+    if not shown:
+        return
+    time.sleep(3)
+    guard(cdp, "Home on the phone")
+    cdp.evaluate("document.querySelector('button.customize').click()")
+    time.sleep(1.5)
+    guard(cdp, "Edit Home on the phone")
+    # A card added on the phone is on the phone's Home.
+    cdp.evaluate("""(() => { const s = document.querySelector('select[aria-label="card to add"]');
+        s.value = 'heat:notes'; s.dispatchEvent(new Event('change', { bubbles: true })); })()""")
+    # The choice enables the button when the screen next draws: pressed after it, as a person would.
+    time.sleep(1)
+    cdp.evaluate("""[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add to Home').click()""")
+    time.sleep(3)
+    added = cdp.evaluate("!!document.querySelector('[role=img][aria-label^=\"Notes, day by day\"]')")
+    if not added:
+        say("adding on the phone: " + json.dumps(cdp.evaluate("""(() => ({ err: (document.querySelector('.home .error') || {}).textContent || '',
+            cards: [...document.querySelectorAll('[aria-label="home cards shown"] > li h3')].map((h) => h.textContent.trim()),
+            listed: [...document.querySelectorAll('[aria-label="home cards"] .name')].map((n) => n.textContent.trim()),
+            adding: (document.querySelector('select[aria-label="card to add"]') || {}).value,
+            narrow: document.querySelector('.home').classList.contains('narrow') }))()""")))
+    check("a card added on the phone is shown on the phone's Home", bool(added))
+    cdp.evaluate("document.querySelector('button.customize').click()")
+    time.sleep(1.5)
+    # The journal, tapped and typed into for real: the keyboard comes up.
+    box = cdp.evaluate("""(() => { const c = document.querySelector('section[aria-label^="journal, "] .cm-content');
+        if (!c) return null; c.scrollIntoView({ block: 'center' }); const r = c.getBoundingClientRect();
+        return { x: r.left + Math.min(40, r.width / 2), y: r.top + Math.min(20, r.height / 2), dpr: devicePixelRatio,
+                 h: innerHeight }; })()""")
+    check("the journal entry is on the phone's Home", bool(box), str(box))
+    if not box:
+        return
+    time.sleep(1)
+    box = cdp.evaluate("""(() => { const r = document.querySelector('section[aria-label^="journal, "] .cm-content').getBoundingClientRect();
+        return { x: r.left + Math.min(40, r.width / 2), y: r.top + Math.min(20, r.height / 2), dpr: devicePixelRatio, h: innerHeight }; })()""")
+    adb("shell", "input", "tap", str(int(box["x"] * box["dpr"])), str(int(box["y"] * box["dpr"])), check_rc=False)
+    time.sleep(2)
+    adb("shell", "input", "text", "Fed%sthe%scolony%sat%snoon", check_rc=False)
+    time.sleep(1)
+    adb("shell", "input", "keyevent", "66", check_rc=False)  # Enter: a second line
+    adb("shell", "input", "text", "and%sagain%sin%sthe%sevening", check_rc=False)
+    time.sleep(2.5)
+    state = cdp.evaluate("""(() => { const h = document.querySelector('.home'); const j = document.querySelector('.capture');
+        const vv = window.visualViewport;
+        return { writing: !!h && h.classList.contains('writing'), jot: j ? getComputedStyle(j).visibility : 'none',
+                 keyboard: vv ? Math.round(innerHeight - vv.height) : null, view: vv ? Math.round(vv.height) : innerHeight,
+                 typed: (document.querySelector('section[aria-label^="journal, "] .cm-content') || {}).textContent || '' }; })()""") or {}
+    say(f"the journal, typed into on the phone: {json.dumps(state)[:400]}")
+    shot = WORK / "phone-home-keyboard.png"
+    try:
+        shot.write_bytes(subprocess.run([ADB, "-s", SERIAL, "exec-out", "screencap", "-p"],
+                                        capture_output=True, timeout=60).stdout)
+        say(f"the screen with the keyboard up: {shot}")
+    except Exception as e:  # noqa: BLE001
+        say(f"no screenshot: {e}")
+    check("what is typed into the journal on the phone is there", "colony at noon" in state.get("typed", ""),
+          str(state)[:200])
+    check("typing in the journal on the phone gives it the screen; the jot box gives way",
+          state.get("writing") is True and state.get("jot") in ("hidden", "none"), str(state))
+    guard(cdp, "the journal, typed into on the phone with the keyboard up")
+    adb("shell", "input", "keyevent", "4", check_rc=False)  # Back: the keyboard goes
+    time.sleep(1.5)
+    cdp.evaluate("document.activeElement && document.activeElement.blur()")
+    time.sleep(1)
+
+
 def main() -> None:
     if not os.access("/dev/kvm", os.R_OK | os.W_OK):
         say("FAIL /dev/kvm is not usable here: the emulator cannot run")
@@ -1018,6 +1111,11 @@ def main() -> None:
             return
         # `FM_PHONE_CASES=Ant,clip` runs the cases whose names say so, while working on them.
         only = [k for k in os.environ.get("FM_PHONE_CASES", "").split(",") if k]
+        # **Home on the phone, as a person uses it** (2026-11-23; the owner: Edit Home's ✕ off the
+        # screen, a board edited on the phone not on it, and typing into the journal showing Home's
+        # top, a floating bar and a sliver of the entry). With the keyboard really up.
+        if not only or "home" in only:
+            home_on_the_phone(cdp)
         port = srv.server_address[1]
         for name, page, pick, nth, least, keep, into in CASES:
             local = "{port}" in page

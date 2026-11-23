@@ -61,6 +61,28 @@
       location.assign(url);
     }
   }
+  /** No movement when the system asks for reduced motion. */
+  const reduced = () =>
+    typeof matchMedia !== 'undefined' && !!matchMedia('(prefers-reduced-motion: reduce)')?.matches;
+  /** **Closing the note beside slides it away**, then it is gone; at once when motion is to be
+   *  reduced (2026-11-23, *a seamless transition*). */
+  let closing = $state(false);
+  function closeItem() {
+    // At once when motion is to be reduced, or when nobody sees the page move (a browser pauses
+    // the animations of a page it does not show, and slows its timers).
+    if (reduced() || document.visibilityState !== 'visible') {
+      item = null;
+      return;
+    }
+    closing = true;
+    // Gone even if the slide never ends: just after its own length (0.16 s).
+    setTimeout(() => {
+      if (closing) {
+        item = null;
+        closing = false;
+      }
+    }, 220);
+  }
   /** A note: beside the page where there is room, else in its place. */
   function openItem(id: string) {
     if (wide) item = newPane('note', { noteId: id });
@@ -160,7 +182,30 @@
        parity list: it was the older frame's only). -->
   <div class="player"><PlayerBar onopen={openItem} /></div>
   {#if item}
-    <aside class="item" aria-label="the note beside">
+    <aside
+      class="item"
+      aria-label="the note beside"
+      class:closing
+      onanimationend={(e) =>
+        e.animationName.endsWith('item-out') && ((item = null), (closing = false))}
+    >
+      <!-- **Its own two controls** (2026-11-23; the owner: a way to "close" it and use the full
+           screen). The note beside had no header, so nothing on it closed it. -->
+      <div class="item-bar">
+        <button
+          type="button"
+          class="item-btn"
+          title="Use the full screen for this note"
+          onclick={() => item?.noteId && go(`/f/note/${item.noteId}`)}>⤢ Full screen</button
+        >
+        <button
+          type="button"
+          class="item-btn"
+          aria-label="close the note beside"
+          title="Close"
+          onclick={closeItem}>✕</button
+        >
+      </div>
       <Pane
         pane={item}
         index={1}
@@ -228,5 +273,49 @@
     border-left: 1px solid var(--border);
     background: var(--surface);
     overflow: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .item {
+      animation: item-in 0.18s ease-out;
+    }
+    .item.closing {
+      animation: item-out 0.16s ease-in forwards;
+    }
+  }
+  @keyframes item-in {
+    from {
+      transform: translateX(24px);
+      opacity: 0;
+    }
+  }
+  @keyframes item-out {
+    to {
+      transform: translateX(24px);
+      opacity: 0;
+    }
+  }
+  .item-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  .item-btn {
+    font: inherit;
+    font-size: var(--text-sm);
+    padding: 2px var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .item-btn:hover {
+    border-color: var(--border);
+    color: var(--text);
   }
 </style>

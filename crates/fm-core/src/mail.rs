@@ -63,6 +63,11 @@ pub struct Message {
     /// Gmail's `internalDate`: when the message arrived, UTC seconds. Reliable where the `Date:`
     /// header is whatever the sender's machine claimed.
     pub at: i64,
+    /// **The sender's own UTC offset**, in seconds, from the `Date:` header's zone (`+0800`). Only
+    /// the clock is taken from it, never the moment (`at` is that): the assistant reads a bare
+    /// "14:00" in the email on this clock (Myrme 0.13, 2026-11-23). `None` when the header has none.
+    #[serde(default)]
+    pub offset: Option<i32>,
     /// The readable text: the `text/plain` part, or the HTML part with its markup removed.
     pub text: String,
     /// Every `text/calendar` part, as iCalendar text.
@@ -125,9 +130,31 @@ pub fn from_gmail(v: &Value) -> Option<Message> {
         cc: addresses(&header("Cc")),
         attachments: attachment_names(payload),
         at,
+        offset: date_offset(&header("Date")),
         text: trim_quoted(text.trim()),
         calendars,
     })
+}
+
+/// The zone of an email's `Date:` header (RFC 5322: `Mon, 17 Nov 2026 15:54:12 +0800`, sometimes
+/// followed by `(SGT)` or written `GMT`/`UT`) as seconds east of UTC. `None` for `-0000` (the
+/// sender's clock is unknown, RFC 5322 §3.3) or a header that carries no zone.
+fn date_offset(date: &str) -> Option<i32> {
+    let words: Vec<&str> = date.split_whitespace().filter(|w| !w.starts_with('(')).collect();
+    let z = *words.last()?;
+    if matches!(z, "GMT" | "UT" | "UTC" | "Z") {
+        return Some(0);
+    }
+    let (sign, digits) = match z.as_bytes().first()? {
+        b'+' => (1, &z[1..]),
+        b'-' => (-1, &z[1..]),
+        _ => return None,
+    };
+    if z == "-0000" || digits.len() != 4 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let (h, m): (i32, i32) = (digits[..2].parse().ok()?, digits[2..].parse().ok()?);
+    (h <= 14 && m < 60).then_some(sign * (h * 3600 + m * 60))
 }
 
 /// Every calendar part that Gmail did not inline: `(part path, attachmentId)`. The path is the list
@@ -381,6 +408,14 @@ pub fn trim_quoted(text: &str) -> String {
 /// is how a re-read recognises a message it has already written.
 pub fn render(m: &Message, zone: &Zone) -> String {
     let stamp = sent(m, zone);
+    // **The sender's own clock beside it**, when it is not this one (2026-11-23): `… 09:24 (sent
+    // 2026-11-17 13:54 +05:30)`. The assistant reads the email's bare times on it; a person sees
+    // when it was written there. The first sixteen characters stay this clock's stamp, which is
+    // what orders the note and what `mail_last` is compared with.
+    let stamp = match m.offset.filter(|o| *o != zone.offset_at(m.at).whole_seconds()) {
+        Some(o) => format!("{stamp} (sent {})", on_offset(m.at, o)),
+        None => stamp,
+    };
     let from = if m.from.is_empty() { "(unknown sender)" } else { &m.from };
     let mut out = format!("{}\n### {from} — {stamp}\n", marker(&m.id));
     let mut who = Vec::new();
@@ -401,6 +436,25 @@ pub fn render(m: &Message, zone: &Zone) -> String {
     out.push_str(m.text.trim());
     out.push('\n');
     out
+}
+
+/// A moment on a fixed offset, as a heading writes it: `2026-11-17 13:54 +05:30`.
+fn on_offset(at: i64, offset: i32) -> String {
+    let off = time::UtcOffset::from_whole_seconds(offset).unwrap_or(time::UtcOffset::UTC);
+    let when = OffsetDateTime::from_unix_timestamp(at)
+        .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+        .to_offset(off);
+    let (sign, a) = if offset < 0 { ('-', -offset) } else { ('+', offset) };
+    format!(
+        "{}-{:02}-{:02} {:02}:{:02} {sign}{:02}:{:02}",
+        when.year(),
+        u8::from(when.month()),
+        when.day(),
+        when.hour(),
+        when.minute(),
+        a / 3600,
+        a % 3600 / 60
+    )
 }
 
 /// When a message was sent, as its heading shows it: `YYYY-MM-DD HH:MM` on the given clock, with the
@@ -427,8 +481,14 @@ fn sent(m: &Message, zone: &Zone) -> String {
 fn place(body: &mut String, block: &str, at: &str) {
     let later = body.match_indices("<!-- gmail:").map(|(i, _)| i).find(|&i| {
         let heading = body[i..].lines().nth(1).unwrap_or("");
+        // The heading's own stamp is its first sixteen characters: a sender's clock may follow
+        // (`… 09:24 (sent 2026-11-17 13:54 +05:30)`, 2026-11-23).
         heading.starts_with("### ")
-            && heading.rsplit_once(" — ").is_some_and(|(_, t)| t.len() == 16 && t > at)
+            && heading
+                .split(" (sent ")
+                .next()
+                .and_then(|h| h.rsplit_once(" — "))
+                .is_some_and(|(_, t)| t.len() == 16 && t > at)
     });
     match later {
         Some(i) => body.insert_str(i, &format!("{block}\n")),
@@ -879,6 +939,37 @@ mod tests {
             reconcile(&[msg("4", "t", 1_760_200_000, "Bea")], &index([&update[0]]), &sg());
         let b = &update[0].body;
         assert!(b.find("gmail:4").unwrap() > b.find("### Luca").unwrap(), "{b}");
+    }
+
+    /// **The sender's clock is kept beside the heading** when it is not the app's (2026-11-23), so
+    /// the assistant reads a bare "14:00" in the email on it; the heading's own stamp is unchanged,
+    /// and an email whose heading carries it is still ordered by when it was sent.
+    #[test]
+    fn the_sender_s_clock_is_kept_in_the_heading_and_the_note_stays_in_order() {
+        assert_eq!(date_offset("Mon, 17 Nov 2026 13:54:12 +0530"), Some(5 * 3600 + 1800));
+        assert_eq!(date_offset("Tue, 7 Oct 2026 09:12:00 -0500 (EST)"), Some(-5 * 3600));
+        assert_eq!(date_offset("Tue, 7 Oct 2026 09:12:00 GMT"), Some(0));
+        assert_eq!(date_offset("Tue, 7 Oct 2026 09:12:00 -0000"), None, "unknown, says RFC 5322");
+        assert_eq!(date_offset(""), None);
+
+        let zone = sg();
+        let mut far = msg("1", "t", 1_760_000_000, "Maria");
+        far.offset = Some(5 * 3600 + 1800);
+        let head = render(&far, &zone);
+        let same = sent(&far, &zone);
+        assert!(head.contains(&format!("### Maria — {same} (sent ")), "{head}");
+        assert!(head.contains(" +05:30)"), "{head}");
+        let mut here = msg("2", "t", 1_760_000_000, "Luca");
+        here.offset = Some(zone.offset_at(here.at).whole_seconds());
+        assert!(!render(&here, &zone).contains("(sent "), "the same clock is not repeated");
+
+        // Placed by when it was sent, the annotation notwithstanding.
+        let (create, _, _) =
+            reconcile(&[far.clone(), msg("3", "t", 1_760_090_000, "Luca")], &HashMap::new(), &zone);
+        let existing = index([&create[0]]);
+        let (_, update, _) = reconcile(&[msg("4", "t", 1_759_990_000, "Bea")], &existing, &zone);
+        let b = &update[0].body;
+        assert!(b.find("### Bea").unwrap() < b.find("### Maria").unwrap(), "{b}");
     }
 
     #[test]

@@ -122,9 +122,6 @@
     {/if}
   </header>
   {#if loaded}
-    {#if !note && !draft}
-      <p class="hint">Write about today. It is kept as a note once you start.</p>
-    {/if}
     <div class="writing">
       <LiveEditor
         bind:this={editor}
@@ -164,11 +161,6 @@
     background: none;
     border: none;
     cursor: pointer;
-  }
-  .hint {
-    margin: var(--space-2) 0 0;
-    color: var(--text-muted);
-    font-size: var(--text-sm);
   }
   .writing {
     flex: 1;

@@ -44,6 +44,7 @@
 
 - [Glossary](./reference/glossary.md)
 - [The vault format](./user/vault.md)
+- [Configuration and optional tools](./reference/configuration.md)
 - [Commands](./reference/commands.md)
 - [Frontmatter schema](./reference/frontmatter.md)
 

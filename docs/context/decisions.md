@@ -16589,3 +16589,76 @@ and the `card:` line form of the Home note.
 and the manual, and two browser preferences (`fm-rail-hidden`, and the computer now reading
 `fm-hidden-vaults`).
 
+
+## 2026-11-23 (night) — an email's heading keeps its sender's clock; Myrme 0.13 reads meetings by it `#agent` `#data`
+
+**Why.** A thread fixed a meeting as "14:00–14:30" in the senders' own time, seven hours from the
+reader's. The assistant (Myrme 0.12) proposed it twice, once without a time and once seven hours off,
+and could not have read the senders' clock: the import writes each heading on the app's clock and
+keeps only the moment (`Message.at`), so the `Date:` header's zone was lost. The 2026-10-24 audit had
+planned headings with an offset (`time-zones-audit-2026-10-24.md` §4.2) and `sent`'s comment still
+promised one; the code wrote none.
+
+**Decided.**
+1. **The sender's offset is read from the `Date:` header** (`Message.offset`, `date_offset`): the
+   clock only, never the moment (`internalDate` stays the moment). `-0000` and a header with no zone
+   give none.
+2. **The heading carries it when it differs from the app's clock**: `### Ana — 2026-11-17 09:24
+   (sent 2026-11-17 13:54 +05:30)`, the form Myrme's `on_clock` already writes for itself. The first
+   sixteen characters stay the app-clock stamp: they order the note (`place`, which now reads past
+   the annotation) and `mail_last` is unchanged. Emails already in a note keep their headings.
+3. **Myrme 0.13.0** reads a bare time on that clock, reads a time range whole (start and end), and
+   proposes one meeting a day per conversation when one has no time (Myrme `decisions.md`,
+   2026-11-23). Contract unchanged (1.10).
+
+**Not done:** rewriting the headings of emails already imported (the audit's §4.5); they keep their
+times as written, as before.
+
+## 2026-11-23 (late) — keep the focus on the task; usability checks look at the screen `#ui` `#toolchain`
+
+**Why.** On 0.62 and 0.63 the owner found, on the phone:
+- Edit Home's ✕ off the screen;
+- the Tasks board, set to *summary* on the phone, not shown there (its *on phone* was unticked);
+- typing into the journal showed Home's top, a floating "Jot into today…" bar, and a sliver of the
+  entry with the caret moving in it, the keyboard taking the rest.
+
+Every check had passed: they asserted what was saved, not what a person sees. The owner: *"no option
+should fall out of a screen, using a feature should not be hindered by stuff floating and other
+unnecessary things, as simple as possible with a nice view that keeps the focus on exactly features
+we want to use or change"*; *"a seamless transition"*; *"this points to a lack of proper usability
+tests and checks"*.
+
+**Decided.**
+1. **The rule:**
+   - no control off the screen;
+   - nothing floating over what is being used;
+   - what is not part of the task in hand gives way while it is in use;
+   - remove before adding (no hint text where the control says it);
+   - moving into a task and out of it is one smooth movement (none when motion is to be reduced).
+2. **The layout guard** (`ci/layout-guard.js`), run by `usability-check` (on a laptop and at a
+   phone's width) and `phone-media-check` (in the emulator, the keyboard really up). It fails:
+   - a control outside the screen that nothing scrolls to;
+   - a control cut by a box that does not scroll;
+   - anything lying over a control's middle;
+   - with an editor focused, the typed line off the screen or covered (the keyboard counts, through
+     the visual viewport).
+3. **Checks assert what is shown.** Home's edits are tested by what Home then draws, wide and at a
+   phone's width (`Home.edits.test.ts`); the phone check taps and types into the journal for real
+   and keeps a keyboard-up screenshot (`phone-home-keyboard.png`), looked at before a release.
+4. **Home on the phone:**
+   - the jot box is under Home's title, in the page, no longer floating at the bottom;
+   - writing in the journal, Home glides the entry to the top and gives it the height above the
+     keyboard, the jot box fading; leaving glides back;
+   - a card changed or added on the phone is shown on the phone, and a card that is not is marked
+     in Edit Home;
+   - Edit Home's rows wrap;
+   - the journal's hint is gone;
+   - Edit Home's button is *Add to Home* (two buttons said *Add* on the phone).
+5. **A red dot on Collaboration** (rail; the phone's list of views): proposals open and never shown.
+   Read from the proposals list the app already loads (`waiting.svelte.ts`); nothing new stored,
+   nothing sent outside the app.
+6. **The note beside closes, or takes the full screen.** It was drawn without its header, so nothing
+   on it closed it (the owner: a way to "close" it and use the full screen). A slim bar at its top:
+   *⤢ Full screen* (its note's own page; Back returns) and *✕* (the page gets its width back). It
+   slides in and out, at once when motion is to be reduced.
+
