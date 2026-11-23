@@ -467,6 +467,8 @@ The note's **⋯** has:
   it, and **Put this version's text back** to make it the note's text again. That is a new change,
   so **Undo** takes it back, and nothing in the history is lost. A notebook without history (git)
   has none to show yet.
+- **Pin to Home**: the note as a link on Home, in the row of things kept an eye on
+  ([Getting around](./getting-around.md#pin-to-home)).
 
 ## Linking with `[[`
 

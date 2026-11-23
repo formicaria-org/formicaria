@@ -21,6 +21,7 @@
   import { newPane, type Pane as PaneT } from '../lib/panes';
   import * as ipc from '../lib/ipc';
   import type { Section } from '../lib/types';
+  import { asksAddress, openFind } from '../lib/features';
 
   let path = $state(location.pathname);
   /** A note open beside the page (a wide screen), or none. */
@@ -47,6 +48,11 @@
 
   /** Go somewhere inside formicaria's pages without leaving the tab; anything else as a link. */
   function go(url: string) {
+    // **Home pressed on Home** goes to today's entry (Home, 2026-11-23; `HomeView` listens).
+    if (url === '/f/home' && location.pathname === '/f/home' && !item) {
+      dispatchEvent(new CustomEvent('fm-home-again'));
+      return;
+    }
     if (url.startsWith('/f/') && url !== location.pathname) {
       history.pushState(null, '', url);
       path = location.pathname;
@@ -61,6 +67,7 @@
     else go(`/f/note/${id}`);
   }
   async function newIn(s: Section) {
+    if (asksAddress(s)) return openFind();
     const props = (s.new?.props ?? {}) as Record<string, string | number>;
     const [made] = await ipc.createNotes([{ title: '', body: '', tags: [], start: '', props }]);
     if (made) openItem(made.id);
@@ -77,6 +84,12 @@
     addEventListener('popstate', pop);
     // **Redo** (the parity list): Ctrl+Shift+Z / ⌘⇧Z outside the text, as the older frame has it.
     const redo = (e: KeyboardEvent) => {
+      // **Alt+Home goes Home** from any page (the browser's own home key; Home, 2026-11-23).
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'Home') {
+        e.preventDefault();
+        go('/f/home');
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.key.toLowerCase() !== 'z') return;
       const t = e.target as HTMLElement | null;
       if (

@@ -907,6 +907,12 @@ def first_hour_pictures(ff: Path, work: Path) -> None:
           return { line1: at(r.top + 6), line2: at(r.top + 25), line3: at(r.bottom - 6), rect: [r.left, r.top, r.width, r.height] };""")))
         content(m, "const s = document.createElement('style'); s.textContent = '.post .preview { mask-image: none !important; }'; document.head.appendChild(s); return true;")
         shot("01b-no-mask")
+        # Home (2026-11-23): wide, the Journal page, and narrow as a phone-width window has it.
+        goto(m, f"{SERVER}/f/home", 6); shot("01c-home")
+        goto(m, f"{SERVER}/f/today", 5); shot("01d-journal")
+        m.cmd("WebDriver:SetWindowRect", {"width": 520, "height": 900})
+        goto(m, f"{SERVER}/f/home", 6); shot("01e-home-narrow")
+        m.cmd("WebDriver:SetWindowRect", {"width": 1440, "height": 900})
         goto(m, f"{SERVER}/f/new", 4); shot("02-new-tab")
         goto(m, f"{SERVER}/f/note/{nid}", 5); shot("03-note")
         content(m, "document.querySelector('button[aria-label=\"note options\"]')?.click(); return true;")
@@ -1014,25 +1020,50 @@ def backs_up_by_itself(ff: Path, work: Path) -> None:
 
 
 def the_shell(ff: Path, work: Path) -> None:
-    """**The shell** (P2b): one frame on every page of formicaria's browser. The rail moves between
-    places in the tab (no reload); Home is customized and keeps it across a reload (it is a note
-    tagged `home`); Today shows the day; a note opens beside the page; ＋ New makes a board."""
+    """**The shell and Home** (P2b; Home, 2026-11-23): one frame on every page of formicaria's browser.
+    Home opens on today's journal entry, ready to write in, and the entry is made by typing; the rail
+    moves between places in the tab (no reload); a note opens beside the page; *Pin to Home* puts a
+    section on Home; Edit Home's changes survive a reload (Home is a note tagged `home`); the Journal
+    page shows what the day collected; Web is a section, and the one box opens an address; ＋ New
+    makes a board."""
     who = "someone finding their way around"
     bc.post("/api/create_notes", {"notes": [
         {"title": "Write the methods", "body": "", "props": {"status": "todo"}},
         {"title": "Lab diary", "body": "Today the colony moved.\n", "props": {}}]})
     m = launch(ff, work / "profile-shell", f"{SERVER}/f/home",
                'user_pref("browser.window.width", 1440);\nuser_pref("browser.window.height", 900);\n')
+
+    def key(*keys: str) -> None:
+        down = [{"type": "keyDown", "value": k} for k in keys]
+        up = [{"type": "keyUp", "value": k} for k in reversed(keys)]
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions": down + up}]})
+        m.cmd("WebDriver:ReleaseActions", {})
+
+    def rail(label: str) -> None:
+        content(m, f"""[...document.querySelectorAll('nav[aria-label="formicaria"] button')]
+                       .find((x) => x.textContent.trim().replace(/^\\S\\s+/, '').startsWith({json.dumps(label)}))?.click();
+                       return true;""")
+
     try:
         m.cmd("WebDriver:SetWindowRect", {"width": 1440, "height": 900})
         time.sleep(7)
-        kinds = wait_for(m, "const l = document.querySelector('[aria-label=\"what you can do here\"]'); return l ? l.querySelectorAll('li').length : null", 15)
-        check(who, "Home lists what can be done: every section", (kinds or 0) >= 10, str(kinds))
+        # Home: the day's entry, ready; no list of every section (the rail has them).
+        ready = wait_for(m, "return !!document.querySelector('section[aria-label^=\"journal, \"] .cm-content')", 15)
+        listed = content(m, "return !!document.querySelector('[aria-label=\"what you can do here\"]')")
+        check(who, "Home opens on today's journal entry, ready to write in, and lists no sections", bool(ready) and not listed,
+              f"entry {ready}; section list {listed}")
+        content(m, "document.querySelector('section[aria-label^=\"journal, \"] .cm-content').focus(); return true;", 300)
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions":
+              [a for ch in "Fed the colony" for a in ({"type": "keyDown", "value": ch}, {"type": "keyUp", "value": ch})]}]})
+        m.cmd("WebDriver:ReleaseActions", {})
+        time.sleep(3)
+        days = bc.post("/api/journal", {"on_or_before": "9999-12-31", "limit": 1}) or []
+        body = (bc.post("/api/get", {"id": days[0]["id"]}) or {}).get("body", "") if days else ""
+        check(who, "typing in it makes today's entry, a note tagged journal", "Fed the colony" in body,
+              f"{[d.get('title') for d in days]}: {body[:80]!r}")
         # The rail, in the tab: a marker set on the page survives the move (no reload).
         content(m, "window.__stayed = 1; return true;")
-        content(m, """const r = document.querySelector('nav[aria-label="formicaria"]');
-                      const b = [...r.querySelectorAll('button')].find((x) => /^\\s*\\S?\\s*Tasks/.test(x.textContent) && !x.classList.contains('add'));
-                      b.click(); return true;""")
+        rail("Tasks")
         moved = wait_for(m, "return location.pathname === '/f/group/Tasks' && window.__stayed === 1", 8)
         check(who, "the rail goes to Tasks in the same tab, without a reload", bool(moved),
               str(content(m, "return location.pathname + ' ' + window.__stayed")))
@@ -1041,18 +1072,34 @@ def the_shell(ff: Path, work: Path) -> None:
                                 if (c) c.click(); return !!c;""", 10)
         beside = wait_for(m, "return !!document.querySelector('aside[aria-label=\"the note beside\"]')", 8)
         check(who, "a note opens beside the page", bool(opened) and bool(beside))
-        # Today.
-        content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.includes('Today')).click(); return true;""")
+        # Pin to Home, from the section's bar.
+        content(m, "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Pin to Home')?.click(); return true;", 2500)
+        # The Journal page: what the day collected, in its four parts.
+        rail("Journal")
         parts = wait_for(m, "return document.querySelectorAll('.today section').length || null", 8)
-        check(who, "Today shows the day in its four parts", parts == 4, str(parts))
-        # Home, customized: Pinned removed, and it stays removed after a reload.
-        content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.includes('Home')).click(); return true;""")
+        check(who, "the Journal page shows what the day collected, in four parts", parts == 4, str(parts))
+        # Home, edited: Continue removed; it stays removed after a reload, and the pinned section is there.
+        rail("Home")
         wait_for(m, "return !!document.querySelector('button.customize')", 8)
         content(m, "document.querySelector('button.customize').click(); return true;", 600)
-        content(m, "const b = document.querySelector('button[aria-label=\"remove Pinned\"]'); if (b) b.click(); return !!b;", 2500)
+        content(m, "const b = document.querySelector('button[aria-label=\"remove Continue\"]'); if (b) b.click(); return !!b;", 2500)
         goto(m, f"{SERVER}/f/home", 6)
-        kept = wait_for(m, "const l = document.querySelector('[aria-label=\"home blocks\"]'); return l ? l.textContent : null", 10) or ""
-        check(who, "Home keeps its customizing across a reload", "Getting started" in kept and "Pinned" not in kept, kept[:200])
+        shown = wait_for(m, "const l = document.querySelector('[aria-label=\"home cards shown\"]'); return l ? l.textContent : null", 10) or ""
+        watch = content(m, "return (document.querySelector('[aria-label=\"kept an eye on\"]') || {}).textContent || ''") or ""
+        check(who, "Home keeps its editing across a reload, with the section pinned to it",
+              "Continue" not in shown and "Tasks" in watch, f"cards {shown[:160]!r}; watch {watch[:80]!r}")
+        # Web, a section; the one box opens an address.
+        rail("Web")
+        table = wait_for(m, "return location.pathname === '/f/group/Web' && !!document.querySelector('[aria-label=\"view as\"]')", 8)
+        field = "document.querySelector('input[aria-label=\"search notes\"]')"
+        content(m, f"const f = {field}; f.focus(); return true;", 300)
+        m.cmd("WebDriver:PerformActions", {"actions": [{"type": "key", "id": "kb", "actions":
+              [a for ch in "example.org" for a in ({"type": "keyDown", "value": ch}, {"type": "keyUp", "value": ch})]}]})
+        m.cmd("WebDriver:ReleaseActions", {})
+        offered = wait_for(m, "return [...document.querySelectorAll('button.web')].map((b) => b.textContent.trim()).join(' | ') || null", 6) or ""
+        check(who, "Web is a section, and the one box offers to open an address", bool(table) and "Go to example.org" in offered,
+              f"page {table}; offered {offered!r}")
+        key("\ue00c")  # Escape: the box closes, nothing opened
         # ＋ New → New board.
         content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.trim() === '＋ New').click(); return true;""", 600)
         items = wait_for(m, "const l = [...document.querySelectorAll('[role=menuitem]')].map((x) => x.textContent.trim()); return l.length ? l : null", 6)

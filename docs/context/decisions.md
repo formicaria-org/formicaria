@@ -16401,6 +16401,11 @@ another note…*) are the shell's parity list, in `known-issues.md`.
 
 ## 2026-11-22 (night, latest) — The shell, built: sections from files, one view switcher, ⋯, a customizable Home kept as a note `#ui` `#data` `#seams`
 
+> **AMENDED 2026-11-23** (*Home is a glance, a journal and cards*): point 4's blocks, *Customize home*
+> and its columns are replaced by cards with three sizes, Edit Home and Pin to Home; the Today page
+> became the Journal. Home is still a note tagged `home`, and a Home written by this release is read
+> as cards.
+
 **Builds** the direction of 2026-11-22 (evening), *the shell*, P1 to P2c, for one release. What was
 decided while building:
 
@@ -16459,4 +16464,62 @@ These are listed in `known-issues.md`.
 - Supersedes 2026-11-12 (the start view); builds what 2026-11-22 (evening) and (later) ruled.
 - Widens what ships by the `.kind` format, seven read commands, and the `home`, `pinned` and
   `template` tags read by the shell. No dependency added.
+
+## 2026-11-23 — Home is a glance, a journal and cards; Web is a section, and Find or do opens the web `#ui` `#data`
+
+**Why.** The owner on 0.61.0's Home, on both screens: *"a loose collection with not that nice and
+customizable purpose, what is for?"*; on the phone, *"cluttered and not very intuitive, just listing
+the views"*; and *"web seems a hidden feature"*. What Home should be instead, in the owner's words:
+*"a quick glance on the current status, and the user selects what to see"*; a board *"stats and
+important issues"* or *"the full board"*, beside *"anything else the user selects"*; a journal as
+in Logseq, *"you enter and the entry of the day is there, ready to be written"*; *"clean when using
+smaller screens … but even there quick links to the things on fm the user wants to keep an eye on"*;
+and *"easy to go back to home and to anything else"*.
+
+The research (`unifying-home-research-2026-11-22.md` §12) found three things that shaped the answer:
+- most people never customize, so the default must be good without it (Nielsen Norman Group; Home
+  Assistant's 2026 overview);
+- pinning from where a thing is, is the customizing people do (Apple Health, Home Assistant, Arc);
+- editing works as a list of toggles with a few fixed sizes, never a blank canvas (Notion, Garmin,
+  ClickUp, iOS widgets, Anytype).
+
+**Decided:**
+1. **Home is a glance row, a watch row, today's journal entry and cards.** Each card has three sizes:
+   glance (a figure, or a link), summary (what needs a look) and full (the whole thing). There is no
+   free grid: free sizing is where dashboards break on phones. Home lists no sections; the rail and
+   the phone's bar do.
+2. **Home stays one note tagged `home`**, one card per line (`![](card:board:tasks?size=summary&phone=0)`),
+   with the person's own words above the cards. 0.61.0's lines are read as cards.
+3. **With nothing set up, Home is generated from use**: the journal, figures for the three busiest
+   sections, what is due, the task board, what came in, the note to continue, and first steps for a
+   small library. It keeps up until the first edit; *Reset* returns to it.
+4. **Pin to Home** is in a note's ⋯ and in a section's or saved view's bar. Pinning a Home nobody set
+   up keeps its generated cards, so pinning never empties Home.
+5. **The journal convention is the import's**: a note titled with the day (`2026-11-23`), tagged
+   `journal`. Today's entry is made on the first keystroke, so no empty day is written. The Today
+   page became the **Journal** page: the day's entry, *what the day collected* (Today's four parts),
+   earlier days, and any day by date. One read command, `journal`.
+6. **Figures count notes made per day** from `section_summary`'s new `recent` (the last 35 days'
+   creation times). The UI counts them by day on the app clock, so the server stays a list.
+7. **A narrow Home** shows only the phone's cards, at most three figures, nothing full but the
+   journal, the watch row on one line, and a box at the bottom that jots a line into today's entry
+   or opens a typed address.
+8. **Web is a section** (`web.kind`): the pages kept, as a table or a gallery. A section with no view
+   of its own opens on its first generic one. Its ＋ asks for an address (`asks: [address]`) and
+   opens Find or do.
+9. **Find or do is the one box**: a typed address opens the page before any note, and any words
+   also offer *Search the web* with the search engine chosen in Settings.
+10. **Getting back:** Alt+Home goes Home from any page; Home pressed on Home goes to today's entry.
+
+**Not done, said in `known-issues.md`:**
+- a slot the app fills by itself ("worth a look");
+- naming a card;
+- figures from tracked values (kilocalories, weight);
+- boards other than Tasks;
+- *Open* (the pages open now);
+- a reading list with read and unread;
+- photo and voice in the phone's capture box.
+
+**Widens what ships** by one read command (`journal`), one field (`recent`), one `.kind` file (Web),
+and the `card:` line form of the Home note.
 

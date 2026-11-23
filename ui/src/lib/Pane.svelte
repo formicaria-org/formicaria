@@ -565,8 +565,8 @@
         <HomeView go={(u) => ongo?.(u)} {onopen} />
       {/await}
     {:else if drawnPane.kind === 'today'}
-      {#await import('../feature/TodayView.svelte') then { default: TodayView }}
-        <TodayView {onopen} />
+      {#await import('../feature/JournalView.svelte') then { default: JournalView }}
+        <JournalView {onopen} />
       {/await}
     {:else if drawnPane.kind === 'activity'}
       <Activity {shown} {onopen} />

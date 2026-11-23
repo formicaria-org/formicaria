@@ -3062,11 +3062,29 @@ Built in this release (`decisions.md`, 2026-11-22, night, latest; `unifying-home
 - the bridge (ask the assistant about the front note);
 - rebindable keys (`keys.ts` has no effect on the feature pages).
 
-**The phone keeps its own bar of tabs.** Home and Today are tabs there, and Home opens first; the
+**The phone keeps its own bar of tabs.** Home and the Journal are tabs there, and Home opens first; the
 shell's bottom bar is not built. **The older frame is not deleted (P2d)**: the phone still runs it.
 **Spaces, making your own views and your own kinds** are P3 and P4. On the phone, compared with the
 older frame on a tablet, there is still no redo, no *Recently deleted*, no ＋ menu, no vault filter
 and no sync chips.
+
+## Home: what it does not do yet (2026-11-23)
+
+Home is a glance, a journal and cards (`decisions.md`, 2026-11-23; `unifying-home-research-2026-11-22.md`
+§12). Not built:
+- **A "worth a look" slot** the app fills by itself (overdue tasks, a meal not logged): only what is
+  generated or pinned is shown.
+- **Naming a card.** The `card:` line keeps a label, but Edit Home has no field for it; a label
+  written into the Home note by hand is shown.
+- **Figures from tracked values** (kilocalories today, weight over a month): a figure counts the
+  notes a section made per day, from `section_summary`'s `recent`.
+- **Boards other than Tasks.** `board:<section>` reads any section's notes by status, but only
+  Tasks has statuses, so only the Tasks board is offered.
+- **Open**: the pages and notes open right now, on the rail and as a card. Home cannot see
+  formicaria's other tabs.
+- **A reading list** with read and unread: Web shows the pages kept, with no state for reading.
+- **Photo and voice** in the phone's capture box: it takes a line of text or a web address.
+- **What the day collected** is shown for today only: for an earlier day the Journal shows its entry.
 
 ## On a computer: what U1 brought back, and what it did not (2026-11-22)
 

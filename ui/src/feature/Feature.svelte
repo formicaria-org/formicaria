@@ -67,12 +67,13 @@
   import { parseRoute, itemUrl, type Route } from './route';
   import { setPropertyUndoable } from '../lib/undo.svelte';
   import { trackersShown } from '../lib/trackers.svelte';
-  import { FEATURES, featureOf } from '../lib/features';
+  import { FEATURES, asksAddress, featureOf, openFind } from '../lib/features';
+  import { pinToHome } from '../lib/home';
   import NewTab from './NewTab.svelte';
   import SectionNotes from './SectionNotes.svelte';
   import ViewControls from '../lib/ViewControls.svelte';
   import HomeView from './HomeView.svelte';
-  import TodayView from './TodayView.svelte';
+  import JournalView from './JournalView.svelte';
   import sectionsJson from '../lib/sections.json';
   import type { Section, SectionView } from '../lib/types';
   import SelectionBring from '../lib/SelectionBring.svelte';
@@ -171,11 +172,18 @@
   /// views (a table, a gallery) beside its own, and what its ＋ makes.
   const section = (sectionsJson as Section[]).find((s) => s.page === here?.url);
   const genericViews = (section?.views ?? []).filter((v) => !!v.renderer);
+  /// Whether the section has a view of its own ("As usual"); Web has only the generic ones.
+  const usual = !section || section.views.some((v) => !v.renderer);
   /// The generic view chosen, or none for the section's own ("As usual").
-  let generic = $state<SectionView | null>(null);
+  let generic = $state.raw<SectionView | null>(usual ? null : (genericViews[0] ?? null));
   const viewName = (v: SectionView) =>
     v.label ?? (v.renderer ? v.renderer.charAt(0).toUpperCase() + v.renderer.slice(1) : '');
   let choosing = $state(false);
+  /** What *Pin to Home* puts on Home from here: this section, or this saved view. */
+  const pinRef = $derived(
+    route.kind === 'view' ? `view:${route.name}` : section ? `section:${section.key}` : '',
+  );
+  let pinnedHome = $state(false);
   // Settings as a page: its theme and the new-vault form, as the app keeps them.
   let theme = $state(
     typeof document !== 'undefined' ? (document.documentElement.dataset.theme ?? 'dark') : 'dark',
@@ -212,7 +220,7 @@
   const PAGE_NAMES: Partial<Record<Route['kind'], string>> = {
     new: 'New tab',
     home: 'Home',
-    today: 'Today',
+    today: 'Journal',
     settings: 'Settings',
     privacy: 'Privacy',
     media: 'Save media',
@@ -319,6 +327,7 @@
 
   /** **＋ New note** (the view's line): a blank note, opened in a tab of its own. */
   async function newNote() {
+    if (asksAddress(section)) return openFind();
     try {
       // **What this section's ＋ makes** (its `.kind`'s `new:`): a task on Tasks, an entry on Food.
       const props = (section?.new?.props ?? {}) as Record<string, string | number>;
@@ -364,7 +373,7 @@
   {:else if route.kind === 'home'}
     <HomeView {go} onopen={openNote} />
   {:else if route.kind === 'today'}
-    <TodayView onopen={openNote} />
+    <JournalView onopen={openNote} />
   {:else if route.kind === 'media'}
     {@const asked = mediaAsked()}
     <div class="privacy-page">
@@ -493,12 +502,14 @@
         {#if genericViews.length}
           <!-- **View as** (the shell, P2a): every section's notes as a table or a gallery, beside its own. -->
           <span class="view-as" role="group" aria-label="view as">
-            <button
-              type="button"
-              class:on={!generic}
-              aria-pressed={!generic}
-              onclick={() => (generic = null)}>As usual</button
-            >
+            {#if usual}
+              <button
+                type="button"
+                class:on={!generic}
+                aria-pressed={!generic}
+                onclick={() => (generic = null)}>As usual</button
+              >
+            {/if}
             {#each genericViews as v (viewName(v))}
               <button
                 type="button"
@@ -515,6 +526,20 @@
              show it (`windowHasSettings`). -->
         <span class="system">
           <FindNotes inline onopen={openNote} />
+          {#if pinRef}
+            <!-- **Pin to Home** (Home, 2026-11-23): this section or view as a link on Home. -->
+            <button
+              type="button"
+              class="new-note"
+              disabled={pinnedHome}
+              onclick={() =>
+                pinRef &&
+                void pinToHome(pinRef)
+                  .then(() => (pinnedHome = true))
+                  .catch((e) => (error = String(e)))}
+              >{pinnedHome ? 'On Home ✓' : 'Pin to Home'}</button
+            >
+          {/if}
           <!-- **A new note from every view** (owner on 0.52: *"how are notes added? The plus
                disappeared from every view"*): in a tab of its own, straight in the editor. -->
           <button type="button" class="new-note" onclick={() => void newNote()} title="A new note"

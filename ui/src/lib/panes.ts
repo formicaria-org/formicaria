@@ -465,7 +465,7 @@ export const BUILTIN_PANES: BuiltinPane[] = [
   { kind: 'collaboration', label: 'Collaboration', icon: 'merge' },
   { kind: 'discussions', label: 'Discussions', icon: 'chat' },
   { kind: 'home', label: 'Home', icon: 'home' },
-  { kind: 'today', label: 'Today', icon: 'sun' },
+  { kind: 'today', label: 'Journal', icon: 'sun' },
 ];
 
 /// **The icon a window is drawn with** wherever open windows are listed — the tab row on a wide screen

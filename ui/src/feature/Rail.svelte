@@ -7,6 +7,7 @@
   import sectionsJson from '../lib/sections.json';
   import type { Section, SectionSummary } from '../lib/types';
   import Icon from '../lib/Icon.svelte';
+  import { openFind } from '../lib/features';
   import NewMenu from './NewMenu.svelte';
   import SyncStatus from './SyncStatus.svelte';
 
@@ -39,8 +40,7 @@
   const count = (k: string) => summary.find((s) => s.key === k)?.count;
   const on = (url: string) => path === url || path.startsWith(`${url}/`);
   /** Ctrl+K's search, opened from the rail (`FindNotes` listens). */
-  const find = () =>
-    dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+  const find = openFind;
 </script>
 
 <nav class="rail" aria-label="formicaria">
@@ -61,7 +61,7 @@
     class="item"
     class:on={on('/f/today')}
     aria-current={on('/f/today') ? 'page' : undefined}
-    onclick={() => go('/f/today')}><span class="mark" aria-hidden="true">◷</span> Today</button
+    onclick={() => go('/f/today')}><span class="mark" aria-hidden="true">◷</span> Journal</button
   >
   <h2>Your library</h2>
   <ul aria-label="sections">

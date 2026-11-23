@@ -50,3 +50,12 @@ export function webTarget(
     label: `Search the web for “${t}”`,
   };
 }
+
+/** **A section whose ＋ asks for an address** (Web, `asks: [address]`, 2026-11-23): its ＋ opens the
+ *  one box (Find or do) to open a page or search the web, instead of making an empty note. */
+export const asksAddress = (s: Section | undefined): boolean => !!s?.new?.asks?.includes('address');
+
+/** Open **Find or do** (Ctrl+K's box, `FindNotes`), from a button. */
+export function openFind() {
+  dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+}

@@ -1,0 +1,17 @@
+# A section of the library (docs/context/unifying-home-research-2026-11-22.md §11 and §12): the web
+# pages kept, as notes of the web kind. Its ＋ asks for an address (`asks: [address]`): it opens a page
+# or searches the web, the one box (Find or do), rather than making an empty note (2026-11-23).
+key: web
+label: Web
+icon: globe
+mark: ◎
+purpose: Open a page, and the pages you kept
+order: 15
+page: /f/group/Web
+types: [web]
+views:
+  - renderer: table
+    columns: [source_url, tags]
+  - renderer: gallery
+new:
+  asks: [address]

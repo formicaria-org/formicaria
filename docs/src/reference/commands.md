@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 166 of them are below**, grouped by what they are for. If you add an arm to
+**All 167 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -71,7 +71,8 @@ dispatch no longer has fails too.)
 | `note_file`      | `id` | `{text, title}` | the note's file as the store writes it (⋯ → Export → Markdown). Read-only |
 | `tagged`         | `tag`, `limit?` (50) | `[ObjectMeta]` | the notes carrying a tag, newest first (the Home note is tagged `home`). Read-only |
 | `section_notes`  | `key`, `limit?` (500, at most 5000) | `[ObjectMeta]` | a section's notes, newest first: what its list, table and gallery views draw. Read-only |
-| `section_summary` | — | `[{key, count, latest}]` | per section, how many notes it holds and its newest (`ObjectMeta` or null), from one read of the store. Read-only |
+| `section_summary` | — | `[{key, count, latest, recent}]` | per section, how many notes it holds, its newest (`ObjectMeta` or null), and when each note of the last 35 days was made, newest first (Home's figures), from one read of the store. Read-only |
+| `journal` | `on_or_before` (`YYYY-MM-DD`), `limit?` (14) | `[ObjectMeta]` | the journal: notes tagged `journal` titled with a day, newest day first, from that day back. Read-only |
 | `actions`        | — | `[{key, label, takes, makes, runs, agent}]` | what formicaria can do, declared once (`fm_app::actions`): each action, where it runs (`server`, `hand-off`, `open`), and the assistant's permission (`off` for each). Read-only |
 | `put`            | `to: {note, at?} \| {new: {title, shelf?}}, md, base?` | `{id, version?}` (a new note: its metadata) | **the one way content moves into a note** (`fm_app::actions::put`): at its end or the end of a heading's section (`at: "after:<heading>"`), whether or not it is open; `base` guards the version read. Or a new note on a shelf |
 | `recipe_from_page` | `url` (query); body = the page | `WebRecipe`        | reads a recipe out of a page the browser already has — `recipe_from_link`'s reader with no fetch |

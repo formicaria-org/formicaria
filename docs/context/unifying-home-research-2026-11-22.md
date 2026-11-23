@@ -434,3 +434,215 @@ sees:
 
 **Decision entry at P1:** the `.kind` format, and that a section is a rule over notes, not a new
 property written into them (`#data` `#seams`).
+
+## 12. Home, refined: a glance, a journal, cards (research and plan, 2026-11-23)
+
+**Why.** Home as built in 0.61.0 (§10.6b) reads as a loose collection. The owner, on both screens: it
+has no clear purpose; it opens on a list of all ten sections, which the rail and the phone's bar
+already give; on the phone it is cluttered and "just listing the views"; and the web is hard to find.
+What the owner asked for instead:
+- **a quick look at how things stand**, the person choosing what is shown;
+- **each thing at the size wanted**: a board as its figures and urgent cards, or the whole board,
+  next to whatever else was chosen;
+- **a daily journal as in Logseq**: open Home and today's entry is there, ready to write in;
+- **figures the person chooses**;
+- **calm on small screens**, with quick links to what the person keeps an eye on;
+- **Home always one step away**, and everything one step from Home.
+
+### 12.1 How other apps manage this many options
+
+| App | What its home is | How choosing works |
+|---|---|---|
+| Notion Home | fixed widgets: greeting, upcoming events, my tasks, database views, recently visited | ••• → Show/hide widgets; *Recently visited* cannot be hidden [1] |
+| Home Assistant | an Overview generated from the person's devices, which updates itself | until 2026.2: *Take control* to edit, after which it no longer updates itself [5]; since 2026.2 the new Overview is fixed except *Favorites* [5] |
+| Apple Health | Summary: *Pinned* metrics, then *Highlights* the app picks | *Edit* next to Pinned, a list of toggles [10] |
+| Garmin Connect | *My Day*: a stack of cards | *Edit My Day*, show or hide and order; users report cards reordering or coming back by themselves [6] |
+| ClickUp | *My Tasks* (formerly Home): a canvas of cards | *Manage cards*: add, reorder, resize, remove; some cards fixed on *Today & Overdue* [11] |
+| Anytype | widgets in the sidebar | per widget: link, tree, list, compact or detailed; *Edit widgets* at the list's end [2] |
+| iOS | widgets in small, medium and large | a fixed set of sizes per widget; a *Smart Stack* rotates to the widget most relevant now [8] |
+| Logseq | the Journals page, today's entry first | `:default-home` in a config file, a template under `:default-templates`; "home = today's entry alone" needs scripts [4] |
+| Capacities | the daily note at the centre | made when opened; everything made that day shows in its timeline; a month calendar coloured by each day's status; templates [3] |
+| Obsidian | a note chosen as home (community *Homepage* plugin) | core *open daily note on startup*; *Today Pane* keeps today's note in the sidebar [9] |
+| Tana | a day node per day | live searches (search nodes) inside the day page give daily dashboards [12] |
+| Arc (web) | sidebar in three tiers: Favorites, Pinned, Today | Favorites cross spaces; pinned stay; Today tabs archive by themselves after 12 h by default [13] |
+| Jira | dashboards of gadgets | the known failure: a dashboard with fourteen gadgets nobody looks at [14] |
+
+**What the research says about customizing at all.** Nielsen Norman Group: companies invest in
+customization "only to find that users rarely — if ever — customize". Some people will not customize
+however easy it is, so the default design must stand for them, and customization must not be what makes
+the experience good in the first place [7]. Home Assistant's 2026 redesign moved the same way: from
+*take control and edit everything* to *a generated overview plus Favorites* [5].
+
+### 12.2 The patterns, and what each means for formicaria
+
+1. **A default that works with no customizing** (NN/g [7], Home Assistant [5]). Home must already be
+   good on day one, built from what the person actually uses, not from a fixed list.
+2. **Pinning is the customizing most people do** (Apple Health *Pinned*, Home Assistant *Favorites*,
+   Arc Favorites, Anytype pinned objects). The cheapest way to change Home is **Pin to Home** from where
+   the thing is (a note, a board, a view, a saved search, a figure, a web page), not an editor on Home.
+3. **Editing is a separate mode, and the catalogue is a list of toggles** (Notion, Apple Health,
+   Garmin, ClickUp, Anytype). Never a blank canvas.
+4. **A few fixed sizes per card** (iOS small/medium/large [8], Anytype link/compact/detailed [2]).
+   Formicaria: **glance, summary, full**. No free grid sizing: that is where Home Assistant's own
+   layouts struggled on phones and tablets [5].
+5. **The app picks some things, the person pins others** (iOS Smart Stack [8], Apple Health
+   *Highlights*). Pinned cards are stable; a small "worth a look" slot can change.
+6. **The journal is made when needed and collects the day** (Capacities [3], Tana [12]).
+   Logseq's lesson is negative: home = today's entry should be built in, not a config or script [4].
+7. **Fewer cards, and exceptions over reports** (Jira [14]). A board card's summary shows what needs
+   action (overdue, blocked, stuck), not every column.
+8. **The layout must not rearrange itself** (Garmin's reported resets [6]). Formicaria keeps it in the
+   Home note, which syncs and has history.
+9. **Three tiers for the web** (Arc [13]): always there (watch list), kept (reading list), open now
+   (Open, which clears itself).
+
+### 12.3 The plan: Home = a glance, a journal, cards
+
+**On a computer.** At the top, a **glance row**: up to six figures. Below it two areas:
+- **the journal**: today's entry, ready to write in, and earlier days below;
+- **cards**, each at its chosen size. On a wide screen, two columns of cards.
+
+**On a phone, in one column:**
+- the glance row (up to three figures);
+- the **watch list** as a row of chips, one line that scrolls sideways;
+- today's entry;
+- the cards marked *on phone*, at glance size unless chosen otherwise;
+- a **capture bar** at the bottom (write, photo, voice, paste a link), which also opens web pages.
+
+No list of sections on Home on either device: the rail and the bottom bar have them.
+
+**Cards (first set, each in glance / summary / full):**
+
+| Card | Glance | Summary | Full |
+|---|---|---|---|
+| Journal | today's first line | today's entry | entry and earlier days |
+| Due and planned | how many today | the list to tick | the agenda |
+| A board | cards per column, how many overdue | overdue, blocked, unmoved for a week | the board |
+| A saved search | how many | the first items | a table |
+| A figure (stat) | a number and its trend | a week or month chart | a full chart |
+| Came in | how many new | their titles | the timeline |
+| Continue | — | the last note, page or song | — |
+| Watch list | chips | chips with what changed | — |
+| Reading list | how many unread | their titles | the Web section |
+| Open | how many | pages and notes open now | — |
+| A note | its title | its first lines | the whole note |
+
+**Choosing, cheapest first:**
+1. **Nothing.** The default is generated from use:
+   - the journal;
+   - *Due and planned* when there are tasks or events;
+   - a board's card when there is a board;
+   - figures for the sections with notes (for example notes written, workouts this week).
+
+   Until the person edits Home it keeps up with what they use, as Home Assistant's overview did; after
+   the first edit it is theirs, and **Reset** brings back the generated one.
+2. **Pin to Home**, in ⋯ on any note, board, view, saved search, figure or web page; on a figure,
+   *Pin this number*.
+3. **Edit Home**:
+   - the catalogue as toggles, grouped (Today, Work, Body, Reading, Web);
+   - per card: its size and *on phone*;
+   - drag to order.
+
+**The journal:**
+- Today's entry is made on the first keystroke, so there are no empty daily notes. It is titled with
+  the date and tagged `journal`, the convention imports already use (`import.md`).
+- An optional template.
+- Under the entry, **what the day collected**: meals, workouts, pages kept, meetings, notes written.
+  This is today's Today page; whether Today merges into the journal is for the owner (§12.6).
+- Earlier days scroll below, and a calendar jumps to any day.
+
+**Getting around:**
+- Home is first on the rail and first in the phone's bar, with a shortcut key.
+- Home pressed while on Home goes to today's entry.
+- A card's title opens its full place, and Back returns to Home where it was.
+- Find or do (Ctrl+K) reaches any note, section or card, and the web: an address opens the page;
+  words offer *Search your notes* and *Search the web*.
+
+**The web, in the open (pattern 9):**
+- the watch list (pins);
+- a **Web section** on the rail: pages kept, the reading list, recently opened, bookmarks, all notes
+  of the web kind;
+- **Open** on the rail and as a card;
+- the one box.
+
+### 12.4 Architecture, before screens
+
+- **Where Home lives.** The Home note (tag `home`) keeps its cards in a frontmatter list, `cards:`.
+  Each card holds what it shows (`view:`, `note:`, `board:`, `search:`, `stat:`, or a built-in), its
+  size, and `phone: true|false`. The body stays the person's own words, shown as a text card.
+  0.61.0's one-block-per-line Home is read as cards, so nothing set up already is lost.
+- **The server stays simple** (`simple-server-rich-front`). Two read commands:
+  - `journal_day(date)`: the entry's id, if there is one;
+  - `stat_series(query, days)`: counts per day for a saved search, giving a figure and its trend.
+
+  Everything else uses commands that exist: `section_summary`, `section_notes`, queries,
+  `create_notes`. One request per Home, batched, not one per card.
+- **Board summary** uses fields boards already have (status, due, last change). "Unmoved for a week"
+  is the last change against the app clock (`appTime.ts`).
+- **Memory.** Home loads its cards lazily. browser-check's margin is thin (+8.1% on 2026-11-22
+  against a 10% limit).
+
+### 12.5 Phases
+
+| Phase | What | Proof |
+|---|---|---|
+| H0 | a clickable prototype in `spikes/`: computer and phone, default and edited | the owner's review |
+| H1 | `cards:` in the Home note and reading the 0.61.0 form; `journal_day`; `stat_series` | Rust tests with invented notes |
+| H2 | computer Home: glance row, journal, cards in three sizes, Edit Home, Pin to Home | vitest; a usability persona |
+| H3 | phone Home: the same note by the phone's rules; watch chips; capture bar | vitest; phone-media-check case |
+| H4 | board summary, reading list, Open, the Web section, the one box | vitest; usability persona |
+| H5 | manual, decisions, known-issues; release | the full gate |
+
+**Decision entries needed:**
+- Home = glance + journal + cards (amends 2026-11-22, the shell's Home);
+- the journal convention (dated, tagged `journal`, made on the first keystroke);
+- three card sizes, no free grid;
+- a Web section and the one box;
+- Today merged into the journal, if chosen.
+
+### 12.6 For the owner to decide
+
+1. Should Today merge into the journal, as "what the day collected" under each entry?
+2. On the phone, today's entry in full, or one line ("Write today…") that opens it?
+3. Is the generated default right, or should a first start ask which starting point (Daily planner,
+   Research desk, Health & training, Reading & web)?
+4. Is a "worth a look" slot the app fills (overdue tasks, a meal not logged) wanted, or only what is
+   pinned?
+
+### 12.6b Refined and built (2026-11-23)
+
+The owner: *"refine and execute"*. The four questions of §12.6 were answered with the recommended
+defaults:
+1. Today merged into the journal: the Today page is now the **Journal** page.
+2. On the phone, today's entry is shown in full, ready to write in (the owner's own words).
+3. The default is generated from use, with *Reset*; no question on a first start.
+4. No "worth a look" slot yet (`known-issues.md`, *Home: what it does not do yet*).
+
+Changed from §12.4 while building:
+- **Cards are lines of the Home note's body** (`![](card:<ref>?size=…&phone=0|1)`), not a frontmatter
+  `cards:` list. One form, human-editable, read beside 0.61.0's.
+- **No `journal_day` and no `stat_series`.** One `journal` read (days from a day back), and
+  `section_summary`'s `recent` for figures.
+- **Watch row = glance-size links** (a pinned note, section or view).
+- **Glance row = glance-size figures.** A card's size decides its row; there is no separate list.
+
+As built: `decisions.md` 2026-11-23; tested by `home.test.ts`, `Shell.test.ts`, `home_reads.rs`, and
+usability-check's *someone finding their way around*, which types today's entry, pins a section,
+edits Home across a reload, opens the Journal page and Web, and uses the one box.
+
+### 12.7 Sources
+
+1. Notion, *Navigate with the sidebar* (Home and My Tasks): https://www.notion.com/help/home-and-my-tasks
+2. Anytype, *Widgets*: https://doc.anytype.io/anytype/basics/sidebar/widgets
+3. Capacities, *Dates and daily notes*: https://docs.capacities.io/reference/dates-and-daily-notes ; *Time as a pillar*: https://capacities.io/core-concepts/time-pillar
+4. Logseq forum, *How to set default-home to today*: https://discuss.logseq.com/t/how-to-set-default-home-to-today-not-journals/17180
+5. Home Assistant, *Multiple dashboards*: https://www.home-assistant.io/dashboards/dashboards ; *How to take control of new Overview dashboard*: https://community.home-assistant.io/t/how-to-take-control-of-new-overview-dashboard/992483 ; PCWorld on the new default: https://www.pcworld.com/article/3053761/home-assistants-default-dashboard-got-a-major-glow-up.html
+6. Garmin forums, *My Day cards keep rearranging*: https://forums.garmin.com/apps-software/mobile-apps-web/f/garmin-connect-mobile-ios/267089/why-do-my-day-cards-keep-rearranging-and-removed-ones-keep-coming-back
+7. Nielsen Norman Group, *Customization of UIs and products*: https://www.nngroup.com/articles/customization-of-uis-and-products/ ; Alertbox on customization: https://www.nngroup.com/alertbox/customization.html
+8. Apple, Human Interface Guidelines, *Widgets*: https://developer.apple.com/design/human-interface-guidelines/widgets
+9. Obsidian, *Homepage* plugin: https://community.obsidian.md/plugins/homepage ; *Today Pane*: https://community.obsidian.md/plugins/today-pane
+10. Apple Support, *Use the Health app*: https://support.apple.com/104997
+11. ClickUp, *My Tasks page (formerly Home)*: https://help.clickup.com/hc/articles/6308921446935-Home
+12. Tana, *Daily notes*: https://outliner.tana.inc/learn/features/daily-notes ; *Live search*: https://tana.inc/docs/search-nodes
+13. TidBITS, *Arc will change the way you work on the web*: https://tidbits.com/2023/05/01/arc-will-change-the-way-you-work-on-the-web/
+14. Atlassian Community, *Your Jira reporting dashboard has 14 gadgets and nobody looks at it*: https://community.atlassian.com/forums/App-Central-articles/Your-Jira-Reporting-Dashboard-Has-14-Gadgets-and-Nobody-Looks-at/ba-p/3216842

@@ -119,7 +119,16 @@ pub struct Summary {
     pub key: String,
     pub count: usize,
     pub latest: Option<ObjectMeta>,
+    /// When each of the section's notes made in the last [`RECENT_DAYS`] days was made, newest
+    /// first: Home's figures count them per day on the app's clock (`appTime.ts`), so the zone is
+    /// the UI's and the server only lists (Home, 2026-11-23).
+    pub recent: Vec<String>,
 }
+
+/// How far back [`Summary::recent`] reaches: a month's figure and its trend, with room for a zone.
+pub const RECENT_DAYS: i64 = 35;
+/// At most this many in [`Summary::recent`]: a figure past it says "2000+", it never stalls a read.
+const RECENT_MAX: usize = 2000;
 
 const SHIPPED: &[(&str, &str)] = &[
     ("notes", include_str!("shipped/kinds/notes.kind")),
@@ -132,6 +141,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("videos", include_str!("shipped/kinds/videos.kind")),
     ("discussions", include_str!("shipped/kinds/discussions.kind")),
     ("collaboration", include_str!("shipped/kinds/collaboration.kind")),
+    ("web", include_str!("shipped/kinds/web.kind")),
 ];
 
 struct Loaded {
@@ -215,9 +225,44 @@ pub fn tagged(store: &dyn Store, tag: &str, limit: usize) -> Result<Vec<ObjectMe
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
+/// **The journal** (Home, 2026-11-23): notes tagged `journal` whose title is a day (`2026-11-23`),
+/// the form an imported Logseq or Obsidian journal already takes (`fm_core::import`). Newest day
+/// first, from `on_or_before` (inclusive) back, at most `limit`. Today's entry is the first when its
+/// title is today; the UI makes it on the first keystroke, so no empty day is ever written.
+pub fn journal(
+    store: &dyn Store,
+    on_or_before: &str,
+    limit: usize,
+) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query {
+        filter: Filter::new().and(fm_query::Predicate::TagsAny(vec!["journal".to_string()])),
+        ..Default::default()
+    };
+    let mut days: Vec<ObjectMeta> = store
+        .query(&q)?
+        .rows
+        .iter()
+        .map(ObjectMeta::from)
+        .filter(|n| n.title.as_deref().is_some_and(|t| is_day(t) && t <= on_or_before))
+        .collect();
+    days.sort_by(|a, b| b.title.cmp(&a.title));
+    days.truncate(limit);
+    Ok(days)
+}
+
+/// `2026-11-23`, and nothing else: a journal's title is the day it is for.
+fn is_day(t: &str) -> bool {
+    let b = t.as_bytes();
+    b.len() == 10
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+}
+
 /// Each section's count and newest note, from one read of the store.
 pub fn summary(store: &dyn Store) -> Result<Vec<Summary>, StoreError> {
     let (objects, _) = store.candidates(&Filter::new())?;
+    let since = time::OffsetDateTime::now_utc() - time::Duration::days(RECENT_DAYS);
     Ok(loaded()
         .into_iter()
         .map(|l| {
@@ -233,10 +278,13 @@ pub fn summary(store: &dyn Store) -> Result<Vec<Summary>, StoreError> {
                     l.section.types.is_empty() || l.section.types.iter().any(|t| t == kind_of(o))
                 })
                 .collect();
+            let mut made: Vec<_> = rows.iter().map(|o| o.created).filter(|t| *t >= since).collect();
+            made.sort_unstable_by(|a, b| b.cmp(a));
             Summary {
                 key: l.section.key,
                 count: rows.len(),
                 latest: rows.first().map(ObjectMeta::from),
+                recent: made.into_iter().take(RECENT_MAX).map(crate::dto::stamp).collect(),
             }
         })
         .collect())
@@ -258,6 +306,7 @@ mod tests {
             keys,
             [
                 "notes",
+                "web",
                 "tasks",
                 "agenda",
                 "food",

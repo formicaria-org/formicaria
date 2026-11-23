@@ -8,6 +8,7 @@ import type { Section, SectionSummary } from './types';
 
 const BEFORE = [
   { key: 'Library', label: 'Notes', mark: '✎', icon: 'pen', url: '/f/group/Library' },
+  { key: 'Web', label: 'Web', mark: '◎', icon: 'globe', url: '/f/group/Web' },
   { key: 'Tasks', label: 'Tasks', mark: '▦', icon: 'board', url: '/f/group/Tasks' },
   { key: 'agenda', label: 'Agenda', mark: '◷', icon: 'calendar', url: '/f/agenda' },
   { key: 'Food', label: 'Food journal', mark: '◍', icon: 'chart', url: '/f/group/Food' },
@@ -25,7 +26,7 @@ const BEFORE = [
   },
 ];
 
-it('the features are the sections, unchanged from before', () => {
+it('the features are the sections: the ten from before, and Web (2026-11-23)', () => {
   expect(FEATURES).toEqual(BEFORE);
   expect(featureOf('/f/group/Food/Day')?.key).toBe('Food');
 });
@@ -35,6 +36,7 @@ it('the mock answers sections and their counts', async () => {
   const list = await mock.handle<Section[]>('sections', {});
   expect(list.map((s) => s.key)).toEqual([
     'notes',
+    'web',
     'tasks',
     'agenda',
     'food',
@@ -46,6 +48,6 @@ it('the mock answers sections and their counts', async () => {
     'collaboration',
   ]);
   const sum = await mock.handle<SectionSummary[]>('section_summary', {});
-  expect(sum).toHaveLength(10);
+  expect(sum).toHaveLength(11);
   expect(sum.every((s) => typeof s.count === 'number')).toBe(true);
 });

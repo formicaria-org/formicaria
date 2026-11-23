@@ -47,7 +47,7 @@
     </li>
     <li>
       <button type="button" onclick={() => go('/f/today')}
-        ><Icon name="sun" size={22} /><span>Today</span></button
+        ><Icon name="sun" size={22} /><span>Journal</span></button
       >
     </li>
     {#each FEATURES as f (f.key)}

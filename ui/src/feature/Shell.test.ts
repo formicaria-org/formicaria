@@ -1,10 +1,12 @@
 // **The shell** (P2b): the rail takes a person anywhere inside the tab (the address changes, Back works,
 // nothing reloads); Home shows what can be done and is customizable, kept as a note tagged `home`;
-// Today shows the day; a note opens beside the page on a wide screen.
+// the Journal shows the day; a note opens beside the page on a wide screen.
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Shell from './Shell.svelte';
 import * as mock from '../lib/mock';
+import { appToday } from '../lib/appTime';
+import { typeInto } from '../lib/editor/testing';
 
 const wide = (on: boolean) =>
   vi.stubGlobal('matchMedia', (q: string) => ({
@@ -41,44 +43,106 @@ it('the rail goes from Home to a section and back, in the same tab', async () =>
   await vi.waitFor(() => expect(location.pathname).toBe('/f/home'));
 });
 
-it('Home lists the sections with ＋, and its blocks', async () => {
+it('Home: the journal ready to write in, and cards made from what is used', async () => {
   history.replaceState(null, '', '/f/home');
   render(Shell);
-  const kinds = await screen.findByRole('list', { name: 'what you can do here' });
-  expect(within(kinds).getByText(/Food journal/)).toBeTruthy();
-  expect(within(kinds).getByRole('button', { name: 'new in Music' })).toBeTruthy();
-  const blocks = screen.getByRole('list', { name: 'home blocks' });
-  for (const name of ['Getting started', 'Today', 'Just in', 'Recent', 'Pinned'])
-    expect(within(blocks).getByRole('heading', { name: new RegExp(name) })).toBeTruthy();
+  const today = appToday();
+  expect(await screen.findByRole('region', { name: `journal, ${today}` })).toBeTruthy();
+  const cards = await screen.findByRole('list', { name: 'home cards shown' });
+  expect(await within(cards).findByRole('heading', { name: /Continue/ })).toBeTruthy();
+  // No list of every section on Home: the rail has them.
+  expect(screen.queryByRole('list', { name: 'what you can do here' })).toBeNull();
 });
 
-it('Customize home: a block removed and one moved are kept, in a note tagged home', async () => {
+it('the journal: today’s entry is made on the first keystroke, titled with the day', async () => {
   history.replaceState(null, '', '/f/home');
   render(Shell);
-  await fireEvent.click(await screen.findByRole('button', { name: 'Customize home' }));
-  await fireEvent.click(screen.getByRole('button', { name: 'remove Pinned' }));
-  await vi.waitFor(async () => {
-    const home = (await mock.handle('tagged', { tag: 'home' })) as { id: string }[];
-    expect(home.length).toBe(1);
-    const d = (await mock.handle('get', { id: home[0].id })) as { body: string };
-    expect(d.body).not.toContain('Pinned');
-    expect(d.body).toContain('view:today');
+  const today = appToday();
+  const region = await screen.findByRole('region', { name: `journal, ${today}` });
+  const box = await vi.waitFor(() => {
+    const el = region.querySelector('.cm-editor');
+    if (!el) throw new Error('no editor yet');
+    return el;
   });
-  await fireEvent.click(screen.getByRole('button', { name: 'move Today up' }));
-  await vi.waitFor(async () => {
+  expect(await mock.handle('journal', { on_or_before: today })).toEqual([]);
+  typeInto(box, 'Fed the colony.');
+  await vi.waitFor(
+    async () => {
+      const [n] = (await mock.handle('journal', { on_or_before: today })) as {
+        id: string;
+        title: string;
+        tags: string[];
+      }[];
+      expect(n?.title).toBe(today);
+      expect(n.tags).toContain('journal');
+      const d = (await mock.handle('get', { id: n.id })) as { body: string };
+      expect(d.body).toContain('Fed the colony.');
+    },
+    { timeout: 3000 },
+  );
+});
+
+it('Edit Home: a card removed, one moved and one resized are kept, in a note tagged home', async () => {
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Edit Home' }));
+  const body = async () => {
     const [h] = (await mock.handle('tagged', { tag: 'home' })) as { id: string }[];
-    const d = (await mock.handle('get', { id: h.id })) as { body: string };
-    expect(d.body.indexOf('view:today')).toBeLessThan(d.body.indexOf('view:start'));
+    if (!h) return '';
+    return ((await mock.handle('get', { id: h.id })) as { body: string }).body;
+  };
+  await fireEvent.click(await screen.findByRole('button', { name: 'remove Continue' }));
+  await vi.waitFor(async () => {
+    const b = await body();
+    expect(b).toContain('card:journal');
+    expect(b).not.toContain('card:continue');
   });
+  await fireEvent.change(screen.getByRole('combobox', { name: 'size of Journal' }), {
+    target: { value: 'full' },
+  });
+  await vi.waitFor(async () => expect(await body()).toContain('card:journal?size=full'));
   await fireEvent.click(screen.getByRole('button', { name: 'Reset to the default' }));
+  await vi.waitFor(async () => expect(await body()).not.toContain('card:'));
+});
+
+it('Pin to Home, from a section’s bar: the section becomes a link on Home', async () => {
+  history.replaceState(null, '', '/f/group/Tasks');
+  render(Shell);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Pin to Home' }));
   await vi.waitFor(async () => {
     const [h] = (await mock.handle('tagged', { tag: 'home' })) as { id: string }[];
     const d = (await mock.handle('get', { id: h.id })) as { body: string };
-    expect(d.body).toContain('Pinned');
+    expect(d.body).toContain('card:section:tasks?size=glance');
+    // The generated Home is kept with it, so pinning never empties Home.
+    expect(d.body).toContain('card:journal');
   });
+  expect(await screen.findByRole('button', { name: 'On Home ✓' })).toBeTruthy();
 });
 
-it('Today shows the day in its four parts', async () => {
+it('the one box: a web address opens the page; words also offer a web search', async () => {
+  const opened: string[] = [];
+  vi.stubGlobal('open', (u: string) => void opened.push(u));
+  history.replaceState(null, '', '/f/group/Tasks');
+  render(Shell);
+  const field = (await screen.findAllByRole('searchbox', { name: 'search notes' }))[0];
+  await fireEvent.input(field, { target: { value: 'example.org' } });
+  await fireEvent.keyDown(field, { key: 'Enter' });
+  expect(opened).toEqual(['https://example.org']);
+  await fireEvent.input(field, { target: { value: 'ant colonies' } });
+  expect(
+    await screen.findByRole('button', { name: /Search the web for “ant colonies”/ }),
+  ).toBeTruthy();
+});
+
+it('Alt+Home goes Home from any page', async () => {
+  history.replaceState(null, '', '/f/group/Tasks');
+  render(Shell);
+  await screen.findByRole('navigation', { name: 'formicaria' });
+  await fireEvent.keyDown(window, { key: 'Home', altKey: true });
+  await vi.waitFor(() => expect(location.pathname).toBe('/f/home'));
+});
+
+it('the Journal page: the day’s entry, what the day collected in four parts', async () => {
   history.replaceState(null, '', '/f/today');
   render(Shell);
   for (const name of ['Planned and due', 'Logged', 'Came in', 'Written'])

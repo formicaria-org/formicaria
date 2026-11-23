@@ -32,6 +32,35 @@
     "new": {}
   },
   {
+    "key": "web",
+    "label": "Web",
+    "icon": "globe",
+    "mark": "◎",
+    "purpose": "Open a page, and the pages you kept",
+    "order": 15,
+    "page": "/f/group/Web",
+    "types": [
+      "web"
+    ],
+    "views": [
+      {
+        "renderer": "table",
+        "columns": [
+          "source_url",
+          "tags"
+        ]
+      },
+      {
+        "renderer": "gallery"
+      }
+    ],
+    "new": {
+      "asks": [
+        "address"
+      ]
+    }
+  },
+  {
     "key": "tasks",
     "label": "Tasks",
     "icon": "board",

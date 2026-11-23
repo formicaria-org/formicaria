@@ -7,7 +7,9 @@
   import type { ObjectMeta } from '../lib/types';
   import { appToday, dayOfInstant } from '../lib/appTime';
 
-  let { onopen }: { onopen: (id: string) => void } = $props();
+  // Since Home's journal (2026-11-23) this is **what the day collected**, under the day's entry on the
+  // Journal page (`JournalView`); `heading` empty leaves out its own title there.
+  let { onopen, heading = 'Today' }: { onopen: (id: string) => void; heading?: string } = $props();
 
   let agenda = $state<ObjectMeta[]>([]);
   let recent = $state<ObjectMeta[]>([]);
@@ -51,8 +53,8 @@
   ]);
 </script>
 
-<div class="today">
-  <h1>Today</h1>
+<div class="today" class:embedded={!heading}>
+  {#if heading}<h1>{heading}</h1>{/if}
   {#each groups as g (g.label)}
     <section aria-label={g.label}>
       <h2>{g.label} <span class="n">{g.items.length}</span></h2>
@@ -81,6 +83,12 @@
     height: 100%;
     box-sizing: border-box;
     max-width: 52rem;
+  }
+  .today.embedded {
+    padding: 0;
+    height: auto;
+    overflow: visible;
+    max-width: none;
   }
   h1 {
     margin: 0 0 var(--space-3);

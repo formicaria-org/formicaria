@@ -1,4 +1,4 @@
-# Getting around: the rail, Home and Today
+# Getting around: the rail, Home and the Journal
 
 On a computer, formicaria's pages share one frame. Down the left is the **rail**. Next to it is the
 place you chose, and on a wide screen a note you open appears **beside** it rather than in a new tab.
@@ -9,42 +9,87 @@ From the top:
 
 - **＋ New**: a note, a board, a discussion, a paper (from a DOI, an arXiv link or a BibTeX entry), or
   a note from one of your templates.
-- **Find or do** (**Ctrl+K**, **⌘K** on a Mac, or **/**): search every note.
-- **Home** and **Today** (below).
+- **Find or do** (**Ctrl+K**, **⌘K** on a Mac, or **/**): search every note, or type a web address
+  to open the page. Any words also offer **Search the web**, below the notes they find.
+- **Home** and the **Journal** (below).
 - **Your library**: each section with how many notes it holds. Hover over one for its own **＋**,
-  which makes what that section holds: a task in Tasks, an entry in Food journal.
+  which makes what that section holds: a task in Tasks, an entry in Food journal. **Web**'s ＋ opens
+  Find or do, to open a page.
 - **Back up now**, and a note when something wants a look: notes that could not be read, notes not
   yet in history, notes the merge decided for you. Each opens a short panel that explains.
 - **Settings**.
 
-Moving between places stays in the same tab: **Back** returns to where you were.
+Moving between places stays in the same tab: **Back** returns to where you were. **Alt+Home** goes
+Home from any page, and pressing **Home** while you are on Home puts you in today's journal entry.
 
 ## Home
 
-Home is where formicaria opens. At the top is **What you can do here**: every section, how many
-notes it holds, its newest, a line on what it is for, and a **＋**. Below it are blocks:
+Home is where formicaria opens. It shows how things stand, and you choose what is on it.
 
-- **Getting started**: five first steps, each ticked as you actually do it.
-- **Today**: what is planned and due today.
-- **Just in**: pages, songs, videos and meetings that came in.
-- **Recent**: the notes you changed last.
-- **Pinned**: notes you tagged `pinned`.
+- **At a glance**, along the top: a few figures, such as notes written this week (with an arrow when
+  it is more or less than the week before), tasks open in a board, what is due today.
+- **Kept an eye on**: a row of links to notes, sections and views you pinned.
+- **Today's journal entry**, ready to write in (below).
+- **Cards**, each showing one thing at the size you choose:
 
-**Customize home** lets you change it:
+| Card | Summary | Full |
+|---|---|---|
+| Due and planned | what is due or planned today | everything due, with what is overdue |
+| A board | how many cards are in each column, and the ones that need a look: overdue, blocked, or unmoved for a week | the whole board, column by column |
+| A section or a saved view | its newest notes | more of them |
+| A figure | the last seven days, day by day | the last thirty |
+| Came in | pages, songs and meetings brought in this week | more of them |
+| Continue | the note you were in last | — |
+| A note | its first lines | the whole note |
 
-- **Add a block**: one of the above, any view (Menu, Training week, a board you made), or a note.
-- **Move** a block with its arrows, or drag it.
-- **Remove** it with ✕.
-- Choose **one column** or **two**.
-- **Reset to the default** puts it back as it came.
+Any card or figure can also be at **glance** size: a figure in the top row, or a link in the row of
+things kept an eye on. A card's title opens its whole place, and **Back** returns to Home.
 
-Your Home is kept as a note tagged `home`. It syncs to your other devices and keeps its history like
-any note, and it opens and edits like one too, one block per line.
+### Before you change anything
 
-## Today
+Home is made from what you use: the journal, figures for your busiest sections, what is due, your
+task board, what came in, and the note to continue. Until you change it, it keeps up as you use
+formicaria differently.
 
-**Today** shows the day in four parts: what is **planned and due**, what you **logged**, what **came
-in**, and what you **wrote**.
+### Pin to Home
+
+The quickest way to add something is from where it is:
+- in a note, **⋯ → Pin to Home**;
+- on a section's or a saved view's page, **Pin to Home** in its bar.
+
+It appears in the row of things kept an eye on.
+
+### Edit Home
+
+**Edit Home** lists the cards on Home. For each one you can:
+- choose its size: glance, summary or full;
+- choose whether it is **on the phone**;
+- move it with its arrows, or drag it;
+- remove it with ✕.
+
+**Add** offers everything that can be on Home, grouped: Today, Figures, Boards, Sections, Views and
+Notes. **Your own words at the top of Home** is a few lines of your own, such as this week's aim.
+**Reset to the default** goes back to the Home made from use.
+
+Home is kept as a note tagged `home`, so it syncs to your other devices and keeps its history like
+any note.
+
+## The Journal
+
+Today's entry is on Home and on the **Journal** page. Just start typing. The entry becomes a note
+titled with the day (`2026-11-23`) and tagged `journal`, the same as journals brought in from Logseq
+or Obsidian, and it is saved as you write. A day you never write in leaves no empty note behind.
+**Open as a note** gives it everything a note has: links with `[[`, the `/` menu, pictures.
+
+Below today's entry the Journal page shows **what the day collected**, in four parts: what was
+**planned and due**, what you **logged**, what **came in**, and what you **wrote**. Then come the
+**earlier days**: choose one to read it or write in it. **Go to a day** opens any day, and writing in
+it makes that day's entry.
+
+## Web
+
+**Web** in the rail is every web page you kept, as a table or a gallery. To open a page, type its
+address in **Find or do**, or press Web's **＋**.
 
 ## A section, the same way each time
 
@@ -58,5 +103,11 @@ The table and the gallery have a **Filter** field above them.
 
 ## On a phone
 
-The phone keeps its own bar of tabs. **Home** opens first and is the same, customizable Home, and **+**
-offers Home and Today before the sections.
+The phone keeps its own bar of tabs, and Home opens first. It is the same Home, kept calm:
+- only the cards marked **on the phone**;
+- at most three figures;
+- nothing at full size except the journal;
+- the links kept an eye on in one row you can scroll sideways.
+
+At the bottom is a box to jot a line into today's entry; a web address typed there opens the page.
+**+** offers Home and the Journal before the sections.

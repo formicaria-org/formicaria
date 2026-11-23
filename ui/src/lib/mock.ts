@@ -138,6 +138,8 @@ function mockInSection(key: string, n: ObjectMeta): boolean {
   switch (key) {
     case 'notes':
       return n.type !== 'asset' && !has('log') && !has('thread_of') && !has('proposes');
+    case 'web':
+      return n.kind_key === 'web';
     case 'tasks':
       return !!n.status || !!n.due;
     case 'agenda':
@@ -2160,6 +2162,17 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // Rust test), and their counts over the mock's notes, by the same rules for the ones a test needs.
     case 'sections':
       return structuredClone(sectionsJson) as T;
+    // The journal (Home, 2026-11-23): days tagged `journal`, newest first, from a day back.
+    case 'journal':
+      return notes
+        .filter(
+          (n) =>
+            n.tags.includes('journal') &&
+            /^\d{4}-\d{2}-\d{2}$/.test(n.title ?? '') &&
+            (n.title ?? '') <= String(args.on_or_before ?? '9999'),
+        )
+        .sort((a, b) => (b.title ?? '').localeCompare(a.title ?? ''))
+        .slice(0, Number(args.limit ?? 14)) as T;
     case 'tagged':
       return notes
         .filter((n) => n.tags.includes(String(args.tag)))
@@ -2191,7 +2204,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return (sectionsJson as { key: string }[]).map((sec) => {
         const mine = notes.filter((n) => mockInSection(sec.key, n));
         const latest = [...mine].sort((a, b) => b.updated.localeCompare(a.updated))[0] ?? null;
-        return { key: sec.key, count: mine.length, latest };
+        const since = new Date(Date.now() - 35 * 86_400_000).toISOString();
+        const recent = mine
+          .map((n) => n.created)
+          .filter((c) => c >= since)
+          .sort((a, b) => b.localeCompare(a));
+        return { key: sec.key, count: mine.length, latest, recent };
       }) as T;
     // The vault list the mock models. Two, so the sidebar's vault chips and filter are
     // exercised (they only render above one). The first-run state — an empty list — is

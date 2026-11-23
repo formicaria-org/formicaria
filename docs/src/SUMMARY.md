@@ -6,7 +6,7 @@
 
 - [Set up formicaria](./user/setup.md)
 - [Your first ten minutes](./user/first-note.md)
-- [Getting around: the rail, Home and Today](./user/getting-around.md)
+- [Getting around: the rail, Home and the Journal](./user/getting-around.md)
 
 # Tutorials
 

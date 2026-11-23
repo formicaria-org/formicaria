@@ -1668,4 +1668,6 @@ export interface SectionSummary {
   key: string;
   count: number;
   latest: ObjectMeta | null;
+  /** When each note of the last 35 days was made, newest first (Home's figures, 2026-11-23). */
+  recent?: string[];
 }

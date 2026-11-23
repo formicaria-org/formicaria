@@ -11,10 +11,31 @@
   import type { ObjectMeta } from '../lib/types';
   import Search from '../renderers/Search.svelte';
   import Icon from '../lib/Icon.svelte';
+  import { webTarget } from '../lib/features';
+  import { searchUrl } from '../lib/privacy.svelte';
 
-  let { inline = false, onopen }: { inline?: boolean; onopen: (id: string) => void } = $props();
+  // **The one box** (Home, 2026-11-23; `unifying-home-research-2026-11-22.md` §12.3): an address
+  // opens the page, and any words also offer *Search the web*, below the notes they find.
+  let {
+    inline = false,
+    onopen,
+    onweb = (url: string) => void window.open(url, '_blank', 'noopener'),
+  }: {
+    inline?: boolean;
+    onopen: (id: string) => void;
+    onweb?: (url: string) => void;
+  } = $props();
 
   let query = $state('');
+  const web = $derived(webTarget(query, searchUrl));
+  /** An address typed (not words): Enter opens it before any note. */
+  const address = $derived(!!web && !web.label.startsWith('Search'));
+  function goWeb() {
+    if (!web) return;
+    const url = web.url;
+    close(true);
+    onweb(url);
+  }
   let results = $state<ObjectMeta[] | null>(null);
   let open = $state(false); // the results (inline) or the whole box (over the page)
   let field = $state<HTMLInputElement | undefined>(undefined);
@@ -105,7 +126,7 @@
         <input
           bind:this={field}
           type="search"
-          placeholder="Search notes"
+          placeholder="Search notes, or type a web address"
           aria-label="search notes"
           spellcheck="false"
           bind:value={query}
@@ -118,8 +139,12 @@
               e.stopPropagation();
               close(!inline || !query.trim());
               field?.blur();
+            } else if (e.key === 'Enter' && address) {
+              goWeb();
             } else if (e.key === 'Enter' && results?.length) {
               pick(results[0].id);
+            } else if (e.key === 'Enter' && results !== null && web) {
+              goWeb();
             }
           }}
         />
@@ -135,8 +160,18 @@
               ? 'Searching…'
               : `${results.length} ${results.length === 1 ? 'note' : 'notes'}`}
           </div>
+          {#if web && address}
+            <button type="button" class="web" onclick={goWeb}
+              ><Icon name="globe" size={14} /> {web.label}</button
+            >
+          {/if}
           {#if results !== null}
             <Search cards={results} {query} onopen={pick} />
+          {/if}
+          {#if web && !address}
+            <button type="button" class="web" onclick={goWeb}
+              ><Icon name="globe" size={14} /> {web.label}</button
+            >
           {/if}
         </div>
       {/if}
@@ -145,6 +180,23 @@
 {/if}
 
 <style>
+  .web {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-top: 1px solid var(--border);
+    background: none;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .web:hover {
+    background: var(--surface);
+  }
   .find {
     position: relative;
   }

@@ -59,3 +59,17 @@ it('＋ New on Tasks makes a task', async () => {
   };
   expect(made.status ?? made.props?.status).toBe('todo');
 });
+
+it('Web has no view of its own: its page opens on its table, and its ＋ opens the one box', async () => {
+  history.replaceState(null, '', '/f/group/Web');
+  const asked: string[] = [];
+  addEventListener('keydown', (e) => e.ctrlKey && asked.push(e.key), { once: true });
+  render(Feature, { path: '/f/group/Web', go: () => {} });
+  const as = await screen.findByRole('group', { name: 'view as' });
+  expect(within(as).queryByRole('button', { name: 'As usual' })).toBeNull();
+  expect(within(as).getByRole('button', { name: 'Table' }).getAttribute('aria-pressed')).toBe(
+    'true',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: '＋ New note' }));
+  expect(asked).toEqual(['k']);
+});

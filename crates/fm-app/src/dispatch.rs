@@ -807,6 +807,7 @@ const READ_ONLY: &[&str] = &[
     "section_summary",
     "section_notes",
     "tagged",
+    "journal",
     // A note's history and its file (⋯ → History, Export; 2026-11-22, later): reads of git and disk.
     "note_history",
     "note_version",
@@ -995,6 +996,14 @@ fn dispatch_inner(
         "tagged" => {
             let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(50).min(500) as usize;
             json(crate::sections::tagged(&lock()?.store(scope), &s("tag"), limit).map_err(err)?)
+        }
+        // **The journal** (Home, 2026-11-23): days tagged `journal`, newest first, from a day back.
+        "journal" => {
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(14).min(400) as usize;
+            json(
+                crate::sections::journal(&lock()?.store(scope), &s("on_or_before"), limit)
+                    .map_err(err)?,
+            )
         }
         "section_notes" => {
             let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(500).min(5000) as usize;

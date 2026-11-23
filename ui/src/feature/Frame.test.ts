@@ -31,8 +31,9 @@ it('a new tab suggests the features, a new note and the web', async () => {
   expect(names).toEqual([
     'New note',
     'Home',
-    'Today',
+    'Journal',
     'Notes',
+    'Web',
     'Tasks',
     'Agenda',
     'Food journal',

@@ -307,6 +307,10 @@ export const sections = () => invoke<Section[]>('sections');
 export const sectionSummary = () => invoke<SectionSummary[]>('section_summary');
 /** The notes carrying a tag, newest first (the Home note: `home`). */
 export const tagged = (tag: string, limit = 50) => invoke<ObjectMeta[]>('tagged', { tag, limit });
+/** **The journal** (Home, 2026-11-23): notes tagged `journal` titled with a day, newest day first,
+ *  from `onOrBefore` (`YYYY-MM-DD`, inclusive) back. */
+export const journal = (onOrBefore: string, limit = 14) =>
+  invoke<ObjectMeta[]>('journal', { on_or_before: onOrBefore, limit });
 /** A section's notes, newest first: what its list, table and gallery views draw. */
 export const sectionNotes = (key: string, limit = 500) =>
   invoke<ObjectMeta[]>('section_notes', { key, limit });
