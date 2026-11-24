@@ -786,6 +786,38 @@ mod tests {
         assert!(jar.is_file(), "the original is kept");
     }
 
+    /// **The person's profile is theirs** (2026-11-24; the owner, before signing in to their Mozilla
+    /// account in formicaria's browser: *"if updates or other changes happen we do not lose the
+    /// account"*). The sign-in (`signedInUser.json`), saved logins and their keys live in
+    /// `<browser>/profile`, beside the program, never inside it: an update replaces the program and
+    /// the kit, and must leave every file of the profile byte for byte.
+    fn signed_in_profile(d: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+        let p = d.join("profile");
+        std::fs::create_dir_all(p.join("storage")).unwrap();
+        let files = [
+            (
+                p.join("signedInUser.json"),
+                b"{\"version\":1,\"accountData\":{\"email\":\"someone@example.org\"}}".to_vec(),
+            ),
+            (p.join("logins.json"), b"{\"logins\":[]}".to_vec()),
+            (p.join("key4.db"), vec![0u8, 1, 2, 3, 255]),
+            (
+                p.join("prefs.js"),
+                b"user_pref(\"services.sync.username\", \"someone@example.org\");\n".to_vec(),
+            ),
+            (p.join("storage").join("ls-archive.sqlite"), vec![7u8; 64]),
+        ];
+        for (f, b) in &files {
+            std::fs::write(f, b).unwrap();
+        }
+        files.to_vec()
+    }
+    fn assert_profile_untouched(files: &[(PathBuf, Vec<u8>)]) {
+        for (f, b) in files {
+            assert_eq!(&std::fs::read(f).unwrap(), b, "{} changed", f.display());
+        }
+    }
+
     #[test]
     fn a_prepared_copy_is_swapped_in_and_the_old_one_kept() {
         let dir = tempfile::tempdir().unwrap();
@@ -795,7 +827,9 @@ mod tests {
             std::fs::write(d.join(sub).join("firefox"), "#!/bin/sh\n").unwrap();
             std::fs::write(d.join(sub).join("formicaria-esr"), v).unwrap();
         }
+        let profile = signed_in_profile(d);
         assert!(swap_in_prepared(d));
+        assert_profile_untouched(&profile);
         assert_eq!(
             std::fs::read_to_string(d.join("firefox/formicaria-esr")).unwrap(),
             "153.7.0esr"
@@ -824,7 +858,9 @@ mod tests {
             .unwrap();
         std::fs::write(res_dir(&ff).join("formicaria").join("kit-stamp"), "0000000000000000")
             .unwrap();
+        let profile = signed_in_profile(d);
         assert!(refresh_kit(d), "an older kit is replaced");
+        assert_profile_untouched(&profile);
         assert_eq!(applied_stamp(d).as_deref(), Some(kit_stamp().as_str()));
         let cfg = std::fs::read_to_string(res_dir(&ff).join("formicaria.cfg")).unwrap();
         assert!(

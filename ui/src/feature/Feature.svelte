@@ -73,8 +73,6 @@
   import NewTab from './NewTab.svelte';
   import SectionNotes from './SectionNotes.svelte';
   import ViewControls from '../lib/ViewControls.svelte';
-  import HomeView from './HomeView.svelte';
-  import JournalView from './JournalView.svelte';
   import sectionsJson from '../lib/sections.json';
   import type { Section, SectionView } from '../lib/types';
   import SelectionBring from '../lib/SelectionBring.svelte';
@@ -376,9 +374,17 @@
   {#if route.kind === 'new'}
     <NewTab {go} />
   {:else if route.kind === 'home'}
-    <HomeView {go} onopen={openNote} />
+    <!-- **Home and the Journal load when shown** (2026-11-24): both hold a journal entry, and the
+         entry is the note editor (~380 KB); imported up front they put it in every tab, a Tasks or a
+         Music page included, and `browser-check` read 18–23 MB per extra feature tab against its
+         20 MB budget. The editor already loads when shown everywhere else (2026-11-17). -->
+    {#await import('./HomeView.svelte') then { default: HomeView }}
+      <HomeView {go} onopen={openNote} />
+    {/await}
   {:else if route.kind === 'today'}
-    <JournalView onopen={openNote} />
+    {#await import('./JournalView.svelte') then { default: JournalView }}
+      <JournalView onopen={openNote} />
+    {/await}
   {:else if route.kind === 'media'}
     {@const asked = mediaAsked()}
     <div class="privacy-page">

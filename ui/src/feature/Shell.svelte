@@ -4,6 +4,7 @@
   // page it chose (a section's views, Home, Today, Settings…), and the item beside it on a wide
   // screen. Moving between places stays in the tab: the address changes (Back works) and the page is
   // drawn again, with no reload. The page itself is `Feature.svelte`, unchanged in what it does.
+  import { foldRail, isFoldKey } from '../lib/railFold.svelte';
   import { onMount } from 'svelte';
   import Feature from './Feature.svelte';
   import Rail from './Rail.svelte';
@@ -106,6 +107,12 @@
     addEventListener('popstate', pop);
     // **Redo** (the parity list): Ctrl+Shift+Z / ⌘⇧Z outside the text, as the older frame has it.
     const redo = (e: KeyboardEvent) => {
+      // **Ctrl+\\ folds the rail away and back** (`lib/railFold.svelte.ts`, 2026-11-24).
+      if (isFoldKey(e)) {
+        e.preventDefault();
+        foldRail();
+        return;
+      }
       // **Alt+Home goes Home** from any page (the browser's own home key; Home, 2026-11-23).
       if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'Home') {
         e.preventDefault();

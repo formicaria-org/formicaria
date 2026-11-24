@@ -936,6 +936,10 @@ def first_hour_pictures(ff: Path, work: Path) -> None:
         content(m, "document.documentElement.dataset.theme = 'dark'; return true;", 800); shot("01g-home-dark")
         content(m, "document.documentElement.dataset.theme = 'light'; return true;", 300)
         goto(m, f"{SERVER}/f/today", 5); shot("01d-journal")
+        # The rail folded away (2026-11-24), and back for what follows.
+        content(m, "document.querySelector('button[aria-label=\"hide the side panel\"]').click(); return true;", 800)
+        shot("01h-rail-folded")
+        content(m, "document.querySelector('button[aria-label=\"show the side panel\"]').click(); return true;", 500)
         m.cmd("WebDriver:SetWindowRect", {"width": 520, "height": 900})
         goto(m, f"{SERVER}/f/home", 6); shot("01e-home-narrow")
         m.cmd("WebDriver:SetWindowRect", {"width": 1440, "height": 900})
@@ -1050,7 +1054,7 @@ def the_shell(ff: Path, work: Path) -> None:
     Home opens on today's journal entry, ready to write in, and the entry is made by typing; the rail
     moves between places in the tab (no reload); a note opens beside the page; *Pin to Home* puts a
     section on Home; Edit Home's changes survive a reload (Home is a note tagged `home`); the Journal
-    page holds only the journal; Web is a section, and the one box opens an address; ＋ New
+    page holds only the journal; the rail folds away and back; Settings is one gear; Web is a section, and the one box opens an address; ＋ New
     makes a board."""
     who = "someone finding their way around"
     bc.post("/api/create_notes", {"notes": [
@@ -1163,6 +1167,29 @@ def the_shell(ff: Path, work: Path) -> None:
         content(m, "document.querySelector('button.customize').click(); return true;", 800)
         layout(m, who, "Edit Home on a laptop")
         content(m, "document.querySelector('button.customize').click(); return true;", 500)
+        # **One door to Settings** (2026-11-24): in formicaria's browser it is the gear at the top right
+        # of every tab, so the rail does not draw a second; in another browser the rail's is the door.
+        doors = content(m, """const b = [...document.querySelectorAll('nav[aria-label="formicaria"] button')].find((x) => x.textContent.trim().endsWith('Settings'));
+            return { bridge: document.documentElement.hasAttribute('data-formicaria-bridge'), rail: !!b && b.getClientRects().length > 0 };""") or {}
+        check(who, "in formicaria's browser Settings is one gear, not a second in the rail",
+              doors.get("bridge") is True and doors.get("rail") is False, str(doors))
+        # **The rail folds away** (the owner, 2026-11-24): the page takes the width, one button brings
+        # it back, and the choice stays across a reload.
+        wide0 = content(m, "return Math.round(document.querySelector('.page').getBoundingClientRect().width)")
+        content(m, "document.querySelector('button[aria-label=\"hide the side panel\"]').click(); return true;", 300)
+        # The rail slides; ask until the page has its width (a fixed pause read it mid-slide).
+        width = "return Math.round(document.querySelector('.page').getBoundingClientRect().width)"
+        wide1 = wait_for(m, f"const w = (() => {{ {width} }})(); return w > {wide0 or 0} + 150 ? w : null", 5) \
+            or content(m, width)
+        layout(m, who, "Home with the rail folded")
+        goto(m, f"{SERVER}/f/home", 5)
+        kept = content(m, "return !!document.querySelector('nav.rail.folded button[aria-label=\"show the side panel\"]')")
+        content(m, "document.querySelector('button[aria-label=\"show the side panel\"]').click(); return true;", 300)
+        back = wait_for(m, f"const w = (() => {{ {width} }})(); return Math.abs(w - {wide0 or 0}) <= 2 ? w : null", 5) \
+            or content(m, width)
+        check(who, "the rail folds away, the page takes the width, and it comes back from one button",
+              bool(wide0 and wide1 and back) and wide1 > wide0 + 150 and kept is True and abs(back - wide0) <= 2,
+              f"page {wide0} → folded {wide1} → back {back}; kept across a reload: {kept}")
         m.cmd("WebDriver:SetWindowRect", {"width": 420, "height": 860})
         goto(m, f"{SERVER}/f/home", 5)
         layout(m, who, "Home at a phone's width")

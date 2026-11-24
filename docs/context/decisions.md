@@ -16703,3 +16703,38 @@ The owner: *"the journal view should have only things about the journal, nothing
   together. Home is where things are combined; a place is one thing.
 - Checked by `Shell.test.ts` and `usability-check` (every region on the page is the entry or the
   earlier days).
+
+## 2026-11-24 (evening) — the rail folds away; Settings is one gear `#ui`
+
+The owner, on the computer: *"confusing, two settings icons? And I see no ability of dropping down
+the left panel with all the views."*
+
+- **One door to Settings.** In formicaria's browser Settings is the ⚙ at the top right of every tab
+  (2026-11-18, the owner's own request, and kept there by `formicaria.cfg`), and the rail drew a
+  second ⚙ *Settings* at its foot. The rail's now steps aside wherever the add-on's bridge marks
+  the page (`data-formicaria-bridge`, CSS only, so it follows the mark whenever it appears). In
+  any other browser the rail's entry is the only way in, and it stays.
+- **The rail folds away.** **«** beside *＋ New* folds it to a slim strip holding one **☰**,
+  which brings it back; **Ctrl+\\** (⌘\\, which Firefox leaves free and editors use for their side
+  panel) does either. The page takes the width. Kept per browser (`fm-rail-folded`), like the vaults
+  shown and the sections hidden: a view preference, not a vault fact. It slides (the panel keeps its
+  width and is clipped as the rail narrows, so entries do not reflow), and folds at once under
+  reduced motion; folded, the panel is `inert`. Not a hover-to-peek: nothing appears over the page
+  uninvited (*keep the focus on the task*, 2026-11-23, late).
+- **Checked:** `Shell.test.ts` (fold, unfold, the key), `usability-check` (one Settings in
+  formicaria's browser; folded, the page is wider, the choice survives a reload, ☰ brings it back;
+  the layout guard on the folded page; `audit-01h-rail-folded.png`).
+
+## 2026-11-24 (night) — Home and the Journal load when shown; a tab carries no editor it does not show `#ui` `#toolchain`
+
+`browser-check` failed the release twice on *each extra feature tab costs at most 20 MB* (23.2 and
+20.8 MB; 17.8 and 18.1 on reruns, one without the day's rail change), where 0.63.2 had read 14.0 MB.
+Firefox ESR 153.8 (from 153.7) raised the floor by a few MB a tab, which put the runs either side of
+the line. The budget stands (as on 2026-11-17); what a tab carries came down instead:
+
+- `Feature.svelte` imported `HomeView` and `JournalView` up front, and both hold a journal entry,
+  which is the note editor (~380 KB, CodeMirror). So since Home's journal (0.62) every feature tab,
+  a Tasks or a Music page included, loaded the editor the 2026-11-17 entry had made load when shown.
+  Both now load when their page is shown (`{#await import(…)}`), as Pane already does for them. A
+  section page's own code went from 461 KB to 48 KB.
+- `ci/checks.sh` refuses an up-front import of a screen that holds the editor in the frame's files.

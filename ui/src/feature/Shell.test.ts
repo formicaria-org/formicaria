@@ -8,6 +8,7 @@ import * as mock from '../lib/mock';
 import { appToday } from '../lib/appTime';
 import { typeInto } from '../lib/editor/testing';
 import { resetShownVaults } from '../lib/shownVaults.svelte';
+import { foldRail, railFolded } from '../lib/railFold.svelte';
 
 const wide = (on: boolean) =>
   vi.stubGlobal('matchMedia', (q: string) => ({
@@ -322,6 +323,25 @@ it('a section hidden from the rail leaves it, and comes back from Show hidden se
   await fireEvent.click(within(rail).getByRole('button', { name: 'show Health in the rail' }));
   expect(within(listed).getAllByRole('button', { name: /Health/ }).length).toBeGreaterThan(0);
   globalThis.localStorage?.removeItem('fm-rail-hidden');
+});
+
+// **The rail folds away** (the owner, 2026-11-24: no way of "dropping down the left panel").
+it('the rail folds to a strip with one button, comes back, and Ctrl+\\ does either', async () => {
+  foldRail(false);
+  history.replaceState(null, '', '/f/home');
+  render(Shell);
+  const rail = await screen.findByRole('navigation', { name: 'formicaria' });
+  await fireEvent.click(within(rail).getByRole('button', { name: 'hide the side panel' }));
+  expect(rail.classList.contains('folded')).toBe(true);
+  // Folded: the entries are out of reach, and one button brings them back.
+  expect((rail.querySelector('.panel') as HTMLElement).inert).toBe(true);
+  await fireEvent.click(within(rail).getByRole('button', { name: 'show the side panel' }));
+  expect(rail.classList.contains('folded')).toBe(false);
+  expect(within(rail).queryByRole('button', { name: 'show the side panel' })).toBeNull();
+  await fireEvent.keyDown(window, { key: '\\', ctrlKey: true });
+  expect(railFolded()).toBe(true);
+  await fireEvent.keyDown(window, { key: '\\', ctrlKey: true });
+  expect(railFolded()).toBe(false);
 });
 
 it('the vault chooser: a vault unticked is left out of the counts, and comes back ticked', async () => {

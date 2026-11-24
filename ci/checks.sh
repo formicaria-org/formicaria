@@ -881,6 +881,19 @@ PY
     fi
 fi
 
+echo "[check] a page loads the note editor only when it shows one..."
+# Every feature tab is its own page, and what its code imports up front each tab pays for. The note
+# editor (~380 KB with CodeMirror) loads when shown (2026-11-17); Home and the Journal each hold a
+# journal entry, which is that editor, so importing them up front put it back into every tab: a
+# Tasks or Music page included. `browser-check` then read 18-23 MB per extra feature tab against its
+# 20 MB budget (2026-11-24). The frame's two files must import those only with `import(...)`.
+if grep -nE "^\s*import [^(]*from '\./(HomeView|JournalView|JournalEntry)\.svelte'|^\s*import [^(]*from '\.\./lib/(editor/LiveEditor|NotePanel)\.svelte'" \
+    ui/src/feature/Feature.svelte ui/src/feature/Shell.svelte; then
+    echo "  FAIL: the frame imports a screen holding the note editor up front (above). Load it when"
+    echo "        shown: {#await import('./HomeView.svelte') then { default: HomeView }}."
+    fail=1
+fi
+
 echo "[check] hiding the bottom bar for the keyboard hands its navigation-bar strip to the body..."
 # `--kb` is the keyboard **beyond** the navigation bar, so `--app-h` stops that strip's height below
 # the top of the keyboard, and the bottom bar's padding is what fills it. Hide the bar while typing

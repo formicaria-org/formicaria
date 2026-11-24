@@ -14,6 +14,7 @@
   import WaitingDot from '../lib/WaitingDot.svelte';
   import { popup } from '../lib/popup';
   import { hiddenVaults } from '../lib/shownVaults.svelte';
+  import { foldRail, railFolded } from '../lib/railFold.svelte';
 
   let {
     path,
@@ -99,120 +100,216 @@
   const find = openFind;
 </script>
 
-<nav class="rail" aria-label="formicaria">
-  <VaultChooser />
-  <NewMenu {onopen} />
-  <button type="button" class="find" onclick={find}
-    ><Icon name="search" size={15} /> Find or do <kbd>Ctrl K</kbd></button
-  >
-  <button
-    type="button"
-    class="item"
-    class:on={on('/f/home')}
-    aria-current={on('/f/home') ? 'page' : undefined}
-    onclick={() => go('/f/home')}><span class="mark" aria-hidden="true">⌂</span> Home</button
-  >
-  <button
-    type="button"
-    class="item"
-    class:on={on('/f/today')}
-    aria-current={on('/f/today') ? 'page' : undefined}
-    onclick={() => go('/f/today')}><span class="mark" aria-hidden="true">◷</span> Journal</button
-  >
-  <h2>Your library</h2>
-  <ul aria-label="sections">
-    {#each listed as s (s.key)}
-      <li>
-        <button
-          type="button"
-          class="item"
-          class:on={on(s.page)}
-          aria-current={on(s.page) ? 'page' : undefined}
-          onclick={() => go(s.page)}
-          ><span class="mark" aria-hidden="true">{s.mark}</span>
-          {s.label}{#if s.key === 'collaboration'}<WaitingDot />{/if}
-          {#if count(s.key) !== undefined}<span class="n">{count(s.key)}</span>{/if}</button
-        >
-        <button
-          type="button"
-          class="add"
-          aria-label={`new in ${s.label}`}
-          title={`New in ${s.label}`}
-          onclick={() => onnew(s)}>＋</button
-        >
-        <button
-          type="button"
-          class="more"
-          data-key={s.key}
-          aria-label={`more for ${s.label}`}
-          aria-expanded={menuFor === s.key}
-          title={`More for ${s.label}`}
-          onclick={() => (menuFor = menuFor === s.key ? null : s.key)}>⋯</button
-        >
-        {#if menuFor === s.key}
-          <div
-            class="menu"
-            role="menu"
-            aria-label={`${s.label} in the rail`}
-            use:popup={{ anchor: () => moreBox(s.key), align: 'end' }}
-          >
-            <button type="button" role="menuitem" onclick={() => setRailHidden(s.key, true)}
-              >Hide from the rail</button
-            >
-          </div>
-        {/if}
-      </li>
-    {/each}
-  </ul>
-  {#if tucked.length}
+<!-- **Folded** (`lib/railFold.svelte.ts`), the rail is a slim strip with one button that brings it
+     back, and the page has the width. The panel itself stays drawn at its own width and is clipped
+     as the rail narrows, so folding slides rather than reflowing the entries; out of reach (`inert`)
+     while folded. -->
+<nav class="rail" class:folded={railFolded()} aria-label="formicaria">
+  {#if railFolded()}
     <button
       type="button"
-      class="tucked-toggle"
-      aria-expanded={showHidden}
-      onclick={() => (showHidden = !showHidden)}
-      >{showHidden ? 'Hide' : 'Show'} hidden sections ({tucked.length})</button
+      class="unfold"
+      aria-label="show the side panel"
+      title="Show the side panel (Ctrl+\)"
+      onclick={() => foldRail(false)}>☰</button
     >
-    {#if showHidden}
-      <ul class="tucked" aria-label="hidden sections">
-        {#each tucked as s (s.key)}
-          <li>
-            <button type="button" class="item" onclick={() => go(s.page)}
-              ><span class="mark" aria-hidden="true">{s.mark}</span> {s.label}</button
-            >
-            <button
-              type="button"
-              class="unhide"
-              aria-label={`show ${s.label} in the rail`}
-              onclick={() => setRailHidden(s.key, false)}>Show</button
-            >
-          </li>
-        {/each}
-      </ul>
-    {/if}
   {/if}
-  <span class="grow"></span>
-  <SyncStatus {unsent} />
-  <button
-    type="button"
-    class="item"
-    class:on={on('/f/settings')}
-    aria-current={on('/f/settings') ? 'page' : undefined}
-    onclick={() => go('/f/settings')}
-    ><span class="mark" aria-hidden="true">⚙</span> Settings</button
-  >
+  <div class="panel" inert={railFolded()}>
+    <div class="top">
+      <NewMenu {onopen} />
+      <button
+        type="button"
+        class="fold"
+        aria-label="hide the side panel"
+        title="Hide the side panel (Ctrl+\)"
+        onclick={() => foldRail(true)}>«</button
+      >
+    </div>
+    <VaultChooser />
+    <button type="button" class="find" onclick={find}
+      ><Icon name="search" size={15} /> Find or do <kbd>Ctrl K</kbd></button
+    >
+    <button
+      type="button"
+      class="item"
+      class:on={on('/f/home')}
+      aria-current={on('/f/home') ? 'page' : undefined}
+      onclick={() => go('/f/home')}><span class="mark" aria-hidden="true">⌂</span> Home</button
+    >
+    <button
+      type="button"
+      class="item"
+      class:on={on('/f/today')}
+      aria-current={on('/f/today') ? 'page' : undefined}
+      onclick={() => go('/f/today')}><span class="mark" aria-hidden="true">◷</span> Journal</button
+    >
+    <h2>Your library</h2>
+    <ul aria-label="sections">
+      {#each listed as s (s.key)}
+        <li>
+          <button
+            type="button"
+            class="item"
+            class:on={on(s.page)}
+            aria-current={on(s.page) ? 'page' : undefined}
+            onclick={() => go(s.page)}
+            ><span class="mark" aria-hidden="true">{s.mark}</span>
+            {s.label}{#if s.key === 'collaboration'}<WaitingDot />{/if}
+            {#if count(s.key) !== undefined}<span class="n">{count(s.key)}</span>{/if}</button
+          >
+          <button
+            type="button"
+            class="add"
+            aria-label={`new in ${s.label}`}
+            title={`New in ${s.label}`}
+            onclick={() => onnew(s)}>＋</button
+          >
+          <button
+            type="button"
+            class="more"
+            data-key={s.key}
+            aria-label={`more for ${s.label}`}
+            aria-expanded={menuFor === s.key}
+            title={`More for ${s.label}`}
+            onclick={() => (menuFor = menuFor === s.key ? null : s.key)}>⋯</button
+          >
+          {#if menuFor === s.key}
+            <div
+              class="menu"
+              role="menu"
+              aria-label={`${s.label} in the rail`}
+              use:popup={{ anchor: () => moreBox(s.key), align: 'end' }}
+            >
+              <button type="button" role="menuitem" onclick={() => setRailHidden(s.key, true)}
+                >Hide from the rail</button
+              >
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    {#if tucked.length}
+      <button
+        type="button"
+        class="tucked-toggle"
+        aria-expanded={showHidden}
+        onclick={() => (showHidden = !showHidden)}
+        >{showHidden ? 'Hide' : 'Show'} hidden sections ({tucked.length})</button
+      >
+      {#if showHidden}
+        <ul class="tucked" aria-label="hidden sections">
+          {#each tucked as s (s.key)}
+            <li>
+              <button type="button" class="item" onclick={() => go(s.page)}
+                ><span class="mark" aria-hidden="true">{s.mark}</span> {s.label}</button
+              >
+              <button
+                type="button"
+                class="unhide"
+                aria-label={`show ${s.label} in the rail`}
+                onclick={() => setRailHidden(s.key, false)}>Show</button
+              >
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {/if}
+    <span class="grow"></span>
+    <SyncStatus {unsent} />
+    <!-- In formicaria's browser Settings is the gear at the top right of every tab (the owner,
+       2026-11-18), and a second gear here was one door too many (2026-11-24), so it steps aside
+       there: the bridge marks the page `data-formicaria-bridge` (style below). In any other
+       browser it is the only way in, so it stays. -->
+    <button
+      type="button"
+      class="item settings"
+      class:on={on('/f/settings')}
+      aria-current={on('/f/settings') ? 'page' : undefined}
+      onclick={() => go('/f/settings')}
+      ><span class="mark" aria-hidden="true">⚙</span> Settings</button
+    >
+  </div>
 </nav>
 
 <style>
+  /* The rail is the frame and the clip; `.panel` is what it holds, always its full width. Folding
+     narrows the rail and the panel slides out under its edge (none of it when motion is reduced). */
   .rail {
+    position: relative;
+    width: 14.5rem;
+    flex: none;
+    box-sizing: border-box;
+    border-right: 1px solid var(--border);
+    background: var(--card-bg);
+    overflow: hidden;
+    height: 100%;
+  }
+  .rail.folded {
+    width: 2.75rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .rail {
+      transition: width 0.18s ease;
+    }
+    /* Seen while it slides out, out of sight once it has. */
+    .rail.folded .panel {
+      transition: visibility 0s linear 0.18s;
+    }
+  }
+  .rail.folded .panel {
+    visibility: hidden;
+  }
+  .unfold {
+    position: absolute;
+    top: var(--space-2);
+    left: 50%;
+    translate: -50% 0;
+    z-index: 1;
+    width: 2rem;
+    height: 2rem;
+    font: inherit;
+    font-size: 1.05rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .top {
+    display: flex;
+    gap: var(--space-1);
+    align-items: stretch;
+  }
+  .top > :global(.new) {
+    flex: 1;
+    min-width: 0;
+  }
+  .fold {
+    flex: none;
+    width: 2rem;
+    font: inherit;
+    font-size: 1.05rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .fold:hover,
+  .unfold:hover {
+    color: var(--text);
+    border-color: var(--text-muted);
+  }
+  :global(html[data-formicaria-bridge]) .settings {
+    display: none;
+  }
+  .panel {
     display: flex;
     flex-direction: column;
     gap: 2px;
     width: 14.5rem;
-    flex: none;
     padding: var(--space-2);
     box-sizing: border-box;
-    border-right: 1px solid var(--border);
-    background: var(--card-bg);
     overflow: auto;
     height: 100%;
   }

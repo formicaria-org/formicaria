@@ -161,6 +161,16 @@ its zip helpers up by name. `phone-media-check` had passed every case on the deb
 - **Without `gpgv`** on the computer, only the ESR this release pinned can be installed (by its pinned
   sum); security point releases wait for the next formicaria release.
 - **Disk**: the live copy, a prepared one and the previous one can coexist briefly (~3 × 320 MB).
+- **The profile survives updates; going back across a major ESR does not keep it usable** (2026-11-24).
+  The sign-in to a Mozilla account, saved logins and their keys are in `<browser>/profile`, beside the
+  program: a browser update swaps `firefox/` and a kit update rewrites files inside it, and neither
+  touches the profile (`browser_kit.rs` tests, byte for byte); the app's own update and *Go back*
+  replace the app's folder, not the browser's. The privacy switches clear nothing on close. **The
+  gap:** going back to a formicaria release pinned to an *older ESR major* (none yet: every release
+  so far is 153) installs that older Firefox, and Firefox refuses a profile a newer major has
+  opened: it offers a new profile, and the old one stays on disk, unopened. Before the first major
+  change, keep the newer Firefox when the pin's major is older. Sync itself is the person's way back
+  either way: signing in again brings bookmarks, logins and history from Mozilla's servers.
 - **Linux only.** Windows and macOS (an installer to unpack; a Mac re-sign after changing the app)
   are not written.
 - **English only**: the kit renames `en-US`; formicaria downloads the en-US ESR.

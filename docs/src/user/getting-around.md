@@ -15,6 +15,9 @@ From the top:
   browser.
 - **＋ New**: a note, a board, a discussion, a paper (from a DOI, an arXiv link or a BibTeX entry), or
   a note from one of your templates.
+- **«** beside it folds the rail away, and the page takes the whole width. A slim strip stays at the
+  left, with **☰** to bring the rail back. **Ctrl+\\** (**⌘\\** on a Mac) does either from any
+  page, and this browser remembers your choice.
 - **Find or do** (**Ctrl+K**, **⌘K** on a Mac, or **/**): search every note, or type a web address
   to open the page. **Search the web for …** is always the first line. The line **Enter** will use
   is highlighted: the best note when notes match, or the web search when none do. **↑** and **↓**
@@ -26,7 +29,8 @@ From the top:
   **Show hidden sections** at the end of the list brings it back. Its notes are not touched.
 - **Back up now**, and a note when something wants a look: notes that could not be read, notes not
   yet in history, notes the merge decided for you. Each opens a short panel that explains.
-- **Settings**.
+- **Settings**, in any other browser. In formicaria's browser it is the **⚙** at the top right of
+  every tab instead, so there is only one.
 
 A small **red dot** beside **Collaboration**, on the rail and in the phone's list of views, says the
 assistant has proposals you have not looked at yet. Looking at one, or accepting or declining it,
