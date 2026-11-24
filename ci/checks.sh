@@ -896,10 +896,28 @@ if grep -q 'has(textarea.editor:focus)' ui/src/App.svelte; then
     echo "        that renders as you write never matches. Use '.editor:focus-within'."
     fail=1
 fi
-kb_sel='html\[data-keyboard\]:has(.editor:focus-within)'
+# **Since 2026-11-24 the bar steps aside for any field typed into** (`data-typing`, `lib/barAside.ts`),
+# not only a note's editor, so the selector is that one, and it must be there: a rename that left
+# the bar always shown would otherwise pass with nothing to check.
+kb_sel='html\[data-typing\]'
+if ! grep -q "$kb_sel) .topbar" ui/src/App.svelte; then
+    echo "  FAIL: ui/src/App.svelte no longer has the rule that moves the bottom bar aside while typing"
+    echo "        (':global(html[data-typing]) .topbar'). With the keyboard up it sits between the"
+    echo "        text and the keys."
+    fail=1
+fi
+# The phone's bar is `TabBar`, not the frame's header: the 2026-10-11 rule lived only on the header,
+# so on the phone it never applied (found by the keyboard-up screenshot, 2026-11-24).
+if ! grep -q "$kb_sel) .tab-bar" ui/src/lib/TabBar.svelte \
+    || ! grep -A1 "$kb_sel) .app.tab-shell > .body" ui/src/App.svelte | grep -q 'padding-bottom: var(--safe-bottom'; then
+    echo "  FAIL: the phone's bar (ui/src/lib/TabBar.svelte) must step aside under 'html[data-typing]',"
+    echo "        and App.svelte's '.app.tab-shell > .body' take over its '--safe-bottom' under the same"
+    echo "        selector, or the last typed line is under the keyboard."
+    fail=1
+fi
 if grep -q "$kb_sel) .topbar" ui/src/App.svelte; then
     if ! grep -A2 "$kb_sel) .body" ui/src/App.svelte | grep -q 'padding-bottom: var(--safe-bottom)'; then
-        echo "  FAIL: ui/src/App.svelte hides the bottom bar while a note is typed, but '.body' does not"
+        echo "  FAIL: ui/src/App.svelte hides the bottom bar while typing, but '.body' does not"
         echo "        take over 'padding-bottom: var(--safe-bottom)' under the same selector. The note's"
         echo "        last strip, and the quick row in it, would be under the keyboard."
         fail=1

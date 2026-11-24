@@ -1050,7 +1050,7 @@ def the_shell(ff: Path, work: Path) -> None:
     Home opens on today's journal entry, ready to write in, and the entry is made by typing; the rail
     moves between places in the tab (no reload); a note opens beside the page; *Pin to Home* puts a
     section on Home; Edit Home's changes survive a reload (Home is a note tagged `home`); the Journal
-    page shows what the day collected; Web is a section, and the one box opens an address; ＋ New
+    page holds only the journal; Web is a section, and the one box opens an address; ＋ New
     makes a board."""
     who = "someone finding their way around"
     bc.post("/api/create_notes", {"notes": [
@@ -1112,10 +1112,12 @@ def the_shell(ff: Path, work: Path) -> None:
         goto(m, f"{SERVER}/f/group/Tasks", 5)
         # Pin to Home, from the section's bar.
         content(m, "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Pin to Home')?.click(); return true;", 2500)
-        # The Journal page: what the day collected, in its four parts.
+        # The Journal page holds the journal and nothing else (the owner, 2026-11-24).
         rail("Journal")
-        parts = wait_for(m, "return document.querySelectorAll('.today section').length || null", 8)
-        check(who, "the Journal page shows what the day collected, in four parts", parts == 4, str(parts))
+        held = wait_for(m, """const p = document.querySelector('.journal'); if (!p || !p.querySelector('section[aria-label^="journal, "]')) return null;
+            return [...p.querySelectorAll('section[aria-label]')].map((r) => r.getAttribute('aria-label'));""", 8)
+        check(who, "the Journal page holds the journal and nothing else",
+              bool(held) and all(n == "earlier days" or n.startswith("journal, ") for n in held), str(held))
         # Home, arranged where it is: a card's ⋯ makes it the full width (it then takes the whole
         # row), and another card's ⋯ removes it; both stay after a reload (2026-11-23).
         rail("Home")

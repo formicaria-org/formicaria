@@ -328,6 +328,46 @@
     border-top: 0;
     border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
   }
+  /* **While anything is typed with the keyboard up, the bar steps aside** (`lib/barAside.ts` sets
+     `data-typing`; `decisions.md` 2026-11-24). It sat between the text and the keys, taking a slice
+     of what little the keyboard leaves. Its own search keeps it: that field is not counted. The
+     keyboard put away brings it back.
+
+     **It slides, it does not blink** (the owner: *"A seamless transition"*): the height goes to
+     nothing and the page grows into it. `interpolate-size` lets `auto` be animated where the engine
+     knows it; elsewhere the bar simply goes. Only the hidden state sets a height, so a bar that wraps
+     is never clipped when shown. `visibility` waits for the slide before taking the controls out of
+     reach, and comes back at once. The page takes over the inset the bar was padding
+     (`App.svelte`, `.tab-shell`). */
+  .tab-bar {
+    interpolate-size: allow-keywords;
+    transition:
+      height 180ms ease,
+      padding 180ms ease,
+      border-width 180ms ease,
+      visibility 0s linear 0s;
+  }
+  :global(html[data-typing]) .tab-bar {
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    overflow: hidden;
+    visibility: hidden;
+    transition:
+      height 180ms ease,
+      padding 180ms ease,
+      border-width 180ms ease,
+      visibility 0s linear 180ms;
+  }
+  /* Under reduced motion it just goes and comes back: the global rule shortens durations, not the
+     wait before the controls are out of reach. */
+  @media (prefers-reduced-motion: reduce) {
+    .tab-bar,
+    :global(html[data-typing]) .tab-bar {
+      transition: none;
+    }
+  }
   .menu-btn,
   .plus {
     flex: none;

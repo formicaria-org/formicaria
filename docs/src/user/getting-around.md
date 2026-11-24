@@ -56,6 +56,10 @@ Home is where formicaria opens. It shows how things stand, and you choose what i
 | Continue | the note you were in last | — |
 | A note | its first lines | the whole note |
 
+**What counts as overdue.** Only a task: a note with a status, or with a due date and no start. A
+meeting's end and a plan's last day are not deadlines, so a meeting that ended or a training plan
+you replaced is simply over; it is never *overdue*, and it is not in Tasks.
+
 Any card or figure can also be at **glance** size: a figure in the top row, or a link in the row of
 things kept an eye on. A card's title opens its whole place, and **Back** returns to Home.
 
@@ -111,14 +115,9 @@ titled with the day (`2026-11-23`) and tagged `journal`, the same as journals br
 or Obsidian, and it is saved as you write. A day you never write in leaves no empty note behind.
 **Open as a note** gives it everything a note has: links with `[[`, the `/` menu, pictures.
 
-Below today's entry the Journal page shows **what the day collected**, in four parts: what was
-**planned and due**, what you **logged**, what **came in**, and what you **wrote**.
-
-**What counts as overdue.** Only a task: a note with a status, or with a due date and no start. A
-meeting's end and a plan's last day are not deadlines, so a meeting that ended or a training plan
-you replaced is simply over; it is never *overdue*, and it is not in Tasks. Then come the
-**earlier days**: choose one to read it or write in it. **Go to a day** opens any day, and writing in
-it makes that day's entry.
+The Journal page holds only the journal: the day's entry, then the **earlier days**; choose one
+to read it or write in it. **Go to a day** opens any day, and writing in it makes that day's entry.
+What is planned and due is in the agenda and Tasks, and Home can show it beside the entry.
 
 ## Web
 
@@ -149,5 +148,9 @@ page.
 **Writing in the journal on the phone**, the entry takes the screen: Home glides until the entry is
 at the top, and the entry fills the room above the keyboard, the jot box out of the way. Leave the
 entry and Home glides back to where you were.
+
+**While you type anywhere on the phone** — the journal, a note, a search, a sheet — the bar of tabs
+slides away so the keyboard has the room, and it comes back when you put the keyboard away. The
+bar's own search keeps the bar.
 
 **+** offers Home and the Journal before the sections.

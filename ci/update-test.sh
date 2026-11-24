@@ -65,8 +65,15 @@ if [ "$from" = "--from-source" ]; then
     [ -x "$source_build" ] || die "there is no build here ($source_build). Run: pixi run build"
     from="the build made here"
 elif [ -z "$from" ]; then
-    from=$(git ls-remote --tags --refs "https://github.com/$repo" 'v*' | sed 's|.*refs/tags/||' \
+    # **The release before, not the tag before** (2026-11-23): a tag whose release was never
+    # published (v0.63.0, its macOS build never given a runner) has nothing to download, and every
+    # system failed on it before testing anything. GitHub's list of releases holds only published
+    # ones; the tags are the fallback if that list cannot be read.
+    from=$(curl -s -m 30 "https://api.github.com/repos/$repo/releases?per_page=50" \
+        | sed -n 's/.*"tag_name": *"\(v[0-9][0-9.]*\)".*/\1/p' \
         | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | grep -B1 -x "$to" | head -1)
+    [ -n "$from" ] && [ "$from" != "$to" ] || from=$(git ls-remote --tags --refs "https://github.com/$repo" 'v*' \
+        | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | grep -B1 -x "$to" | head -1)
 fi
 [ -n "$from" ] && [ "$from" != "$to" ] || die "found no release older than $to to start from."
 say "$from → $to on $target"

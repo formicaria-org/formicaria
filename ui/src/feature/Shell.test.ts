@@ -184,11 +184,19 @@ it('Alt+Home goes Home from any page', async () => {
   await vi.waitFor(() => expect(location.pathname).toBe('/f/home'));
 });
 
-it('the Journal page: the day’s entry, what the day collected in four parts', async () => {
+// **Only the journal** (the owner, 2026-11-24): the day's entry and the earlier days, nothing else.
+it('the Journal page holds the journal and nothing else', async () => {
   history.replaceState(null, '', '/f/today');
   render(Shell);
+  expect(await screen.findByRole('region', { name: /^journal, / })).toBeTruthy();
+  expect(await screen.findByRole('region', { name: 'earlier days' })).toBeTruthy();
+  const page = document.querySelector('.journal') as HTMLElement;
+  const regions = [...page.querySelectorAll('section[aria-label]')].map((r) =>
+    r.getAttribute('aria-label'),
+  );
+  expect(regions.every((n) => n === 'earlier days' || n?.startsWith('journal, '))).toBe(true);
   for (const name of ['Planned and due', 'Logged', 'Came in', 'Written'])
-    expect(await screen.findByRole('region', { name })).toBeTruthy();
+    expect(screen.queryByRole('region', { name })).toBeNull();
 });
 
 it('a note opens beside the page on a wide screen', async () => {

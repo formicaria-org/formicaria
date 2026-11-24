@@ -1021,7 +1021,10 @@ def home_on_the_phone(cdp) -> None:
     time.sleep(2.5)
     state = cdp.evaluate("""(() => { const h = document.querySelector('.home'); const j = document.querySelector('.capture');
         const vv = window.visualViewport;
+        const bar = document.querySelector('nav.tab-bar'); const b = bar ? bar.getBoundingClientRect() : null;
         return { writing: !!h && h.classList.contains('writing'), jot: j ? getComputedStyle(j).visibility : 'none',
+                 typing: document.documentElement.hasAttribute('data-typing'),
+                 bar: bar ? { shown: getComputedStyle(bar).visibility, h: Math.round(b.height) } : null,
                  keyboard: vv ? Math.round(innerHeight - vv.height) : null, view: vv ? Math.round(vv.height) : innerHeight,
                  typed: (document.querySelector('section[aria-label^="journal, "] .cm-content') || {}).textContent || '' }; })()""") or {}
     say(f"the journal, typed into on the phone: {json.dumps(state)[:400]}")
@@ -1036,9 +1039,21 @@ def home_on_the_phone(cdp) -> None:
           str(state)[:200])
     check("typing in the journal on the phone gives it the screen; the jot box gives way",
           state.get("writing") is True and state.get("jot") in ("hidden", "none"), str(state))
+    # **The bottom bar steps aside while typing** (2026-11-24): it sat between the journal and the
+    # keyboard. Gone means out of reach and taking no room, not merely see-through.
+    bar = state.get("bar") or {}
+    check("typing in the journal on the phone moves the bottom bar aside",
+          state.get("typing") is True and bar.get("shown") == "hidden" and bar.get("h") == 0, str(state)[:300])
     guard(cdp, "the journal, typed into on the phone with the keyboard up")
     adb("shell", "input", "keyevent", "4", check_rc=False)  # Back: the keyboard goes
     time.sleep(1.5)
+    # Putting the keyboard away brings the bar back, though the journal still has the focus.
+    back = cdp.evaluate("""(() => { const bar = document.querySelector('nav.tab-bar'); const b = bar.getBoundingClientRect();
+        return { typing: document.documentElement.hasAttribute('data-typing'), shown: getComputedStyle(bar).visibility,
+                 h: Math.round(b.height), bottom: Math.round(b.bottom), view: innerHeight }; })()""") or {}
+    check("the bottom bar comes back when the keyboard goes",
+          back.get("typing") is False and back.get("shown") == "visible" and back.get("h", 0) > 30
+          and back.get("bottom", 1e9) <= back.get("view", 0) + 1, str(back))
     cdp.evaluate("document.activeElement && document.activeElement.blur()")
     time.sleep(1)
 

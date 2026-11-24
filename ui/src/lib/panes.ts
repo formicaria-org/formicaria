@@ -313,7 +313,7 @@ export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated
  *  3 s heartbeat refreshes the distinct set. `note` has no feed (NotePanel self-fetches by id). */
 export function feedKey(p: Pane): string | null {
   switch (p.kind) {
-    // Home and Today read for themselves (`HomeView`, `TodayView`).
+    // Home and the Journal read for themselves (`HomeView`, `JournalView`).
     case 'home':
     case 'today':
       return null;

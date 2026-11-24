@@ -16662,3 +16662,44 @@ tests and checks"*.
    *⤢ Full screen* (its note's own page; Back returns) and *✕* (the page gets its width back). It
    slides in and out, at once when motion is to be reduced.
 
+
+## 2026-11-24 — the phone's bar steps aside whenever something is typed with the keyboard up `#ui`
+
+**AMENDS** *While writing on a touch screen…* and the 2026-10-11 rule that hid the bottom bar only
+while a note's own text was typed. The owner, after 0.63.1: hide the phone's bar while typing, in
+the next release.
+
+- **One rule for every field.** `lib/barAside.ts` puts `data-typing` on `<html>` while a text field
+  (text-like input, text area, editable text) has the focus **and** the keyboard is up (`--kb` from
+  the Android shell; elsewhere a visual viewport clearly shorter than the window on a touch screen).
+  `App.svelte` moves the bar aside on it. The journal on Home, a view's search and a sheet now get
+  what a note already had. The phone check had shown the bar sitting between the journal and the
+  keys (the keyboard-up screenshot of 2026-11-23), which the old rule never covered.
+- **The bar's own search is the exception**: it must not hide the bar it lives in.
+- **The phone's bar is `TabBar`** (the one frame, 2026-11-17), and the 2026-10-11 rule lived on the
+  frame's old header, which the phone no longer draws: on the phone the bar never stepped aside, not
+  even for a note. Both bars carry the rule now; the page takes over the bar's inset
+  (`--safe-bottom` at the bottom, `--safe-top` when the bar is at the top). `ci/checks.sh` checks
+  both.
+- **The keyboard, not the focus, decides**: putting it away brings the bar back while the field
+  keeps the focus.
+- **It slides** (height to nothing, `interpolate-size`), and the controls go out of reach only when
+  the slide ends; under reduced motion it just goes. Only the hidden state sets a height, so a bar
+  that wraps is never clipped when shown.
+- **Checked:** `barAside.test.ts`; `ci/checks.sh` (the rule and the body's padding are both there);
+  `phone-media-check` with the real keyboard up (the bar is out of reach and takes no room while the
+  journal is typed into, and back on the screen after Back).
+
+## 2026-11-24 (later) — the Journal page holds only the journal `#ui`
+
+**AMENDS** 2026-11-23 (*Home is a glance, a journal and cards*): under today's entry the Journal page
+showed *what the day collected* (planned and due, logged, came in, written: the old Today page).
+The owner: *"the journal view should have only things about the journal, nothing else."*
+
+- The page is the day's entry, *Go to a day*, and the earlier days. `TodayView.svelte` had no other
+  user and is deleted.
+- What it showed is still reachable: the agenda and Tasks for what is due, the sections for what
+  came in, and Home's cards (*Due and planned*, *Came in*) beside the entry for whoever wants them
+  together. Home is where things are combined; a place is one thing.
+- Checked by `Shell.test.ts` and `usability-check` (every region on the page is the entry or the
+  earlier days).

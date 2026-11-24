@@ -1,8 +1,9 @@
 <script lang="ts">
   // **The journal** (Home, 2026-11-23; `unifying-home-research-2026-11-22.md` §12.3): a day's entry,
-  // ready to write in; under today's, **what the day collected** (planned and due, logged, came in,
-  // written: what the Today page was); then the earlier days. Any day can be chosen, and its entry
-  // is made on the first keystroke like today's.
+  // ready to write in, then the earlier days. Any day can be chosen, and its entry is made on the
+  // first keystroke like today's. **Only the journal** (the owner, 2026-11-24): what the day
+  // collected — planned and due, logged, came in — sat under today's entry and went; the agenda and
+  // the sections have it, and Home can show them beside the entry.
   import { onMount } from 'svelte';
   import { shownVault } from '../lib/shownVaults.svelte';
   import * as ipc from '../lib/ipc';
@@ -10,7 +11,6 @@
   import { appToday, formatMoment } from '../lib/appTime';
   import { addDays } from '../lib/civil';
   import JournalEntry from './JournalEntry.svelte';
-  import TodayView from './TodayView.svelte';
 
   let { onopen }: { onopen: (id: string) => void } = $props();
 
@@ -66,12 +66,6 @@
     {#key day}
       <JournalEntry bind:this={entry} {day} {onopen} />
     {/key}
-    {#if day === today}
-      <section class="collected" aria-label="what the day collected">
-        <h2>What the day collected</h2>
-        <TodayView {onopen} heading="" />
-      </section>
-    {/if}
     <section class="earlier" aria-label="earlier days">
       <h2>Earlier days</h2>
       {#if earlier.length}

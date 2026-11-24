@@ -174,10 +174,15 @@
   } from './lib/share.svelte';
   import { fromBrought, fromShared, piecesMarkdown, type Piece } from './lib/piece';
   import * as diary from './lib/diary';
+  import { watchTyping } from './lib/barAside';
 
   // **The usage diary** (`lib/diary.ts`, 2026-11-20): the whole app opened (the phone's screen),
   // how long it took, and errors the page did not catch.
   diary.watch();
+
+  // **The bar steps aside while anything is typed with the keyboard up** (`lib/barAside.ts`,
+  // 2026-11-24): `data-typing` on `<html>`, except for the bar's own search.
+  $effect(() => watchTyping((el) => el.closest('header.topbar, nav.tab-bar') !== null));
   diary.pageOpened('app');
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
@@ -4688,22 +4693,51 @@
       grid-row: 1;
       min-height: 0;
     }
-    /* **While a note is being written with the on-screen keyboard up, the bar steps aside.** It
-       sat between the note and the keyboard, taking a third of what little room is left above
-       the keys and putting itself under the note's quick row, which is meant to be the keyboard's
-       top edge (`decisions.md#ui`, 2026-10-11). Only for the note's own text: the bar's search
-       field also raises the keyboard, and must not hide the bar it lives in. Putting the keyboard
-       away brings it back. */
-    :global(html[data-keyboard]:has(.editor:focus-within)) .topbar {
-      display: none;
+    /* (The phone's own bar is `TabBar`, which carries the same rule; this is the narrow frame
+       without it — a narrow window on a touch screen.)
+       **While anything is typed with the on-screen keyboard up, the bar steps aside.** It sat
+       between the text and the keyboard, taking a third of what little room is left above the
+       keys. First only for a note's own text (`decisions.md#ui`, 2026-10-11); since 2026-11-24 for
+       every field — the journal on Home, a view's search, a sheet — because the keyboard, not the
+       kind of field, is what takes the room (`lib/barAside.ts` sets `data-typing`; the bar's own
+       search does not, so it never hides the bar it lives in). Putting the keyboard away brings
+       it back.
+
+       **It slides, it does not blink** (the owner: *"A seamless transition"*): the height goes to
+       nothing and the body grows into it, so the text being typed moves smoothly instead of
+       jumping. `interpolate-size` lets `auto` be animated where the engine knows it; elsewhere the
+       bar simply goes, which is the old behaviour. Only the hidden state sets a height, so the bar
+       is never clipped when shown — a wrapped bar at a large text size keeps all of itself.
+       `visibility` waits for the slide to end before taking the controls out of reach, and comes
+       back at once. Under reduced motion there is no slide at all (below). */
+    .topbar {
+      interpolate-size: allow-keywords;
+      transition:
+        height 180ms ease,
+        padding 180ms ease,
+        border-top-width 180ms ease,
+        visibility 0s linear 0s;
+    }
+    :global(html[data-typing]) .topbar {
+      height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-top-width: 0;
+      overflow: hidden;
+      visibility: hidden;
+      transition:
+        height 180ms ease,
+        padding 180ms ease,
+        border-top-width 180ms ease,
+        visibility 0s linear 180ms;
     }
     /* **And the body then pays what the bar was paying.** `--kb` is the keyboard *beyond* the
        navigation bar, so `--app-h` ends that strip's height **below** the top of the keyboard, and
        it was the bar's bottom padding that filled it. With the bar gone and nothing in its place,
-       the last `--safe-bottom` of the note was under the keyboard — 47px on a user's phone,
+       the last `--safe-bottom` of the text was under the keyboard — 47px on a user's phone,
        which is the whole of the 44px quick row (reported the first time it reached a device,
        2026-10-11). The same selector as the rule above, so the two can only apply together. */
-    :global(html[data-keyboard]:has(.editor:focus-within)) .body {
+    :global(html[data-typing]) .body {
       padding-bottom: var(--safe-bottom);
     }
     /* Only a panel can be collapsed; a bar is already as small as it gets.
@@ -5093,6 +5127,14 @@
   /* **Motion is the signal, so what replaces it must also be one.** Removing the animation and
      leaving a static ring would say nothing at all; a pulse carries the same "still working"
      without the rotation that triggers vestibular symptoms. */
+  /* The bar that steps aside for typing just goes and comes back: no slide, and no wait before
+     its controls are out of reach (the global rule shortens durations, not the delay). */
+  @media (prefers-reduced-motion: reduce) {
+    :global(html) .topbar,
+    :global(html[data-typing]) .topbar {
+      transition: none;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .spinner {
       animation: tb-pulse 1.4s ease-in-out infinite;
@@ -5372,6 +5414,17 @@
     order: 1;
     flex: 1;
     min-height: 0;
+  }
+  /* **The bar stepped aside for typing hands its inset to the page** (`lib/TabBar.svelte`,
+     2026-11-24). At the bottom its padding covered `--safe-bottom`, which `--kb` leaves below the
+     keyboard's top — without it the last line typed is under the keys (the same strip as
+     2026-10-11). At the top it covered the status bar. */
+  :global(html[data-typing]) .app.tab-shell > .body {
+    padding-bottom: var(--safe-bottom, 0px);
+  }
+  :global(html[data-typing]) .app.tab-shell.bar-top > .body {
+    padding-bottom: 0;
+    padding-top: var(--safe-top, 0px);
   }
   .new-tab-sheet {
     position: fixed;
