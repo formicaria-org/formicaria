@@ -81,19 +81,15 @@ test('a group is opened from the list of views, and Back returns to the one befo
   const rail = await screen.findByRole('navigation', { name: 'views' });
 
   await fireEvent.click(within(rail).getByRole('button', { name: 'open Notes' }));
-  // The Library opens on its shelves; its timeline, with the tags to browse by, is the next tab.
-  const library = await screen.findByRole('group', { name: 'Notes' });
-  await fireEvent.click(within(library).getByRole('button', { name: 'Timeline' }));
-  const tags = await screen.findByRole('list', { name: 'tags' });
-  const first = within(tags).getAllByRole('button')[0];
-  await fireEvent.click(first);
-  expect(first.getAttribute('aria-pressed')).toBe('true');
+  // Notes opens on its Timeline (the shelves went on 2026-11-25).
+  const timeline = () => document.querySelector('.cell.active .pane')?.getAttribute('aria-label');
+  await waitFor(() => expect(timeline()).toBe('Timeline'));
 
   await fireEvent.click(within(rail).getByRole('button', { name: 'open Food' }));
   expect(await screen.findByRole('group', { name: 'Food' })).toBeTruthy();
 
   history.back();
-  expect(await screen.findByRole('list', { name: 'tags' })).toBeTruthy();
+  await waitFor(() => expect(timeline()).toBe('Timeline'));
   history.back();
   await waitFor(() =>
     expect(

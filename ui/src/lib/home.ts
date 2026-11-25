@@ -20,14 +20,28 @@ import * as ipc from './ipc';
 import type { Section, SectionSummary } from './types';
 
 export type CardSize = 'glance' | 'summary' | 'full';
-/** **The room a card takes** (2026-11-23, the owner: *"I cannot select the space they take"*):
- *  a width on a 12-column grid and a height, chosen by dragging an edge (it snaps) or from the
- *  card's ⋯. On a narrow screen every card is the full width; its height still holds. */
+/** **The room a card takes, and where** (2026-11-23, *"I cannot select the space they take"*;
+ *  2026-11-25, *"why can't I move the options I add to home wherever I want … including size and
+ *  position"*). Home on a wide screen is a grid of 12 columns and rows of [`ROW_REM`]: a card has
+ *  a width in columns (1–12), a height in rows, and a place (`x` its column, `y` its row) — all
+ *  chosen by dragging (it snaps) or from the card's ⋯. A card with no place is put in the first
+ *  gap it fits, in the order of the list (which is also the phone's order). On a narrow screen
+ *  every card is the full width, in the list's order; its height still holds. */
 export type CardWidth = 'narrow' | 'half' | 'wide' | 'full';
 export type CardHeight = 'short' | 'medium' | 'tall';
+/** Named widths, in columns: what the ⋯ offers, and what an older Home note says. */
 export const WIDTHS: Record<CardWidth, number> = { narrow: 4, half: 6, wide: 8, full: 12 };
-/** Heights in rem. */
-export const HEIGHTS: Record<CardHeight, number> = { short: 9, medium: 16, tall: 26 };
+/** Named heights, in rows. */
+export const HEIGHTS: Record<CardHeight, number> = { short: 3, medium: 5, tall: 8 };
+/** The grid: 12 columns; a row is this tall, and cards are this far apart (both in rem). */
+export const COLS = 12;
+export const ROW_REM = 2.5;
+export const GAP_REM = 0.75;
+export const MIN_COLS = 2;
+export const MIN_ROWS = 2;
+export const MAX_ROWS = 24;
+/** A card's height in rem, from its rows (the gaps between them included). */
+export const rowsRem = (rows: number) => rows * ROW_REM + (rows - 1) * GAP_REM;
 export interface Card {
   /** What it shows: a built-in (`journal`, `due`…) or `stat:`/`board:`/`section:`/`view:`/`note:`. */
   ref: string;
@@ -35,8 +49,12 @@ export interface Card {
   label: string;
   size: CardSize;
   phone: boolean;
-  w: CardWidth;
-  h: CardHeight;
+  /** Its width in columns and its height in rows. */
+  cols: number;
+  rows: number;
+  /** Its place on the wide grid, once it has one: column (0–11) and row. */
+  x?: number;
+  y?: number;
 }
 export interface HomeDoc {
   cards: Card[];
@@ -100,28 +118,111 @@ export function labelOf(card: Card, sections: Section[]): string {
   }
 }
 
-/** The room a card starts with: the journal tall, a heatmap wide, the rest half. */
-export function defaultRoom(ref: string): { w: CardWidth; h: CardHeight } {
-  if (ref === 'journal') return { w: 'half', h: 'tall' };
-  if (family(ref) === 'heat') return { w: 'wide', h: 'medium' };
-  if (ref === 'continue' || family(ref) === 'stat') return { w: 'half', h: 'short' };
-  return { w: 'half', h: 'medium' };
+/** The room a card starts with: the journal tall, a heatmap wide, a figure or a link small, the
+ *  rest half. */
+export function defaultRoom(
+  ref: string,
+  size: CardSize = 'summary',
+): { cols: number; rows: number } {
+  if (size === 'glance' && ref !== 'journal') return { cols: 3, rows: 2 };
+  if (ref === 'journal') return { cols: WIDTHS.half, rows: HEIGHTS.tall };
+  if (family(ref) === 'heat') return { cols: WIDTHS.wide, rows: HEIGHTS.medium };
+  if (ref === 'continue' || family(ref) === 'stat')
+    return { cols: WIDTHS.half, rows: HEIGHTS.short };
+  return { cols: WIDTHS.half, rows: HEIGHTS.medium };
 }
-const isWidth = (v: string | null): v is CardWidth => !!v && v in WIDTHS;
-const isHeight = (v: string | null): v is CardHeight => !!v && v in HEIGHTS;
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const int = (v: string | null): number | null =>
+  v !== null && /^\d{1,3}$/.test(v) ? Number(v) : null;
 
-/** A width from a dragged edge: the fraction of the grid it reaches, to the nearest width. */
-export function snapWidth(fraction: number): CardWidth {
-  const cols = fraction * 12;
+/** The named width nearest a number of columns (what an older Home reads). */
+export function nearestWidth(cols: number): CardWidth {
   return (Object.keys(WIDTHS) as CardWidth[]).reduce((best, w) =>
     Math.abs(WIDTHS[w] - cols) < Math.abs(WIDTHS[best] - cols) ? w : best,
   );
 }
-/** A height from a dragged edge, in rem, to the nearest height. */
-export function snapHeight(rem: number): CardHeight {
+/** The named height nearest a number of rows. */
+export function nearestHeight(rows: number): CardHeight {
   return (Object.keys(HEIGHTS) as CardHeight[]).reduce((best, h) =>
-    Math.abs(HEIGHTS[h] - rem) < Math.abs(HEIGHTS[best] - rem) ? h : best,
+    Math.abs(HEIGHTS[h] - rows) < Math.abs(HEIGHTS[best] - rows) ? h : best,
   );
+}
+
+// ---- arranging the wide grid ----
+
+/** A card's box on the grid. */
+export interface Box {
+  ref: string;
+  x: number;
+  y: number;
+  cols: number;
+  rows: number;
+}
+const overlaps = (a: Box, b: Box) =>
+  a.x < b.x + b.cols && b.x < a.x + a.cols && a.y < b.y + b.rows && b.y < a.y + a.rows;
+
+/** **Where every card goes** (2026-11-25): no two overlap and nothing floats — each card settles
+ *  upward as far as it can without passing another (a dashboard's *vertical compaction*). Cards
+ *  with a place keep their column and their order from the top; `pin` (the card being dragged,
+ *  or moved by a key) is put first at its place, so the others make way for it. Cards with no
+ *  place go, in their order, into the first gap they fit, top to bottom and left to right. */
+export function arrange(cards: Card[], pin?: Box): Box[] {
+  const placed: Box[] = [];
+  const free = (b: Box) => placed.every((o) => !overlaps(b, o));
+  const room = (c: { cols: number; rows: number }) => ({
+    cols: clamp(Math.round(c.cols), 1, COLS),
+    rows: clamp(Math.round(c.rows), 1, MAX_ROWS),
+  });
+  const box = (ref: string, c: { cols: number; rows: number }, x: number, y: number): Box => {
+    const r = room(c);
+    return { ref, ...r, x: clamp(Math.round(x), 0, COLS - r.cols), y: Math.max(0, Math.round(y)) };
+  };
+  // The placed ones from the top, the pinned card first among those at its row: each settles.
+  const at: { b: Box; first: boolean }[] = cards
+    .filter((c) => c.ref !== pin?.ref && c.x !== undefined && c.y !== undefined)
+    .map((c) => ({ b: box(c.ref, c, c.x!, c.y!), first: false }));
+  if (pin) at.push({ b: box(pin.ref, pin, pin.x, pin.y), first: true });
+  at.sort((p, q) => p.b.y - q.b.y || Number(q.first) - Number(p.first) || p.b.x - q.b.x);
+  for (const { b } of at) {
+    while (!free(b)) b.y++;
+    while (b.y > 0 && free({ ...b, y: b.y - 1 })) b.y--;
+    placed.push(b);
+  }
+  for (const c of cards.filter(
+    (c) => c.ref !== pin?.ref && (c.x === undefined || c.y === undefined),
+  )) {
+    const r = room(c);
+    let done = false;
+    for (let y = 0; !done; y++)
+      for (let x = 0; x + r.cols <= COLS && !done; x++) {
+        const b = { ref: c.ref, ...r, x, y };
+        if (free(b)) {
+          placed.push(b);
+          done = true;
+        }
+      }
+  }
+  return placed;
+}
+
+/** **Tidy up**: every card into the first gap it fits, in reading order — the holes closed. */
+export function tidy(cards: Card[]): Box[] {
+  const order = new Map(arrange(cards).map((b, i) => [b.ref, { b, i }]));
+  const byReading = [...cards].sort((p, q) => {
+    const a = order.get(p.ref)!.b;
+    const b = order.get(q.ref)!.b;
+    return a.y - b.y || a.x - b.x;
+  });
+  return arrange(byReading.map((c) => ({ ...c, x: undefined, y: undefined })));
+}
+
+/** Cards with their boxes written in: what is saved after a move, a resize or a tidy. */
+export function placeAll(cards: Card[], boxes: Box[]): Card[] {
+  const at = new Map(boxes.map((b) => [b.ref, b]));
+  return cards.map((c) => {
+    const b = at.get(c.ref);
+    return b ? { ...c, x: b.x, y: b.y, cols: b.cols, rows: b.rows } : c;
+  });
 }
 
 const LINE = /^!\[([^\]]*)\]\(((?:card|view|note):[^)\s]+)\)\s*$/;
@@ -140,17 +241,25 @@ export function parse(body: string): HomeDoc {
     if (target.startsWith('card:')) {
       const [ref, query = ''] = target.slice(5).split('?');
       const q = new URLSearchParams(query);
-      const size = q.get('size') as CardSize | null;
-      const room = defaultRoom(ref);
+      const given = q.get('size') as CardSize | null;
+      const size = given && sizesOf(ref).includes(given) ? given : 'summary';
+      const room = defaultRoom(ref, size);
+      // Columns and rows (`c`, `r`) when this version wrote them; else the named width and
+      // height an older one did (`w`, `h`); else the card's own room.
       const w = q.get('w');
       const h = q.get('h');
+      const cols = int(q.get('c')) ?? (w && w in WIDTHS ? WIDTHS[w as CardWidth] : room.cols);
+      const rows = int(q.get('r')) ?? (h && h in HEIGHTS ? HEIGHTS[h as CardHeight] : room.rows);
+      const x = int(q.get('x'));
+      const y = int(q.get('y'));
       cards.push({
         ref,
         label,
-        size: size && sizesOf(ref).includes(size) ? size : 'summary',
+        size,
         phone: q.get('phone') === '1',
-        w: isWidth(w) ? w : room.w,
-        h: isHeight(h) ? h : room.h,
+        cols: clamp(cols, 1, COLS),
+        rows: clamp(rows, 1, MAX_ROWS),
+        ...(x !== null && y !== null ? { x: clamp(x, 0, COLS - 1), y } : {}),
       });
     } else if (target.startsWith('view:')) {
       const name = target.slice(5);
@@ -171,11 +280,17 @@ export function parse(body: string): HomeDoc {
   return { cards, text: words.join('\n').trim() };
 }
 
-/** Cards and words → the Home note's body. The words first, then one card per line. */
+/** Cards and words → the Home note's body. The words first, then one card per line. The named
+ *  width and height are written beside the columns and rows, so a device on an older version
+ *  still shows the card about as wide and as tall. */
 export function write(doc: HomeDoc): string {
-  const lines = doc.cards.map(
-    (c) => `![${c.label}](card:${c.ref}?size=${c.size}&phone=${c.phone ? 1 : 0}&w=${c.w}&h=${c.h})`,
-  );
+  const lines = doc.cards.map((c) => {
+    const place = c.x !== undefined && c.y !== undefined ? `&x=${c.x}&y=${c.y}` : '';
+    return (
+      `![${c.label}](card:${c.ref}?size=${c.size}&phone=${c.phone ? 1 : 0}` +
+      `&w=${nearestWidth(c.cols)}&h=${nearestHeight(c.rows)}&c=${c.cols}&r=${c.rows}${place})`
+    );
+  });
   return (doc.text.trim() ? `${doc.text.trim()}\n\n` : '') + lines.join('\n') + '\n';
 }
 
@@ -190,7 +305,7 @@ export function generated(summary: SectionSummary[]): Card[] {
     label: '',
     size,
     phone,
-    ...defaultRoom(ref),
+    ...defaultRoom(ref, size),
   });
   const out: Card[] = [card('journal', 'summary', true)];
   // The busiest sections of the last month, as figures (at most three).
@@ -216,10 +331,16 @@ export function pinSize(ref: string): CardSize {
   return family(ref) === 'board' ? 'summary' : 'glance';
 }
 
-/** Where each card goes. On a narrow screen only the phone's cards, at most three figures, and
- *  nothing at full size but the journal (`§12.3`, *calm on small screens*). */
+/** Where each card goes. **On a wide screen every card is on the grid** (2026-11-25: a figure or a
+ *  link is a small card, placed and sized like any other). On a narrow screen only the phone's
+ *  cards, in the list's order: at most three figures and the links in their rows, and nothing at
+ *  full size but the journal (`§12.3`, *calm on small screens*). */
 export function layout(cards: Card[], narrow: boolean) {
-  const shown = narrow ? cards.filter((c) => c.phone) : cards;
+  if (!narrow) {
+    const journal = cards.find((c) => c.ref === 'journal') ?? null;
+    return { glance: [] as Card[], watch: [] as Card[], journal, main: cards };
+  }
+  const shown = cards.filter((c) => c.phone);
   const figure = (c: Card) => ['stat', 'board'].includes(family(c.ref)) || BUILTIN[c.ref];
   const glance = shown.filter((c) => c.size === 'glance' && figure(c) && c.ref !== 'journal');
   const watch = shown.filter((c) => c.size === 'glance' && !figure(c));
@@ -227,12 +348,10 @@ export function layout(cards: Card[], narrow: boolean) {
   const main = shown
     .filter((c) => c.size !== 'glance' || c.ref === 'journal')
     .map((c) =>
-      narrow && c.size === 'full' && c.ref !== 'journal'
-        ? { ...c, size: 'summary' as CardSize }
-        : c,
+      c.size === 'full' && c.ref !== 'journal' ? { ...c, size: 'summary' as CardSize } : c,
     );
   const journal = main.find((c) => c.ref === 'journal') ?? null;
-  return { glance: narrow ? glance.slice(0, 3) : glance.slice(0, 6), watch, journal, main };
+  return { glance: glance.slice(0, 3), watch, journal, main };
 }
 
 /** The Home note, if there is one: its id, version and what it says. */
@@ -269,7 +388,8 @@ export async function pinToHome(ref: string, label = ''): Promise<boolean> {
   const doc: HomeDoc = home?.doc ?? { cards: [], text: '' };
   if (!doc.cards.length) doc.cards = generated(await ipc.sectionSummary().catch(() => []));
   if (doc.cards.some((c) => c.ref === ref)) return false;
-  doc.cards.push({ ref, label, size: pinSize(ref), phone: true, ...defaultRoom(ref) });
+  const size = pinSize(ref);
+  doc.cards.push({ ref, label, size, phone: true, ...defaultRoom(ref, size) });
   await saveHome(doc, home);
   return true;
 }

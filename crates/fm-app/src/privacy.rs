@@ -58,8 +58,11 @@ pub struct Privacy {
     pub clean_links: bool,
     /// Global Privacy Control: sites are told not to sell or share.
     pub gpc: bool,
-    /// Pages upgraded to `https`; a plain `http` page is asked about first.
-    pub https_only: bool,
+    /// **Always https** (opt-in): a site with no secure version is asked about first. Off by default
+    /// (2026-11-25): every page is still tried over `https` first, and one with no secure version
+    /// opens over `http`, marked not secure, as in Firefox and DuckDuckGo's browser. Its name is new so
+    /// the old `https_only` a file kept, which was the default and not a choice, is not read.
+    pub https_always: bool,
     /// The whole phone: trackers inside other apps refused (a local VPN).
     pub app_trackers: bool,
     /// The computer: DuckDuckGo Privacy Essentials on top of Firefox's tracking protection. Off by
@@ -93,7 +96,7 @@ impl Default for Privacy {
             cookies: true,
             clean_links: true,
             gpc: true,
-            https_only: true,
+            https_always: false,
             app_trackers: false,
             ddg: false,
             more_sites: false,
@@ -159,7 +162,7 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
         ("cookies", &mut p.cookies),
         ("clean_links", &mut p.clean_links),
         ("gpc", &mut p.gpc),
-        ("https_only", &mut p.https_only),
+        ("https_always", &mut p.https_always),
         ("app_trackers", &mut p.app_trackers),
         ("ddg", &mut p.ddg),
         ("more_sites", &mut p.more_sites),
@@ -219,7 +222,11 @@ mod tests {
     fn the_defaults_protect_and_leave_ads_to_be_measured() {
         let p = Privacy::default();
         assert_eq!(p.search, "duckduckgo");
-        assert!(p.trackers && p.cookies && p.clean_links && p.gpc && p.https_only);
+        assert!(p.trackers && p.cookies && p.clean_links && p.gpc);
+        assert!(!p.https_always, "secure first, never a wall (2026-11-25)");
+        // A file from before, which kept the old default, reads as secure first.
+        let kept: Privacy = serde_json::from_str(r#"{"https_only": true}"#).unwrap();
+        assert!(!kept.https_always);
         assert!(p.ads, "ads refused by default on every device (2026-11-19)");
         assert!(!p.app_trackers && !p.around);
         assert_eq!(p.dns, "quad9", "encrypted lookups by default (the owner, 2026-11-19)");

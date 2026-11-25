@@ -290,7 +290,7 @@ export function bubble(at: { x: number; y: number }, r: Result) {
         id: r.open,
       });
       say.textContent = done?.ok
-        ? 'Just the link, on the Bookmarks shelf.'
+        ? 'Just the link now, as a bookmark note.'
         : `Not changed: ${done?.error ?? ''}`;
       setTimeout(close, 2500);
     };
@@ -356,7 +356,10 @@ export async function withProgress(
   let quiet: ReturnType<typeof setTimeout>;
   const hush = () => {
     clearTimeout(quiet);
-    quiet = setTimeout(() => (say.textContent = `${text} (no word from formicaria for 90 s)`), 90000);
+    quiet = setTimeout(
+      () => (say.textContent = `${text} (no word from formicaria for 90 s)`),
+      90000,
+    );
   };
   hush();
   working = {

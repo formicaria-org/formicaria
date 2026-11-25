@@ -194,7 +194,7 @@ export async function keepInVault(p: Pending): Promise<string> {
       props: { source_url: from, saved: today() },
     },
   ]);
-  return `${p.name}, as a note with the file, on the Web shelf.`;
+  return `${p.name}, as a note with the file.`;
 }
 
 /** The audio every song already holds, so a file already in Music is not added twice. */

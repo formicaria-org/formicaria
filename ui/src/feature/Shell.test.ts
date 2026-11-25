@@ -397,7 +397,7 @@ it('Home: two quick changes are both kept, and a save that fails puts the screen
   const li = within(cards)
     .getByRole('heading', { name: /Continue/ })
     .closest('li') as HTMLElement;
-  expect(li.getAttribute('style')?.replace(/\s/g, '')).toContain('--span:12');
+  expect(li.getAttribute('style')?.replace(/\s/g, '')).toContain('span12;');
 });
 
 it('the note beside closes, or takes the full screen', async () => {

@@ -5426,16 +5426,33 @@
     padding-bottom: 0;
     padding-top: var(--safe-top, 0px);
   }
+  /* **A full-screen sheet keeps to the screen a person can use** (2026-11-25; the owner: the ＋
+     sheet's last row of features lay under Android's back and home buttons). `inset: 0` reaches
+     under the status bar and the navigation bar (edge to edge) and, with the field focused on open,
+     under the keyboard: so the sheet is `--app-h` tall (the keyboard taken off) and pays both
+     device strips, with the navigation-bar floor on touch — the same as `.sheet`. `ci/layout-guard.js`
+     refuses a control left in either strip. */
   .new-tab-sheet {
     position: fixed;
-    inset: 0;
+    inset: 0 0 auto 0;
+    height: var(--app-h);
+    box-sizing: border-box;
     z-index: 45;
     background: var(--bg, Canvas);
     overflow: auto;
+    overscroll-behavior: contain;
     padding-top: var(--safe-top, 0px);
+    padding-bottom: var(--safe-bottom, 0px);
   }
+  @media (pointer: coarse) {
+    .new-tab-sheet {
+      padding-bottom: max(var(--safe-bottom, 0px), var(--bar-floor));
+    }
+  }
+  /* The bottom is the shared rule's: the device strip, and the bar floor on touch. */
   .privacy-sheet {
-    padding: calc(var(--safe-top, 0px) + var(--space-3)) var(--space-3) var(--space-4);
+    padding-top: calc(var(--safe-top, 0px) + var(--space-3));
+    padding-inline: var(--space-3);
   }
   .privacy-sheet h2 {
     margin: 0 0 var(--space-3);

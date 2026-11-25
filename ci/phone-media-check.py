@@ -1058,6 +1058,76 @@ def home_on_the_phone(cdp) -> None:
     time.sleep(1)
 
 
+def home_rearranged_on_the_phone(cdp) -> None:
+    """**Home rearranged on the phone** (2026-11-25): a card's ⠿ held and dragged with a finger goes
+    before the card it is let go over; a swipe that starts on it still scrolls (it waits for a hold)."""
+    shown = cdp.evaluate(HOME_JS)
+    if not shown:
+        check("Home opens on the phone, to rearrange", False)
+        return
+    time.sleep(2)
+    order = lambda: cdp.evaluate("[...document.querySelectorAll('ol.grid > li.card')].map((li) => li.dataset.ref)") or []  # noqa: E731
+    before = order()
+    if len(before) < 2:
+        check("the phone's Home has two cards to rearrange", False, str(before))
+        return
+    pts = cdp.evaluate("""(() => { const cards = [...document.querySelectorAll('ol.grid > li.card')];
+        const a = cards[0], b = cards[1]; a.scrollIntoView({ block: 'start' });
+        const g = b.querySelector('.move-grip').getBoundingClientRect(); const r = a.getBoundingClientRect();
+        return { gx: g.left + g.width / 2, gy: g.top + g.height / 2, tx: r.left + r.width / 2, ty: r.top + Math.min(40, r.height / 3),
+                 dpr: devicePixelRatio, view: innerHeight }; })()""")
+    say(f"rearranging on the phone: {json.dumps(pts)}")
+    if not pts or pts["gy"] > pts["view"] - 10:
+        check("the second card's grip is on the phone's screen", False, str(pts))
+        return
+    d = pts["dpr"]
+    adb("shell", "input", "touchscreen", "draganddrop", str(int(pts["gx"] * d)), str(int(pts["gy"] * d)),
+        str(int(pts["tx"] * d)), str(int(pts["ty"] * d)), "1500", check_rc=False)
+    time.sleep(3)
+    after = order()
+    check("a card held by its grip and dragged on the phone goes before the card it is let go over",
+          len(after) >= 2 and after[0] == before[1] and after[1] == before[0], f"{before} → {after}")
+    guard(cdp, "Home on the phone, rearranged")
+
+def new_tab_on_the_phone(cdp) -> None:
+    """The ＋ sheet on the phone (2026-11-25; the owner: its last row of features lay under Android's
+    back and home buttons). Tapped for real, so the field it focuses brings the keyboard up; then
+    scrolled to its end, where the last row must stand above the navigation bar."""
+    box = cdp.evaluate("""(() => { const b = document.querySelector('nav.tab-bar button.plus');
+        if (!b) return null; const r = b.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, dpr: devicePixelRatio }; })()""")
+    check("the phone's bar has its ＋", bool(box))
+    if not box:
+        return
+    adb("shell", "input", "tap", str(int(box["x"] * box["dpr"])), str(int(box["y"] * box["dpr"])), check_rc=False)
+    time.sleep(2.5)
+    check("＋ opens the new-tab sheet on the phone",
+          bool(cdp.evaluate("!!document.querySelector('.new-tab-sheet')")))
+    guard(cdp, "the ＋ sheet on the phone, as it opens")
+    cdp.evaluate("document.activeElement && document.activeElement.blur()")
+    time.sleep(1.5)
+    end = cdp.evaluate("""(() => { const s = document.querySelector('.new-tab-sheet'); if (!s) return null;
+        s.scrollTop = s.scrollHeight; const last = [...s.querySelectorAll('.features button')].pop();
+        const probe = (v) => { const p = document.createElement('div');
+          p.style.cssText = `position:fixed;visibility:hidden;top:0;height:var(${v}, 0px)`;
+          document.body.appendChild(p); const h = p.getBoundingClientRect().height; p.remove(); return h; };
+        const r = last.getBoundingClientRect();
+        return { last: last.textContent.trim(), bottom: Math.round(r.bottom), view: innerHeight,
+                 nav: Math.round(probe('--safe-bottom')),
+                 kb: parseFloat(document.documentElement.style.getPropertyValue('--kb')) || 0 }; })()""") or {}
+    shot = WORK / "phone-new-tab.png"
+    try:
+        shot.write_bytes(subprocess.run([ADB, "-s", SERIAL, "exec-out", "screencap", "-p"],
+                                        capture_output=True, timeout=60).stdout)
+        say(f"the ＋ sheet scrolled to its end: {shot}")
+    except Exception as e:  # noqa: BLE001
+        say(f"no screenshot: {e}")
+    check("the ＋ sheet's last row stands above the navigation bar",
+          bool(end) and end["bottom"] <= end["view"] - end["kb"] - end["nav"] + 1, json.dumps(end))
+    guard(cdp, "the ＋ sheet on the phone, scrolled to its end")
+    cdp.evaluate("document.querySelector('.new-tab-close') && document.querySelector('.new-tab-close').click()")
+    time.sleep(1)
+
 def main() -> None:
     if not os.access("/dev/kvm", os.R_OK | os.W_OK):
         say("FAIL /dev/kvm is not usable here: the emulator cannot run")
@@ -1131,6 +1201,9 @@ def main() -> None:
         # top, a floating bar and a sliver of the entry). With the keyboard really up.
         if not only or "home" in only:
             home_on_the_phone(cdp)
+            home_rearranged_on_the_phone(cdp)
+        if not only or "plus" in only:
+            new_tab_on_the_phone(cdp)
         port = srv.server_address[1]
         for name, page, pick, nth, least, keep, into in CASES:
             local = "{port}" in page
@@ -1343,26 +1416,22 @@ def main() -> None:
         check("the phone's yt-dlp can update itself (no fault in the app's code)", not broken,
               broken[-1].split("not updated:")[-1].strip()[:300] if broken else "")
         if not only or "web" in only:
-            # A site with no https at all: the choice within seconds, then the page over http.
+            # **A site with no https at all opens over http by itself** (2026-11-25, *secure first, never
+            # a wall*): tried over https first, then the page, within seconds; no page asking first,
+            # which is only for *Always https*.
             started = time.time()
             say(f"opening an http-only homepage: {cdp.evaluate(OPEN_JS % json.dumps('http://piketty.pse.ens.fr/en/'))}")
-            offer = None
-            while time.time() - started < 25 and not offer:
+            shown = asked = None
+            while time.time() - started < 25 and not shown:
                 time.sleep(1)
-                offer = next(((u, t, c) for u, t, c in pages_text() if "No secure connection" in t), None)
+                texts = pages_text()
+                asked = asked or next(((u, t) for u, t, _ in texts if "No secure connection" in t), None)
+                shown = next(((u, t) for u, t, _ in texts if "piketty.pse.ens.fr" in u and u.startswith("http://")
+                              and "No secure" not in t and len(t) > 20), None)
             waited = round(time.time() - started)
-            check("a site with no https offers to open it anyway, within seconds", bool(offer) and waited <= 15,
-                  f"after {waited} s: {[(u[:60], t[:60]) for u, t, _ in pages_text()]}")
-            if offer:
-                offer[2].evaluate("document.querySelector('a[href^=\"fm-insecure:\"]').click(); true")
-                shown = None
-                for _ in range(25):
-                    time.sleep(1)
-                    shown = next(((u, t) for u, t, _ in pages_text() if "piketty.pse.ens.fr" in u and "No secure" not in t and len(t) > 20), None)
-                    if shown:
-                        break
-                check("“Open it anyway” opens the page over plain http", bool(shown),
-                      f"{[(u[:60], t[:80]) for u, t, _ in pages_text()]}")
+            check("a site with no https opens over plain http by itself, within seconds",
+                  bool(shown) and not asked and waited <= 15,
+                  f"after {waited} s, asked first {bool(asked)}: {[(u[:60], t[:60]) for u, t, _ in pages_text()]}")
             cdp.evaluate(CLOSE_JS)
             # A PDF: the phone's PDF app is offered.
             adb("logcat", "-c", check_rc=False)

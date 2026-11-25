@@ -1,7 +1,7 @@
 <!-- tutorial
 id: 01M191H1763EX62JM1DZMBK9A9
 created: 2026-10-18T00:00:05Z
-This page is also a note every notebook gets, on its Tutorials shelf. Edit it here, never in
+This page is also a note every notebook gets, tagged `tutorial`. Edit it here, never in
 crates/fm-app/src/shipped/tutorials/, then run `pixi run tutorials` (decisions.md#ui, 2026-10-24).
 A copy someone has not changed is brought up to this text when they update.
 -->
@@ -13,15 +13,14 @@ whether this app is running or not.
 
 ## Where you are
 
-You are in the **Library**, on its **shelves**. Each note is a book lying on its side, so its title
-reads across. These short guides stand on the **Tutorials** shelf; anything you write that is on no
-shelf goes on **Other**.
+Your notes are in **Notes**, on its **Timeline**: every note under the day you wrote it, newest
+first. These short guides are notes too, tagged `tutorial`.
 
-![The Library's shelves: a Tutorials shelf with five guides, two shelves of the person's own notes,
-and Other for the rest](../images/shelves.png)
+![The Timeline: each note under its day, with its first lines and its tags](../images/timeline.png)
 
-Tap or click a book to open it. To come back here from anywhere, open the list of views (on a phone,
-the stacked-squares button in the bottom bar; on a computer, the sidebar) and choose **Library**.
+Tap or click a note to open it. To find one again, search: type a few words from its title or its
+text. To come back here from anywhere, open the list of views (on a phone, the stacked-squares
+button in the bottom bar; on a computer, the sidebar) and choose **Notes**.
 
 ## Write your first note
 
@@ -36,7 +35,7 @@ There is no Save button: what you type is written to the file as you go.
 Read them in order, or whenever you need one:
 
 - [Write, and find it again](2-write-and-find.md) — changing a note, adding a photo, searching.
-- [See your notes your way](3-your-way.md) — shelves, the timeline, a board, an agenda.
+- [See your notes your way](3-your-way.md) — the timeline, a board, an agenda.
 - [Keep them safe](4-keep-them-safe.md) — backing up, and getting back what you deleted.
 - [Ask Myrme](5-ask-myrme.md) — the assistant that runs on this device.
 

@@ -806,6 +806,9 @@ mod tests {
                 b"user_pref(\"services.sync.username\", \"someone@example.org\");\n".to_vec(),
             ),
             (p.join("storage").join("ls-archive.sqlite"), vec![7u8; 64]),
+            // Firefox's own bookmarks and history (the star, Ctrl+D), and their favicons.
+            (p.join("places.sqlite"), vec![9u8; 64]),
+            (p.join("favicons.sqlite"), vec![5u8; 32]),
         ];
         for (f, b) in &files {
             std::fs::write(f, b).unwrap();

@@ -713,8 +713,20 @@ class MainActivity : TauriActivity() {
       val http = upgradedFrom.remove(https) ?: return@postDelayed
       if (view.url != null && view.url != https && !view.url!!.startsWith("about:")) return@postDelayed
       view.stopLoading()
-      view.loadDataWithBaseURL(null, PagePrivacy.insecurePage(http), "text/html", "utf-8", null)
+      noSecureVersion(view, http)
     }, 8000)
+  }
+
+  /** **A site with no secure version** (2026-11-25, *secure first, never a wall*): opened over http,
+   *  as Firefox and DuckDuckGo's browser do, and remembered for this run; with *Always https* on, the
+   *  page that asks first. */
+  private fun noSecureVersion(view: WebView, http: String) {
+    if (PagePrivacy.httpsAlways) {
+      view.loadDataWithBaseURL(null, PagePrivacy.insecurePage(http), "text/html", "utf-8", null)
+      return
+    }
+    PagePrivacy.insecureOk += PagePrivacy.host(http)
+    view.loadUrl(http, PagePrivacy.headers(http))
   }
 
   /** **A PDF opens in the phone's PDF app** (2026-11-22; the owner: arXiv papers "do not open
@@ -959,13 +971,13 @@ class MainActivity : TauriActivity() {
       override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
         if (!req.isForMainFrame) return
         val http = upgradedFrom.remove(req.url.toString()) ?: return
-        view.loadDataWithBaseURL(null, PagePrivacy.insecurePage(http), "text/html", "utf-8", null)
+        noSecureVersion(view, http)
       }
 
       override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
         handler.cancel()
         val http = upgradedFrom.remove(error.url ?: "") ?: return
-        view.loadDataWithBaseURL(null, PagePrivacy.insecurePage(http), "text/html", "utf-8", null)
+        noSecureVersion(view, http)
       }
     }
     page.addJavascriptInterface(PageCounter(id), "__fmPagePrivacy")

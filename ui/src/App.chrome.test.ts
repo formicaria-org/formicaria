@@ -103,7 +103,7 @@ test('the panel offers every view you can open, and opening one shows it', async
   await fireEvent.click(screen.getByRole('button', { name: 'open Notes' }));
   await waitFor(() =>
     expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe(
-      'Shelves',
+      'Timeline',
     ),
   );
   expect(document.querySelectorAll('.pane').length).toBe(before);
@@ -119,8 +119,8 @@ test('the panel offers every view you can open, and opening one shows it', async
   // The name is read off the bar that names it — a pane has no header of its own when one view
   // fills the window, which is the row this arrangement exists to reclaim.
   const bar = screen.getByRole('navigation', { name: 'open views' });
-  // The Library opens on its shelves — the place to come back to (2026-10-18).
-  expect(bar.querySelector('[aria-current="page"]')?.textContent).toMatch(/Shelves/);
+  // Notes opens on its Timeline (the shelves went on 2026-11-25).
+  expect(bar.querySelector('[aria-current="page"]')?.textContent).toMatch(/Timeline/);
 });
 
 /// **The collapsed rail hides words; it must never crop them.**
@@ -185,7 +185,7 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   await fireEvent.click(screen.getByRole('menuitem', { name: 'Notes' }));
   await waitFor(() =>
     expect(document.querySelector('.cell.active .pane')?.getAttribute('aria-label')).toBe(
-      'Shelves',
+      'Timeline',
     ),
   );
   expect(document.querySelectorAll('.pane').length).toBe(before);

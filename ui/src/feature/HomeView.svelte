@@ -24,17 +24,26 @@
   import { dayOf } from '../lib/stamp';
   import {
     BUILTIN,
+    COLS,
+    GAP_REM,
+    MAX_ROWS,
+    MIN_COLS,
+    MIN_ROWS,
+    ROW_REM,
+    arrange,
     defaultRoom,
     generated,
     labelOf,
     layout,
+    placeAll,
     readHome,
+    rowsRem,
     saveHome,
     sizesOf,
-    snapHeight,
-    snapWidth,
+    tidy,
     HEIGHTS,
     WIDTHS,
+    type Box,
     type Card,
     type CardHeight,
     type CardSize,
@@ -68,10 +77,12 @@
   let narrow = $state(false);
   let root = $state<HTMLDivElement | undefined>(undefined);
   let entry = $state<{ focus: () => void } | undefined>(undefined);
-  /** A card's edge being dragged: the room it would take, shown while dragging. */
-  let resizing = $state<{ ref: string; w: CardWidth; h: CardHeight } | null>(null);
-  /** A card being moved by its header, and the card it would go before. */
-  let dragRef = $state<string | null>(null);
+  /** **A card being moved or resized** (2026-11-25): where it would go, the others making way while
+   *  the pointer is down; written when it is let go. */
+  let moving = $state<Box | null>(null);
+  let resizing = $state<Box | null>(null);
+  /** On the phone: the card being moved in the list, and the card it would go before. */
+  let lifted = $state<string | null>(null);
   let dropOn = $state<string | null>(null);
   /** **Writing on the phone, the journal has the screen** (2026-11-23; the owner: Home's top, a
    *  floating jot bar and a sliver of the entry, with the keyboard up). Home glides until the entry
@@ -122,6 +133,9 @@
   const cards = $derived(doc.cards.length ? doc.cards : generated(summary));
   const set = $derived(doc.cards.length > 0);
   const placed = $derived(layout(cards, narrow));
+  /** The wide grid's boxes, with what is being moved or resized where it would go. */
+  const boxes = $derived(arrange(cards, moving ?? resizing ?? undefined));
+  const boxOf = (ref: string) => boxes.find((b) => b.ref === ref);
   const today = $derived(appToday());
 
   /** **Only the newest read lands** (2026-11-23): a read begun before a save and answered after it
@@ -238,7 +252,12 @@
   const change = (i: number, patch: Partial<Card>) => {
     const list = own();
     const here = narrow && !('phone' in patch) ? { phone: true } : {};
-    list[i] = { ...list[i], ...patch, ...here };
+    // A card made a figure (or back) takes that kind's room, unless the room is what changes.
+    const room =
+      patch.size && patch.size !== list[i].size && !('cols' in patch)
+        ? defaultRoom(list[i].ref, patch.size)
+        : {};
+    list[i] = { ...list[i], ...room, ...patch, ...here };
     void save({ ...doc, cards: list });
   };
   const move = (i: number, by: number) => {
@@ -261,48 +280,173 @@
     const i = at(ref);
     if (i >= 0) remove(i);
   }
-  /** A card moved by its header, dropped on another: it goes where that one was. */
-  function moveTo(ref: string) {
-    const from = dragRef ? at(dragRef) : -1;
-    const to = at(ref);
-    dragRef = null;
-    dropOn = null;
-    if (from < 0 || to < 0 || from === to) return;
+  /** The places as they are now, written into every card: a move, a resize or a tidy saved. */
+  const savePlaces = (b: Box[]) => void save({ ...doc, cards: placeAll(own(), b) });
+  /** The grid's measures in pixels: a column's step, a row's step, and its corner. */
+  function measures(el: Element | null) {
+    const grid = el?.closest('ol.grid') as HTMLElement | null;
+    if (!grid) return null;
+    const g = grid.getBoundingClientRect();
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const gap = GAP_REM * rem;
+    return { left: g.left, top: g.top, col: (g.width + gap) / COLS, row: ROW_REM * rem + gap };
+  }
+  /** **Moving a card** (2026-11-25): its ⠿ grip, held and dragged with a mouse, a pen or a finger.
+   *  On the wide grid it goes to the column and row under it and the others make way; on the phone
+   *  (after a short hold, so a swipe still scrolls) it goes before the card it is let go over. */
+  function lift(e: PointerEvent, c: Card) {
+    if (e.button > 0) return;
+    const handle = e.currentTarget as HTMLElement;
+    const m = measures(handle);
+    const start = boxOf(c.ref);
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const touch = e.pointerType === 'touch';
+    let live = !touch;
+    let hold = touch
+      ? setTimeout(() => {
+          live = true;
+          if (narrow) lifted = c.ref;
+          navigator.vibrate?.(15);
+        }, 300)
+      : 0;
+    handle.setPointerCapture?.(e.pointerId);
+    const go = (ev: PointerEvent) => {
+      if (!live) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) end();
+        return;
+      }
+      ev.preventDefault();
+      if (narrow) {
+        lifted = c.ref;
+        const over = [...(root?.querySelectorAll<HTMLElement>('ol.grid > li.card') ?? [])].find(
+          (li) => {
+            const r = li.getBoundingClientRect();
+            return ev.clientY >= r.top && ev.clientY < r.bottom;
+          },
+        );
+        dropOn = over?.dataset.ref && over.dataset.ref !== c.ref ? over.dataset.ref : null;
+        return;
+      }
+      if (!m || !start) return;
+      moving = {
+        ...start,
+        x: Math.round(start.x + (ev.clientX - sx) / m.col),
+        y: Math.round(start.y + (ev.clientY - sy) / m.row),
+      };
+    };
+    const end = (ev?: PointerEvent) => {
+      clearTimeout(hold);
+      hold = 0;
+      handle.removeEventListener('pointermove', go);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      if (narrow) {
+        const to = ev?.type === 'pointerup' ? dropOn : null;
+        lifted = null;
+        dropOn = null;
+        if (to) moveBefore(c.ref, to);
+        return;
+      }
+      const m2 = moving;
+      moving = null;
+      if (ev?.type === 'pointerup' && m2 && (m2.x !== start?.x || m2.y !== start?.y))
+        savePlaces(arrange(cards, m2));
+    };
+    handle.addEventListener('pointermove', go);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+  /** In the list (the phone's order): `ref` takes the place of `over` — dragged up it goes
+   *  before it, dragged down after it. */
+  function moveBefore(ref: string, over: string) {
     const list = own();
+    const from = list.findIndex((c) => c.ref === ref);
+    const target = list.findIndex((c) => c.ref === over);
+    if (from < 0 || target < 0) return;
     const [c] = list.splice(from, 1);
-    list.splice(to, 0, c);
+    // Removed first: below it, `target` is now just after the card it was over.
+    list.splice(target, 0, c);
     void save({ ...doc, cards: list });
   }
-  /** **Dragging an edge**: the right one sets the width, the bottom one the height, the corner
-   *  both. It snaps to the grid's widths and the three heights, and is kept on release. */
+  /** **The keys move it too**: the arrows on its grip, or ⋯ → Move (a column, or a row, at a
+   *  time). On the phone up and down move it in the list. */
+  function nudge(c: Card, dx: number, dy: number) {
+    if (narrow) {
+      const i = own().findIndex((x) => x.ref === c.ref);
+      if (dy) move(i, dy);
+      return;
+    }
+    const b = boxOf(c.ref);
+    if (!b) return;
+    // Up past the card above: its place is taken (that card makes way below).
+    const above =
+      dy < 0
+        ? boxes.filter(
+            (o) =>
+              o.ref !== b.ref && o.y + o.rows <= b.y && o.x < b.x + b.cols && b.x < o.x + o.cols,
+          )
+        : [];
+    const y =
+      dy < 0 && above.length
+        ? Math.max(...above.map((o) => o.y))
+        : b.y + dy * (dy > 0 ? b.rows : 1);
+    savePlaces(arrange(cards, { ...b, x: b.x + dx, y }));
+  }
+  /** A width or a height from the ⋯ or Edit Home: on the wide grid the others make way. */
+  function resize(c: Card, room: { cols?: number; rows?: number }) {
+    menuRef = null;
+    const b = boxOf(c.ref);
+    if (narrow || !b) return changeRef(c.ref, room);
+    const cols = Math.min(room.cols ?? b.cols, COLS);
+    savePlaces(
+      arrange(cards, { ...b, cols, rows: room.rows ?? b.rows, x: Math.min(b.x, COLS - cols) }),
+    );
+  }
+  function onGripKey(e: KeyboardEvent, c: Card) {
+    const by: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    };
+    const d = by[e.key];
+    if (!d) return;
+    e.preventDefault();
+    nudge(c, d[0], d[1]);
+  }
+  /** **Resizing**: the right edge sets the width, the bottom one the height, the corner both — a
+   *  column or a row at a time, the others making way as it grows. */
   function grip(e: PointerEvent, c: Card, axis: 'x' | 'y' | 'xy') {
     e.preventDefault();
     const handle = e.currentTarget as HTMLElement;
+    const m = measures(handle);
+    const start = boxOf(c.ref);
+    if (!m || !start) return;
     const li = handle.closest('li.card') as HTMLElement | null;
-    const grid = li?.parentElement;
-    if (!li || !grid) return;
-    const box = li.getBoundingClientRect();
-    const across = grid.getBoundingClientRect().width || 1;
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const box = li?.getBoundingClientRect();
     handle.setPointerCapture?.(e.pointerId);
-    resizing = { ref: c.ref, w: c.w, h: c.h };
-    const move = (ev: PointerEvent) => {
-      if (!resizing) return;
+    resizing = { ...start };
+    const go = (ev: PointerEvent) => {
+      if (!resizing || !box) return;
+      const cols = Math.round((ev.clientX - box.left) / m.col);
+      const rows = Math.round((ev.clientY - box.top) / m.row);
       resizing = {
-        ref: c.ref,
-        w: axis === 'y' ? resizing.w : snapWidth((ev.clientX - box.left) / across),
-        h: axis === 'x' ? resizing.h : snapHeight((ev.clientY - box.top) / rem),
+        ...start,
+        cols: axis === 'y' ? start.cols : Math.min(COLS - start.x, Math.max(MIN_COLS, cols)),
+        rows: axis === 'x' ? start.rows : Math.min(MAX_ROWS, Math.max(MIN_ROWS, rows)),
       };
     };
-    const up = () => {
-      handle.removeEventListener('pointermove', move);
+    const up = (ev: PointerEvent) => {
+      handle.removeEventListener('pointermove', go);
       handle.removeEventListener('pointerup', up);
       handle.removeEventListener('pointercancel', up);
       const r = resizing;
       resizing = null;
-      if (r && (r.w !== c.w || r.h !== c.h)) changeRef(c.ref, { w: r.w, h: r.h });
+      if (ev.type === 'pointerup' && r && (r.cols !== start.cols || r.rows !== start.rows))
+        savePlaces(arrange(cards, r));
     };
-    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointermove', go);
     handle.addEventListener('pointerup', up);
     handle.addEventListener('pointercancel', up);
   }
@@ -331,7 +475,7 @@
       size: size && sizes.includes(size) ? size : sizes.includes('summary') ? 'summary' : sizes[0],
       // Added on the phone, it is for the phone.
       phone: narrow || (BUILTIN[ref]?.phone ?? false),
-      ...defaultRoom(ref),
+      ...defaultRoom(ref, size && sizes.includes(size) ? size : 'summary'),
     };
     void save({ ...doc, cards: [...own(), card] });
   }
@@ -549,6 +693,32 @@
   }
 </script>
 
+{#snippet tile(c: Card)}
+  {@const fam = c.ref.split(':')[0]}
+  {@const arg = c.ref.slice(c.ref.indexOf(':') + 1)}
+  <button type="button" class="tile-btn" onclick={() => whole(c)?.()}>
+    {#if fam === 'stat'}
+      {@const st = stat(arg)}
+      <b>{st.week}{st.trend ? ` ${st.trend}` : ''}</b><span>{labelOf(c, sections)}</span>
+    {:else if fam === 'board'}
+      {@const b = board(c.ref)}
+      <b>{b.open}</b><span
+        >open in {sectionOf(arg)?.label ?? arg}{b.overdue ? ` · ${b.overdue} overdue` : ''}</span
+      >
+    {:else if c.ref === 'due'}
+      <b>{due.length}</b><span
+        >due today{overdueDue.length ? ` · ${overdueDue.length} overdue` : ''}</span
+      >
+    {:else if c.ref === 'justin'}
+      <b>{justIn.length}</b><span>came in this week</span>
+    {:else if fam === 'note'}<b class="link-name">{c.label || notes[c.ref]?.title || 'A note'}</b>
+    {:else if fam === 'section'}<b class="link-name">{labelOf(c, sections)}</b><span
+        >{count(arg)} notes</span
+      >
+    {:else}<b class="link-name">{labelOf(c, sections)}</b>{/if}
+  </button>
+{/snippet}
+
 {#snippet more(c: Card)}
   {@const name = labelOf(c, sections)}
   <button
@@ -579,26 +749,49 @@
           {/each}
         </div>
       {/if}
-      {#if c.size !== 'glance' && !narrow}
+      {#if !narrow}
         <div class="opt-row">
           <span>Width</span>
           {#each Object.keys(WIDTHS) as CardWidth[] as w (w)}
-            <button type="button" aria-pressed={c.w === w} onclick={() => changeRef(c.ref, { w })}
-              >{WIDTH_NAMES[w]}</button
+            <button
+              type="button"
+              aria-pressed={c.cols === WIDTHS[w]}
+              onclick={() => resize(c, { cols: WIDTHS[w] })}>{WIDTH_NAMES[w]}</button
             >
           {/each}
         </div>
       {/if}
-      {#if c.size !== 'glance'}
+      {#if !narrow || c.size !== 'glance'}
         <div class="opt-row">
           <span>Height</span>
           {#each Object.keys(HEIGHTS) as CardHeight[] as h (h)}
-            <button type="button" aria-pressed={c.h === h} onclick={() => changeRef(c.ref, { h })}
-              >{HEIGHT_NAMES[h]}</button
+            <button
+              type="button"
+              aria-pressed={c.rows === HEIGHTS[h]}
+              onclick={() => resize(c, { rows: HEIGHTS[h] })}>{HEIGHT_NAMES[h]}</button
             >
           {/each}
         </div>
       {/if}
+      <div class="opt-row">
+        <span>Move</span>
+        {#if !narrow}
+          <button type="button" aria-label={`move ${name} left`} onclick={() => nudge(c, -1, 0)}
+            >←</button
+          >
+        {/if}
+        <button type="button" aria-label={`move ${name} up`} onclick={() => nudge(c, 0, -1)}
+          >↑</button
+        >
+        <button type="button" aria-label={`move ${name} down`} onclick={() => nudge(c, 0, 1)}
+          >↓</button
+        >
+        {#if !narrow}
+          <button type="button" aria-label={`move ${name} right`} onclick={() => nudge(c, 1, 0)}
+            >→</button
+          >
+        {/if}
+      </div>
       <label class="opt-row"
         ><input
           type="checkbox"
@@ -680,26 +873,34 @@
                   >{z === 'glance' ? 'Glance' : z === 'summary' ? 'Summary' : 'Full'}</option
                 >{/each}
             </select>
-            {#if c.size !== 'glance'}
-              <select
-                aria-label={`width of ${name}`}
-                value={c.w}
-                onchange={(e) =>
-                  change(i, { w: (e.currentTarget as HTMLSelectElement).value as CardWidth })}
-              >
-                {#each Object.keys(WIDTHS) as CardWidth[] as w (w)}<option value={w}
-                    >{WIDTH_NAMES[w]}</option
-                  >{/each}
-              </select>
+            {#if !narrow || c.size !== 'glance'}
+              {#if !narrow}
+                <select
+                  aria-label={`width of ${name}`}
+                  value={String(c.cols)}
+                  onchange={(e) =>
+                    resize(c, { cols: Number((e.currentTarget as HTMLSelectElement).value) })}
+                >
+                  {#each Object.keys(WIDTHS) as CardWidth[] as w (w)}<option
+                      value={String(WIDTHS[w])}>{WIDTH_NAMES[w]}</option
+                    >{/each}
+                  {#if !Object.values(WIDTHS).includes(c.cols)}<option value={String(c.cols)}
+                      >{c.cols} columns</option
+                    >{/if}
+                </select>
+              {/if}
               <select
                 aria-label={`height of ${name}`}
-                value={c.h}
+                value={String(c.rows)}
                 onchange={(e) =>
-                  change(i, { h: (e.currentTarget as HTMLSelectElement).value as CardHeight })}
+                  resize(c, { rows: Number((e.currentTarget as HTMLSelectElement).value) })}
               >
-                {#each Object.keys(HEIGHTS) as CardHeight[] as h (h)}<option value={h}
-                    >{HEIGHT_NAMES[h]}</option
+                {#each Object.keys(HEIGHTS) as CardHeight[] as h (h)}<option
+                    value={String(HEIGHTS[h])}>{HEIGHT_NAMES[h]}</option
                   >{/each}
+                {#if !Object.values(HEIGHTS).includes(c.rows)}<option value={String(c.rows)}
+                    >{c.rows} rows</option
+                  >{/if}
               </select>
             {/if}
             <label class="phone"
@@ -754,6 +955,13 @@
             adding = '';
           }}>Add to Home</button
         >
+        {#if !narrow}
+          <button
+            type="button"
+            title="Close the gaps: every card moves up and left as far as it fits"
+            onclick={() => savePlaces(tidy(cards))}>Tidy up</button
+          >
+        {/if}
         <button type="button" class="reset" onclick={reset} disabled={!set}
           >Reset to the default</button
         >
@@ -818,203 +1026,217 @@
 
   {#if doc.text}<p class="words-shown">{doc.text}</p>{/if}
 
-  <!-- **The grid** (2026-11-23): every card, the journal one of them, at its width and height. -->
-  <ol class="grid" aria-label="home cards shown">
+  <!-- **The grid** (2026-11-23; placed, 2026-11-25): on a wide screen every card at its place,
+       width and height, figures and links among them; on a narrow one, the phone's cards in the
+       list's order. Each has a ⠿ grip to move it (the arrows too) and edges to size it. -->
+  <ol
+    class="grid"
+    class:arranging={!!moving || !!resizing}
+    aria-label="home cards shown"
+    style={`--row:${ROW_REM}rem;--gap:${GAP_REM}rem`}
+  >
     {#each placed.main as c (c.ref)}
       {@const fam = c.ref.split(':')[0]}
       {@const arg = c.ref.slice(c.ref.indexOf(':') + 1)}
       {@const full = c.size === 'full'}
       {@const open = whole(c)}
-      {@const room = resizing?.ref === c.ref ? resizing : c}
+      {@const b = boxOf(c.ref)}
+      {@const small = c.size === 'glance' && c.ref !== 'journal'}
+      {@const name = labelOf(c, sections)}
       <li
         class="card"
         class:journal-card={c.ref === 'journal'}
+        class:tile-card={small}
+        data-ref={c.ref}
+        data-place={b && !narrow ? `${b.x},${b.y},${b.cols},${b.rows}` : undefined}
         onfocusin={(e) => c.ref === 'journal' && enterWriting(e)}
         onfocusout={(e) => c.ref === 'journal' && leaveWriting(e)}
         class:resizing={resizing?.ref === c.ref}
+        class:moving={moving?.ref === c.ref || lifted === c.ref}
         class:dropping={dropOn === c.ref}
-        style={`--span:${WIDTHS[room.w]};--h:${HEIGHTS[room.h]}rem`}
-        ondragover={(e) => {
-          if (!dragRef) return;
-          e.preventDefault();
-          dropOn = c.ref;
-        }}
-        ondragleave={() => dropOn === c.ref && (dropOn = null)}
-        ondrop={() => moveTo(c.ref)}
+        style={narrow || !b
+          ? `--h:${rowsRem(c.rows)}rem`
+          : `grid-column:${b.x + 1} / span ${b.cols};grid-row:${b.y + 1} / span ${b.rows}`}
       >
-        {#if c.ref !== 'journal'}
-          <h3
-            draggable={!narrow}
-            ondragstart={() => (dragRef = c.ref)}
-            ondragend={() => ((dragRef = null), (dropOn = null))}
-            title={narrow ? undefined : 'Drag to move'}
-          >
-            {#if open}<button type="button" class="title" onclick={open}
-                >{labelOf(c, sections)}</button
-              >
-            {:else}{labelOf(c, sections)}{/if}
+        <button
+          type="button"
+          class="move-grip"
+          aria-label={`move ${name}`}
+          title={narrow ? 'Hold and drag to move' : 'Drag to move (or the arrow keys)'}
+          onpointerdown={(e) => lift(e, c)}
+          onkeydown={(e) => onGripKey(e, c)}>⠿</button
+        >
+        {#if small}
+          {@render tile(c)}
+        {:else if c.ref !== 'journal'}
+          <h3>
+            {#if open}<button type="button" class="title" onclick={open}>{name}</button>
+            {:else}{name}{/if}
           </h3>
         {/if}
         {@render more(c)}
-        <div class="body">
-          {#if c.ref === 'journal'}
-            <JournalEntry bind:this={entry} day={today} {onopen} compact={narrow} />
-            {#if full}
-              <button type="button" class="more-link" onclick={() => go('/f/today')}
-                >Earlier days</button
-              >
-            {/if}
-          {:else if c.ref === 'due'}
-            {#if due.length}
-              <ul class="mini">
-                {#each due.slice(0, full ? 30 : 6) as n (n.id)}
-                  <li>
-                    <button type="button" class="link" onclick={() => onopen(n.id)}
-                      >{title(n)}</button
-                    >
-                    {#if isOverdue(n)}<span class="why">overdue</span>{/if}
-                  </li>
-                {/each}
-              </ul>
-            {:else}<p class="muted">Nothing planned or due today.</p>{/if}
-          {:else if c.ref === 'justin'}
-            {#if justIn.length}
-              <ul class="mini">
-                {#each justIn.slice(0, full ? 20 : 6) as n (n.id)}
-                  <li>
-                    <button type="button" class="link" onclick={() => onopen(n.id)}
-                      >{title(n)}</button
-                    >
-                  </li>
-                {/each}
-              </ul>
-            {:else}<p class="muted">Pages, songs and meetings you bring in show here.</p>{/if}
-          {:else if c.ref === 'continue'}
-            {#if carryOn}
-              <button
-                type="button"
-                class="link strong"
-                onclick={() => carryOn && onopen(carryOn.id)}>{title(carryOn)}</button
-              >
-              {#if carryOn.preview && carryOn.preview !== carryOn.title}<p class="preview">
-                  {carryOn.preview}
-                </p>{/if}
-            {:else}<p class="muted">The note you were in last shows here.</p>{/if}
-          {:else if c.ref === 'recent'}
-            <ul class="mini">
-              {#each recent.slice(0, full ? 15 : 6) as n (n.id)}
-                <li>
-                  <button type="button" class="link" onclick={() => onopen(n.id)}>{title(n)}</button
-                  >
-                </li>
-              {/each}
-            </ul>
-          {:else if c.ref === 'pinned'}
-            {#if pinned.length}
-              <ul class="mini">
-                {#each pinned as n (n.id)}
-                  <li>
-                    <button type="button" class="link" onclick={() => onopen(n.id)}
-                      >{title(n)}</button
-                    >
-                  </li>
-                {/each}
-              </ul>
-            {:else}<p class="muted">Tag a note <code>pinned</code> to keep it here.</p>{/if}
-          {:else if c.ref === 'start'}
-            <ul class="steps">
-              {#each steps as st (st.label)}
-                <li class:done={st.done}>
-                  <span aria-hidden="true">{st.done ? '✓' : '○'}</span>
-                  <button type="button" class="link" onclick={st.go}>{st.label}</button>
-                </li>
-              {/each}
-            </ul>
-          {:else if fam === 'heat'}
-            {@const hm = heat(arg, full ? 53 : 26)}
-            <div
-              class="heat"
-              style={`--weeks:${hm.cols.length}`}
-              role="img"
-              aria-label={`${labelOf(c, sections)}: ${hm.total} in the last ${full ? 'year' : 'six months'}`}
-            >
-              {#each hm.cols as col, i (i)}
-                <div class="hcol">
-                  {#each col as d (d.day)}
-                    <span
-                      class={`hcell l${d.level}`}
-                      class:future={d.future}
-                      title={`${d.day}: ${d.n}`}
-                    ></span>
-                  {/each}
-                </div>
-              {/each}
-            </div>
-            <p class="figure small">
-              <b>{hm.total}</b> in the last {full ? 'year' : 'six months'}
-            </p>
-          {:else if fam === 'stat'}
-            {@const days = perDay(arg, full ? 30 : 7)}
-            {@const top = Math.max(1, ...days)}
-            <p class="figure"><b>{sum(days)}</b> in the last {full ? 30 : 7} days</p>
-            <div class="bars" aria-hidden="true">
-              {#each days as d, i (i)}<span
-                  style={`height:${Math.round((d / top) * 100)}%`}
-                  title={`${d}`}
-                ></span>{/each}
-            </div>
-          {:else if fam === 'board'}
-            {@const b = board(c.ref)}
-            <p class="figure">
-              {#each b.columns.filter((col) => col.status !== 'done') as col, k (col.status)}{k
-                  ? ' · '
-                  : ''}{col.cards.length}
-                {col.status}{/each}
-            </p>
-            {#if full}
-              <div class="columns">
-                {#each b.columns as col (col.status)}
-                  <div class="column">
-                    <h4>{col.status} <span class="n">{col.cards.length}</span></h4>
-                    {#each col.cards.slice(0, 10) as n (n.id)}
-                      <button type="button" class="chip-card" onclick={() => onopen(n.id)}
+        {#if !small}
+          <div class="body">
+            {#if c.ref === 'journal'}
+              <JournalEntry bind:this={entry} day={today} {onopen} compact={narrow} />
+              {#if full}
+                <button type="button" class="more-link" onclick={() => go('/f/today')}
+                  >Earlier days</button
+                >
+              {/if}
+            {:else if c.ref === 'due'}
+              {#if due.length}
+                <ul class="mini">
+                  {#each due.slice(0, full ? 30 : 6) as n (n.id)}
+                    <li>
+                      <button type="button" class="link" onclick={() => onopen(n.id)}
                         >{title(n)}</button
                       >
+                      {#if isOverdue(n)}<span class="why">overdue</span>{/if}
+                    </li>
+                  {/each}
+                </ul>
+              {:else}<p class="muted">Nothing planned or due today.</p>{/if}
+            {:else if c.ref === 'justin'}
+              {#if justIn.length}
+                <ul class="mini">
+                  {#each justIn.slice(0, full ? 20 : 6) as n (n.id)}
+                    <li>
+                      <button type="button" class="link" onclick={() => onopen(n.id)}
+                        >{title(n)}</button
+                      >
+                    </li>
+                  {/each}
+                </ul>
+              {:else}<p class="muted">Pages, songs and meetings you bring in show here.</p>{/if}
+            {:else if c.ref === 'continue'}
+              {#if carryOn}
+                <button
+                  type="button"
+                  class="link strong"
+                  onclick={() => carryOn && onopen(carryOn.id)}>{title(carryOn)}</button
+                >
+                {#if carryOn.preview && carryOn.preview !== carryOn.title}<p class="preview">
+                    {carryOn.preview}
+                  </p>{/if}
+              {:else}<p class="muted">The note you were in last shows here.</p>{/if}
+            {:else if c.ref === 'recent'}
+              <ul class="mini">
+                {#each recent.slice(0, full ? 15 : 6) as n (n.id)}
+                  <li>
+                    <button type="button" class="link" onclick={() => onopen(n.id)}
+                      >{title(n)}</button
+                    >
+                  </li>
+                {/each}
+              </ul>
+            {:else if c.ref === 'pinned'}
+              {#if pinned.length}
+                <ul class="mini">
+                  {#each pinned as n (n.id)}
+                    <li>
+                      <button type="button" class="link" onclick={() => onopen(n.id)}
+                        >{title(n)}</button
+                      >
+                    </li>
+                  {/each}
+                </ul>
+              {:else}<p class="muted">Tag a note <code>pinned</code> to keep it here.</p>{/if}
+            {:else if c.ref === 'start'}
+              <ul class="steps">
+                {#each steps as st (st.label)}
+                  <li class:done={st.done}>
+                    <span aria-hidden="true">{st.done ? '✓' : '○'}</span>
+                    <button type="button" class="link" onclick={st.go}>{st.label}</button>
+                  </li>
+                {/each}
+              </ul>
+            {:else if fam === 'heat'}
+              {@const hm = heat(arg, full ? 53 : 26)}
+              <div
+                class="heat"
+                style={`--weeks:${hm.cols.length}`}
+                role="img"
+                aria-label={`${labelOf(c, sections)}: ${hm.total} in the last ${full ? 'year' : 'six months'}`}
+              >
+                {#each hm.cols as col, i (i)}
+                  <div class="hcol">
+                    {#each col as d (d.day)}
+                      <span
+                        class={`hcell l${d.level}`}
+                        class:future={d.future}
+                        title={`${d.day}: ${d.n}`}
+                      ></span>
                     {/each}
                   </div>
                 {/each}
               </div>
-            {:else if b.look.length}
-              <ul class="mini">
-                {#each b.look.slice(0, 6) as x (x.n.id)}
-                  <li>
-                    <button type="button" class="link" onclick={() => onopen(x.n.id)}
-                      >{title(x.n)}</button
-                    >
-                    <span class="why">{x.why}</span>
-                  </li>
-                {/each}
-              </ul>
-            {:else}<p class="muted">Nothing overdue, blocked or stuck.</p>{/if}
-          {:else if fam === 'section' || fam === 'view'}
-            {#if rows[c.ref]?.length}
-              <ul class="mini">
-                {#each rows[c.ref].slice(0, full ? 20 : 6) as n (n.id)}
-                  <li>
-                    <button type="button" class="link" onclick={() => onopen(n.id)}
-                      >{title(n)}</button
-                    >
-                  </li>
-                {/each}
-              </ul>
-            {:else}<p class="muted">Nothing here yet.</p>{/if}
-          {:else if fam === 'note'}
-            {@const n = notes[c.ref]}
-            {#if n}
-              <p class="preview">{full ? n.body : n.body.slice(0, 280)}</p>
-            {:else}<p class="muted">This note is not here.</p>{/if}
-          {/if}
-        </div>
+              <p class="figure small">
+                <b>{hm.total}</b> in the last {full ? 'year' : 'six months'}
+              </p>
+            {:else if fam === 'stat'}
+              {@const days = perDay(arg, full ? 30 : 7)}
+              {@const top = Math.max(1, ...days)}
+              <p class="figure"><b>{sum(days)}</b> in the last {full ? 30 : 7} days</p>
+              <div class="bars" aria-hidden="true">
+                {#each days as d, i (i)}<span
+                    style={`height:${Math.round((d / top) * 100)}%`}
+                    title={`${d}`}
+                  ></span>{/each}
+              </div>
+            {:else if fam === 'board'}
+              {@const b = board(c.ref)}
+              <p class="figure">
+                {#each b.columns.filter((col) => col.status !== 'done') as col, k (col.status)}{k
+                    ? ' · '
+                    : ''}{col.cards.length}
+                  {col.status}{/each}
+              </p>
+              {#if full}
+                <div class="columns">
+                  {#each b.columns as col (col.status)}
+                    <div class="column">
+                      <h4>{col.status} <span class="n">{col.cards.length}</span></h4>
+                      {#each col.cards.slice(0, 10) as n (n.id)}
+                        <button type="button" class="chip-card" onclick={() => onopen(n.id)}
+                          >{title(n)}</button
+                        >
+                      {/each}
+                    </div>
+                  {/each}
+                </div>
+              {:else if b.look.length}
+                <ul class="mini">
+                  {#each b.look.slice(0, 6) as x (x.n.id)}
+                    <li>
+                      <button type="button" class="link" onclick={() => onopen(x.n.id)}
+                        >{title(x.n)}</button
+                      >
+                      <span class="why">{x.why}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {:else}<p class="muted">Nothing overdue, blocked or stuck.</p>{/if}
+            {:else if fam === 'section' || fam === 'view'}
+              {#if rows[c.ref]?.length}
+                <ul class="mini">
+                  {#each rows[c.ref].slice(0, full ? 20 : 6) as n (n.id)}
+                    <li>
+                      <button type="button" class="link" onclick={() => onopen(n.id)}
+                        >{title(n)}</button
+                      >
+                    </li>
+                  {/each}
+                </ul>
+              {:else}<p class="muted">Nothing here yet.</p>{/if}
+            {:else if fam === 'note'}
+              {@const n = notes[c.ref]}
+              {#if n}
+                <p class="preview">{full ? n.body : n.body.slice(0, 280)}</p>
+              {:else}<p class="muted">This note is not here.</p>{/if}
+            {/if}
+          </div>
+        {/if}
         {#if !narrow}
           <span
             class="grip x"
@@ -1196,22 +1418,35 @@
   }
   /* **The grid** (2026-11-23): twelve columns; each card spans its width and holds its height,
      its content scrolling inside. A narrow screen has one column: every card full width. */
+  /* Rows of one height (`ROW_REM`), so a card's place and height are whole rows; each card is
+     put at its column and row by `arrange` (`lib/home.ts`). A narrow screen has one column, the
+     cards in the list's order, each at its own height. */
   .grid {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: var(--space-3);
-    align-items: start;
+    grid-auto-rows: var(--row, 2.5rem);
+    gap: var(--gap, 0.75rem);
+    align-items: stretch;
   }
   .narrow .grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+  /* While a card is moved or sized, the grid's rows show, so its snapping can be seen. */
+  .grid.arranging {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--accent) 7%, transparent) var(--row),
+      transparent var(--row)
+    );
+    background-size: 100% calc(var(--row) + var(--gap));
+    border-radius: var(--radius-md);
   }
   .card {
     position: relative;
-    grid-column: span var(--span, 6);
-    height: var(--h, 16rem);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -1224,6 +1459,95 @@
   }
   .narrow .card {
     grid-column: 1 / -1;
+    height: var(--h, 14.5rem);
+  }
+  .card.moving {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.2));
+    z-index: 5;
+  }
+  .narrow .card.dropping {
+    box-shadow: 0 -4px 0 var(--accent);
+  }
+  /* ⠿ in a card's top left corner: held and dragged, the card moves; its arrows move it too. On a
+     touch screen it waits for a short hold, so the page still scrolls under a finger. */
+  .move-grip {
+    position: absolute;
+    top: var(--space-2);
+    left: 4px;
+    z-index: 4;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    line-height: 1;
+    padding: 2px 3px;
+    border-radius: var(--radius-sm);
+    cursor: grab;
+    touch-action: none;
+    opacity: 0;
+  }
+  .card:hover .move-grip,
+  .move-grip:focus-visible,
+  .card.moving .move-grip,
+  .narrow .move-grip {
+    opacity: 1;
+  }
+  .move-grip:active {
+    cursor: grabbing;
+  }
+  @media (pointer: coarse) {
+    .move-grip {
+      opacity: 1;
+      min-width: 2rem;
+      min-height: 2rem;
+      top: 2px;
+      left: 0;
+    }
+  }
+  .card h3 {
+    padding-left: 1.1rem;
+    padding-right: 1.6rem;
+  }
+  @media (pointer: coarse) {
+    .card h3 {
+      padding-left: 1.6rem;
+    }
+  }
+  /* A figure or a link on the grid: a small card, its number and words, the grip and ⋯ beside. */
+  .card.tile-card {
+    padding: var(--space-2) var(--space-3) var(--space-2) 1.4rem;
+    justify-content: center;
+  }
+  .tile-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 0 1.4rem 0 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .tile-btn b {
+    font-size: var(--text-xl);
+  }
+  .tile-btn b.link-name {
+    font-size: var(--text-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  .tile-btn span {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
   .card.resizing {
     outline: 2px dashed var(--accent);
@@ -1246,6 +1570,7 @@
   /* The entry's own header leaves room for the card's ⋯ in its corner. */
   .journal-card .body :global(.entry header) {
     padding-right: 1.8rem;
+    padding-left: 1.4rem;
   }
   .journal-card .body {
     display: flex;
@@ -1287,9 +1612,6 @@
   .card:hover .grip.xy {
     background: linear-gradient(135deg, transparent 50%, var(--border) 50%);
     border-bottom-right-radius: var(--radius-md);
-  }
-  .card h3[draggable='true'] {
-    cursor: grab;
   }
   /* ⋯ on every card and figure: size, room, the phone, remove. */
   .more-btn {

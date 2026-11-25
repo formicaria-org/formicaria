@@ -1144,9 +1144,11 @@ def the_shell(ff: Path, work: Path) -> None:
         check(who, "a section hidden from the rail leaves it", hidden is True, str(hidden))
         goto(m, f"{SERVER}/f/home", 6)
         shown = wait_for(m, "const l = document.querySelector('[aria-label=\"home cards shown\"]'); return l ? l.textContent : null", 10) or ""
-        watch = content(m, "return (document.querySelector('[aria-label=\"kept an eye on\"]') || {}).textContent || ''") or ""
+        # A pinned section is a small card on the grid, among the others (2026-11-25).
+        pinned = content(m, "return !!document.querySelector('li.card.tile-card[data-ref=\"section:tasks\"]')")
         check(who, "Home keeps its editing across a reload, with the section pinned to it",
-              "Continue" not in shown and "Tasks" in watch, f"cards {shown[:160]!r}; watch {watch[:80]!r}")
+              "Continue" not in shown and pinned is True, f"cards {shown[:160]!r}; pinned {pinned}")
+        home_arranged(m, who)
         # Web, a section; the one box opens an address.
         rail("Web")
         table = wait_for(m, "return location.pathname === '/f/group/Web' && !!document.querySelector('[aria-label=\"view as\"]')", 8)
@@ -1229,6 +1231,89 @@ def the_shell(ff: Path, work: Path) -> None:
         check(who, "the browser still open", False, repr(e)[:200])
     bc.stop(ff)
 
+
+PLACES_JS = """return [...document.querySelectorAll('ol.grid > li.card')].map((li) => {
+  const r = li.getBoundingClientRect(); const g = li.querySelector('.move-grip').getBoundingClientRect();
+  // The place Home drew it at (`data-place`: column, row, width, height; Firefox folds the style's
+  // grid-column and grid-row into one grid-area, so the style is not read).
+  const p = (li.dataset.place || '').split(',').map(Number);
+  const m = p.length === 4 ? [null, p[0] + 1, p[2], p[1] + 1, p[3]] : null;
+  return { ref: li.dataset.ref, x: m ? m[1] : null, w: m ? m[2] : null, y: m ? m[3] : null, h: m ? m[4] : null,
+           left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+           grip: [g.left + g.width / 2, g.top + g.height / 2] }; });"""
+
+
+def drag(m, frm: tuple, to: tuple, steps: int = 12) -> None:
+    """A real mouse drag in the page: pressed at `frm`, moved in steps, let go at `to` (viewport px)."""
+    (x0, y0), (x1, y1) = frm, to
+    moves = [{"type": "pointerMove", "duration": 25, "origin": "viewport",
+              "x": int(x0 + (x1 - x0) * i / steps), "y": int(y0 + (y1 - y0) * i / steps)} for i in range(1, steps + 1)]
+    m.cmd("WebDriver:PerformActions", {"actions": [{"type": "pointer", "id": "mouse",
+          "parameters": {"pointerType": "mouse"}, "actions":
+          [{"type": "pointerMove", "duration": 0, "origin": "viewport", "x": int(x0), "y": int(y0)},
+           {"type": "pointerDown", "button": 0}, *moves, {"type": "pause", "duration": 150},
+           {"type": "pointerUp", "button": 0}]}]})
+    m.cmd("WebDriver:ReleaseActions", {})
+
+
+def home_arranged(m, who: str) -> None:
+    """**Home arranged by hand** (the owner, 2026-11-25: *"why can't I move the options I add to home
+    wherever I want … including size and position"*). With a real mouse, in formicaria's browser: a
+    card dragged by its ⠿ onto another's place takes it and the other makes way; its corner dragged
+    makes it wider and taller, a column and a row at a time; no two cards overlap; both stay after a
+    reload; Tidy up leaves nothing overlapping; the layout guard passes."""
+    goto(m, f"{SERVER}/f/home", 5)
+    wait_for(m, "return document.querySelectorAll('ol.grid > li.card .move-grip').length >= 3 || null", 10)
+    before = content(m, PLACES_JS) or []
+    print(f"usability: [{who}] Home's places before: {[(p['ref'], p['x'], p['y'], p['w'], p['h']) for p in before]}")
+
+    def overlapping(ps: list) -> list:
+        return [(a["ref"], b["ref"]) for i, a in enumerate(ps) for b in ps[i + 1:]
+                if a["left"] < b["right"] - 2 and b["left"] < a["right"] - 2 and a["top"] < b["bottom"] - 2 and b["top"] < a["bottom"] - 2]
+
+    # The last card on the grid, dragged by its grip to where the first one is.
+    first = min(before, key=lambda p: (p["y"] or 0, p["x"] or 0)) if before else None
+    last = max(before, key=lambda p: (p["y"] or 0, p["x"] or 0)) if before else None
+    if not first or not last or first["ref"] == last["ref"]:
+        check(who, "Home has cards to arrange", False, str(before)[:200])
+        return
+    off = (last["grip"][0] - last["left"], last["grip"][1] - last["top"])
+    drag(m, last["grip"], (first["left"] + off[0], first["top"] + off[1]))
+    time.sleep(2)
+    after = content(m, PLACES_JS) or []
+    moved = next((p for p in after if p["ref"] == last["ref"]), {})
+    other = next((p for p in after if p["ref"] == first["ref"]), {})
+    check(who, "a card dragged by its grip takes the place it is dropped on, and the other makes way",
+          moved.get("x") == first["x"] and moved.get("y") == first["y"] and (other.get("x"), other.get("y")) != (first["x"], first["y"])
+          and not overlapping(after),
+          f"{last['ref']} → {moved.get('x')},{moved.get('y')} (wanted {first['x']},{first['y']}); {first['ref']} now "
+          f"{other.get('x')},{other.get('y')}; overlapping {overlapping(after)}")
+    # Its corner, dragged two columns right and two rows down.
+    corner = content(m, f"""const li = document.querySelector('ol.grid > li.card[data-ref={json.dumps(last["ref"])}]');
+        const g = li.querySelector('.grip.xy').getBoundingClientRect(); const grid = li.parentElement.getBoundingClientRect();
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        return {{ x: g.left + g.width / 2, y: g.top + g.height / 2, col: (grid.width + 0.75 * rem) / 12, row: 3.25 * rem }};""") or {}
+    w0, h0 = moved.get("w") or 0, moved.get("h") or 0
+    if corner:
+        drag(m, (corner["x"], corner["y"]), (corner["x"] + 2 * corner["col"], corner["y"] + 2 * corner["row"]))
+        time.sleep(2)
+    sized = next((p for p in content(m, PLACES_JS) or [] if p["ref"] == last["ref"]), {})
+    want_w = min(12 - (sized.get("x") or 1) + 1, w0 + 2)
+    check(who, "a card's corner dragged makes it wider and taller, a column and a row at a time",
+          sized.get("w") == want_w and sized.get("h") == h0 + 2, f"{w0}x{h0} → {sized.get('w')}x{sized.get('h')} (wanted {want_w}x{h0 + 2})")
+    goto(m, f"{SERVER}/f/home", 5)
+    wait_for(m, f"return !!document.querySelector('ol.grid > li.card[data-ref={json.dumps(last['ref'])}]') || null", 10)
+    time.sleep(1.5)
+    kept = next((p for p in content(m, PLACES_JS) or [] if p["ref"] == last["ref"]), {})
+    check(who, "Home keeps a card's place and size across a reload",
+          (kept.get("x"), kept.get("y"), kept.get("w"), kept.get("h")) == (sized.get("x"), sized.get("y"), sized.get("w"), sized.get("h")),
+          f"after the reload {kept}; before {sized}")
+    layout(m, who, "Home, arranged by hand")
+    content(m, "document.querySelector('button.customize').click(); return true;", 600)
+    content(m, "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Tidy up')?.click(); return true;", 2000)
+    tidied = content(m, PLACES_JS) or []
+    check(who, "Tidy up leaves no two cards overlapping", bool(tidied) and not overlapping(tidied), str(overlapping(tidied)))
+    content(m, "document.querySelector('button.customize').click(); return true;", 500)
 
 def first_hour_basics(ff: Path, work: Path) -> None:
     """**What a computer had lost, back** (`ui-audit-2026-11-22.md`, U1): search from the Notes page;

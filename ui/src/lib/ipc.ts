@@ -1263,7 +1263,7 @@ export interface Privacy {
   cookies: boolean;
   clean_links: boolean;
   gpc: boolean;
-  https_only: boolean;
+  https_always: boolean;
   app_trackers: boolean;
   ddg: boolean;
   more_sites: boolean;
@@ -1286,7 +1286,7 @@ export type PrivacyChange = Partial<
     | 'cookies'
     | 'clean_links'
     | 'gpc'
-    | 'https_only'
+    | 'https_always'
     | 'app_trackers'
     | 'ddg'
     | 'more_sites'

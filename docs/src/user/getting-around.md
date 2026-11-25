@@ -64,19 +64,24 @@ Home is where formicaria opens. It shows how things stand, and you choose what i
 meeting's end and a plan's last day are not deadlines, so a meeting that ended or a training plan
 you replaced is simply over; it is never *overdue*, and it is not in Tasks.
 
-Any card or figure can also be at **glance** size: a figure in the top row, or a link in the row of
-things kept an eye on. A card's title opens its whole place, and **Back** returns to Home.
+Any card can also be at **glance** size: a small card with just its figure, or a link. A card's
+title opens its whole place, and **Back** returns to Home.
 
 ### Arranging Home where it is
 
-Every card, the journal included, sits on a grid, and you choose the room it takes:
-- **Drag a card's right edge** to make it narrower or wider, and its **bottom edge** for its
-  height; the corner does both. It snaps to the grid: **narrow** (a third), **half**, **wide** (two
-  thirds) or **full width**, and **short**, **medium** or **tall**.
-- **Drag a card by its title** onto another to move it there.
-- **⋯** on any card or figure (hover over it to see it) has the same choices for anyone who would
-  rather not drag: what it shows (glance, summary, full), its width and height, whether it is **on
-  the phone**, and **Remove from Home**.
+Every card, the journal and the figures included, sits on a grid of twelve columns and rows, and
+you choose where it goes and how much room it takes:
+- **Move a card** by its **⠿** in the top left corner (hover over the card to see it): drag it
+  anywhere. The other cards make way while you drag, and everything settles upward when you let go,
+  so nothing overlaps and nothing floats. With the keyboard, focus the ⠿ and use the arrow keys.
+- **Size a card** by dragging its **right edge** (width), its **bottom edge** (height) or its
+  corner (both), a column or a row at a time. The cards around it make way.
+- **⋯** on any card has the same choices for anyone who would rather not drag: what it shows
+  (glance, summary, full), a width (**narrow**, **half**, **wide**, **full width**), a height
+  (**short**, **medium**, **tall**), **Move** ←↑↓→, whether it is **on the phone**, and **Remove
+  from Home**.
+- **Tidy up** (in **Edit Home**) closes the gaps: every card moves up and to the left as far as
+  it fits, in reading order.
 
 A change shows at once and is saved straight after. If it cannot be saved, Home puts it back and
 says why.
@@ -93,8 +98,8 @@ The quickest way to add something is from where it is:
 - in a note, **⋯ → Pin to Home**;
 - on a section's or a saved view's page, **Pin to Home** in its bar.
 
-It appears in the row of things kept an eye on. Once pinned, the same place offers **Remove from
-Home**.
+It appears on Home as a small card, in the first gap it fits; move it from there. Once pinned, the
+same place offers **Remove from Home**.
 
 ### Edit Home
 
@@ -102,7 +107,8 @@ Home**.
 - choose what it shows: glance, summary or full; and its width and height;
 - choose whether to **show it on the phone**. On the phone, a card you change or add there is shown
   there; one that is not is marked *not shown on the phone* in the list;
-- move it with its arrows, or drag it;
+- move it with its arrows, or drag it (this order is the phone's; on a computer, place it on the
+  grid itself);
 - remove it with ✕.
 
 **Add** offers everything that can be on Home, grouped: Today, Figures, Boards, Sections, Views and
@@ -144,7 +150,9 @@ The phone keeps its own bar of tabs, and Home opens first. It is the same Home, 
 - only the cards marked **show on the phone**, each the full width, at the height you chose;
 - at most three figures;
 - nothing at full size except the journal;
-- the links kept an eye on in one row you can scroll sideways.
+- the links kept an eye on in one row you can scroll sideways;
+- to move a card, **hold its ⠿** for a moment and drag it up or down; it goes where you let it go.
+  A swipe that does not wait still scrolls the page.
 
 Under Home's title is a box to jot a line into today's entry; a web address typed there opens the
 page.

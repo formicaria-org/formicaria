@@ -49,10 +49,9 @@ pub enum Renderer {
     /// (`decisions.md#ui`, 2026-10-11). Its rows come from `log_days`, which is asked for a span of
     /// days; `run_view` answers only what the view *is* ([`TotalsDef`]).
     Totals,
-    /// **Notes as books on shelves** (`decisions.md#ui`, 2026-10-18, *Home is the Library's
-    /// shelves*): notes grouped by their `shelf:` tags ([`SHELF_TAG`], 2026-10-24, *a shelf is a
-    /// `shelf:` tag*) — or by a property when `group_by` names one — drawn as stacked rows of spines.
-    /// Putting a book on a shelf rewrites that tag; a note on no shelf is under the view's `rest`.
+    /// **Kept so old files still parse, but it no longer draws anything** (`decisions.md#ui`,
+    /// 2026-11-25, *the shelves go*): notes as books on shelves, removed as unused. A view asking
+    /// for it is reported, like a gallery one, and never drawn as something else.
     Shelf,
 }
 
@@ -65,9 +64,6 @@ struct ViewFile {
     /// Board only — the property to group columns by.
     #[serde(default)]
     group_by: Option<String>,
-    /// Shelf only — what the notes on no shelf are called (`rest: Other`).
-    #[serde(default)]
-    rest: Option<String>,
     /// Overrides the renderer's default sort when present.
     #[serde(default)]
     sort: Vec<SortDto>,
@@ -397,13 +393,6 @@ fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query 
             sort: vec![SortKey::desc("created")],
             ..Default::default()
         },
-        Renderer::Shelf => Query {
-            filter: notes(),
-            // By tag unless told otherwise: then `run_file` shelves the rows itself (`shelve`).
-            group_by: group_by.map(str::to_string),
-            sort: vec![SortKey::desc("created")],
-            ..Default::default()
-        },
         Renderer::Timeline => {
             Query { filter: notes(), sort: vec![SortKey::desc("created")], ..Default::default() }
         }
@@ -427,6 +416,8 @@ fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query 
             sort: vec![SortKey::desc("updated")],
             ..Default::default()
         },
+        // Never run: the lister reports it (`SHELF_GONE`); an empty query keeps the match whole.
+        Renderer::Shelf => Query::default(),
         Renderer::Gallery => Query {
             filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])),
             sort: vec![SortKey::desc("created")],
@@ -721,6 +712,9 @@ pub fn save_view(
     if view == Renderer::Gallery {
         return Err(GALLERY_GONE.into());
     }
+    if view == Renderer::Shelf {
+        return Err(SHELF_GONE.into());
+    }
     let path = view_path(vault, name)?;
     let mut tag_carried_over: Option<String> = None;
     if let Ok(existing) = read_view(&path) {
@@ -794,6 +788,10 @@ pub fn delete_view(vault: &Path, name: &str) -> Result<PathBuf, String> {
 const GALLERY_GONE: &str =
     "gallery is no longer a way of showing notes — change this view to timeline or board";
 
+/// The same for the removed shelves (`decisions.md#ui`, 2026-11-25, *the shelves go*).
+const SHELF_GONE: &str =
+    "shelf is no longer a way of showing notes — change this view to timeline or board";
+
 pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
     let dir = vault.join("views");
     let mut out = Vec::new();
@@ -809,15 +807,20 @@ pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
     for path in paths {
         let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         match read_view(&path) {
-            Ok(file) if file.view == Renderer::Gallery => out.push(ViewInfo {
-                name: file.name,
-                renderer: None,
-                group_by: None,
-                group: None,
-                shipped: false,
-                vault: String::new(),
-                error: Some(GALLERY_GONE.into()),
-            }),
+            Ok(file) if matches!(file.view, Renderer::Gallery | Renderer::Shelf) => {
+                out.push(ViewInfo {
+                    error: Some(
+                        if file.view == Renderer::Gallery { GALLERY_GONE } else { SHELF_GONE }
+                            .into(),
+                    ),
+                    name: file.name,
+                    renderer: None,
+                    group_by: None,
+                    group: None,
+                    shipped: false,
+                    vault: String::new(),
+                })
+            }
             // A totals view that cannot be drawn names itself, like any other broken view.
             Ok(file) if file.view == Renderer::Totals && totals_def(&file).is_err() => {
                 out.push(ViewInfo {
@@ -895,36 +898,18 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
     let filters: Vec<String> = file.filter.iter().map(|p| describe_pred(p, false)).collect();
 
     Ok(match file.view {
-        Renderer::Board | Renderer::Shelf => {
-            let by_tag = file.view == Renderer::Shelf && q.group_by.is_none();
-            let group_by =
-                if by_tag { "tags".to_string() } else { q.group_by.clone().unwrap_or_default() };
-            let mut columns: Vec<Column> = if by_tag {
-                shelve(&res.rows)
-            } else {
-                res.groups
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|g| Column {
-                        value: value_string(&g.key),
-                        label: g.label,
-                        cards: g.rows.iter().map(ObjectMeta::from).collect(),
-                    })
-                    .collect()
-            };
-            // Shelves read in order, named ones by name, and the notes on none last, under the
-            // view's own word for them.
-            if file.view == Renderer::Shelf {
-                columns.sort_by(|a, b| {
-                    (a.value.is_empty(), a.label.to_lowercase())
-                        .cmp(&(b.value.is_empty(), b.label.to_lowercase()))
-                });
-                if let Some(rest) = file.rest.as_ref().filter(|r| !r.trim().is_empty()) {
-                    for c in columns.iter_mut().filter(|c| c.value.is_empty()) {
-                        c.label = rest.clone();
-                    }
-                }
-            }
+        Renderer::Board => {
+            let group_by = q.group_by.clone().unwrap_or_default();
+            let columns: Vec<Column> = res
+                .groups
+                .unwrap_or_default()
+                .into_iter()
+                .map(|g| Column {
+                    value: value_string(&g.key),
+                    label: g.label,
+                    cards: g.rows.iter().map(ObjectMeta::from).collect(),
+                })
+                .collect();
             ViewResult {
                 name: file.name,
                 renderer: file.view,
@@ -967,8 +952,9 @@ fn parse_view(text: &str, origin: &str) -> Result<ViewFile, String> {
 /// build that predates a renderer never meets a file naming it, and turning a feature on writes
 /// nothing into anybody's notes. A vault file of the same name wins — that is how a person changes
 /// what a shipped view calls things.
-/// **A shelf is a tag with this prefix** (`decisions.md#ui`, 2026-10-24, *a shelf is a `shelf:`
-/// tag*): `shelf:Reading` puts a note on the Reading shelf. No other tag makes a shelf.
+/// **A shelf was a tag with this prefix** (`decisions.md#ui`, 2026-10-24, *a shelf is a `shelf:`
+/// tag*). The shelves are gone (2026-11-25); the tags notes already carry stay ordinary tags, and the
+/// start-up rewrite of the older `shelf` property (`shelf.rs`) still writes one.
 pub const SHELF_TAG: &str = "shelf:";
 
 /// The shelf a tag names, if it names one: `shelf:Reading` → `Reading`. A bare `shelf:` names none.
@@ -976,41 +962,7 @@ pub fn shelf_of(tag: &str) -> Option<&str> {
     tag.strip_prefix(SHELF_TAG).map(str::trim).filter(|s| !s.is_empty())
 }
 
-/// **The notes on their shelves**: one column per `shelf:` tag, valued by the whole tag (what a
-/// drop writes back) and labelled by the name after the prefix; a note with two is on both, a note
-/// with none is in the column valued `""` — the view's `rest`. Rows keep the query's order. Done
-/// here rather than by `fm-query`'s `group_by`, which groups by a whole value: `[lab, shelf:Reading]`
-/// would be a shelf of its own.
-pub fn shelve(rows: &[fm_model::Object]) -> Vec<Column> {
-    let mut shelves: Vec<Column> = Vec::new();
-    let mut put = |value: &str, label: &str, o: &fm_model::Object| match shelves
-        .iter_mut()
-        .find(|c| c.value == value)
-    {
-        Some(c) => c.cards.push(ObjectMeta::from(o)),
-        None => shelves.push(Column {
-            value: value.to_string(),
-            label: label.to_string(),
-            cards: vec![ObjectMeta::from(o)],
-        }),
-    };
-    for o in rows {
-        let mut on_one = false;
-        for tag in &o.tags {
-            if let Some(name) = shelf_of(tag) {
-                put(tag, name, o);
-                on_one = true;
-            }
-        }
-        if !on_one {
-            put("", "", o);
-        }
-    }
-    shelves
-}
-
 const SHIPPED: &[(&str, &str)] = &[
-    ("library-shelves", include_str!("shipped/library-shelves.view")),
     ("food-day", include_str!("shipped/food-day.view")),
     ("food-menu", include_str!("shipped/food-menu.view")),
     ("food-trends", include_str!("shipped/food-trends.view")),
@@ -1216,44 +1168,22 @@ mod tests {
         assert_eq!(total, 2, "only the two lab notes");
     }
 
-    /// **The Library's shelves** (2026-10-24, *a shelf is a `shelf:` tag*): notes grouped by their
-    /// `shelf:` tags, named shelves in order and the notes on none last under the view's own word —
-    /// the shipped view, run as it ships. Another tag makes no shelf; two `shelf:` tags, two shelves.
+    /// **The shelves are gone** (2026-11-25): a vault's own `view: shelf` still parses, is listed
+    /// with why it cannot be drawn, and cannot be written.
     #[test]
-    fn shelves_are_the_shelf_tags_with_the_rest_last() {
+    fn a_shelf_view_is_reported_never_drawn() {
         let d = tempdir().unwrap();
-        let mut s = FileStore::named(d.path(), "v").unwrap();
-        for (title, tags) in [
-            ("Start here", &["tutorial", "shelf:Tutorials"][..]),
-            ("Cooking", &["shelf:Kitchen", "shelf:Tutorials"][..]),
-            ("A thought", &["idea"][..]),
-        ] {
-            let mut o = Object::new(Kind::Note, title);
-            o.tags = tags.iter().map(|t| t.to_string()).collect();
-            s.put(&o).unwrap();
-        }
-        let r = run_shipped(&s, "Shelves").expect("it ships").unwrap();
-        assert_eq!(r.renderer, Renderer::Shelf);
-        let listed = shipped_views();
-        let info = listed.iter().find(|v| v.name == "Shelves").unwrap();
-        assert_eq!(info.group.as_deref(), Some("Library"), "it is one of the Library's views");
-        let shelves = r.board.unwrap();
-        assert_eq!(shelves.group_by, "tags");
-        let labels: Vec<_> = shelves.columns.iter().map(|c| c.label.as_str()).collect();
-        assert_eq!(labels, ["Kitchen", "Tutorials", "Other"]);
-        assert_eq!(shelves.columns[1].value, "shelf:Tutorials", "a drop writes the whole tag back");
-        assert_eq!(shelves.columns[1].cards.len(), 2, "a note with two shelf tags is on both");
-        assert!(shelves.columns[2].value.is_empty(), "the rest is the notes with no shelf");
-        assert_eq!(shelves.columns[2].cards.len(), 1, "a tag that is not a shelf makes none");
-    }
-
-    /// The UI opens a first launch on this view by name (`HOME_VIEW`, ui/src/lib/panes.ts); a
-    /// rename on either side would open on nothing.
-    #[test]
-    fn the_home_view_the_ui_names_is_the_shipped_shelves() {
-        let ui = include_str!("../../../ui/src/lib/panes.ts");
-        let name = shipped_name(include_str!("shipped/library-shelves.view")).unwrap();
-        assert!(ui.contains(&format!("export const HOME_VIEW = '{name}';")), "HOME_VIEW is {name}");
+        std::fs::create_dir_all(d.path().join("views")).unwrap();
+        std::fs::write(
+            d.path().join("views/books.view"),
+            "name: Books\nview: shelf\nrest: Other\n",
+        )
+        .unwrap();
+        let listed = list_views(d.path());
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].renderer, None);
+        assert_eq!(listed[0].error.as_deref(), Some(SHELF_GONE));
+        assert!(shipped_views().iter().all(|v| v.renderer != Some(Renderer::Shelf)), "none ships");
     }
 
     #[test]

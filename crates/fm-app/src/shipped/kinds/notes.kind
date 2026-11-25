@@ -9,7 +9,6 @@ order: 10
 page: /f/group/Library
 types: [study, web, paper]
 views:
-  - view: Shelves
   - builtin: timeline
   - renderer: table
     columns: [tags]

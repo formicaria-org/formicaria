@@ -218,9 +218,6 @@ def main():
         show(ws, "timeline");                  shot(ws, "timeline", W, H)
         show(ws, "timeline", timeline="compact"); shot(ws, "timeline-list", W, H)
         show(ws, "search", query="paper");     shot(ws, "search", W, H)
-        # The Library's shelves, which a first launch opens on: the demo notes' `shelf:` tags, and
-        # the Tutorials shelf the app gives every first notebook (`tutorials::give`).
-        show(ws, "view", view="Shelves");      shot(ws, "shelves", W, H)
 
         note = first_note_id(ws)
         if note:

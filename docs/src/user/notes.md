@@ -439,8 +439,6 @@ formicaria is a library: every note is of a kind (a study note, a saved web page
 song, a meeting, a mail conversation, a discussion…), and each kind has the views that show it. A
 note's **＋** (Options) holds what you can do with it beyond writing:
 
-- **Place on a shelf…**: on the shelf its kind suggests (*Web* for a saved page, *Papers* for a paper),
-  on one of your shelves, or on a new one.
 - **Bring into another note…**: the passage you selected (or a link to this note; for a mail, its
   latest message) goes into a note you choose, quoted, with a link back here.
 - **Send by mail…**: Gmail opens a new mail with the note's title and the selected passage (or the

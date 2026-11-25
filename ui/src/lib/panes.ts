@@ -153,25 +153,14 @@ export function autoCols(n: number, w: Pick<Workspace, 'colMode' | 'cols'>): num
  *  starting with a single pane, and `cols` was only ever recomputed inside `addPane`/`closePane`
  *  — so a fresh session on a wide screen laid one pane into a two-column grid and left the second
  *  column blank. `panes.test.ts` pinned that as a feature. */
-/** **Home is the Library's shelves** (`decisions.md#ui`, 2026-10-18): the shipped view
- *  `library-shelves.view`, whose Tutorials shelf a new notebook starts with. Pinned to that file's
- *  `name:` by `panes.home.test.ts`. */
-export const HOME_VIEW = 'Shelves';
-
-/** What a first launch opens on: the shelves — a saved workspace keeps whatever its owner had. A
- *  variable only so the suite, most of which was written against a first screen of Board, can say
- *  so once (`test-setup.ts`); the tests about the first screen set it back. */
-/// **Home is the shell's** since 2026-11-22 (*the shell*: Home is a space's first view; the shelves
-/// are a view of Notes). `HOME_VIEW` stays the shelves' view, which Notes still opens on.
+/** What a first launch opens on: Home — a saved workspace keeps whatever its owner had. A variable
+ *  only so the suite, most of which was written against a first screen of Board, can say so once
+ *  (`test-setup.ts`); the tests about the first screen set it back. (It was the Library's shelves
+ *  from 2026-10-18; Home since 2026-11-22, *the shell*; the shelves went on 2026-11-25.) */
 const homePane = () => newPane('home');
 let firstPane: () => Pane = homePane;
-export function setFirstView(kind: PaneKind | 'home' | 'shelves') {
-  firstPane =
-    kind === 'home'
-      ? homePane
-      : kind === 'shelves'
-        ? () => newPane('view', { viewName: HOME_VIEW })
-        : () => newPane(kind);
+export function setFirstView(kind: PaneKind | 'home') {
+  firstPane = kind === 'home' ? homePane : () => newPane(kind);
 }
 
 /** **Every launch after the first opens on the Library's Timeline** (the owner, 2026-11-12: *"the
@@ -278,12 +267,11 @@ export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated
   }
   // **One view, and the notes** (schema 3, 2026-10-16): a stored search pane is dropped — search is a
   // passing panel now — and of several views the one in front is kept, else the first.
-  // A Home pane (0.9.1) is now the Library's shelves, where the same place to come back to is.
+  // A Home pane (0.9.1) became the Library's shelves; the shelves are gone (2026-11-25), so it is
+  // the Library's timeline.
   const stored0 = (w.panes as Pane[])
     .filter((p) => (p.kind as string) !== 'search')
-    .map((p) =>
-      (p.kind as string) === 'home' ? { ...p, kind: 'view' as const, viewName: HOME_VIEW } : p,
-    );
+    .map((p) => ((p.kind as string) === 'home' ? { ...p, kind: 'timeline' as const } : p));
   const front = (w.panes as Pane[])[w.active ?? 0];
   const view = front && isView(front) && stored0.includes(front) ? front : stored0.find(isView);
   const kept = stored0.filter((p) => !isView(p) || p === view);

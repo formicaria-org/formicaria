@@ -1880,36 +1880,6 @@
   // Write one property via the existing set_property command, then reflect it in
   // the local note so the header/pills update without a refetch.
   // ---- Placing and handing off (`workspace-design` §13.4, §13.6) ----
-  let placing = $state(false);
-  let newShelf = $state('');
-  let shelves = $state<string[]>([]);
-  /** The shelf a note of this kind belongs on by default (`kinds.rs`'s places). */
-  const suggestedShelf = $derived(
-    note?.kind_key === 'web' ? 'Web' : note?.kind_key === 'paper' ? 'Papers' : '',
-  );
-  const shelfChoices = $derived(
-    [...new Set([suggestedShelf, ...shelves].filter(Boolean))].slice(0, 12),
-  );
-  async function loadShelves() {
-    try {
-      const all = await recent();
-      shelves = [
-        ...new Set(
-          all.flatMap((n) => n.tags.filter((t) => t.startsWith('shelf:')).map((t) => t.slice(6))),
-        ),
-      ].sort();
-    } catch {
-      shelves = [];
-    }
-  }
-  /** On that shelf (its other shelves give way). */
-  async function placeOn(shelf: string) {
-    if (!note) return;
-    const tags = note.tags.filter((t) => !t.startsWith('shelf:'));
-    tags.push(`shelf:${shelf}`);
-    await setProp('tags', tags.join(', '));
-    toast.now = { text: `On the shelf ${shelf}` };
-  }
   /** What goes out: the selection, else the note's text. */
   function outText(): string {
     const sel = String(getSelection() ?? '').trim();
@@ -3118,45 +3088,6 @@
                   );
                 }}>Bring into another note…</button
               >
-              <!-- **Place on a shelf** (`workspace-design` §13.4): every note finds its place in the
-                   library. -->
-              <button
-                class="opt"
-                onclick={() => {
-                  void loadShelves();
-                  placing = !placing;
-                }}
-                aria-expanded={placing}>Place on a shelf…</button
-              >
-              {#if placing}
-                <div class="place" role="group" aria-label="shelves">
-                  {#each shelfChoices as shelf (shelf)}
-                    <button
-                      class="opt shelf"
-                      onclick={() => {
-                        optionsOpen = false;
-                        placing = false;
-                        void placeOn(shelf);
-                      }}>{shelf}</button
-                    >
-                  {/each}
-                  <input
-                    class="new-shelf"
-                    type="text"
-                    placeholder="New shelf"
-                    aria-label="new shelf"
-                    bind:value={newShelf}
-                    onkeydown={(e) => {
-                      if (e.key === 'Enter' && newShelf.trim()) {
-                        optionsOpen = false;
-                        placing = false;
-                        void placeOn(newShelf.trim());
-                      }
-                    }}
-                  />
-                </div>
-              {/if}
-
               {#if note.start}
                 <button
                   class="opt"
@@ -5339,19 +5270,6 @@
   }
   .err {
     color: var(--danger-fg);
-  }
-  .place {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-  }
-  .place .shelf {
-    flex: none;
-  }
-  .new-shelf {
-    flex: 1 1 8rem;
-    min-width: 0;
   }
   /* **What may be wider than the text grows past the column, up to the pane** (Notion's full-width
      tables; the research's fifth convention): a table or a block of code is as wide as it needs,

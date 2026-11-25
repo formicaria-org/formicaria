@@ -927,7 +927,8 @@ mod tests {
         for want in [
             // Strict is set by changing the category (2026-11-19): a default left it "custom".
             "Services.prefs.setStringPref(\"browser.contentblocking.category\", category)",
-            "defaultPref(\"dom.security.https_only_mode\", true)",
+            "defaultPref(\"dom.security.https_only_mode\", false)",
+            "defaultPref(\"dom.security.https_first\", true)",
             "defaultPref(\"privacy.globalprivacycontrol.enabled\", true)",
             // The Privacy sheet's switches reach Firefox's own protections (2026-11-17).
             "/api/privacy",

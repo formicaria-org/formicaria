@@ -28,7 +28,6 @@
     dropTargetForElements,
   } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import Board from '../renderers/Board.svelte';
-  import Shelf from '../renderers/Shelf.svelte';
   import Agenda from '../renderers/Agenda.svelte';
   import Calendar from '../renderers/Calendar.svelte';
   import Timeline from '../renderers/Timeline.svelte';
@@ -38,8 +37,7 @@
   import Icon from './Icon.svelte';
   import ViewControls from './ViewControls.svelte';
   import VaultBadge from './VaultBadge.svelte';
-  import TagChips from './library/TagChips.svelte';
-  import { spacesShown, type SpaceTab } from './spaces.svelte';
+  import { type SpaceTab } from './spaces.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, paneLabel, clampSpan, rendererKind, feedKey } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
@@ -274,14 +272,6 @@
       .filter((c) => proposalState(c) !== 'open')
       .sort((a, b) => (closedAt(b) ?? b.created).localeCompare(closedAt(a) ?? a.created)),
   );
-  /// The Library's one tag, chosen from its chips: the notes that carry it. Kept by the window,
-  /// not written anywhere (`decisions.md#ui`, 2026-10-12).
-  let tag = $state<string | null>(null);
-  const tagged = $derived(
-    tag && pane.kind === 'timeline' && spacesShown()
-      ? cards.filter((c) => c.tags.includes(tag ?? ''))
-      : cards,
-  );
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     drawnFeed?.board
@@ -361,18 +351,6 @@
 
   // Bumped on write so the `$derived` below re-runs — localStorage is not reactive.
   let orderVersion = $state(0);
-
-  /// **Put a book on a shelf** (`decisions.md#ui`, 2026-10-24, *a shelf is a `shelf:` tag*): its
-  /// shelf tags — every column it stands in, since each is one — give way to the one it was dropped
-  /// on (none for the rest), and the rest of its tags stay. One undoable tag write, no new command.
-  function shelve(b: BoardT, id: string, value: string) {
-    const card = b.columns.flatMap((c) => c.cards).find((c) => c.id === id);
-    if (!card) return;
-    const shelves = new Set(b.columns.map((c) => c.value).filter(Boolean));
-    const tags = card.tags.filter((t) => !shelves.has(t));
-    if (value) tags.push(value);
-    onmove('tags', id, tags.join(', '), null);
-  }
 
   function ordered(b: BoardT): BoardT {
     void orderVersion;
@@ -509,13 +487,6 @@
       {/if}
     {:else if drawnPane.kind === 'page'}
       <PageItem pane={drawnPane} target={pageTarget} />
-    {:else if drawnPane.kind === 'view' && shownView?.renderer === 'shelf'}
-      <!-- The Library's shelves: the notes by their `shelf:` tags, as a bookcase (2026-10-24). -->
-      {#if board}
-        <Shelf {board} onmove={(id, value) => shelve(board, id, value)} {onopen} />
-      {:else}
-        <p class="pane-empty">Loading…</p>
-      {/if}
     {:else if drawnPane.kind === 'board' || (drawnPane.kind === 'view' && board)}
       {#if board}
         <Board
@@ -697,11 +668,8 @@
       {/if}
     {:else}
       <!-- timeline, or a flat-list saved view -->
-      {#if drawnPane.kind === 'timeline' && spacesShown()}
-        <TagChips tags={cards.map((c) => c.tags)} chosen={tag} onpick={(t) => (tag = t)} />
-      {/if}
       <Timeline
-        cards={tagged}
+        {cards}
         {onopen}
         {statuses}
         {onstatus}

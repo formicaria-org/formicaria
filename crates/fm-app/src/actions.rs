@@ -57,7 +57,6 @@ pub const ACTIONS: &[ActionSpec] = &[
         Runs::Server,
     ),
     a("new_note", "New note", "a title, and a piece to start it", "a new note", Runs::Server),
-    a("place", "Place on a shelf", "a note and a shelf", "the note on that shelf", Runs::Server),
     a(
         "add_event",
         "Add to calendar",

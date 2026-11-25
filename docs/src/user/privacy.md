@@ -16,7 +16,7 @@ and **Settings → Privacy** on both.
 | **Refuse cookie pop-ups** | Consent banners are answered "reject" for you and closed. On the phone this uses DuckDuckGo's own rules; on a computer, Firefox's cookie banner reduction. | yes |
 | **Clean tracking links** | Tracking parts of an address (`utm_…`, `fbclid`, `gclid`…) are taken off before the page opens. | yes |
 | **Tell sites not to sell or share** | Global Privacy Control: a signal that sites must honour in some places (California, parts of the EU). | yes |
-| **Secure connections only** | Pages open over https. A site with no secure version shows a page first, within a few seconds, with **Open it anyway, this time**, which opens it over plain http. | yes |
+| **Always https** | Every page is tried over https first, whatever this says. Off, a site with no secure version simply opens over plain http, marked *not secure* in the address bar, as in Firefox and DuckDuckGo's browser. On, such a site shows a page first, within a few seconds, with **Open it anyway, this time**. | no |
 | **Encrypted lookups** | Which sites you open is hidden from your network: the names are looked up over an encrypted connection, by Quad9 (or Mullvad DNS). That service sees the names instead. *The network's own* turns it off. On a computer, formicaria's browser; on the phone, the apps covered by *Block trackers in other apps*. | Quad9 |
 | **Block trackers in other apps** | The whole phone: see below. | no |
 

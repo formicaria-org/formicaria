@@ -14,13 +14,13 @@ The two buttons differ in one thing only: **Start writing** saves the name and e
 **Skip for now** goes in without saving them. Either way you land in the same place, and you will
 be asked again the first time it actually matters.
 
-Then you land on the **Notes' shelves**: your notes as books, one above another. Your first
-notebook has five short **tutorials** on the **Tutorials** shelf — what to do first, how to find
+Then you land on **Home**. Your first notebook has five short **tutorials** among its notes, tagged
+`tutorial` — what to do first, how to find
 things again, how to keep them safe, how to ask the assistant — even if it had notes before you
 updated. They are the same pages as this manual's [Tutorials](../tutorials/1-start-here.md), with its
 pictures, and an update brings them up to date unless you have changed them. Tap one to read it. They are ordinary notes: change them, or delete them when you are done.
 A deleted one stays deleted, on every device; Help → **Put the tutorials back** brings them back. Whenever you are lost, open the list of views (on a phone, the stacked-squares
-button in the bottom bar) and choose **Notes** — it always opens on the shelves.
+button in the bottom bar) and choose **Notes** — it always opens on its Timeline.
 
 ## Write a note
 

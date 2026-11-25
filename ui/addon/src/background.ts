@@ -96,7 +96,7 @@ const KIND_WORDS: Record<string, string> = {
   video: 'a video',
   song: 'a song',
   article: 'an article',
-  bookmark: 'a bookmark, on the Bookmarks shelf',
+  bookmark: 'a bookmark: the link and its title',
 };
 
 /** The time now, `14:32`: when a page was saved or a piece brought in. */
@@ -210,7 +210,7 @@ export async function keep(tab: number): Promise<Kept> {
   }
 }
 
-/** **A bookmark is a note** (`browser-plan` §13.3): the page's title and link, on the Bookmarks shelf,
+/** **A bookmark is a note** (`browser-plan` §13.3): the page's title and link, tagged `shelf:Bookmarks`,
  *  without a copy of the page, so it is light. Synced by git like every note. */
 export async function bookmark(tab: { url?: string; title?: string }): Promise<Kept> {
   try {

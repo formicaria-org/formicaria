@@ -17,7 +17,7 @@ The views are gathered into **sections** of the library, and they are all ways o
 
 | Group | What it is for | Its views |
 |---|---|---|
-| **Notes** (called *Library* before 0.38) | everything you have written: on shelves, or browsed by tag | Shelves, Timeline |
+| **Notes** (called *Library* before 0.38) | everything you have written, newest first | Timeline |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |
@@ -41,20 +41,12 @@ The views are gathered into **sections** of the library, and they are all ways o
   step to walk back through; a day picked from Trends does (see
   [Going back](./notes.md#going-back)).
 
-**Notes open on their shelves** — the place to come back to. Each note is a book, lying on its
-side so its title reads across. **A shelf is a tag that starts with `shelf:`**: a note tagged
-`shelf:Recipes` stands on the **Recipes** shelf, one with two such tags stands on both, and the ones
-with none are on **Other** (its newest thirty; every note is in the Timeline). Other tags make no
-shelf, so your notes do not fill up with every tag you use. To put a book on a shelf, add the tag
-in the note's **⋯ → Details → Tags** (a new name is a new shelf); with a mouse you can also drag it
-onto another shelf, which swaps its `shelf:` tag for that one. Every notebook starts with five short
-guides on **Tutorials** — the same pages as this manual's [Tutorials](../tutorials/1-start-here.md).
-Notes from an earlier version kept their shelf in a `shelf` property; the app turns it into the tag
-the next time it starts.
-
-In Notes, the row of tags above the timeline shows every tag on your notes and how many
-carry it; tap one to see only those notes, and again to see them all. Otherwise Notes is
-the timeline, and the board and the agenda in Tasks are the ones described below.
+**Notes open on their Timeline**: every note under the day you wrote it, newest first, and nothing
+above it. To find a note, search — words from its title, its text or its tags find it. Every
+notebook starts with five short guides tagged `tutorial`, the same pages as this manual's
+[Tutorials](../tutorials/1-start-here.md). (Notes had **Shelves** and a row of tags to pick from
+until 0.63; tags such as `shelf:Web` that notes already carry stay ordinary tags.) The board and
+the agenda in Tasks are the ones described below.
 
 ![The Board: three columns — todo, doing, done — of note cards, each showing its tags, its due
 date and who last touched it](../images/board.png)
@@ -149,8 +141,8 @@ A filtered, grouped board:
 
 ```yaml
 name: Lab board
-view: board          # board | agenda | timeline | shelf  (see the note below)
-group_by: status     # board and shelf (a shelf groups by its `shelf:` tags unless told otherwise)
+view: board          # board | agenda | timeline  (see the note below)
+group_by: status     # board only
 filter:              # every entry is ANDed onto the renderer's own filter
   - tag: lab
 ```

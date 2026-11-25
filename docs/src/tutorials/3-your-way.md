@@ -1,7 +1,7 @@
 <!-- tutorial
 id: 01M5JA00000000000000000T03
 created: 2026-10-18T00:00:03Z
-This page is also a note every notebook gets, on its Tutorials shelf. Edit it here, never in
+This page is also a note every notebook gets, tagged `tutorial`. Edit it here, never in
 crates/fm-app/src/shipped/tutorials/, then run `pixi run tutorials` (decisions.md#ui, 2026-10-24).
 -->
 # See your notes your way
@@ -9,18 +9,15 @@ crates/fm-app/src/shipped/tutorials/, then run `pixi run tutorials` (decisions.m
 There is one set of notes and several ways to look at it. Nothing is copied: a view only arranges
 the same notes differently. Pick one from the list of views.
 
-## Library: shelves and the timeline
+## Notes: the timeline
 
-- **Shelves** — notes as books. A note stands on a shelf when it has a tag that starts with
-  `shelf:`. Tag a note `shelf:Recipes` and a **Recipes** shelf appears with it. Other tags make no
-  shelf, so the Library does not fill up with every tag you use.
-- **Timeline** — every note under the day you wrote it, newest first. For the first weeks this is
-  often all you need.
+- **Timeline** — every note under the day you wrote it, newest first. To find one, search: type a
+  few words from its title, its text or its tags.
 
 ![The Timeline: each note under its day, with its first lines and its tags](../images/timeline.png)
 
 **To give a note a tag**: open it, press its **⋯ → Details**, and write the tag in **Tags** (several
-tags are separated by commas). With a mouse you can also drag a book onto another shelf.
+tags are separated by commas). Search finds a note by its tags as well as its words.
 
 ## Tasks: a board and an agenda
 

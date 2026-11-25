@@ -31,7 +31,8 @@
   );
   const off = $derived(!!host && !!p?.sites_off.includes(host));
 
-  type Key = 'trackers' | 'ads' | 'cookies' | 'clean_links' | 'gpc' | 'https_only' | 'app_trackers';
+  type Key =
+    'trackers' | 'ads' | 'cookies' | 'clean_links' | 'gpc' | 'https_always' | 'app_trackers';
   const SWITCHES: { key: Key; name: string; line: string; computerLine?: string }[] = [
     {
       key: 'trackers',
@@ -63,9 +64,9 @@
       line: 'Global Privacy Control: a signal sites must honour in some places (California, the EU).',
     },
     {
-      key: 'https_only',
-      name: 'Secure connections only',
-      line: 'Pages open over https; a page that has no secure version asks first.',
+      key: 'https_always',
+      name: 'Always https',
+      line: 'Every page is tried over https first anyway. On: a site with no secure version asks before it opens; off, it opens marked not secure, as in Firefox.',
     },
   ];
 

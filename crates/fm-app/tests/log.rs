@@ -287,13 +287,8 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let all = shipped_views();
-    // The Library's shelves (2026-10-18), and the trackers' views.
-    let shelves: Vec<_> = all.iter().filter(|v| v.renderer == Some(Renderer::Shelf)).collect();
-    assert_eq!(shelves.len(), 1);
-    assert_eq!(
-        (shelves[0].name.as_str(), shelves[0].group.as_deref()),
-        ("Shelves", Some("Library"))
-    );
+    // The Library's shelves shipped from 2026-10-18 and were taken out on 2026-11-25, unused.
+    assert!(all.iter().all(|v| v.renderer != Some(Renderer::Shelf)));
     // Mail's conversations (2026-11-16, night): its own section, a timeline of the notes that carry
     // a Gmail thread, the only shipped timeline.
     let lists: Vec<_> = all
@@ -307,12 +302,7 @@ fn every_shipped_view_parses_and_can_be_drawn() {
     assert!(lists.is_empty(), "{lists:?}");
     let shipped: Vec<_> = all
         .iter()
-        .filter(|v| {
-            !matches!(
-                v.renderer,
-                Some(Renderer::Shelf) | Some(Renderer::Timeline) | Some(Renderer::Agenda)
-            )
-        })
+        .filter(|v| !matches!(v.renderer, Some(Renderer::Timeline) | Some(Renderer::Agenda)))
         .collect();
     // Day, Menu, Trends and Diet for food; Week, Exercises and Regime for training. A day's
     // session is opened from the week and the volume is a line of it: neither is a view. Diary,
@@ -539,14 +529,8 @@ fn a_recipe_note_is_a_visible_note_and_its_ingredients_are_not() {
 fn the_front_end_names_the_shipped_groups_and_views_as_the_files_do() {
     let mock = include_str!("../../../ui/src/lib/mockTracker.ts");
     let settings = include_str!("../../../ui/src/lib/TrackersSection.svelte");
-    // The trackers' views; the Library's shelves are not a tracker, and the in-memory backend
-    // lists them beside its other views (`mock.ts`).
+    // The trackers' views.
     let all = shipped_views();
-    let shelves = all.iter().find(|v| v.renderer == Some(Renderer::Shelf)).unwrap();
-    assert!(
-        include_str!("../../../ui/src/lib/mock.ts").contains(&format!("name: '{}'", shelves.name)),
-        "the in-memory backend lists the shelves by their shipped name"
-    );
     let shipped: Vec<_> =
         all.into_iter().filter(|v| v.renderer == Some(Renderer::Totals)).collect();
     assert!(!shipped.is_empty());

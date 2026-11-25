@@ -24,7 +24,9 @@ time, and **Settings → Browser** says why, with **Try again**.
 It starts out private:
 
 - **strict tracking protection**, which also isolates each site's cookies;
-- **HTTPS-Only**: pages are loaded over an encrypted connection;
+- **secure first**: every page is tried over an encrypted connection, and a site that has none
+  opens over plain http, marked *not secure*, as in Firefox (Privacy → **Always https** asks before
+  such a site instead);
 - **Global Privacy Control** tells sites you do not want your data sold or shared;
 - **cookie banners** are refused where Firefox knows how;
 - **DuckDuckGo** is the search engine (change it in Firefox's settings);
@@ -59,9 +61,9 @@ choose **Save page in formicaria**. formicaria reads what the page says it is an
 |---|---|
 | a **recipe** (the page publishes its recipe for search engines, as most recipe sites do) | a recipe note with its *Ingredients*, *Method* and *Times*, in **Food → Recipes**, its ingredient lines ready to match to foods |
 | a **paper** (the page carries its citation, as journal and arXiv pages do) | a paper note with its authors, year, DOI and journal, like one made from a pasted BibTeX entry, with its abstract |
-| a **video** (YouTube, Vimeo and others) | a note with the link and the title, on the **Web** shelf; the video itself is not downloaded |
-| a **song or album page** (Bandcamp and others) | a note with the link, on the **Web** shelf; music you have bought is added with **Add a song** |
-| anything else | an **article**: its text, read the way Firefox's reader view reads it, on the **Web** shelf |
+| a **video** (YouTube, Vimeo and others) | a note with the link and the title, tagged `shelf:Web`; the video itself is not downloaded |
+| a **song or album page** (Bandcamp and others) | a note with the link, tagged `shelf:Web`; music you have bought is added with **Add a song** |
+| anything else | an **article**: its text, read the way Firefox's reader view reads it, tagged `shelf:Web` |
 
 **Every saved page ends with a link to a copy of the page as it was when you saved it**, stored in
 your vault like any attachment. Large copies stay off git under the vault's size limit for
@@ -105,7 +107,7 @@ Two things you can do with what you find, and the same words everywhere:
 | You want | Do | What happens |
 |---|---|---|
 | **this in what you are writing** | **Snip it**: press the **ant in the address bar** (or **Alt+Shift+S**, or hold **Ctrl+Shift** and drag on the page) and drag over what you want. Or **select text**: formicaria's icon appears right beside it; press it, and choose where it goes: **the note in front** (first, so Enter is enough), **another note** (type to find it; it goes in without the note opening, so you stay on the page), or **a new note**. Or right-click it → **Bring into "…"** | it goes into **the note in front**: the note whose tab you looked at last (its name is on the icon's tooltip and the snip's bar), straight into the note, open or not. With no note looked at yet, a new note named after the page is made |
-| **the whole page, for later** | **Save the whole page** in the snip's bar, or right-click the page → **Save page in formicaria**, or **Alt+Shift+K** | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else on the **Web** shelf, with a copy of the page |
+| **the whole page, for later** | **Save the whole page** in the snip's bar, or right-click the page → **Save page in formicaria**, or **Alt+Shift+K** | the page becomes **its own note**: a recipe in Food, a paper with its citation, anything else tagged `shelf:Web`, with a copy of the page |
 
 **The snip's bar also offers what the page plainly has**, one press each: **The main text**, **The
 images**, **The table**, or **Save as a recipe** / **Save as a paper** when the page is one. And when
@@ -162,7 +164,7 @@ describes what it brings the same way.
 ## Bookmarks
 
 After saving a page, press **Just the link instead** in the bubble: a note with the page's title
-and link, on the **Bookmarks** shelf, without a copy of the page. Like every note, it travels to your
+and link, tagged `shelf:Bookmarks`, without a copy of the page. Like every note, it travels to your
 other devices with your notebook.
 
 ## Updates
@@ -180,7 +182,7 @@ Every download asks **where it should go**, and keeps **one copy**:
 
 - **Keep in formicaria** (the default: press Enter). A song goes to **Music**. An album bought as a
   **zip** (from Bandcamp and the like) becomes its songs in Music; the zip itself is not kept. Any
-  other file becomes a note with the file attached, on the **Web** shelf, saying where it came from.
+  other file becomes a note with the file attached, tagged `shelf:Web`, saying where it came from.
   Nothing is left in your Downloads folder.
 - **Downloads folder**: the download carries on as in any browser.
 - **Choose a folder…**: Firefox asks where to save it.

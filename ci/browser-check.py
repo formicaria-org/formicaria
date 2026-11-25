@@ -435,6 +435,59 @@ def settings_page(ff: Path, work: Path) -> dict:
             setTimeout(() => done({ linkTab: gb.tabs.some(x => x.linkedBrowser.currentURI.spec.includes('from=page')),
                                     windows: [...Services.wm.getEnumerator('navigator:browser')].length }), 4000);"""})["value"]
         seen["links_are_tabs"] = links.get("linkTab") is True and links.get("windows") == 1
+        # **A sign-in popup holds only its page** (2026-11-25; the owner: a site's Google sign-in window
+        # gained a tab of formicaria's Home). A page's `window.open` with features, as such sites do;
+        # waited past the start-up rule's 4 s. The popup blocker is lifted in this copy for the step.
+        popup = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "scriptTimeout": 40000, "script": """
+            const done = arguments[arguments.length - 1];
+            const gb = window.gBrowser;
+            const sp = Services.scriptSecurityManager.getSystemPrincipal();
+            Services.prefs.setBoolPref('dom.disable_open_during_load', false);
+            const before = new Set([...Services.wm.getEnumerator('navigator:browser')]);
+            const t = gb.addTab('data:text/html,<script>setTimeout(()=>window.open("https://example.org/?signin=1","signin","width=480,height=600"),300)</script>', { triggeringPrincipal: sp });
+            gb.selectedTab = t;
+            setTimeout(() => {
+              const wins = [...Services.wm.getEnumerator('navigator:browser')].filter(w => !before.has(w));
+              const w = wins[0];
+              const tabs = w ? [...w.gBrowser.tabs].map(x => x.linkedBrowser.currentURI.spec) : [];
+              const hidden = w ? (w.document.documentElement.getAttribute('chromehidden') || '') : '';
+              const popupLike = /\\b(toolbar|location)\\b/.test(hidden);
+              for (const x of wins) x.close();
+              gb.removeTab(t);
+              Services.prefs.clearUserPref('dom.disable_open_during_load');
+              done({ opened: wins.length, popupLike, hidden, tabs });
+            }, 7000);"""})["value"]
+        print(f"browser-check: a sign-in popup: {json.dumps(popup)[:300]}")
+        seen["popup_is_its_page"] = (popup.get("opened") == 1 and popup.get("popupLike") is True
+                                     and len(popup.get("tabs", [])) == 1
+                                     and "signin=1" in popup["tabs"][0])
+        # **The download question is its window alone** (2026-11-25; the owner: *"when I am downloading
+        # something, it asks me where it should go in a window, but then opens a new tab with fm too"*).
+        # A real download, as Firefox lists one: the add-on asks in a popup (`downloads.ts`); past the
+        # start-up rule's 4 s, that window holds only the question.
+        dl = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [], "scriptTimeout": 40000, "script": """
+            const done = arguments[arguments.length - 1];
+            (async () => {
+              const { Downloads } = ChromeUtils.importESModule('resource://gre/modules/Downloads.sys.mjs');
+              const before = new Set([...Services.wm.getEnumerator('navigator:browser')]);
+              const list = await Downloads.getList(Downloads.PUBLIC);
+              const d = await Downloads.createDownload({ source: 'https://example.org/?download=1',
+                target: PathUtils.join(PathUtils.tempDir, 'fm-download-check.html') });
+              await list.add(d);
+              d.start().catch(() => {});
+              await new Promise((r) => setTimeout(r, 7000));
+              const wins = [...Services.wm.getEnumerator('navigator:browser')].filter(w => !before.has(w));
+              const tabs = wins.flatMap(w => [...w.gBrowser.tabs].map(x => x.linkedBrowser.currentURI.spec));
+              const hidden = wins.map(w => w.document.documentElement.getAttribute('chromehidden') || '');
+              const main = window.document.documentElement.getAttribute('chromehidden') || '';
+              for (const w of wins) w.close();
+              await d.finalize(true).catch(() => {});
+              await list.remove(d).catch(() => {});
+              return { opened: wins.length, tabs, hidden, main };
+            })().then(done, (e) => done({ error: String(e) }));"""})["value"]
+        print(f"browser-check: the download question: {json.dumps(dl)[:300]}")
+        seen["download_question_alone"] = (dl.get("opened") == 1 and len(dl.get("tabs", [])) == 1
+                                           and "choose.html" in dl["tabs"][0])
         # **Bring in**, end to end (research §11): a note in a tab of its own, then from a page each kind
         # of thing, and each must arrive in the note on disk as itself, with where it came from.
         try:
@@ -445,7 +498,7 @@ def settings_page(ff: Path, work: Path) -> dict:
             seen.update(tabs(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: tabs: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "links_are_tabs",
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "links_are_tabs", "popup_is_its_page", "download_question_alone",
                   "feature_tab", "note_tab", "split_formicaria_tabs", "quick_switch", "plus_suggests", "one_row", "whole_app_to_notes",
                   "old_tabs_carried", "bare_toolbar"):
             seen.setdefault(k, False)
@@ -454,6 +507,89 @@ def settings_page(ff: Path, work: Path) -> dict:
     finally:
         stop(ff)
 
+
+# **Sites open as they do in Firefox** (2026-11-25; the owner: *"I have seen fm flagging a lot more
+# websites than DuckDuckGo or Firefox … it is a symptom of a broader problem"*). Public pages of every
+# sort a person meets: plain-http-only sites, ordinary https sites, a certificate Firefox repairs by
+# itself (a missing intermediate), and two that every browser refuses (an expired certificate, a
+# name the certificate does not cover) as controls. Each is opened in formicaria's browser and in the
+# same ESR unmodified, on fresh profiles; what each shows is read as its kind of page. formicaria may
+# never show a warning or an error page where Firefox shows the site.
+SITES = [
+    "http://neverssl.com/",
+    "http://httpforever.com/",
+    "http://http.badssl.com/",
+    "http://info.cern.ch/",
+    "http://example.com/",
+    "https://scholar.google.com/",
+    "https://en.wikipedia.org/wiki/Ant",
+    "https://incomplete-chain.badssl.com/",
+    "https://mixed-script.badssl.com/",
+    "https://expired.badssl.com/",
+    "https://www.scholar.google.com/",
+]
+
+
+def what_shows(firefox: Path, profile: Path, urls: list[str], user_js: str = "") -> dict:
+    """Open each address in a fresh tab of `firefox` and say what it shows: `page`, or the error page's
+    kind (`neterror:<code>`, `certerror`, `httpsonlyerror`, `blocked`)."""
+    if profile.exists():
+        shutil.rmtree(profile)
+    profile.mkdir(parents=True)
+    if user_js:
+        (profile / "user.js").write_text(user_js)
+    subprocess.Popen(
+        [str(firefox / "firefox"), "--headless", "--marionette", "-remote-allow-system-access", "--no-remote",
+         "--name", "formicaria-check", "--profile", str(profile), "about:blank"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    out: dict = {}
+    try:
+        m = Marionette()
+        m.cmd("WebDriver:NewSession", {"capabilities": {}})
+        time.sleep(8)  # formicaria's start-up work (its switches, its extensions) settles first
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        for url in urls:
+            got = m.cmd("WebDriver:ExecuteAsyncScript", {"args": [url], "scriptTimeout": 40000, "script": """
+                const [url, done] = [arguments[0], arguments[arguments.length - 1]];
+                const gb = window.gBrowser;
+                const t = gb.addTab(url, { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });
+                gb.selectedTab = t;
+                const read = () => {
+                  const b = t.linkedBrowser;
+                  const doc = b.documentURI ? b.documentURI.spec : '';
+                  const m = /^about:(neterror|certerror|httpsonlyerror|blocked)(?:\\?e=([^&]*))?/.exec(doc);
+                  return { shows: m ? (m[1] === 'neterror' ? `neterror:${m[2] || ''}` : m[1]) : 'page',
+                           at: b.currentURI.spec };
+                };
+                // Long enough for a refused upgrade to fall back, or to give up.
+                setTimeout(() => { const r = read(); gb.removeTab(t); done(r); }, 15000);"""})["value"]
+            out[url] = got
+    except Exception as e:  # noqa: BLE001 - said in the report
+        out["error"] = repr(e)[:200]
+    finally:
+        stop(firefox)
+        for _ in range(30):
+            if not procs_under(firefox):
+                break
+            time.sleep(1)
+    return out
+
+
+def sites_as_firefox(ff: Path, base_ff: Path, work: Path) -> tuple[bool, str]:
+    kit = what_shows(ff, work / "sites-kit", SITES)
+    stock = what_shows(base_ff, work / "sites-stock", SITES)
+    worse = []
+    for url in SITES:
+        k = (kit.get(url) or {}).get("shows", "none")
+        b = (stock.get(url) or {}).get("shows", "none")
+        print(f"browser-check: site  {url:<42} formicaria {k:<26} Firefox {b}")
+        if k != "page" and b == "page":
+            worse.append(f"{url} ({k})")
+    for name, r in (("formicaria", kit), ("Firefox", stock)):
+        if r.get("error"):
+            worse.append(f"{name} could not be driven: {r['error']}")
+    return not worse, "; ".join(worse)
 
 def stock_esr(version: str, sha512: str) -> Path:
     """Mozilla's ESR, unmodified, with a measurement-only startup script: the baseline."""
@@ -524,6 +660,11 @@ def main() -> None:
         # formicaria starting slower (twice in a day, 1.4 s against 0.8 s, with the kit unchanged).
         # Alternating them puts both under the same load.
         base_ff = stock_esr(version, sha)
+        # `FM_CHECK_ONLY=sites`: only the sites, while working on what a page shows.
+        if os.environ.get("FM_CHECK_ONLY") == "sites":
+            ok, why = sites_as_firefox(ff, base_ff, work)
+            print(f"browser-check: {'ok  ' if ok else 'FAIL'} no site shows a warning that Firefox does not" + ("" if ok else f" — {why}"))
+            sys.exit(0 if ok else 1)
         kit, base = [], []
         for i in range(RUNS):
             kit.append(measure(ff, work / f"kit-profile-{i}", work / f"kit-{i}.json", [f"{SERVER}/f/group/Library", *PAGES], {}, warm=True))
@@ -560,6 +701,8 @@ def main() -> None:
             "the Mozilla account is not disabled": "DisableFirefoxAccounts" not in first.get("policies", []),
             "the startup script raised nothing": not first.get("errors"),
         }
+        sites_ok, sites_why = sites_as_firefox(ff, base_ff, work)
+        checks["no site shows a warning that Firefox does not" + ("" if sites_ok else f" — {sites_why}")] = sites_ok
         testpage = serve_test_page(work)
         try:
             page = settings_page(ff, work)
@@ -573,6 +716,8 @@ def main() -> None:
             "Settings: 'About formicaria' is there": page.get("about_formicaria") is True,
             "Settings: formicaria's mark instead of Firefox's mascot": page.get("mascot_is_formicarias") is True,
             "a link a page opens becomes a tab of this window": page.get("links_are_tabs") is True,
+            "a sign-in popup holds only the page the site opened": page.get("popup_is_its_page") is True,
+            "the download question's window holds only the question": page.get("download_question_alone") is True,
             "bring in: a passage arrives quoted, with its source": page.get("bring_text") is True,
             "bring in: an image arrives kept in the vault": page.get("bring_image") is True,
             "bring in: a table arrives as a table": page.get("bring_table") is True,

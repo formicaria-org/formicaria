@@ -105,8 +105,8 @@ complete as the food list: some of its tables do not carry it.
 Some things change rarely and are asked about at every visit. In **Health → ＋ → Start a health
 record**, formicaria writes templates for them into your notebook, once: **Medicine**, **Allergy or
 intolerance**, **Condition**, **Result**, **Visit**, **Immunization**, **Procedure**, **Device**,
-**Contact** and **No known allergies**. Make one from **＋** like any note. Each is kept on the
-Notes' **health** shelf (the tag `shelf:health`), and is an ordinary note you can link to and from.
+**Contact** and **No known allergies**. Make one from **＋** like any note. Each carries the tag
+`shelf:health`, and is an ordinary note you can link to and from.
 
 - **A medicine** has a status, current, stopped or on hold, and its first and last day. Keep a
   stopped one: it is history worth having.

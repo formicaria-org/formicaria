@@ -11,7 +11,9 @@ object PagePrivacy {
   @Volatile var cookies = true
   @Volatile var cleanLinks = true
   @Volatile var gpc = true
-  @Volatile var httpsOnly = true
+  /** *Always https* (opt-in, 2026-11-25): a site with no secure version asks first. Off, every plain
+   *  address is still tried over https first, and one with no secure version opens over http. */
+  @Volatile var httpsAlways = false
   @Volatile var appTrackers = false
   /** *Stop apps going around the block*: public encrypted-DNS services refused. */
   @Volatile var around = false
@@ -41,7 +43,7 @@ object PagePrivacy {
     cookies = o.optBoolean("cookies", true)
     cleanLinks = o.optBoolean("clean_links", true)
     gpc = o.optBoolean("gpc", true)
-    httpsOnly = o.optBoolean("https_only", true)
+    httpsAlways = o.optBoolean("https_always", false)
     appTrackers = o.optBoolean("app_trackers", false)
     around = o.optBoolean("around", false)
     val dns = o.optString("dns", "quad9")
@@ -92,9 +94,10 @@ object PagePrivacy {
     return u.buildUpon().encodedQuery(if (kept.isEmpty()) null else kept.joinToString("&")).build().toString()
   }
 
-  /** The `https` address for a plain `http` one, or null (already secure, local, or allowed). */
+  /** The `https` address for a plain `http` one, or null (already secure, local, or allowed). Tried
+   *  first whatever *Always https* says: secure first, as Firefox's HTTPS-First. */
   fun upgrade(url: String): String? {
-    if (!httpsOnly || !url.startsWith("http://") || off(url)) return null
+    if (!url.startsWith("http://") || off(url)) return null
     val h = host(url)
     if (h.isEmpty() || h == "localhost" || h in insecureOk || Regex("^[0-9.]+$|^\\[").containsMatchIn(h)) return null
     return "https://" + url.removePrefix("http://")

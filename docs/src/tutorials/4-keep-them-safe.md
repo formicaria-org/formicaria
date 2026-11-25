@@ -1,7 +1,7 @@
 <!-- tutorial
 id: 01M5JA00000000000000000T04
 created: 2026-10-18T00:00:02Z
-This page is also a note every notebook gets, on its Tutorials shelf. Edit it here, never in
+This page is also a note every notebook gets, tagged `tutorial`. Edit it here, never in
 crates/fm-app/src/shipped/tutorials/, then run `pixi run tutorials` (decisions.md#ui, 2026-10-24).
 -->
 # Keep them safe
