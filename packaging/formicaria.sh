@@ -35,8 +35,17 @@ URL="http://${ADDR}"
 # server is exactly how a double-click kept serving the OLD model after a change.
 # When stale, stop it (the agent self-stops with it) and fall through to a fresh
 # start, so a click after any change always runs the current version.
+# **The server on this port, and only it** (2026-11-27): every `fm-serve` on the computer was taken
+# for this one — the staleness was read off whichever `pgrep` listed first, and a restart stopped them
+# all with `pkill -x`, a release check's own server on another port included (it lost its server
+# mid-run when formicaria was started from the desktop). The listener on `PORT` is asked for by `ss`.
+port_pid() { ss -Hltnp "sport = :${PORT}" 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1; }
+# Its assistant (`agent-serve`) and model (`llama-server`) are its children, and theirs: listed
+# before anything is stopped, since a child whose parent has gone belongs to nobody to find.
+descendants() { for c in $(pgrep -P "$1" 2>/dev/null); do echo "$c"; descendants "$c"; done; }
 if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
-    pid="$(pgrep -x fm-serve | head -1)"
+    pid="$(port_pid)"
+    [ -n "$pid" ] || pid="$(pgrep -x fm-serve | head -1)"  # no `ss`: as before
     started="$(date -d "$(ps -o lstart= -p "$pid" 2>/dev/null)" +%s 2>/dev/null || echo 0)"
     stale=0
     for f in target/release/fm-serve target/release/agent-serve agents/models.toml ui/dist; do
@@ -61,9 +70,15 @@ if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
     # the same port, the old `agent-serve` — which watches that port for liveness — finds the NEW
     # fm-serve there before it notices its own parent died, gets "adopted", and never shuts down,
     # keeping the model (and its GPU VRAM) pinned forever. So take the model + agent down too.
-    pkill -x fm-serve 2>/dev/null || true
-    pkill -x agent-serve 2>/dev/null || true
-    pkill -x llama-server 2>/dev/null || true
+    if [ -n "$(port_pid)" ]; then
+        # shellcheck disable=SC2046 # one pid per word
+        kill $(descendants "$pid") "$pid" 2>/dev/null || true
+    else
+        # No `ss` to say which is ours: as before, all of them.
+        pkill -x fm-serve 2>/dev/null || true
+        pkill -x agent-serve 2>/dev/null || true
+        pkill -x llama-server 2>/dev/null || true
+    fi
     # Wait for the port to free before a fresh start.
     for _ in $(seq 1 12); do (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null || break; sleep 1; done
 fi

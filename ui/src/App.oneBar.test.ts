@@ -32,6 +32,12 @@ const tabNames = () =>
     b.textContent?.trim(),
   );
 
+/** **The Food journal has drawn**, so its lazily loaded screen (and the charts it imports) is not
+ *  still loading when the test ends: Vitest fails the run when a module loads after its environment
+ *  is torn down (`known-issues.md`, *Vitest closing a worker*; seen here on 2026-11-25). */
+const trackerDrawn = () =>
+  waitFor(() => expect(document.querySelector('.tracker')).toBeTruthy(), { timeout: 10000 });
+
 it('one bar: options, the tabs, and +; none of the old bar', async () => {
   render(App);
   expect(await screen.findByRole('button', { name: "formicaria's options" })).toBeTruthy();
@@ -49,6 +55,7 @@ it('+ suggests the features; one chosen opens in a new tab, and + on it again go
   const sheet = await screen.findByRole('dialog', { name: 'new tab' });
   await fireEvent.click(within(sheet).getByRole('button', { name: 'Food journal' }));
   await waitFor(() => expect(tabNames().length).toBe(before + 1));
+  await trackerDrawn();
   // No line over the tab: a feature's views are its own (the owner: it repeated them).
   expect(screen.queryByRole('button', { name: 'switch this tab to another feature' })).toBeNull();
   // + on a feature already open: that tab, not a second one.
@@ -95,6 +102,7 @@ it('a tab dragged into the screen shows with the one in front', async () => {
     }),
   );
   await waitFor(() => expect(tabNames().length).toBeGreaterThan(1));
+  await trackerDrawn();
   const other = screen
     .getByRole('list', { name: 'open tabs' })
     .querySelector('.tab:not(.on)') as HTMLElement;

@@ -144,7 +144,7 @@ on this device or another, formicaria says so and leaves it as it is.
 ## Going back
 
 The **Back** button undoes your last step, one at a time. On a phone that is the Back key or
-gesture; on a computer it is the browser's Back button.
+gesture; on a computer it is **←** at the start of the tab row (or Alt+←, or a mouse's back button).
 
 - **A menu or panel** that is open closes first — a note's ⋯ window, the `/` menu while writing,
   Settings, Help.

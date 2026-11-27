@@ -154,8 +154,10 @@ The phone keeps its own bar of tabs, and Home opens first. It is the same Home, 
 - to move a card, **hold its ⠿** for a moment and drag it up or down; it goes where you let it go.
   A swipe that does not wait still scrolls the page.
 
-Under Home's title is a box to jot a line into today's entry; a web address typed there opens the
-page.
+Under Home's title is a box to jot a line into today's entry or go to the web. Once you type, it
+lists what you can do with it, and the first choice, marked ↵, is what Enter does: words are
+added to today's entry, with **Search the web** beside it; a web address opens the page, with
+**Add to today** beside it.
 
 **Writing in the journal on the phone**, the entry takes the screen: Home glides until the entry is
 at the top, and the entry fills the room above the keyboard, the jot box out of the way. Leave the

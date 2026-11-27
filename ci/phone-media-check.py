@@ -1089,6 +1089,43 @@ def home_rearranged_on_the_phone(cdp) -> None:
           len(after) >= 2 and after[0] == before[1] and after[1] == before[0], f"{before} → {after}")
     guard(cdp, "Home on the phone, rearranged")
 
+def jot_box_on_the_phone(cdp) -> None:
+    """**The jot box says what Enter does** (2026-11-25; the owner: *"if I type something and enter it
+    actually creates a note, there is no web there"*). Tapped and typed into for real, the keyboard
+    up: words list *Add to today* first and a web search beside it; an address lists *Go to* first.
+    Both choices stand on the screen above the keyboard."""
+    if not cdp.evaluate(HOME_JS):
+        check("Home opens on the phone, for the jot box", False)
+        return
+    time.sleep(2)
+    box = cdp.evaluate("""(() => { const i = document.querySelector('.capture input'); if (!i) return null;
+        i.scrollIntoView({ block: 'center' }); const r = i.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, dpr: devicePixelRatio }; })()""")
+    check("the jot box is on the phone's Home", bool(box))
+    if not box:
+        return
+    adb("shell", "input", "tap", str(int(box["x"] * box["dpr"])), str(int(box["y"] * box["dpr"])), check_rc=False)
+    time.sleep(2)
+    choices_js = """(() => { const g = document.querySelector('[aria-label="what to do with it"]');
+        return { kb: parseFloat(document.documentElement.style.getPropertyValue('--kb')) || 0,
+                 choices: g ? [...g.querySelectorAll('button')].map((b) => b.textContent.trim()) : [] }; })()"""
+    for typed, first, second in (("ant%scolonies", "Add to today", "Search the web"),
+                                 ("example.org", "Go to example.org", "Add to today")):
+        cdp.evaluate("""(() => { const i = document.querySelector('.capture input'); i.value = '';
+            i.dispatchEvent(new Event('input', { bubbles: true })); })()""")
+        adb("shell", "input", "text", typed, check_rc=False)
+        time.sleep(1.5)
+        got = cdp.evaluate(choices_js) or {}
+        cs = got.get("choices") or []
+        check(f"typing “{typed.replace('%s', ' ')}” in the jot box lists “{first}” first, for Enter, and “{second}” beside it",
+              len(cs) == 2 and cs[0].startswith(first) and cs[1].startswith(second), json.dumps(got))
+        guard(cdp, f"the jot box on the phone with “{typed.replace('%s', ' ')}” typed, the keyboard up")
+    cdp.evaluate("""(() => { const i = document.querySelector('.capture input'); i.value = '';
+        i.dispatchEvent(new Event('input', { bubbles: true })); i.blur(); })()""")
+    # Blurred, the keyboard goes by itself; a Back here would leave the app from Home.
+    time.sleep(1.5)
+
+
 def new_tab_on_the_phone(cdp) -> None:
     """The ＋ sheet on the phone (2026-11-25; the owner: its last row of features lay under Android's
     back and home buttons). Tapped for real, so the field it focuses brings the keyboard up; then
@@ -1202,6 +1239,7 @@ def main() -> None:
         if not only or "home" in only:
             home_on_the_phone(cdp)
             home_rearranged_on_the_phone(cdp)
+            jot_box_on_the_phone(cdp)
         if not only or "plus" in only:
             new_tab_on_the_phone(cdp)
         port = srv.server_address[1]

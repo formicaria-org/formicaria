@@ -2958,6 +2958,13 @@ Three runs straight after were clean, and the whole gate passed on the next try.
 diagnosed.** If it returns, look for work still running when a test ends (a timer or a request
 that logs on completion) before reaching for a retry.
 
+**Seen again on 2026-11-25, and this time diagnosed:** *"EnvironmentTeardownError: Cannot load
+'/src/lib/charts/Line.svelte' … after the environment was torn down"*, from `App.oneBar.test.ts`.
+Every test passed. Two of its tests opened the Food journal and ended on the tab count, while
+`TrackerPane` (imported lazily by `Pane`) was still loading its charts. They now wait for `.tracker`
+(`trackerDrawn`). **The general rule:** a test that opens something loaded lazily waits until it
+has drawn before ending.
+
 ## Fitness: the week, the cards, the named options — traps (2026-10-12)
 
 - **A weekly count stops at the day asked about.** It used to add up the whole week, whatever the

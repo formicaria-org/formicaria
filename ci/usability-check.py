@@ -1097,6 +1097,9 @@ def the_shell(ff: Path, work: Path) -> None:
         moved = wait_for(m, "return location.pathname === '/f/group/Tasks' && window.__stayed === 1", 8)
         check(who, "the rail goes to Tasks in the same tab, without a reload", bool(moved),
               str(content(m, "return location.pathname + ' ' + window.__stayed")))
+        back_and_forward(m, who)
+        rail("Tasks")
+        wait_for(m, "return location.pathname === '/f/group/Tasks' || null", 8)
         # A card opens beside the page.
         opened = wait_for(m, """const c = [...document.querySelectorAll('.card')].find((e) => e.textContent.includes('Write the methods'));
                                 if (c) c.click(); return !!c;""", 10)
@@ -1254,6 +1257,50 @@ def drag(m, frm: tuple, to: tuple, steps: int = 12) -> None:
            {"type": "pointerDown", "button": 0}, *moves, {"type": "pause", "duration": 150},
            {"type": "pointerUp", "button": 0}]}]})
     m.cmd("WebDriver:ReleaseActions", {})
+
+
+def press_in_page(m, find_js: str) -> bool:
+    """Click an element of the page the way a mouse does (a script's `.click()` is no person's: the
+    browser's ← passes over a place nobody touched). `find_js` returns the element, or null."""
+    if not content(m, f"const e = (() => {{ {find_js} }})(); if (!e) return false; e.setAttribute('data-press', '1'); return true;"):
+        return False
+    el = m.cmd("WebDriver:FindElement", {"using": "css selector", "value": "[data-press]"})["value"]
+    content(m, "document.querySelector('[data-press]').removeAttribute('data-press'); return true;")
+    m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+    return True
+
+
+def back_and_forward(m, who: str) -> None:
+    """**← and → on formicaria's own pages** (the owner, 2026-11-25: *"If I am in home, select music or
+    any other view I cannot simply go back, as a user is used to"*). The address row, and Firefox's ←
+    and → with it, is hidden on formicaria's pages; the tab row's own ← and → take their place. From
+    Home a place is opened with a real click; the window's ← is drawn and goes back to Home in the
+    tab, without a reload, and → forward again."""
+    content(m, """[...document.querySelectorAll('nav[aria-label="formicaria"] button')]
+                  .find((x) => x.textContent.trim().replace(/^\\S\\s+/, '').startsWith('Home'))?.click(); return true;""")
+    wait_for(m, "return location.pathname === '/f/home' || null", 8)
+    time.sleep(1.5)
+    content(m, "window.__stayed = 2; return true;")
+    pressed = press_in_page(m, """return [...document.querySelectorAll('nav[aria-label="formicaria"] button')]
+                  .find((x) => x.textContent.trim().replace(/^\\S\\s+/, '').startsWith('Music'));""")
+    there = wait_for(m, "return location.pathname === '/f/group/Music' || null", 8)
+    time.sleep(1)
+    drawn = chrome(m, """const r = (id) => { const b = document.getElementById(id); const x = b?.getBoundingClientRect();
+                           return b ? { w: Math.round(x.width), disabled: b.disabled || b.hasAttribute('disabled'),
+                                        left: Math.round(x.left) } : null; };
+                         const tabs = document.getElementById('tabbrowser-tabs')?.getBoundingClientRect();
+                         return { back: r('formicaria-back'), forward: r('formicaria-forward'), tabsLeft: Math.round(tabs?.left ?? -1) };""") or {}
+    b = drawn.get("back") or {}
+    check(who, "on a page of formicaria's, the tab row shows ← before the tabs, ready to go back",
+          bool(pressed) and bool(there) and b.get("w", 0) > 0 and not b.get("disabled") and b.get("left", 9999) < drawn.get("tabsLeft", -1),
+          f"Music opened {there}; {drawn}")
+    click_in_window(m, "#formicaria-back")
+    back = wait_for(m, "return (location.pathname === '/f/home' && window.__stayed === 2) || null", 8)
+    check(who, "← goes back to Home, in the same tab and without a reload", bool(back),
+          str(content(m, "return location.pathname + ' ' + window.__stayed")))
+    click_in_window(m, "#formicaria-forward")
+    fwd = wait_for(m, "return (location.pathname === '/f/group/Music' && window.__stayed === 2) || null", 8)
+    check(who, "→ goes forward to the place left", bool(fwd), str(content(m, "return location.pathname + ' ' + window.__stayed")))
 
 
 def home_arranged(m, who: str) -> None:

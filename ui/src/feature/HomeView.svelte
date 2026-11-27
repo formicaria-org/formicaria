@@ -661,18 +661,31 @@
   }
   const title = (n: ObjectMeta) => n.title || n.preview || 'Untitled';
 
-  // ---- the capture bar (a narrow screen): a line into today's entry, or a page to open ----
+  // ---- the capture bar (a narrow screen): a line into today's entry, or the web ----
+  // **It says what Enter does, and the other is one tap away** (the owner, 2026-11-25: *"if I type
+  // something and enter it actually creates a note, there is no web there"*). Words went into the
+  // journal and only something shaped like an address reached the web, with one *Add* button for
+  // both: nothing on the screen said which, and a search was never offered. Now, once something is
+  // typed, both are listed under the box, the one Enter does first and marked ↵ — an address opens,
+  // words are jotted — and a search for the words is the other button, as in the computer's box.
   let captured = $state('');
   let captureNote = $state('');
+  const typedWeb = $derived(captured.trim() ? webTarget(captured, searchUrl) : null);
+  /** The typed text is an address: Enter opens it. Otherwise Enter jots it. */
+  const typedAddress = $derived(!!typedWeb && !typedWeb.label.startsWith('Search'));
+  function openTyped() {
+    const url = typedWeb?.url;
+    if (!url) return;
+    captured = '';
+    go(url);
+  }
   async function capture() {
+    if (typedAddress) return openTyped();
+    return jot();
+  }
+  async function jot() {
     const t = captured.trim();
     if (!t) return;
-    const web = webTarget(t, searchUrl);
-    if (web && !/\s/.test(t) && !web.label.startsWith('Search')) {
-      captured = '';
-      go(web.url);
-      return;
-    }
     try {
       const [n] = await ipc.journal(today, 1);
       if (n && n.title === today) {
@@ -830,11 +843,26 @@
       <input
         type="text"
         bind:value={captured}
-        placeholder="Jot into today, or a web address"
-        aria-label="jot into today or open a web address"
+        placeholder="Jot into today, or search the web"
+        aria-label="jot into today or search the web"
+        enterkeyhint={typedAddress ? 'go' : 'done'}
         oninput={() => (captureNote = '')}
       />
-      <button type="submit" disabled={!captured.trim()}>Add</button>
+      {#if typedWeb}
+        {@const jotBtn = { label: 'Add to today', run: jot }}
+        {@const webBtn = { label: typedWeb.label, run: openTyped }}
+        <div class="capture-choices" role="group" aria-label="what to do with it">
+          {#each typedAddress ? [webBtn, jotBtn] : [jotBtn, webBtn] as b, i (b.label)}
+            <button
+              type="button"
+              class:primary={i === 0}
+              onclick={() => void b.run()}
+              title={i === 0 ? 'Enter does this' : undefined}
+              >{b.label}{#if i === 0}<span class="enter" aria-hidden="true">↵</span>{/if}</button
+            >
+          {/each}
+        </div>
+      {/if}
     </form>
     {#if captureNote}<p class="capture-note" role="status">{captureNote}</p>{/if}
   {/if}
@@ -1912,11 +1940,11 @@
   /* The jot box sits under Home's title: in the page, never floating over it (2026-11-23). */
   .capture {
     display: flex;
+    flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-2) 0;
   }
   .capture input {
-    flex: 1;
     font: inherit;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border);
@@ -1924,11 +1952,29 @@
     background: var(--surface);
     color: inherit;
   }
-  .capture button {
+  /* Under the box, in the page: what Enter does first, the other beside it; a long search wraps. */
+  .capture-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .capture-choices button {
     font: inherit;
+    min-height: 2.75rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: start;
     padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
+    background: var(--surface);
+    color: inherit;
+  }
+  .capture-choices .enter {
+    margin-inline-start: 0.4em;
+  }
+  .capture-choices button.primary {
+    border-color: var(--accent);
     background: var(--accent);
     color: var(--accent-fg, #fff);
   }

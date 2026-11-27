@@ -46,6 +46,11 @@ CHALLENGE = re.compile(
 # Between two requests to one site, and before asking again after a bot check.
 PACE_S = 3
 CHALLENGE_WAIT_S = 30
+# A site that says it is busy (429, 503): asked again this many times, after its `Retry-After` or
+# this long, never longer than the cap.
+BUSY_TRIES = 3
+BUSY_WAIT_S = 60
+BUSY_WAIT_MAX_S = 300
 
 
 LAST_ASKED = {}
@@ -59,14 +64,25 @@ def fetch(url):
         time.sleep(wait)
     LAST_ASKED[host] = time.monotonic()
     request = urllib.request.Request(url, headers={"User-Agent": AGENT})
-    for attempt in range(2):
+    problem = b""
+    for attempt in range(1 + BUSY_TRIES):
         try:
             with urllib.request.urlopen(request, timeout=120) as answer:
                 return answer.status, answer.read()
         except urllib.error.HTTPError as e:
-            return e.code, b""
+            # **"Too many requests" is "come back later"**, not a verdict on the document (EFSA
+            # answered 429 to one request a release in a row, 2026-11-25 and 11-27): asked again
+            # after what the site says (`Retry-After`, in seconds), or a minute, a few times.
+            if e.code not in (429, 503) or attempt == BUSY_TRIES:
+                return e.code, b""
+            after = (e.headers or {}).get("Retry-After", "")
+            wait = min(int(after), BUSY_WAIT_MAX_S) if after.isdigit() else BUSY_WAIT_S
+            print(f"busy     {e.code} {url}: asking again in {wait} s")
+            time.sleep(wait)
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             problem = str(e).encode()
+            if attempt >= 1:
+                break
     return None, problem
 
 

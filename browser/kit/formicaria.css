@@ -35,6 +35,24 @@
   display: none !important;
 }
 
+/* **← and → on formicaria's own pages** (`formicaria.cfg`, `makeBackForward`): the address row, and
+   Firefox's own ← and → in it, are gone there, so these take their place at the start of the tab
+   row. On a web page the address row's own are shown, and these are not. */
+#formicaria-back {
+  list-style-image: url("chrome://browser/skin/back.svg");
+}
+#formicaria-forward {
+  list-style-image: url("chrome://browser/skin/forward.svg");
+}
+#formicaria-back:-moz-locale-dir(rtl) > .toolbarbutton-icon,
+#formicaria-forward:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+  scale: -1 1;
+}
+:root:not([formicaria-page]) #formicaria-back,
+:root:not([formicaria-page]) #formicaria-forward {
+  display: none !important;
+}
+
 /* **Settings at the top right** (`formicaria.cfg`, `makeSettings`): Firefox's own gear. */
 #formicaria-settings {
   list-style-image: url("chrome://global/skin/icons/settings.svg");
