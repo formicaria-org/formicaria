@@ -310,6 +310,81 @@ def bring_in(m: "Marionette") -> dict:
     return out
 
 
+def star(m: "Marionette") -> dict:
+    """**☆ makes a bookmark note too** (the owner, 2026-11-27: *"make ☆ save a bookmark note"*). The
+    test page is open (`bring_in`); the star in the address bar is clicked as a mouse does. Firefox's
+    bookmark is made, and a note with the page's title and link tagged `shelf:Bookmarks`; its panel
+    says so. Pressed again, no second note. On another page, *Remove* in the panel takes both back."""
+    out: dict = {}
+
+    def bookmark_notes(url: str) -> list:
+        named = post("/api/page_notes", {"url": url}) or []
+        return [n for n in named if str(n.get("context", "")).startswith("source_url:")]
+
+    def press_star() -> None:
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        el = m.cmd("WebDriver:FindElement", {"using": "css selector", "value": "#star-button-box"})["value"]
+        m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+
+    def panel() -> dict:
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        for _ in range(30):
+            r = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+                const p = document.getElementById('editBookmarkPanel');
+                const line = document.getElementById('formicaria-bookmark-note');
+                return { open: p?.state === 'open', said: line?.children[0]?.getAttribute('value') ?? '',
+                         link: !!line && !line.children[1].hidden };"""})["value"]
+            if r.get("open") and not r["said"].startswith("Saving"):
+                return r
+            time.sleep(0.5)
+        return r
+
+    def firefox_has(url: str) -> bool:
+        m.cmd("Marionette:SetContext", {"value": "chrome"})
+        return bool(m.cmd("WebDriver:ExecuteAsyncScript", {"args": [url], "scriptTimeout": 10000, "script": """
+            const done = arguments[arguments.length - 1];
+            PlacesUtils.bookmarks.fetch({ url: arguments[0] }).then((b) => done(!!b), () => done(false));"""})["value"])
+
+    def hide() -> None:
+        m.cmd("WebDriver:ExecuteScript", {"args": [], "script": "document.getElementById('editBookmarkPanel')?.hidePopup();"})
+        time.sleep(1)
+
+    press_star()
+    first = panel()
+    notes = bookmark_notes(TEST_PAGE)
+    note = post("/api/get", {"id": notes[0]["id"]}) if notes else {}
+    print(f"browser-check: ☆ panel {first}; bookmark notes {[(n.get('title'), n.get('context')) for n in notes]}")
+    out["star_panel_says"] = first.get("said") == "Also saved in formicaria, as a note." and first.get("link") is True
+    # Firefox saves a new bookmark when its panel closes.
+    hide()
+    kept = firefox_has(TEST_PAGE)
+    out["star_note"] = (len(notes) == 1 and "shelf:Bookmarks" in (note.get("tags") or [])
+                        and f"[Test walks]({TEST_PAGE})" in (note.get("body") or "") and kept)
+    if not out["star_note"]:
+        print(f"browser-check: ☆'s note {json.dumps(note)[:400]}; Firefox's bookmark {kept}")
+    press_star()
+    again = panel()
+    out["star_again_no_copy"] = len(bookmark_notes(TEST_PAGE)) == 1 and again.get("said") == "Already in formicaria, as a note."
+    hide()
+    # Another page, then Remove in its panel: Firefox's bookmark and the note both go.
+    other = TEST_PAGE + "?again"
+    m.cmd("WebDriver:ExecuteScript", {"args": [other], "script": """
+        const sp = Services.scriptSecurityManager.getSystemPrincipal();
+        gBrowser.selectedTab = gBrowser.addTab(arguments[0], { triggeringPrincipal: sp });"""})
+    time.sleep(4)
+    press_star()
+    made = panel()
+    had = len(bookmark_notes(other))
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    el = m.cmd("WebDriver:FindElement", {"using": "css selector", "value": "#editBookmarkPanelRemoveButton"})["value"]
+    m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+    time.sleep(3)
+    out["star_remove_both"] = had == 1 and not bookmark_notes(other) and not firefox_has(other)
+    print(f"browser-check: ☆ on another page: panel {made}, notes {had} then {len(bookmark_notes(other))}, "
+          f"Firefox's bookmark kept {firefox_has(other)}")
+    return out
+
+
 def tabs(m: "Marionette") -> dict:
     """formicaria's features and notes as tabs (`decisions.md` 2026-11-17, *one server, many views*)."""
     nid = post("/api/create_notes", {"notes": [{"title": "Kept room", "body": "Here."}]})[0]["id"]
@@ -495,10 +570,14 @@ def settings_page(ff: Path, work: Path) -> dict:
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: bring in: {e}")
         try:
+            seen.update(star(m))
+        except Exception as e:  # noqa: BLE001 - reported as failed checks
+            print(f"browser-check: ☆: {e}")
+        try:
             seen.update(tabs(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: tabs: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "links_are_tabs", "popup_is_its_page", "download_question_alone",
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "star_note", "star_panel_says", "star_again_no_copy", "star_remove_both", "links_are_tabs", "popup_is_its_page", "download_question_alone",
                   "feature_tab", "note_tab", "split_formicaria_tabs", "quick_switch", "plus_suggests", "one_row", "whole_app_to_notes",
                   "old_tabs_carried", "bare_toolbar"):
             seen.setdefault(k, False)
@@ -665,6 +744,15 @@ def main() -> None:
             ok, why = sites_as_firefox(ff, base_ff, work)
             print(f"browser-check: {'ok  ' if ok else 'FAIL'} no site shows a warning that Firefox does not" + ("" if ok else f" — {why}"))
             sys.exit(0 if ok else 1)
+        # `FM_CHECK_ONLY=settings`: only the Settings page's walk (bring in, ☆, tabs), while working on it.
+        if os.environ.get("FM_CHECK_ONLY") == "settings":
+            testpage = serve_test_page(work)
+            try:
+                page = settings_page(ff, work)
+            finally:
+                testpage.terminate()
+            print(f"browser-check: the walk read {json.dumps(page)[:1500]}")
+            sys.exit(0 if all(v is True for k, v in page.items() if k.startswith("star_")) else 1)
         kit, base = [], []
         for i in range(RUNS):
             kit.append(measure(ff, work / f"kit-profile-{i}", work / f"kit-{i}.json", [f"{SERVER}/f/group/Library", *PAGES], {}, warm=True))
@@ -724,6 +812,10 @@ def main() -> None:
             "bring in: the icon after a selection opens the chooser, and Enter brings it into the note in front": page.get("bring_chip") is True,
             "snip: an area brings its text, image and table in, each as itself": page.get("snip") is True,
             "the page is then found in your notes": page.get("page_in_notes") is True,
+            "☆ makes a bookmark note as well as Firefox's bookmark": page.get("star_note") is True,
+            "☆'s panel says the note is in formicaria, with a link to it": page.get("star_panel_says") is True,
+            "☆ pressed again makes no second note": page.get("star_again_no_copy") is True,
+            "Remove in ☆'s panel takes back the note and the bookmark": page.get("star_remove_both") is True,
             "a feature is a page in a tab of its own, named by what it shows": page.get("feature_tab") is True,
             "a note is a page in a tab of its own": page.get("note_tab") is True,
             "two of formicaria's tabs share the window in split view": page.get("split_formicaria_tabs") is True,

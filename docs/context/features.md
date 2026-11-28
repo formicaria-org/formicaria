@@ -34,7 +34,7 @@ here. Status: ✅ shipped · 🟚 partial · 📋 planned. "the code wins" — v
 | **Health** | 🟚 | trackers you name, a doctor's page, cards, a cycle that counts; phone untried | `health-plan-2026-10-22.md` |
 | **Music** | 🟚 | songs as logged notes; a deck and Songs/Albums/Artists/Playlists | `music-plan-2026-11-13.md` |
 | **Privacy · Save media · Videos** | 🟚 | phone: adblock with uBO's lists, app blocker, DoH; computer: Firefox strict, DoH; media from any site → Music/Videos/note | `privacy-plan-2026-11-19.md` |
-| **formicaria's browser** | 🟚 | Firefox ESR with formicaria's kit: the ant, feature and note tabs, Bring in; about +5–8 % memory | `browser-plan-2026-11-15.md` |
+| **formicaria's browser** | 🟚 | Firefox ESR with formicaria's kit: the ant, feature and note tabs, Bring in, ☆ makes a bookmark note; about +5–8 % memory | `browser-plan-2026-11-15.md` |
 | **Release checks** | ✅ | browser-check, usability-check (personas; layout guard at laptop and phone width), phone-media-check (emulator; keyboard-up Home, the ＋ sheet, a held-⠿ move), check-references, `ci` | `decisions.md#toolchain` · `decisions.md` 2026-11-23 (late) |
 | **Image → LaTeX** (a *dedicated* recogniser) | 📋 | a measured spike; no defensible phone path yet | `archive/ai-agents-plan-superseded-2026-09-02.md` · `outstanding.md` |
 

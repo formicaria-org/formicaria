@@ -163,9 +163,16 @@ describes what it brings the same way.
 
 ## Bookmarks
 
-After saving a page, press **Just the link instead** in the bubble: a note with the page's title
-and link, tagged `shelf:Bookmarks`, without a copy of the page. Like every note, it travels to your
-other devices with your notebook.
+Press **☆** in the address bar, or **Ctrl+D**, as in any Firefox. Firefox keeps its bookmark (so
+your Mozilla account still carries it to your other Firefoxes), and formicaria makes a **bookmark
+note**: the page's title and link, tagged `shelf:Bookmarks`, without a copy of the page. The panel
+that opens says **Also saved in formicaria, as a note**, with **Open the note**. **Remove** there
+takes both back. A page that already has its note is not saved twice: the panel says **Already in
+formicaria**.
+
+After saving a whole page, **Just the link instead** in the bubble swaps the copy for the same kind
+of note. Like every note, a bookmark travels to your other devices with your notebook, and search
+finds it. Bookmarks that arrive by your Mozilla account stay Firefox's and do not become notes.
 
 ## Updates
 

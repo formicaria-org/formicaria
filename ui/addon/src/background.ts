@@ -211,7 +211,8 @@ export async function keep(tab: number): Promise<Kept> {
 }
 
 /** **A bookmark is a note** (`browser-plan` §13.3): the page's title and link, tagged `shelf:Bookmarks`,
- *  without a copy of the page, so it is light. Synced by git like every note. */
+ *  without a copy of the page, so it is light. Synced by git like every note. ☆ and Ctrl+D write the
+ *  same note from the browser's startup script (`formicaria.cfg`, `bookmarkNotes`): change both. */
 export async function bookmark(tab: { url?: string; title?: string }): Promise<Kept> {
   try {
     const c = await config();
