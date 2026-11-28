@@ -81,8 +81,17 @@ pub struct Privacy {
     pub around: bool,
     /// Sites with every protection off (host names, lower case), because they broke.
     pub sites_off: Vec<String>,
-    /// How many times the fire button was pressed: the browser forgets when this moves.
+    /// How many times the fire button was pressed: the browser forgets when this moves. A press
+    /// also closes the web's tabs, keeping formicaria's own (2026-11-28, like DuckDuckGo's).
     pub fired: u64,
+    /// **Fireproof** (2026-11-28, DuckDuckGo's word): sites kept signed in when the fire button is
+    /// pressed or the browser forgets on closing. Host names as in `sites_off`. Their cookies and
+    /// stored data stay; their history and cache go like every other site's.
+    pub fireproof: Vec<String>,
+    /// **Forget on closing** (2026-11-28): the computer's browser forgets the web's data and tabs as
+    /// it closes; the phone when the app starts again or comes back after five minutes away. Off by
+    /// default: it signs the person out of every site not fireproofed.
+    pub fire_on_close: bool,
     /// Bumped on every change, so a reader applies a change once (`formicaria.cfg`).
     pub v: u64,
 }
@@ -104,6 +113,8 @@ impl Default for Privacy {
             around: false,
             sites_off: Vec::new(),
             fired: 0,
+            fireproof: Vec::new(),
+            fire_on_close: false,
             v: 0,
         }
     }
@@ -167,6 +178,7 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
         ("ddg", &mut p.ddg),
         ("more_sites", &mut p.more_sites),
         ("around", &mut p.around),
+        ("fire_on_close", &mut p.fire_on_close),
     ] {
         if let Some(b) = change.get(k).and_then(Value::as_bool) {
             *slot = b;
@@ -185,6 +197,20 @@ pub fn apply(mut p: Privacy, change: &Value) -> Result<Privacy, String> {
     if let Some(s) = change.get("site_on").and_then(Value::as_str) {
         let site = site_of(s);
         p.sites_off.retain(|x| *x != site);
+    }
+    if let Some(s) = change.get("fireproof_add").and_then(Value::as_str) {
+        let site = site_of(s);
+        if site.is_empty() || (!site.contains('.') && site != "localhost") {
+            return Err("which site?".into());
+        }
+        if !p.fireproof.contains(&site) {
+            p.fireproof.push(site);
+            p.fireproof.sort();
+        }
+    }
+    if let Some(s) = change.get("fireproof_remove").and_then(Value::as_str) {
+        let site = site_of(s);
+        p.fireproof.retain(|x| *x != site);
     }
     if change.get("fire").and_then(Value::as_bool) == Some(true) {
         p.fired += 1;
@@ -281,6 +307,25 @@ mod tests {
         let p = apply(Privacy::default(), &json!({ "fire": true })).unwrap();
         let p = apply(p, &json!({ "fire": true })).unwrap();
         assert_eq!(p.fired, 2);
+    }
+
+    #[test]
+    fn a_fireproof_site_is_its_host_once_and_can_be_let_go() {
+        let p = Privacy::default();
+        assert!(p.fireproof.is_empty() && !p.fire_on_close, "both off at first");
+        let p =
+            apply(p, &json!({ "fireproof_add": "https://www.Mail.Example.org/inbox" })).unwrap();
+        let p = apply(p, &json!({ "fireproof_add": "mail.example.org" })).unwrap();
+        assert_eq!(p.fireproof, vec!["mail.example.org".to_string()]);
+        assert!(apply(p.clone(), &json!({ "fireproof_add": "  " })).is_err());
+        assert!(apply(p.clone(), &json!({ "fireproof_add": "nodot" })).is_err());
+        let p = apply(p, &json!({ "fire_on_close": true })).unwrap();
+        assert!(p.fire_on_close);
+        let p = apply(p, &json!({ "fireproof_remove": "http://mail.example.org/" })).unwrap();
+        assert!(p.fireproof.is_empty());
+        // A file from before reads as neither.
+        let old: Privacy = serde_json::from_str(r#"{"fired": 3}"#).unwrap();
+        assert!(old.fireproof.is_empty() && !old.fire_on_close && old.fired == 3);
     }
 
     #[test]

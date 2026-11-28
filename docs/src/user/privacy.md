@@ -26,8 +26,26 @@ requests were blocked, pop-ups refused, links cleaned and pages made secure.
 **A site that breaks:** **Protections off for this site** turns every protection off for that site
 and its subdomains. The sites are listed in the sheet, each with **Protect again**.
 
-**Forget web data** (🔥) forgets every web page's cookies, stored data, cache and history on this
-device, after asking. Your notes, the files you kept, and formicaria's own settings stay.
+## Forget web data (🔥)
+
+**🔥 Forget web data** closes the web's tabs and forgets every web page's cookies, stored data, cache
+and history on this device, after asking, as DuckDuckGo's fire button does. formicaria's own tabs,
+your notes, the files you kept, and formicaria's own settings stay.
+
+- **Where:** at the right end of the tab row in formicaria's browser, next to ⚙ (on every tab); ≡ →
+  **🔥 Forget web data** on the phone; and at the foot of the Privacy sheet on both.
+- **On a computer** every web tab closes, and a private window too. The closed tabs are not offered
+  again by Ctrl+Shift+T. **On the phone** every page tab closes.
+- **Kept signed in** (DuckDuckGo calls it *Fireproof*): the sites you list keep their sign-in, meaning
+  their cookies and stored data, when the web's data is forgotten. Their history and cache still go.
+  Add one from the Privacy sheet: type its name (`mail.example.org`) and press **Keep**, or, on the
+  phone with that page in front, press **Keep signed in when forgetting**. **Stop keeping** lets one go.
+  On a computer, keeping a site keeps the whole of it (`example.org` and every part of it).
+- **Forget when closing** (a switch, off at first): on a computer, the browser forgets the web's
+  tabs and data each time it closes, except the sites kept signed in. When it opens again only
+  formicaria's own tabs come back. A browser that stopped before it could forget does so as it
+  starts. A restart for an update does not count as closing. On the phone, formicaria forgets when
+  it starts again, and when you come back to it after five minutes or more away.
 
 **On a computer, Firefox's own protection does the work**: its strict tracking protection (which
 also blocks known fingerprinting scripts, gives fingerprinting scripts made-up answers, and stops

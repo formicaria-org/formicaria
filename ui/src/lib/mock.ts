@@ -98,6 +98,8 @@ const freshPrivacy = () => ({
   around: false,
   sites_off: [] as string[],
   fired: 0,
+  fireproof: [] as string[],
+  fire_on_close: false,
   v: 0,
   engines: [
     { key: 'duckduckgo', name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=%s' },
@@ -3425,6 +3427,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         'ddg',
         'more_sites',
         'around',
+        'fire_on_close',
       ] as const)
         if (typeof c[k] === 'boolean') mockPrivacy[k] = c[k] as boolean;
       const site = (x: unknown) =>
@@ -3437,9 +3440,21 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         mockPrivacy.sites_off = [...mockPrivacy.sites_off, site(c.site_off)].sort();
       if (typeof c.site_on === 'string')
         mockPrivacy.sites_off = mockPrivacy.sites_off.filter((x) => x !== site(c.site_on));
+      if (typeof c.fireproof_add === 'string') {
+        const s = site(c.fireproof_add);
+        if (!s.includes('.')) throw new Error('which site?');
+        if (!mockPrivacy.fireproof.includes(s))
+          mockPrivacy.fireproof = [...mockPrivacy.fireproof, s].sort();
+      }
+      if (typeof c.fireproof_remove === 'string')
+        mockPrivacy.fireproof = mockPrivacy.fireproof.filter((x) => x !== site(c.fireproof_remove));
       if (c.fire === true) mockPrivacy.fired += 1;
       mockPrivacy.v += 1;
-      return { ...mockPrivacy, sites_off: [...mockPrivacy.sites_off] } as T;
+      return {
+        ...mockPrivacy,
+        sites_off: [...mockPrivacy.sites_off],
+        fireproof: [...mockPrivacy.fireproof],
+      } as T;
     }
     case 'clock':
     case 'set_clock': {

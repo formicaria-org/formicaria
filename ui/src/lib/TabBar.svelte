@@ -24,6 +24,7 @@
     onsettings,
     onhelp,
     onprivacy,
+    onfire,
     onbackup,
     onundo,
     onsavepage,
@@ -45,6 +46,8 @@
     onhelp: () => void;
     /** ≡ → Privacy: the switches, and what they did on the page in front. */
     onprivacy?: () => void;
+    /** ≡ → 🔥 Forget web data (the phone, 2026-11-28): asks, then closes the web's tabs and forgets. */
+    onfire?: () => void;
     onbackup: () => void;
     onundo: () => void;
     /** A web page is in front: *Save this page* (its article, in a note of its own). */
@@ -184,6 +187,9 @@
         <button type="button" role="menuitem" onclick={act(onbackup)}>Back up and sync</button>
         {#if onprivacy}
           <button type="button" role="menuitem" onclick={act(onprivacy)}>Privacy</button>
+        {/if}
+        {#if onfire}
+          <button type="button" role="menuitem" onclick={act(onfire)}>🔥 Forget web data</button>
         {/if}
         <button type="button" role="menuitem" onclick={act(onsettings)}>Settings</button>
         <button type="button" role="menuitem" onclick={act(onhelp)}>Help</button>

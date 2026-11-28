@@ -1273,6 +1273,10 @@ export interface Privacy {
   around: boolean;
   sites_off: string[];
   fired: number;
+  /** Sites kept signed in when the web's data is forgotten (DuckDuckGo's *Fireproof*). */
+  fireproof?: string[];
+  /** Forget the web's data and tabs on closing (the computer) or on coming back (the phone). */
+  fire_on_close?: boolean;
   v: number;
   engines: { key: string; name: string; url: string }[];
   resolvers: { key: string; name: string; url: string }[];
@@ -1292,8 +1296,15 @@ export type PrivacyChange = Partial<
     | 'more_sites'
     | 'dns'
     | 'around'
+    | 'fire_on_close'
   >
-> & { site_off?: string; site_on?: string; fire?: boolean };
+> & {
+  site_off?: string;
+  site_on?: string;
+  fire?: boolean;
+  fireproof_add?: string;
+  fireproof_remove?: string;
+};
 export const privacy = () => invoke<Privacy>('privacy');
 export const setPrivacy = (change: PrivacyChange) => invoke<Privacy>('set_privacy', change);
 

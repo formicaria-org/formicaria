@@ -21,6 +21,8 @@ object PagePrivacy {
   @Volatile var resolver = "https://dns.quad9.net/dns-query"
   @Volatile var fired = -1L
   @Volatile var sitesOff: List<String> = emptyList()
+  /** Sites kept signed in when the fire button forgets (DuckDuckGo's *Fireproof*, 2026-11-28). */
+  @Volatile var fireproof: List<String> = emptyList()
   /** The cookie pop-up script (`ui/page/consent.ts`), handed over by the app. */
   @Volatile var consentScript: String? = null
   /** The procedural hide rules' interpreter (`ui/page/procedural.ts`), handed over by the app. */
@@ -53,6 +55,8 @@ object PagePrivacy {
       ?: if (dns == "network") "" else "https://dns.quad9.net/dns-query"
     val arr = o.optJSONArray("sites_off") ?: JSONArray()
     sitesOff = (0 until arr.length()).map { arr.optString(it).lowercase() }.filter { it.isNotEmpty() }
+    val kept = o.optJSONArray("fireproof") ?: JSONArray()
+    fireproof = (0 until kept.length()).map { kept.optString(it).lowercase() }.filter { it.isNotEmpty() }
     val f = o.optLong("fired", 0)
     val pressed = fired >= 0 && f > fired
     fired = f
@@ -61,6 +65,12 @@ object PagePrivacy {
 
   fun host(url: String?): String =
     (try { Uri.parse(url ?: "").host } catch (e: Exception) { null } ?: "").lowercase().removePrefix("www.")
+
+  /** The site is kept signed in when forgetting (it, or a site of which it is a part). */
+  fun kept(url: String?): Boolean {
+    val h = host(url)
+    return h.isNotEmpty() && fireproof.any { h == it || h.endsWith(".$it") }
+  }
 
   /** Every protection is off on this site (and its subdomains). */
   fun off(url: String?): Boolean {

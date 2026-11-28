@@ -385,6 +385,189 @@ def star(m: "Marionette") -> dict:
     return out
 
 
+ADDON = "browser@formicaria-org.github.io"
+# Two made-up sites, answered by the test page's server (`network.dns.localDomains`): one kept signed
+# in, one not. `localhost` itself is never forgotten (it is formicaria's own kind of address).
+KEEP_SITE, BURN_SITE = "keep.example", "burn.example"
+SITES_JS = f'user_pref("network.dns.localDomains", "{KEEP_SITE},{BURN_SITE}");\n'
+# Silent, as `usability-check`'s browsers (2026-11-28): a page that plays makes no sound here.
+SITES_JS += 'user_pref("media.volume_scale", "0.0");\n'
+
+
+def chrome_js(m: "Marionette", script: str, args: list | None = None, wait_ms: int = 0):
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    if wait_ms:
+        r = m.cmd("WebDriver:ExecuteAsyncScript", {"args": args or [], "scriptTimeout": wait_ms, "script": script})
+    else:
+        r = m.cmd("WebDriver:ExecuteScript", {"args": args or [], "script": script})
+    return r.get("value") if isinstance(r, dict) else r
+
+
+def click_chrome(m: "Marionette", selector: str) -> None:
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    el = m.cmd("WebDriver:FindElement", {"using": "css selector", "value": selector})["value"]
+    m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+
+
+def to_ordinary_window(m: "Marionette") -> None:
+    """Marionette's chrome context back on the ordinary (not private) window, after another opened."""
+    m.cmd("Marionette:SetContext", {"value": "chrome"})
+    hs = m.cmd("WebDriver:GetWindowHandles")  # in the chrome context: its windows
+    hs = hs if isinstance(hs, list) else hs.get("value", hs)
+    for h in hs:
+        m.cmd("WebDriver:SwitchToWindow", {"handle": h})
+        private = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+            return ChromeUtils.importESModule('resource://gre/modules/PrivateBrowsingUtils.sys.mjs')
+              .PrivateBrowsingUtils.isWindowPrivate(window);"""})
+        if not (private.get("value") if isinstance(private, dict) else private):
+            return
+
+
+def open_sites_with_cookies(m: "Marionette") -> None:
+    """A tab on each made-up site, each given a cookie that lasts and stored data, as a sign-in would."""
+    for site in (KEEP_SITE, BURN_SITE):
+        chrome_js(m, """const sp = Services.scriptSecurityManager.getSystemPrincipal();
+            gBrowser.selectedTab = gBrowser.addTab(arguments[0], { triggeringPrincipal: sp });""",
+                  [f"http://{site}:{TEST_PORT}/page.html"])
+        time.sleep(4)
+        # In the page itself: the tab on that site, found by its address.
+        handles = m.cmd("WebDriver:GetWindowHandles")
+        handles = handles if isinstance(handles, list) else handles.get("value", handles)
+        for h in handles:
+            m.cmd("WebDriver:SwitchToWindow", {"handle": h})
+            m.cmd("Marionette:SetContext", {"value": "content"})
+            here = m.cmd("WebDriver:ExecuteScript", {"args": [], "script": "return location.hostname;"})
+            if (here.get("value") if isinstance(here, dict) else here) == site:
+                break
+        m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+            document.cookie = 'signin=1; max-age=86400; path=/';
+            localStorage.setItem('signin', '1'); return document.cookie;"""})
+        to_ordinary_window(m)
+
+
+COOKIE_HOSTS_JS = "return [...new Set(Services.cookies.cookies.map((c) => c.rawHost))];"
+
+
+def fire_button(m: "Marionette") -> dict:
+    """**🔥, a private window, and the sites kept signed in** (the owner, 2026-11-28: *"plan and do all
+    the modifications"* after DuckDuckGo's fire button). The ant's *New private window* opens one, with
+    formicaria's add-on allowed in it. Then 🔥 in the tab row, pressed as a mouse does: it asks, saying
+    what stays; *Close and forget* closes every web tab and the private window, keeps formicaria's own
+    tabs, forgets the site not kept and keeps the one kept signed in, and nothing comes back with
+    Ctrl+Shift+T. One press is counted once."""
+    out: dict = {}
+    post("/api/set_privacy", {"fireproof_add": KEEP_SITE})
+    time.sleep(7)  # the browser reads the switches every 5 s
+    # The ant's panel, as a page, and its row pressed.
+    host = chrome_js(m, f"return WebExtensionPolicy.getByID('{ADDON}')?.mozExtensionHostname")
+    allowed = chrome_js(m, f"""const p = WebExtensionPolicy.getByID('{ADDON}');
+        return {{ allowed: p?.privateBrowsingAllowed, perms: p?.permissions ?? null }};""") or {}
+    print(f"browser-check: the add-on in private windows: {allowed}")
+    out["private_addon_allowed"] = allowed.get("allowed") is True
+    chrome_js(m, """const sp = Services.scriptSecurityManager.getSystemPrincipal();
+        gBrowser.selectedTab = gBrowser.addTab(arguments[0], { triggeringPrincipal: sp });""",
+              [f"moz-extension://{host}/launcher.html"])
+    time.sleep(2)
+    handles = m.cmd("WebDriver:GetWindowHandles")
+    handles = handles if isinstance(handles, list) else handles.get("value", handles)
+    m.cmd("WebDriver:SwitchToWindow", {"handle": handles[-1]})
+    m.cmd("Marionette:SetContext", {"value": "content"})
+    m.cmd("WebDriver:ExecuteScript", {"args": [], "script": """
+        const row = [...document.querySelectorAll('li, button, a')].find((x) => x.textContent.includes('New private window'));
+        if (row) row.setAttribute('data-press', '1'); return !!row;"""})
+    try:
+        el = m.cmd("WebDriver:FindElement", {"using": "css selector", "value": "[data-press]"})["value"]
+        m.cmd("WebDriver:ElementClick", {"id": next(iter(el.values()))})
+    except RuntimeError as e:
+        print(f"browser-check: the ant's private window row: {e}")
+    time.sleep(4)
+    to_ordinary_window(m)
+    count_js = """const PBU = ChromeUtils.importESModule('resource://gre/modules/PrivateBrowsingUtils.sys.mjs').PrivateBrowsingUtils;
+        const ws = [...Services.wm.getEnumerator('navigator:browser')];
+        return { private: ws.filter((w) => PBU.isWindowPrivate(w)).length, all: ws.length };"""
+    wins = chrome_js(m, count_js) or {}
+    out["private_window"] = wins.get("private", 0) == 1
+    # Back to the ordinary window, with a tab on each made-up site.
+    open_sites_with_cookies(m)
+    to_ordinary_window(m)
+    before = chrome_js(m, COOKIE_HOSTS_JS) or []
+    fired = post("/api/privacy", {}).get("fired", 0)
+    click_chrome(m, "#formicaria-fire")
+    time.sleep(1)
+    said = chrome_js(m, """const p = document.getElementById('formicaria-fire-panel');
+        return { open: p?.state === 'open', said: document.getElementById('formicaria-fire-said')?.textContent ?? '' };""") or {}
+    out["fire_asks"] = said.get("open") is True and KEEP_SITE in said.get("said", "") and "stay" in said.get("said", "")
+    click_chrome(m, "#formicaria-fire-yes")
+    time.sleep(6)
+    after = chrome_js(m, f"""const s = arguments[0];
+        const ws = [...Services.wm.getEnumerator('navigator:browser')];
+        const tabs = ws.flatMap((w) => w.gBrowser.tabs.map((t) => t.linkedBrowser.currentURI.spec));
+        const SS = ChromeUtils.importESModule('resource:///modules/sessionstore/SessionStore.sys.mjs').SessionStore;
+        return {{ tabs, windows: ws.length, closed: ws.reduce((n, w) => n + SS.getClosedTabCountForWindow(w), 0),
+                 cookies: [...new Set(Services.cookies.cookies.map((c) => c.rawHost))] }};""", [SERVER]) or {}
+    print(f"browser-check: 🔥 asked {said}; cookies before {before}; after {after}")
+    tabs = after.get("tabs", [])
+    out["fire_closes_web_tabs"] = (bool(tabs) and all(t.startswith(SERVER) for t in tabs)
+                                   and after.get("windows") == 1 and after.get("closed") == 0)
+    cookies = after.get("cookies", [])
+    out["fire_keeps_the_kept"] = (KEEP_SITE in before and BURN_SITE in before
+                                  and KEEP_SITE in cookies and BURN_SITE not in cookies)
+    time.sleep(6)
+    out["fire_counted_once"] = post("/api/privacy", {}).get("fired", 0) == fired + 1 and KEEP_SITE in (chrome_js(m, COOKIE_HOSTS_JS) or [])
+    return out
+
+
+def forget_when_closing(ff: Path, work: Path) -> dict:
+    """**Forget when closing** (2026-11-28): on, the browser closed the ordinary way and opened again
+    comes back with formicaria's tabs only; the site not kept is signed out, the one kept signed in is
+    not; and the session kept no site's cookies."""
+    out: dict = {}
+    profile = work / "closing-profile"
+    if profile.exists():
+        shutil.rmtree(profile)
+    profile.mkdir(parents=True)
+    (profile / "user.js").write_text(SITES_JS)
+    post("/api/set_privacy", {"fire_on_close": True, "fireproof_add": KEEP_SITE})
+
+    def start() -> "Marionette":
+        subprocess.Popen(
+            [str(ff / "firefox"), "--headless", "--marionette", "-remote-allow-system-access", "--no-remote",
+             "--name", "formicaria-check", "--profile", str(profile), "about:blank"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        m = Marionette()
+        m.cmd("WebDriver:NewSession", {"capabilities": {}})
+        time.sleep(8)
+        return m
+
+    try:
+        m = start()
+        out["closing_session_level"] = chrome_js(
+            m, "return Services.prefs.getIntPref('browser.sessionstore.privacy_level', 0);") == 2
+        open_sites_with_cookies(m)
+        before = chrome_js(m, COOKIE_HOSTS_JS) or []
+        m.cmd("Marionette:Quit", {"flags": ["eAttemptQuit"]})
+        for _ in range(60):
+            if not procs_under(ff):
+                break
+            time.sleep(0.5)
+        m = start()
+        after = chrome_js(m, f"""const ws = [...Services.wm.getEnumerator('navigator:browser')];
+            return {{ tabs: ws.flatMap((w) => w.gBrowser.tabs.map((t) => t.linkedBrowser.currentURI.spec)),
+                     cookies: [...new Set(Services.cookies.cookies.map((c) => c.rawHost))] }};""") or {}
+        print(f"browser-check: forget when closing: cookies before {before}; after the restart {after}")
+        tabs = after.get("tabs", [])
+        cookies = after.get("cookies", [])
+        out["closing_closes_web_tabs"] = bool(tabs) and not any(KEEP_SITE in t or BURN_SITE in t for t in tabs)
+        out["closing_keeps_the_kept"] = (KEEP_SITE in before and BURN_SITE in before
+                                         and KEEP_SITE in cookies and BURN_SITE not in cookies)
+        m.cmd("WebDriver:DeleteSession")
+    finally:
+        stop(ff)
+        post("/api/set_privacy", {"fire_on_close": False, "fireproof_remove": KEEP_SITE})
+    return out
+
+
 def tabs(m: "Marionette") -> dict:
     """formicaria's features and notes as tabs (`decisions.md` 2026-11-17, *one server, many views*)."""
     nid = post("/api/create_notes", {"notes": [{"title": "Kept room", "body": "Here."}]})[0]["id"]
@@ -471,7 +654,7 @@ def settings_page(ff: Path, work: Path) -> dict:
         shutil.rmtree(profile)
     profile.mkdir(parents=True)
     # The panel test clicks a link from a script, which the pop-up blocker would stop.
-    (profile / "user.js").write_text('user_pref("dom.disable_open_during_load", false);\n')
+    (profile / "user.js").write_text('user_pref("dom.disable_open_during_load", false);\n' + SITES_JS)
     subprocess.Popen(
         [str(ff / "firefox"), "--headless", "--marionette", "-remote-allow-system-access", "--no-remote",
          "--name", "formicaria-check", "--profile", str(profile), "about:blank"],
@@ -577,7 +760,13 @@ def settings_page(ff: Path, work: Path) -> dict:
             seen.update(tabs(m))
         except Exception as e:  # noqa: BLE001 - reported as failed checks
             print(f"browser-check: tabs: {e}")
-        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "star_note", "star_panel_says", "star_again_no_copy", "star_remove_both", "links_are_tabs", "popup_is_its_page", "download_question_alone",
+        # Last: it closes the web's tabs and forgets their data.
+        try:
+            seen.update(fire_button(m))
+        except Exception as e:  # noqa: BLE001 - reported as failed checks
+            print(f"browser-check: 🔥: {e}")
+        for k in ("bring_text", "bring_image", "bring_table", "bring_chip", "snip", "page_in_notes", "star_note", "star_panel_says", "star_again_no_copy", "star_remove_both", "private_addon_allowed", "private_window", "fire_asks",
+                  "fire_closes_web_tabs", "fire_keeps_the_kept", "fire_counted_once", "links_are_tabs", "popup_is_its_page", "download_question_alone",
                   "feature_tab", "note_tab", "split_formicaria_tabs", "quick_switch", "plus_suggests", "one_row", "whole_app_to_notes",
                   "old_tabs_carried", "bare_toolbar"):
             seen.setdefault(k, False)
@@ -749,10 +938,12 @@ def main() -> None:
             testpage = serve_test_page(work)
             try:
                 page = settings_page(ff, work)
+                page.update(forget_when_closing(ff, work))
             finally:
                 testpage.terminate()
-            print(f"browser-check: the walk read {json.dumps(page)[:1500]}")
-            sys.exit(0 if all(v is True for k, v in page.items() if k.startswith("star_")) else 1)
+            print(f"browser-check: the walk read {json.dumps(page)}")
+            mine = ("star_", "fire_", "private_", "closing_")
+            sys.exit(0 if all(v is True for k, v in page.items() if k.startswith(mine)) else 1)
         kit, base = [], []
         for i in range(RUNS):
             kit.append(measure(ff, work / f"kit-profile-{i}", work / f"kit-{i}.json", [f"{SERVER}/f/group/Library", *PAGES], {}, warm=True))
@@ -794,6 +985,11 @@ def main() -> None:
         testpage = serve_test_page(work)
         try:
             page = settings_page(ff, work)
+            try:
+                closing = forget_when_closing(ff, work)
+            except Exception as e:  # noqa: BLE001 - reported as failed checks
+                print(f"browser-check: forget when closing: {e}")
+                closing = {}
         finally:
             testpage.terminate()
         checks.update({
@@ -816,6 +1012,15 @@ def main() -> None:
             "☆'s panel says the note is in formicaria, with a link to it": page.get("star_panel_says") is True,
             "☆ pressed again makes no second note": page.get("star_again_no_copy") is True,
             "Remove in ☆'s panel takes back the note and the bookmark": page.get("star_remove_both") is True,
+            "the ant opens a private window": page.get("private_window") is True,
+            "formicaria's add-on works in private windows": page.get("private_addon_allowed") is True,
+            "🔥 in the tab row asks first, naming the sites kept signed in": page.get("fire_asks") is True,
+            "🔥 closes every web tab and the private window, keeping formicaria's tabs": page.get("fire_closes_web_tabs") is True,
+            "🔥 forgets a site's sign-in, except a site kept signed in": page.get("fire_keeps_the_kept") is True,
+            "🔥 is counted once": page.get("fire_counted_once") is True,
+            "forget when closing: the session keeps no site's cookies": closing.get("closing_session_level") is True,
+            "forget when closing: opened again, no web tab comes back": closing.get("closing_closes_web_tabs") is True,
+            "forget when closing: a site's sign-in is forgotten, except a site kept signed in": closing.get("closing_keeps_the_kept") is True,
             "a feature is a page in a tab of its own, named by what it shows": page.get("feature_tab") is True,
             "a note is a page in a tab of its own": page.get("note_tab") is True,
             "two of formicaria's tabs share the window in split view": page.get("split_formicaria_tabs") is True,

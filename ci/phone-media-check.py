@@ -1126,6 +1126,88 @@ def jot_box_on_the_phone(cdp) -> None:
     time.sleep(1.5)
 
 
+TAP_JS = """((sel, text) => {
+  const el = [...document.querySelectorAll(sel)].find((x) => !text || x.textContent.trim() === text);
+  if (!el) return null;
+  el.scrollIntoView({ block: 'center' });
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2, dpr: devicePixelRatio };
+})(%s, %s)"""
+
+
+def tap(cdp, sel: str, text: str | None = None) -> bool:
+    """A real tap on the app's element (by selector, and its words when given), as a finger would."""
+    at = cdp.evaluate(TAP_JS % (json.dumps(sel), json.dumps(text)))
+    if not at:
+        return False
+    adb("shell", "input", "tap", str(int(at["x"] * at["dpr"])), str(int(at["y"] * at["dpr"])), check_rc=False)
+    return True
+
+
+def page_urls() -> list:
+    try:
+        return [p.get("url", "") for p in json.load(urllib.request.urlopen("http://127.0.0.1:9333/json", timeout=5))]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+SIGNED_IN_JS = "(() => ({ cookie: document.cookie, stored: localStorage.getItem('signin') }))()"
+
+
+def fire_on_the_phone(cdp) -> None:
+    """**🔥 on the phone** (2026-11-28, as DuckDuckGo's fire button): two pages open, each signed in
+    (a cookie that lasts and stored data), one of them kept signed in. ≡ → 🔥 Forget web data, tapped
+    for real, asks first on the screen; *Forget them* closes both page tabs; opened again, the page
+    kept signed in still is, the other is not."""
+    keep, burn = "example.org", "example.com"
+    cdp.evaluate("""window.__TAURI_INTERNALS__.invoke('fm', { cmd: 'set_privacy', args: { fireproof_add: %s } })"""
+                 % json.dumps(keep))
+    signed = {}
+    for site in (keep, burn):
+        cdp.evaluate("window.dispatchEvent(new CustomEvent('fm-page-open', { detail: { url: %s } }))"
+                     % json.dumps(f"https://{site}/"))
+        time.sleep(6)
+        v = page_view(site)
+        signed[site] = v.evaluate("""(() => { document.cookie = 'signin=1; max-age=86400; path=/; secure';
+            localStorage.setItem('signin', '1'); return document.cookie; })()""") if v else None
+    check("🔥: two pages open on the phone, each signed in",
+          all("signin=1" in (x or "") for x in signed.values()), json.dumps(signed))
+    menu = tap(cdp, "button.menu-btn")
+    time.sleep(1.5)
+    item = tap(cdp, "[role=menuitem]", "🔥 Forget web data")
+    time.sleep(2)
+    asked = cdp.evaluate("""(() => { const s = document.querySelector('[role=dialog][aria-label=privacy]');
+        const f = s && s.querySelector('.fire');
+        return { open: !!s, first: !!f && s.querySelector('section.privacy').firstElementChild === f,
+                 said: f ? f.textContent.replace(/\\s+/g, ' ').trim() : '' }; })()""") or {}
+    check("🔥: ≡ → 🔥 Forget web data asks first, naming the site kept signed in",
+          bool(menu and item) and asked.get("first") is True and keep in asked.get("said", ""), json.dumps(asked))
+    guard(cdp, "🔥's question on the phone")
+    tap(cdp, ".fire button", "Forget them")
+    time.sleep(5)
+    left = [u for u in page_urls() if keep in u or burn in u]
+    told = cdp.evaluate("document.body.innerText.includes('Web data forgotten')")
+    check("🔥: both page tabs close, and the phone says so", not left and bool(told), f"left {left}; told {told}")
+    after = {}
+    for site in (keep, burn):
+        cdp.evaluate("window.dispatchEvent(new CustomEvent('fm-page-open', { detail: { url: %s } }))"
+                     % json.dumps(f"https://{site}/"))
+        time.sleep(6)
+        v = page_view(site)
+        after[site] = v.evaluate(SIGNED_IN_JS) if v else None
+    k, b = after.get(keep) or {}, after.get(burn) or {}
+    check("🔥: the site kept signed in still is (its cookie and stored data)",
+          "signin=1" in (k.get("cookie") or "") and k.get("stored") == "1", json.dumps(after))
+    check("🔥: the other site is signed out (no cookie, no stored data)",
+          bool(after.get(burn) is not None) and "signin" not in (b.get("cookie") or "") and b.get("stored") is None,
+          json.dumps(after))
+    # Left as found: no site kept, and the two page tabs closed (the app's own closing, no forgetting).
+    cdp.evaluate("""window.__TAURI_INTERNALS__.invoke('fm', { cmd: 'set_privacy', args: { fireproof_remove: %s } })"""
+                 % json.dumps(keep))
+    cdp.evaluate("window.dispatchEvent(new CustomEvent('fm-fired'))")
+    time.sleep(2)
+
+
 def new_tab_on_the_phone(cdp) -> None:
     """The ＋ sheet on the phone (2026-11-25; the owner: its last row of features lay under Android's
     back and home buttons). Tapped for real, so the field it focuses brings the keyboard up; then
@@ -1242,6 +1324,8 @@ def main() -> None:
             jot_box_on_the_phone(cdp)
         if not only or "plus" in only:
             new_tab_on_the_phone(cdp)
+        if not only or "fire" in only:
+            fire_on_the_phone(cdp)
         port = srv.server_address[1]
         for name, page, pick, nth, least, keep, into in CASES:
             local = "{port}" in page

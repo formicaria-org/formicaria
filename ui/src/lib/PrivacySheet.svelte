@@ -2,7 +2,8 @@
   // **Privacy** (`decisions.md` 2026-11-17): each protection a switch, easy on and off, like
   // DuckDuckGo's; what it did on the page in front; a site's protections off when it breaks; the fire
   // button. The same sheet in ≡ → Privacy and in Settings → Privacy, on the phone and the computer.
-  import { privacy, privacyError, changePrivacy } from './privacy.svelte';
+  import { onMount } from 'svelte';
+  import { privacy, privacyError, changePrivacy, loadPrivacy } from './privacy.svelte';
   import type { PrivacyChange } from './ipc';
 
   let {
@@ -10,6 +11,7 @@
     counts = null,
     computer = false,
     vpn = false,
+    askFire = false,
   }: {
     /** The site of the web page in front, when there is one. */
     site?: string;
@@ -19,9 +21,14 @@
     computer?: boolean;
     /** The phone build can block trackers in other apps (the F-Droid build). */
     vpn?: boolean;
+    /** Opened from 🔥 (the phone's ≡): the question to forget comes first, asked at once. */
+    askFire?: boolean;
   } = $props();
 
   const p = $derived(privacy());
+  // Read afresh each time the sheet opens (2026-11-28): a change made elsewhere since (the computer's
+  // tab-row 🔥, another tab's sheet) shows, and the question names the sites kept as they are now.
+  onMount(() => void loadPrivacy());
   const host = $derived(
     site
       .toLowerCase()
@@ -125,13 +132,56 @@
         allowed: through ? [...vpnState.allowed, pkg] : vpnState.allowed.filter((x) => x !== pkg),
       };
   }
-  let confirmFire = $state(false);
+  // svelte-ignore state_referenced_locally
+  let confirmFire = $state(askFire);
+  const kept = $derived(p?.fireproof ?? []);
+  const keptHere = $derived(!!host && kept.includes(host));
+  let keepTyped = $state('');
+  let keepError = $state('');
+  async function keepSite(e: SubmitEvent) {
+    e.preventDefault();
+    const site = keepTyped.trim();
+    if (!site) return;
+    keepError = '';
+    await changePrivacy({ fireproof_add: site });
+    if (privacyError()) keepError = 'That is not a site’s name.';
+    else keepTyped = '';
+  }
 </script>
+
+{#snippet fireBlock()}
+  <div class="fire" aria-label="forget web data">
+    {#if confirmFire}
+      <p>
+        Close the web’s tabs and forget every web page’s cookies, stored data, cache and history on
+        this device?{kept.length ? ` Kept signed in: ${kept.join(', ')}.` : ''} Your notes and the files
+        you kept stay.
+      </p>
+      <button
+        type="button"
+        class="binding danger"
+        onclick={() => {
+          confirmFire = false;
+          set({ fire: true });
+        }}>Forget them</button
+      >
+      <button type="button" class="binding" onclick={() => (confirmFire = false)}>Keep them</button>
+    {:else}
+      <button type="button" class="binding" onclick={() => (confirmFire = true)}
+        >🔥 Forget web data</button
+      >
+      {#if p?.fired}<span class="muted"
+          >Forgotten {p.fired === 1 ? 'once' : `${p.fired} times`}.</span
+        >{/if}
+    {/if}
+  </div>
+{/snippet}
 
 <section class="privacy" aria-label="privacy">
   {#if !p}
     <p class="muted">{privacyError() || 'Reading this device’s settings…'}</p>
   {:else}
+    {#if askFire}{@render fireBlock()}{/if}
     {#if host}
       <div class="here">
         <p class="site">
@@ -153,6 +203,13 @@
           onclick={() => set(off ? { site_on: host } : { site_off: host })}
         >
           {off ? 'Protect this site again' : 'Protections off for this site'}
+        </button>
+        <button
+          type="button"
+          class="binding"
+          onclick={() => set(keptHere ? { fireproof_remove: host } : { fireproof_add: host })}
+        >
+          {keptHere ? 'Stop keeping it signed in' : 'Keep signed in when forgetting'}
         </button>
       </div>
     {/if}
@@ -347,31 +404,59 @@
       </div>
     {/if}
 
-    <div class="fire">
-      {#if confirmFire}
-        <p>
-          Forget every web page's cookies, stored data, cache and history on this device? Your notes
-          and the files you kept stay.
-        </p>
-        <button
-          type="button"
-          class="binding danger"
-          onclick={() => {
-            confirmFire = false;
-            set({ fire: true });
-          }}>Forget them</button
+    {#if !askFire}{@render fireBlock()}{/if}
+
+    <label class="row">
+      <span class="text">
+        <span class="name">Forget when closing</span>
+        <span class="muted"
+          >{computer
+            ? 'When formicaria’s browser closes: the web’s tabs and data, except the sites kept signed in.'
+            : 'When formicaria starts again, or comes back after five minutes away: the web’s tabs and data, except the sites kept signed in.'}</span
         >
-        <button type="button" class="binding" onclick={() => (confirmFire = false)}
-          >Keep them</button
-        >
-      {:else}
-        <button type="button" class="binding" onclick={() => (confirmFire = true)}
-          >🔥 Forget web data</button
-        >
-        {#if p.fired}<span class="muted"
-            >Forgotten {p.fired === 1 ? 'once' : `${p.fired} times`}.</span
-          >{/if}
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        aria-label="Forget when closing"
+        checked={!!p.fire_on_close}
+        onchange={(e) => set({ fire_on_close: (e.currentTarget as HTMLInputElement).checked })}
+      />
+    </label>
+
+    <div class="sites kept" aria-label="kept signed in">
+      <p class="name">Kept signed in</p>
+      <p class="muted">
+        These sites keep their sign-in when the web’s data is forgotten. Their history and cache
+        still go.
+      </p>
+      {#if kept.length}
+        <ul>
+          {#each kept as s (s)}
+            <li>
+              {s}
+              <button
+                type="button"
+                class="binding"
+                aria-label={`stop keeping ${s} signed in`}
+                onclick={() => set({ fireproof_remove: s })}>Stop keeping</button
+              >
+            </li>
+          {/each}
+        </ul>
       {/if}
+      <form class="keep" onsubmit={keepSite}>
+        <input
+          type="text"
+          inputmode="url"
+          autocapitalize="off"
+          placeholder="example.org"
+          aria-label="a site to keep signed in"
+          bind:value={keepTyped}
+        />
+        <button type="submit" class="binding">Keep</button>
+      </form>
+      {#if keepError}<p class="muted" role="alert">{keepError}</p>{/if}
     </div>
   {/if}
 </section>
@@ -434,6 +519,15 @@
   }
   .fire p {
     margin: 0 0 0.4rem;
+  }
+  .keep {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+  }
+  .keep input {
+    flex: 1;
+    min-width: 0;
   }
   .danger {
     color: var(--danger, #c33);

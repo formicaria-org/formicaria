@@ -4,6 +4,31 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
+## `browser-check`'s sites: two flaky ones (2026-11-28)
+
+- **`http.badssl.com` sometimes times out** (`netTimeout`) from this network.
+- **`incomplete-chain.badssl.com` depends on timing.** Firefox repairs it with intermediates it
+  fetches by itself after a fresh profile starts. On 2026-11-28 formicaria showed the warning once
+  while Firefox showed the page; the next run showed the warning in both.
+- Either one failing alone: run `FM_CHECK_ONLY=sites` again before suspecting the kit. A failure
+  that repeats, or that hits another site, is real.
+
+## 🔥 and *Kept signed in*: limits (2026-11-28)
+
+- **The phone keeps a site's cookies for its own address, `www.` and `http://`.** They are read with
+  `getCookieInfo` for those three and put back. A cookie scoped to another subdomain, or to a path
+  other than `/`, is not read, so it is forgotten. A WebView too old for `GET_COOKIE_INFO` keeps
+  the kept sites' stored data but not their cookies.
+- **On a computer, keeping any part of a site keeps the whole site** (Firefox clears by base domain).
+- **The phone wipes a site's stored data only if a page or frame of it was opened since 0.63.7**
+  (the hosts are remembered from then on). Stored data left before the update outlives 🔥. On the phone, a kept site also spares names
+  sharing its last two labels (`a.co.uk` spares `b.co.uk`), which errs on keeping.
+- **The phone forgets on return, not while away**: after five minutes away the data sits on the phone
+  until the app comes back or starts again.
+- **Forget when closing on a computer needs an ordinary closing.** A browser that was killed does it
+  at its next start, but a restored session from such a kill may show its web tabs for a moment
+  before they close.
+
 ## Fitness → Coach: what is not verified or not built (2026-11-20)
 
 `crates/fm-app/src/coach.rs`, `ui/src/lib/training/Coach*.svelte`; Spec K steps K1–K4 and K7.

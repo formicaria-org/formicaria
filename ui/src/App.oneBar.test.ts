@@ -184,6 +184,36 @@ it('≡ → Privacy opens the switches for the page in front', async () => {
   }
 });
 
+it('≡ → 🔥 asks first, then closes every web tab and keeps the rest (2026-11-28)', async () => {
+  const g = globalThis as Record<string, unknown>;
+  const closed: string[] = [];
+  g.__fmPage = {
+    show: () => {},
+    hide: () => {},
+    close: (id: string) => closed.push(id),
+    privacy: () => {},
+  };
+  try {
+    render(App);
+    for (const url of ['https://news.example/story', 'https://shop.example/cart'])
+      window.dispatchEvent(new CustomEvent('fm-page-open', { detail: { url } }));
+    await waitFor(() => expect(tabNames().filter((n) => /\.example/.test(n ?? '')).length).toBe(2));
+    await fireEvent.click(screen.getByRole('button', { name: "formicaria's options" }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: '🔥 Forget web data' }));
+    const sheet = await screen.findByRole('dialog', { name: 'privacy' });
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'Forget them' }));
+    await waitFor(() => expect(closed.length).toBe(2));
+    expect(tabNames().some((n) => /\.example/.test(n ?? ''))).toBe(false);
+    // What is not the web stays (with nothing else open, the board the app always has).
+    expect(tabNames().length).toBeGreaterThan(0);
+    expect(screen.queryByRole('dialog', { name: 'privacy' })).toBeNull();
+    expect(await screen.findByText('Web data forgotten, and the web’s tabs closed.')).toBeTruthy();
+    expect(((await mock.handle('privacy', {})) as { fired: number }).fired).toBe(1);
+  } finally {
+    delete g.__fmPage;
+  }
+});
+
 it('≡ → Save media lists the page’s embedded video and what it fetched', async () => {
   const g = globalThis as Record<string, unknown>;
   g.__fmPage = {

@@ -183,3 +183,60 @@ it('the app block warns when Private DNS hides lookups, and offers to stop apps 
     delete g.__fmVpn;
   }
 });
+
+it('keeps a site signed in when forgetting: from the page in front, typed, and let go', async () => {
+  render(PrivacySheet, { site: 'https://www.mail.example.org/inbox' });
+  await fireEvent.click(
+    await screen.findByRole('button', { name: 'Keep signed in when forgetting' }),
+  );
+  await screen.findByRole('button', { name: 'Stop keeping it signed in' });
+  const field = screen.getByRole('textbox', { name: 'a site to keep signed in' });
+  await fireEvent.input(field, { target: { value: 'https://bank.example/login' } });
+  await fireEvent.submit(field.closest('form')!);
+  await waitFor(async () =>
+    expect(((await mock.handle('privacy', {})) as { fireproof: string[] }).fireproof).toEqual([
+      'bank.example',
+      'mail.example.org',
+    ]),
+  );
+  expect(JSON.parse(told.at(-1)!).fireproof).toEqual(['bank.example', 'mail.example.org']);
+  // The question names what stays.
+  await fireEvent.click(screen.getByRole('button', { name: /Forget web data/ }));
+  expect(screen.getByText(/Kept signed in: bank\.example, mail\.example\.org\./)).toBeTruthy();
+  await fireEvent.click(
+    screen.getByRole('button', { name: 'stop keeping bank.example signed in' }),
+  );
+  await waitFor(async () =>
+    expect(((await mock.handle('privacy', {})) as { fireproof: string[] }).fireproof).toEqual([
+      'mail.example.org',
+    ]),
+  );
+});
+
+it('forget when closing is a switch, off at first', async () => {
+  render(PrivacySheet);
+  const sw = (await screen.findByRole('switch', {
+    name: 'Forget when closing',
+  })) as HTMLInputElement;
+  expect(sw.checked).toBe(false);
+  await fireEvent.click(sw);
+  await waitFor(async () =>
+    expect(((await mock.handle('privacy', {})) as { fire_on_close: boolean }).fire_on_close).toBe(
+      true,
+    ),
+  );
+});
+
+it('opened from 🔥, the question comes first; forgetting tells the app to close its web tabs', async () => {
+  let closed = 0;
+  const onFired = () => closed++;
+  window.addEventListener('fm-fired', onFired);
+  render(PrivacySheet, { askFire: true });
+  const forget = await screen.findByRole('button', { name: 'Forget them' });
+  const sheet = document.querySelector('section.privacy')!;
+  expect(sheet.firstElementChild?.getAttribute('aria-label')).toBe('forget web data');
+  await fireEvent.click(forget);
+  await waitFor(() => expect(closed).toBe(1));
+  expect(((await mock.handle('privacy', {})) as { fired: number }).fired).toBe(1);
+  window.removeEventListener('fm-fired', onFired);
+});

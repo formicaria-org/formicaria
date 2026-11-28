@@ -1,6 +1,6 @@
 <script lang="ts">
   import { toggledTheme } from './lib/start';
-  import { searchUrl, loadPrivacy, phoneVpn } from './lib/privacy.svelte';
+  import { searchUrl, loadPrivacy, phoneVpn, FIRED, forgetOnClosing } from './lib/privacy.svelte';
   import PrivacySheet from './lib/PrivacySheet.svelte';
   import SaveMedia from './lib/SaveMedia.svelte';
   import type { Candidate } from './lib/web/media';
@@ -2017,6 +2017,15 @@
     const stopPages = phonePages.listen(pageHost);
     // The phone's page views apply this device's privacy switches from the first page on.
     if ((globalThis as { __fmPage?: unknown }).__fmPage) void loadPrivacy();
+    // **The fire button closes the web's tabs** (2026-11-28, as DuckDuckGo's): every page tab goes;
+    // notes and views stay. And *Forget on closing*, on the phone.
+    const onFired = () => {
+      for (const p of workspace.panes.filter((x) => x.kind === 'page')) closePane(p.id);
+      if (privacyAskFire) privacyOpen = false;
+      notice = 'Web data forgotten, and the web’s tabs closed.';
+    };
+    window.addEventListener(FIRED, onFired);
+    forgetOnClosing();
     document.addEventListener('click', onLink, true);
     // **A passage of any note, brought into another** (⇥ on a note; `lib/piece.ts`): the same sheet
     // asks which note, and the piece goes there with its link back.
@@ -2039,6 +2048,7 @@
       window.removeEventListener('fm-share', fromPages);
       window.removeEventListener('fm-bring-to-room', bring);
       document.removeEventListener('click', onLink, true);
+      window.removeEventListener(FIRED, onFired);
       stopPages();
     };
   });
@@ -2313,6 +2323,11 @@
   let newTabOpen = $state(false);
   /** ≡ → Privacy (`PrivacySheet`), and what each page's protections did (the shell counts them). */
   let privacyOpen = $state(false);
+  /** Opened from ≡ → 🔥: the sheet asks to forget first, and closes once it has. */
+  let privacyAskFire = $state(false);
+  $effect(() => {
+    if (!privacyOpen) privacyAskFire = false;
+  });
   let pageCounts = $state<
     Record<string, { blocked?: number; cleaned?: number; upgraded?: number; banners?: number }>
   >({});
@@ -3095,6 +3110,12 @@
         onsettings={() => (settingsOpen = true)}
         onhelp={() => (helpOpen = true)}
         onprivacy={() => (privacyOpen = true)}
+        onfire={(globalThis as { __fmPage?: unknown }).__fmPage
+          ? () => {
+              privacyAskFire = true;
+              privacyOpen = true;
+            }
+          : undefined}
         onbackup={onBackup}
         onundo={() => void runUndo('undo')}
         onsavepage={workspace.panes[focused]?.kind === 'page' ? savePage : undefined}
@@ -3991,6 +4012,7 @@
           >
           <h2>Privacy</h2>
           <PrivacySheet
+            askFire={privacyAskFire}
             site={front?.kind === 'page' ? (front.url ?? '') : ''}
             counts={front?.kind === 'page' ? (pageCounts[front.id] ?? null) : null}
             vpn={phoneVpn()}

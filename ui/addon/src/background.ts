@@ -53,7 +53,10 @@ declare const browser: {
       index?: number;
     }>;
   };
-  windows: { update(id: number, d: { focused: boolean }): Promise<unknown> };
+  windows: {
+    update(id: number, d: { focused: boolean }): Promise<unknown>;
+    create(d: { incognito?: boolean; url?: string }): Promise<unknown>;
+  };
   runtime: {
     onMessage: {
       addListener(
@@ -1057,7 +1060,7 @@ omnibox.onInputEntered.addListener((text) => {
     alternatives.delete(m.token);
     return make()
       .then((to) => replaceIn(m.note, m.from, to))
-      .catch((e) => ({ ok: false, error: msg(e) }));
+      .catch((e: unknown) => ({ ok: false, error: msg(e) }));
   }
   if (m?.type === 'undo') {
     return replaceIn(m.note, m.from, '').catch((e) => ({ ok: false, error: msg(e) }));
@@ -1073,6 +1076,12 @@ omnibox.onInputEntered.addListener((text) => {
   if (m?.type === 'keep' && typeof m.tab === 'number') return keep(m.tab);
   if (m?.type === 'show' && m.server && m.id) return show(m.server, m.id);
   if (m?.type === 'server') return config().then((c) => ({ server: c.server }));
+  // The ant's *New private window* (2026-11-28): Firefox's own private window.
+  if (m?.type === 'private-window')
+    return browser.windows
+      .create({ incognito: true })
+      .then(() => ({ ok: true }))
+      .catch((e: unknown) => ({ ok: false, error: msg(e) }));
   // *Just the link instead*, after a save: the saved note goes, a bookmark comes.
   if (m?.type === 'link-instead' && typeof m.tab === 'number' && m.id) {
     const tab = m.tab;

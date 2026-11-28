@@ -52,7 +52,11 @@ def launch(ff: Path, profile: Path, url: str, prefs: str = "") -> "bc.Marionette
     if profile.exists():
         shutil.rmtree(profile)
     profile.mkdir(parents=True)
-    (profile / "user.js").write_text('user_pref("dom.disable_open_during_load", false);\n' + prefs)
+    # Silent (the owner, 2026-11-28: *"sometimes like now I hear a weird old modem like sound"*): the
+    # music player's test tones and the video pages play at volume nought, still playing, so the checks
+    # of what plays hold and nothing reaches the person's speakers.
+    (profile / "user.js").write_text('user_pref("dom.disable_open_during_load", false);\n'
+                                     'user_pref("media.volume_scale", "0.0");\n' + prefs)
     subprocess.Popen(
         [str(ff / "firefox"), "--headless", "--marionette", "-remote-allow-system-access", "--no-remote",
          "--name", "formicaria-check", "--profile", str(profile), url],

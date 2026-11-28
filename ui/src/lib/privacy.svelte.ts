@@ -80,9 +80,40 @@ export async function changePrivacy(change: ipc.PrivacyChange): Promise<void> {
     state.p = p;
     state.error = '';
     tell(p);
+    // **The fire button closes the web's tabs too** (2026-11-28, as DuckDuckGo's): the app closes its
+    // page tabs on this (the phone); the computer's browser closes its own (`formicaria.cfg`).
+    if (change.fire) globalThis.dispatchEvent?.(new CustomEvent(FIRED));
   } catch (e) {
     state.error = String(e);
   }
+}
+
+/** Sent when the fire button was pressed here: the app closes its web pages. */
+export const FIRED = 'fm-fired';
+
+/** How long the phone app may be away before *Forget on closing* forgets on its return. */
+export const AWAY_MS = 5 * 60 * 1000;
+let watchingClose = false;
+/** **Forget on closing, on the phone** (2026-11-28): when the app starts again (it was closed, or
+ *  Android stopped it) and when it comes back after five minutes or more away, as DuckDuckGo's
+ *  *app exit or inactive* choice. The computer's browser forgets as it closes (`formicaria.cfg`). */
+export function forgetOnClosing(now: () => number = Date.now): void {
+  if (watchingClose || !shell()) return;
+  watchingClose = true;
+  // After the first reading has been handed to the pages, so this press is the one they act on.
+  void (asked ?? loadPrivacy()).then(() => {
+    if (state.p?.fire_on_close) void changePrivacy({ fire: true });
+  });
+  let away = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      away = now();
+      return;
+    }
+    if (away && now() - away >= AWAY_MS && state.p?.fire_on_close)
+      void changePrivacy({ fire: true });
+    away = 0;
+  });
 }
 
 /** The address that searches the chosen engine for `words`. */

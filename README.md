@@ -92,7 +92,7 @@ The Android app: `pixi run android-init` once, then `pixi run android-release`.
 
 ## Project status
 
-**v0.63.6, and young.** One person's project since July 2026, built alongside their research. It
+**v0.63.7, and young.** One person's project since July 2026, built alongside their research. It
 is used daily on **Linux and Android**, the only platforms checked here. macOS, Windows and iPhone
 are built by CI on every release and have been reported working by other people on early versions,
 but nobody here has run the current one on them.

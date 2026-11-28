@@ -65,6 +65,16 @@ function draw() {
         '⤓',
       ),
     );
+    // **A private window** (2026-11-28): Firefox's own, with formicaria's protections and add-on in it.
+    list.append(
+      row(
+        'New private window',
+        () =>
+          void browser.runtime.sendMessage({ type: 'private-window' }).then(() => window.close()),
+        '',
+        '🕶',
+      ),
+    );
     list.append(row('Privacy', () => openPath('/f/privacy'), '', '🛡'));
     list.append(row('Settings', () => openPath('/f/settings'), '', '⚙'));
     list.append(row('Help', () => openPath('/manual/'), '', '?'));

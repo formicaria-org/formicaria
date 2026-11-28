@@ -19,6 +19,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
 import android.webkit.WebViewClient
 import android.net.http.SslError
+import androidx.webkit.CookieManagerCompat
 import androidx.webkit.ScriptHandler
 import androidx.media3.common.Player
 import android.widget.FrameLayout
@@ -852,15 +853,95 @@ class MainActivity : TauriActivity() {
     scripts[id] = PagePrivacy.startScripts().map { WebViewCompat.addDocumentStartJavaScript(page, it, setOf("*")) }
   }
 
-  /** The fire button: every page's cookies, stored data, cache and history, not formicaria's own. */
+  /** **The sites the pages reached** (2026-11-28): what the fire button deletes site by site. Android
+   *  lists no origin's *localStorage* (`WebStorage.getOrigins` sees only its older stores), so 🔥 had
+   *  left every site's stored data in place (found by `phone-media-check`). Kept across starts, as the
+   *  data is; at most `MAX_VISITED` names. */
+  private val visitedHosts: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+  private fun visitedPrefs() = getSharedPreferences("visited", MODE_PRIVATE)
+  private var visitedLoaded = false
+  private fun visited(host: String) {
+    if (!visitedLoaded) loadVisited()
+    if (visitedHosts.size < MAX_VISITED && visitedHosts.add(host.lowercase())) visitedDirty = true
+  }
+  @Volatile private var visitedDirty = false
+  private fun loadVisited() {
+    visitedLoaded = true
+    visitedHosts.addAll(visitedPrefs().getStringSet("hosts", emptySet())!!)
+  }
+  private fun saveVisited() {
+    if (!visitedDirty) return
+    visitedDirty = false
+    visitedPrefs().edit().putStringSet("hosts", HashSet(visitedHosts)).apply()
+  }
+  /** **A site's stored data, wiped from inside the site** (2026-11-28): a blank page given the site's
+   *  address (`loadDataWithBaseURL`, so nothing is fetched) in a hidden view clears its local and
+   *  session storage, databases, caches and service workers, one site after another. The way that
+   *  works on every WebView: `deleteBrowsingDataForSite` needs a newer one than the emulator's (124)
+   *  and than many phones without Google's updates. */
+  private fun wipeSites(hosts: List<String>) {
+    if (hosts.isEmpty()) return
+    val queue = ArrayDeque(hosts.flatMap { listOf("https://$it/", "http://$it/") })
+    val v = WebView(this)
+    v.settings.javaScriptEnabled = true
+    v.settings.domStorageEnabled = true
+    val main = android.os.Handler(android.os.Looper.getMainLooper())
+    var current = ""
+    fun next() {
+      val base = queue.removeFirstOrNull()
+      if (base == null) { v.destroy(); return }
+      current = base
+      v.loadDataWithBaseURL(base, WIPE_HTML, "text/html", "utf-8", null)
+      // A page that never answers does not hold up the rest.
+      main.postDelayed({ if (current == base) next() }, 3000)
+    }
+    v.addJavascriptInterface(object {
+      @JavascriptInterface fun done(base: String) { main.post { if (current == base) next() } }
+    }, "__fmWipe")
+    next()
+  }
+
+  /** Two names of one site, roughly (their last two labels): a kept site's neighbours are spared. */
+  private fun sameSite(a: String, b: String): Boolean {
+    val tail = { h: String -> h.split('.').takeLast(2).joinToString(".") }
+    return a == b || a.endsWith(".$b") || b.endsWith(".$a") || tail(a) == tail(b)
+  }
+
+  /** The fire button: every page's cookies, stored data, cache and history, not formicaria's own,
+   *  and not the sign-in of the sites kept signed in (*Fireproof*, 2026-11-28): their cookies are
+   *  read whole, with their attributes (`getCookieInfo`), before every cookie goes, and put back; their
+   *  stored data is not deleted. The app closes the page tabs (`FIRED`, `privacy.svelte.ts`). */
   private fun forget() {
-    CookieManager.getInstance().removeAllCookies(null)
-    CookieManager.getInstance().flush()
+    val cm = CookieManager.getInstance()
+    val keep = mutableListOf<Pair<String, String>>()
+    if (PagePrivacy.fireproof.isNotEmpty() && WebViewFeature.isFeatureSupported(WebViewFeature.GET_COOKIE_INFO)) {
+      val seen = HashSet<String>()
+      for (site in PagePrivacy.fireproof) for (url in listOf("https://$site", "https://www.$site", "http://$site"))
+        try {
+          for (c in CookieManagerCompat.getCookieInfo(cm, url)) if (seen.add(c)) keep.add(url to c)
+        } catch (e: Exception) { }
+    }
+    cm.removeAllCookies {
+      for ((url, c) in keep) try { cm.setCookie(url, c) } catch (e: Exception) { }
+      cm.flush()
+    }
     val mine = wv?.url?.let { Uri.parse(it) }?.let { "${it.scheme}://${it.authority}" }
+    // Site by site, everything the pages left (cookies, stored data, cache), except the kept sites
+    // and formicaria's own; their names then forgotten too.
+    if (!visitedLoaded) loadVisited()
+    val ownHost = mine?.let { Uri.parse(it).host } ?: ""
+    val burn = visitedHosts.toList().filter { h ->
+      h != ownHost && h != "localhost" && h != "127.0.0.1" && !h.endsWith(".localhost") &&
+        PagePrivacy.fireproof.none { sameSite(h, it) }
+    }
+    wipeSites(burn)
+    visitedHosts.removeAll(burn.toSet())
+    visitedDirty = true
+    saveVisited()
     WebStorage.getInstance().getOrigins { m ->
       for (o in (m as? Map<*, *>)?.keys ?: emptySet<Any>()) {
         val s = o.toString()
-        if (mine == null || !s.startsWith(mine)) WebStorage.getInstance().deleteOrigin(s)
+        if ((mine == null || !s.startsWith(mine)) && !PagePrivacy.kept(s)) WebStorage.getInstance().deleteOrigin(s)
       }
     }
     pages.values.forEach { it.clearCache(true); it.clearHistory(); it.clearFormData() }
@@ -950,6 +1031,9 @@ class MainActivity : TauriActivity() {
       /// Every request the page makes: media ones are remembered for Save media.
       override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): android.webkit.WebResourceResponse? {
         val u = req.url.toString()
+        // A page or a frame (only those can store anything): its site, for the fire button.
+        val dest = req.requestHeaders["Sec-Fetch-Dest"] ?: req.requestHeaders["sec-fetch-dest"]
+        if (req.isForMainFrame || dest == "iframe" || dest == "frame") req.url.host?.let { visited(it) }
         val pageUrl = pageUrls[id] ?: ""
         if ((PagePrivacy.trackers || PagePrivacy.ads) && !PagePrivacy.off(pageUrl) && !req.isForMainFrame) {
           val h = req.requestHeaders
@@ -1386,6 +1470,12 @@ class MainActivity : TauriActivity() {
     lookWatchFolder()
   }
 
+  override fun onPause() {
+    super.onPause()
+    // The sites the pages reached, kept for the fire button across starts.
+    try { saveVisited() } catch (e: Exception) { }
+  }
+
   companion object {
     /// **What was brought in from a page** (`Pages.bring`), waiting for the app to take it: the
     /// selection's HTML and words, or the page itself, with the page's exact address and title, and
@@ -1422,6 +1512,17 @@ class MainActivity : TauriActivity() {
     /// After *Sync now*, the folder's looks while Gadgetbridge syncs and exports.
     private val WATCH_SYNC_LOOKS = listOf(30_000L, 90_000L, 180_000L)
     /// The most of a page's HTML handed over to be saved (characters).
+    /** The page `wipeSites` gives each site's address: it clears what the site stored, then says so. */
+    private const val WIPE_HTML = """<!doctype html><script>(async () => {
+  try { localStorage.clear(); } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+  try { for (const d of await indexedDB.databases()) indexedDB.deleteDatabase(d.name); } catch (e) {}
+  try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+  try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (e) {}
+  __fmWipe.done(location.origin + '/');
+})();</script>"""
+    /** At most this many site names remembered for the fire button. */
+    private const val MAX_VISITED = 20_000
     private const val MAX_PAGE = 5_000_000
     /// The selection bar's *Bring into note*.
     private const val BRING_ITEM = 0x666d

@@ -274,6 +274,9 @@ pub fn policies(
             "runtime_allowed_hosts": ["*://127.0.0.1"],
             // On the toolbar, not inside the Extensions menu (owner, 2026-11-15).
             "default_area": "navbar",
+            // **In private windows too** (2026-11-28): Bring in, ☆'s note and the ant work there,
+            // and the ant opens one. Firefox keeps add-ons out of private windows unless told.
+            "private_browsing": true,
         }),
     );
     // Offered, never forbidden: a switch off means formicaria does not install it, and the person
@@ -286,7 +289,12 @@ pub fn policies(
                 format!("https://addons.mozilla.org/firefox/downloads/latest/{slug}/latest.xpi");
             ext.insert(
                 (*id).into(),
-                json!({ "installation_mode": "normal_installed", "install_url": url }),
+                // Protection in private windows as in the others (2026-11-28).
+                json!({
+                    "installation_mode": "normal_installed",
+                    "install_url": url,
+                    "private_browsing": true,
+                }),
             );
         }
     }
@@ -825,6 +833,14 @@ mod tests {
         assert_eq!(pol["DisableTelemetry"], true);
         // uBlock Origin Lite comes with *Block ads*, on by default (2026-11-19), and is never forbidden.
         assert_eq!(pol["ExtensionSettings"][UBLOCK_ID]["installation_mode"], "normal_installed");
+        assert_eq!(
+            pol["ExtensionSettings"][UBLOCK_ID]["private_browsing"], true,
+            "ads blocked in private windows too"
+        );
+        assert_eq!(
+            pol["ExtensionSettings"][ADDON_ID]["private_browsing"], true,
+            "the ant in private windows too"
+        );
         let off = policies(
             Path::new("/x"),
             "K",

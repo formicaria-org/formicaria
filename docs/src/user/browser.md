@@ -82,6 +82,12 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
   end. The address row appears only on web pages, which need one, and has its own ← and →.
 - **Settings is always at the top right** (⚙, at the right end of the tab row), on every tab: a note,
   a feature, a web page. It opens Settings in a tab of its own, or goes to the one already open.
+- **🔥 beside ⚙ forgets the web**: it asks first, then closes the web's tabs and forgets their
+  cookies, stored data, cache and history, keeping formicaria's tabs and the sites you keep signed in.
+  [Forget web data](./privacy.md#forget-web-data-).
+- **A private window**: the ant's **New private window**, or **Ctrl+Shift+P**. It is Firefox's own:
+  nothing from it is remembered once it closes. formicaria's protections, ad blocking and its button
+  work in it as in any window.
 - **Every tab is one thing**: a feature (Notes, Tasks, Agenda, Food journal, Fitness, Health, Music), a
   single note, or a web page. A feature's tab starts with its line: the feature's name (**Food ▾**)
   switches *this* tab to another feature (Back returns), and its views follow (Day · Menu · Trends).
@@ -94,7 +100,8 @@ Then press **Open in formicaria** to go to the note. It is yours: edit it, tag i
   view), for any two tabs.
 - **Switch back in one press**: **Alt+Shift+X** goes to the tab you had before, and again to come back.
 - Close any tab as you would any tab: its **×**, **Ctrl+W**, or a middle-click.
-- **Your tabs come back** when the browser starts again. An old whole-app tab becomes Notes.
+- **Your tabs come back** when the browser starts again, unless **Forget when closing** is on (then
+  only formicaria's own tabs do). An old whole-app tab becomes Notes.
 - **Updates restart the browser by themselves.** After formicaria updates, its browser saves what you
   were typing in every open note, closes, and opens again on the same tabs within a minute, with the
   update in place. Nothing to do by hand.
@@ -207,7 +214,8 @@ never lost. If formicaria cannot take a file, it is saved to Downloads and a not
 ## Privacy and media
 
 - The ant's **Privacy** opens formicaria's privacy switches (search engine, trackers, ads, cookie
-  pop-ups, tracking links, Global Privacy Control, secure connections, forgetting web data); they
+  pop-ups, tracking links, Global Privacy Control, secure connections, forgetting web data, sites kept
+  signed in, forgetting when closing); they
   are Firefox's own protections, set from one place. [Privacy](./privacy.md).
 - The ant's **Save media on this page**, or right-click → **Save media in formicaria…**, keeps a
   page's video or sound in your library. [Saving media](./media.md).
